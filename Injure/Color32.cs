@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -15,7 +16,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 255) : IEquatabl
 	public readonly byte A = a;
 
 	public bool Equals(Color32 other) => R == other.R && G == other.G && B == other.B && A == other.A;
-	public override bool Equals(object? obj) => obj is Color32 other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is Color32 other && Equals(other);
 	public override int GetHashCode() => (int)(((uint)R << 24) | ((uint)G << 16) | ((uint)B << 8) | A);
 	public static bool operator ==(Color32 left, Color32 right) => left.Equals(right);
 	public static bool operator !=(Color32 left, Color32 right) => !left.Equals(right);

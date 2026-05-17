@@ -12,7 +12,7 @@
 		<Version>0.1.0-alpha.0</Version>
 		<Authors>AtBelshftl</Authors>
 		<Description>the game framework/engine colloquially known as Injure</Description>
-		<RepositoryUrl>https://github.com/ovs-game/Injure</RepositoryUrl>
+		<RepositoryUrl>https://github.com/belshftl/Injure</RepositoryUrl>
 	</PropertyGroup>
 
 	<PropertyGroup>
@@ -21,9 +21,9 @@
         </PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="../Injure.Analyzers/Injure.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="../Injure.Internals.Analyzers/Injure.Internals.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		<ProjectReference Include="../Injure.Native/Injure.Native.csproj" />
-		<InternalsVisibleTo Include="Injure.Tests" />
+		<InternalsVisibleTo Include="Injure.Internals.Tests" />
 	</ItemGroup>
 
 	<ItemGroup>

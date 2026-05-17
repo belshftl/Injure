@@ -9,8 +9,7 @@
 		<Version>0.1.0-alpha.0</Version>
 		<Authors>AtBelshftl</Authors>
 		<Description>native code / dependencies for the game framework/engine colloquially known as Injure</Description>
-		<RepositoryUrl>https://github.com/ovs-game/Injure</RepositoryUrl>
-		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<RepositoryUrl>https://github.com/belshftl/Injure</RepositoryUrl>
 	</PropertyGroup>
 
 	<ItemGroup>

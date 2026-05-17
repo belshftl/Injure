@@ -1,7 +1,8 @@
 <Solution>
 	<Project Path="Injure/Injure.csproj" />
-	<Project Path="Injure.Analyzers/Injure.Analyzers.csproj" />
+	<Project Path="Injure.Internals.Analyzers/Injure.Internals.Analyzers.csproj" />
+	<Project Path="Injure.Internals.Tests/Injure.Internals.Tests.csproj" />
 	<Project Path="Injure.ModKit/Injure.ModKit.csproj" />
 	<Project Path="Injure.Native/Injure.Native.csproj" />
-	<Project Path="Injure.Tests/Injure.Tests.csproj" />
+	<Project Path="Injure.Weaver/Injure.Weaver.csproj" />
 </Solution>

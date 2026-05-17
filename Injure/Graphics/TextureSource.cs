@@ -2,6 +2,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using Injure.Assets;
@@ -33,7 +34,7 @@ public readonly struct TextureSource : IEquatable<TextureSource> {
 		new(asset, TextureSourceKind.Texture2DAssetRef);
 
 	public bool Equals(TextureSource other) => ReferenceEquals(val, other.val) && Kind == other.Kind;
-	public override bool Equals(object? obj) => obj is TextureSource other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is TextureSource other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(RuntimeHelpers.GetHashCode(val), (int)Kind);
 	public static bool operator ==(TextureSource left, TextureSource right) => left.Equals(right);
 	public static bool operator !=(TextureSource left, TextureSource right) => !left.Equals(right);

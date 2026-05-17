@@ -50,7 +50,7 @@ public readonly struct Semver : IEquatable<Semver>, IParsable<Semver> {
 	public bool Equals(Semver other) => Major == other.Major && Minor == other.Minor && Patch == other.Patch &&
 		string.Equals(Prerelease, other.Prerelease, StringComparison.Ordinal) &&
 		string.Equals(BuildMetadata, other.BuildMetadata, StringComparison.Ordinal);
-	public override bool Equals(object? obj) => obj is Semver other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is Semver other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Major, Minor, Patch, Prerelease, BuildMetadata);
 	public static bool operator ==(Semver left, Semver right) => left.Equals(right);
 	public static bool operator !=(Semver left, Semver right) => !left.Equals(right);

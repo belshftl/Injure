@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.ModKit.Abstractions;
 

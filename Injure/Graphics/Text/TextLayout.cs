@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Numerics;
 using HarfBuzzSharp;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Graphics.Text;
 

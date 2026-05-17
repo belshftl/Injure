@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Injure.Coroutines;
 
@@ -11,7 +12,7 @@ public readonly struct CoroutineHandle(int slot, int generation) : IEquatable<Co
 	public readonly bool IsValid => Generation > 0;
 
 	public bool Equals(CoroutineHandle other) => Slot == other.Slot && Generation == other.Generation;
-	public override bool Equals(object? obj) => obj is CoroutineHandle other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CoroutineHandle other && Equals(other);
 	public override int GetHashCode() => unchecked((Slot * 397) ^ Generation);
 	public static bool operator ==(CoroutineHandle left, CoroutineHandle right) => left.Equals(right);
 	public static bool operator !=(CoroutineHandle left, CoroutineHandle right) => !left.Equals(right);

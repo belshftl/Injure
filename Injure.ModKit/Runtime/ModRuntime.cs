@@ -125,11 +125,15 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	public async ValueTask DiscoverAsync(CancellationToken ct) {
 		requirePhase(RuntimePhase.Empty, nameof(DiscoverAsync));
 		List<DiscoveredMod> result = new();
-		foreach (string manifestPath in Directory.EnumerateFiles(modDir, ManifestJson, SearchOption.AllDirectories)) {
-			ct.ThrowIfCancellationRequested();
-			ModManifest manifest = await ManifestReader.ReadAsync(manifestPath, ct).ConfigureAwait(false);
-			string root = Path.GetDirectoryName(manifestPath)!;
-			result.Add(new DiscoveredMod(new ModSource(root, manifestPath), manifest));
+		try {
+			foreach (string manifestPath in Directory.EnumerateFiles(modDir, ManifestJson, SearchOption.AllDirectories)) {
+				ct.ThrowIfCancellationRequested();
+				ModManifest manifest = await ManifestReader.ReadAsync(manifestPath, ct).ConfigureAwait(false);
+				string root = Path.GetDirectoryName(manifestPath)!;
+				result.Add(new DiscoveredMod(new ModSource(root, manifestPath), manifest));
+			}
+		} catch (DirectoryNotFoundException) {
+			// swallow
 		}
 		discovered = result;
 		phase = RuntimePhase.Discovered;
@@ -475,7 +479,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 		ModAlc alc = new(stagedMod.MainAssemblyPath, sharedAssemblies, $"mod:{manifest.OwnerID}:{stagedMod.Generation}");
 		Assembly assembly = alc.LoadFromAssemblyPath(stagedMod.MainAssemblyPath);
-		validateAssemblyHotReloadAttribute(manifest, assembly);
+		validateModAssemblyAttribute(manifest, assembly);
 		Type entryType = EntrypointDiscovery.FindEntrypointType(assembly, typeof(TGameApi), stagedMod.MainAssemblyPath);
 		IModEntrypoint<TGameApi> entrypoint = (IModEntrypoint<TGameApi>)Activator.CreateInstance(entryType)!;
 
@@ -627,11 +631,15 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		};
 	}
 
-	private static void validateAssemblyHotReloadAttribute(CodeModManifest manifest, Assembly assembly) {
-		HotReloadLevelAttribute attribute = assembly.GetCustomAttribute<HotReloadLevelAttribute>() ??
-			throw new ModLoadException(manifest.OwnerID, "entry assembly is missing HotReloadLevel attribute");
-		if (attribute.Level != (AssemblyHotReloadLevel)manifest.CodeHotReload)
-			throw new ModLoadException(manifest.OwnerID, $"manifest code-hot-reload '{manifest.CodeHotReload}' does not match assembly attribute '{attribute.Level}'");
+	private static void validateModAssemblyAttribute(CodeModManifest manifest, Assembly assembly) {
+		ModAssemblyAttribute attribute = assembly.GetCustomAttribute<ModAssemblyAttribute>() ??
+			throw new ModLoadException(manifest.OwnerID, "entry assembly is missing ModAssembly attribute");
+		if (!ModMetadataValidation.ValidateOwnerID(attribute.OwnerID, out string? err))
+			throw new ModLoadException(manifest.OwnerID, $"assembly attribute OwnerID '{attribute.OwnerID}' is invalid: {err}");
+		if (attribute.OwnerID != manifest.OwnerID)
+			throw new ModLoadException(manifest.OwnerID, $"manifest id '{manifest.OwnerID}' does not match assembly attribute OwnerID '{attribute.OwnerID}'");
+		if (attribute.HotReloadLevel != (ModAssemblyHotReloadLevel)manifest.CodeHotReload)
+			throw new ModLoadException(manifest.OwnerID, $"manifest code-hot-reload '{manifest.CodeHotReload}' does not match assembly attribute HotReloadLevel '{attribute.HotReloadLevel}'");
 	}
 
 	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) {

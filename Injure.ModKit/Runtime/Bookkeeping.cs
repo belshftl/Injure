@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 using Injure.ModKit.Abstractions;
 using Injure.ModKit.Loader;
 using Injure.ModKit.MonoMod;

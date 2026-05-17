@@ -5,7 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Assets;
 

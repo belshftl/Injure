@@ -3,7 +3,7 @@
 using System;
 using System.Numerics;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 using Injure.Timing;
 
 namespace Injure.Input;

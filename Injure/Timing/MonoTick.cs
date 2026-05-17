@@ -2,8 +2,8 @@
 
 using System;
 
-using Injure.Analyzers.Attributes;
 using Injure.Core;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Timing;
 

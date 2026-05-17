@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 using Injure.DataStructures;
 
@@ -13,7 +14,7 @@ public readonly struct LayerTag : IEquatable<LayerTag> {
 	}
 
 	public bool Equals(LayerTag other) => ID == other.ID;
-	public override bool Equals(object? obj) => obj is LayerTag other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is LayerTag other && Equals(other);
 	public override int GetHashCode() => ID.GetHashCode();
 	public static bool operator ==(LayerTag left, LayerTag right) => left.Equals(right);
 	public static bool operator !=(LayerTag left, LayerTag right) => !left.Equals(right);

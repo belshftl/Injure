@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Input;
 
@@ -70,7 +71,7 @@ public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
 	}
 
 	public bool Equals(InputButtonSource other) => Kind == other.Kind && key == other.key && pointerButton == other.pointerButton && gamepadButton == other.gamepadButton;
-	public override bool Equals(object? obj) => obj is InputButtonSource other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is InputButtonSource other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Kind, key, pointerButton, gamepadButton);
 	public static bool operator ==(InputButtonSource left, InputButtonSource right) => left.Equals(right);
 	public static bool operator !=(InputButtonSource left, InputButtonSource right) => !left.Equals(right);
@@ -93,7 +94,7 @@ public readonly struct DigitalAxisSource : IEquatable<DigitalAxisSource> {
 	}
 
 	public bool Equals(DigitalAxisSource other) => Negative == other.Negative && Positive == other.Positive && SOCD == other.SOCD;
-	public override bool Equals(object? obj) => obj is DigitalAxisSource other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is DigitalAxisSource other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Negative, Positive, SOCD);
 	public static bool operator ==(DigitalAxisSource left, DigitalAxisSource right) => left.Equals(right);
 	public static bool operator !=(DigitalAxisSource left, DigitalAxisSource right) => !left.Equals(right);
@@ -131,7 +132,7 @@ public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource> {
 		new(InputStateAxisSourceKind.DigitalPair, default, new DigitalAxisSource(negative, positive, socd));
 
 	public bool Equals(InputStateAxisSource other) => Kind == other.Kind && gamepadAxis == other.gamepadAxis && digital.Equals(other.digital);
-	public override bool Equals(object? obj) => obj is InputStateAxisSource other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is InputStateAxisSource other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Kind, gamepadAxis, digital);
 	public static bool operator ==(InputStateAxisSource left, InputStateAxisSource right) => left.Equals(right);
 	public static bool operator !=(InputStateAxisSource left, InputStateAxisSource right) => !left.Equals(right);
@@ -183,7 +184,7 @@ public readonly struct DigitalAxis2DSource : IEquatable<DigitalAxis2DSource> {
 	public bool Equals(DigitalAxis2DSource other) =>
 		Left == other.Left && Right == other.Right && Up == other.Up && Down == other.Down &&
 		XSOCD == other.XSOCD && YSOCD == other.YSOCD;
-	public override bool Equals(object? obj) => obj is DigitalAxis2DSource other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is DigitalAxis2DSource other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Left, Right, Up, Down, XSOCD, YSOCD);
 	public static bool operator ==(DigitalAxis2DSource left, DigitalAxis2DSource right) => left.Equals(right);
 	public static bool operator !=(DigitalAxis2DSource left, DigitalAxis2DSource right) => !left.Equals(right);
@@ -194,7 +195,7 @@ public readonly struct StateAxis2DPairSource(InputStateAxisSource x, InputStateA
 	public InputStateAxisSource Y { get; } = y;
 
 	public bool Equals(StateAxis2DPairSource other) => X == other.X && Y == other.Y;
-	public override bool Equals(object? obj) => obj is StateAxis2DPairSource other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is StateAxis2DPairSource other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(X, Y);
 	public static bool operator ==(StateAxis2DPairSource left, StateAxis2DPairSource right) => left.Equals(right);
 	public static bool operator !=(StateAxis2DPairSource left, StateAxis2DPairSource right) => !left.Equals(right);
@@ -234,7 +235,7 @@ public readonly struct InputStateAxis2DSource : IEquatable<InputStateAxis2DSourc
 		new(InputStateAxis2DSourceKind.Pair, default, default, new StateAxis2DPairSource(x, y));
 
 	public bool Equals(InputStateAxis2DSource other) => Kind == other.Kind && stick == other.stick && digital.Equals(other.digital) && pair.Equals(other.pair);
-	public override bool Equals(object? obj) => obj is InputStateAxis2DSource other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is InputStateAxis2DSource other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Kind, stick, digital, pair);
 	public static bool operator ==(InputStateAxis2DSource left, InputStateAxis2DSource right) => left.Equals(right);
 	public static bool operator !=(InputStateAxis2DSource left, InputStateAxis2DSource right) => !left.Equals(right);
@@ -271,7 +272,7 @@ public readonly struct InputImpulseAxisSource : IEquatable<InputImpulseAxisSourc
 		new(InputImpulseAxisSourceKind.PointerWheel, axis);
 
 	public bool Equals(InputImpulseAxisSource other) => Kind == other.Kind && wheelAxis == other.wheelAxis;
-	public override bool Equals(object? obj) => obj is InputImpulseAxisSource other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is InputImpulseAxisSource other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Kind, wheelAxis);
 	public static bool operator ==(InputImpulseAxisSource left, InputImpulseAxisSource right) => left.Equals(right);
 	public static bool operator !=(InputImpulseAxisSource left, InputImpulseAxisSource right) => !left.Equals(right);

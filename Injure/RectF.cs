@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -252,7 +253,7 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// </summary>
 	/// <param name="other">The rectangle to compare with this rectangle.</param>
 	public bool Equals(RectF other) => X == other.X && Y == other.Y && Width == other.Width && Height == other.Height;
-	public override bool Equals(object? obj) => obj is RectF other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is RectF other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(X, Y, Width, Height);
 	public static bool operator ==(RectF left, RectF right) => left.Equals(right);
 	public static bool operator !=(RectF left, RectF right) => !left.Equals(right);

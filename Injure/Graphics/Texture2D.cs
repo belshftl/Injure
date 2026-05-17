@@ -5,9 +5,9 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-using Injure.Analyzers.Attributes;
 using Injure.Assets;
 using Injure.Graphics.PixelConv;
+using Injure.Internals.Analyzers.Attributes;
 using Injure.Rendering;
 
 namespace Injure.Graphics;

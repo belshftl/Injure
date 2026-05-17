@@ -45,7 +45,7 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 	}
 
 	public bool Equals(AssetID other) => Namespace == other.Namespace && Path == other.Path;
-	public override bool Equals(object? obj) => obj is AssetID other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is AssetID other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Namespace, Path);
 	public static bool operator ==(AssetID left, AssetID right) => left.Equals(right);
 	public static bool operator !=(AssetID left, AssetID right) => !left.Equals(right);

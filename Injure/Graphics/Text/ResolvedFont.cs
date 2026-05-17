@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using FreeTypeSharp;
@@ -9,9 +10,8 @@ using static FreeTypeSharp.FT;
 using static FreeTypeSharp.FT_LOAD;
 using static FreeTypeSharp.FT_Render_Mode_;
 
-using Injure.Analyzers.Attributes;
 using Injure.Assets;
-using System.Diagnostics;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Graphics.Text;
 

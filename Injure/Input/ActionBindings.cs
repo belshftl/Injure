@@ -2,7 +2,7 @@
 
 using System.Numerics;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Input;
 

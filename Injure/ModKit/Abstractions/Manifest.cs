@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.ModKit.Abstractions;
 
@@ -24,7 +24,7 @@ public readonly partial struct ModRelationshipKind {
 }
 
 [ClosedEnum(DefaultIsInvalid = true)]
-[ClosedEnumMirror(typeof(AssemblyHotReloadLevel))]
+[ClosedEnumMirror(typeof(ModAssemblyHotReloadLevel))]
 public readonly partial struct ModCodeHotReloadLevel {
 	public enum Case {
 		None = 1,
