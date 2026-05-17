@@ -2,8 +2,8 @@
 
 using System;
 
-using Injure.Analyzers.Attributes;
 using Injure.Graphics;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Core;
 

@@ -2,10 +2,10 @@
 
 using System;
 
-using Injure.Analyzers.Attributes;
 using Injure.Coroutines;
 using Injure.Graphics;
 using Injure.Input;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Layers;
 

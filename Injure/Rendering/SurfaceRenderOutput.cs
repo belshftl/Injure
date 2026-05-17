@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using WebGPU;
 using static WebGPU.WebGPU;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Rendering;
 

@@ -6,9 +6,9 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-using Injure.Analyzers.Attributes;
 using Injure.Assets;
 using Injure.Assets.Builtin;
+using Injure.Internals.Analyzers.Attributes;
 using Injure.Rendering;
 
 namespace Injure.Graphics;

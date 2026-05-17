@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,7 +17,7 @@ public readonly struct SizeI(int width, int height) : IEquatable<SizeI> {
 	public static readonly SizeI Zero = new(0, 0);
 
 	public bool Equals(SizeI other) => Width == other.Width && Height == other.Height;
-	public override bool Equals(object? obj) => obj is SizeI other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is SizeI other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Width, Height);
 	public static bool operator ==(SizeI left, SizeI right) => left.Equals(right);
 	public static bool operator !=(SizeI left, SizeI right) => !left.Equals(right);

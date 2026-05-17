@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Hexa.NET.SDL3;
 
@@ -17,7 +18,7 @@ public readonly struct InputCursor : IEquatable<InputCursor>, IComparable<InputC
 	}
 
 	public bool Equals(InputCursor other) => Seq == other.Seq;
-	public override bool Equals(object? obj) => obj is InputCursor other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is InputCursor other && Equals(other);
 	public override int GetHashCode() => Seq.GetHashCode();
 	public int CompareTo(InputCursor other) => Seq.CompareTo(other.Seq);
 

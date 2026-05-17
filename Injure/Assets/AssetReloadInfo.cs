@@ -4,7 +4,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Assets;
 

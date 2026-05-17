@@ -6,8 +6,8 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 
-using Injure.Analyzers.Attributes;
 using Injure.Assets;
+using Injure.Internals.Analyzers.Attributes;
 using Injure.Rendering;
 
 namespace Injure.Graphics;
@@ -51,7 +51,7 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 	}
 
 	public bool Equals(CanvasTarget other) => ReferenceEquals(rtBacking, other.rtBacking);
-	public override bool Equals(object? obj) => obj is CanvasTarget other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasTarget other && Equals(other);
 	public override int GetHashCode() => rtBacking?.GetHashCode() ?? 0;
 	public static bool operator ==(CanvasTarget left, CanvasTarget right) => left.Equals(right);
 	public static bool operator !=(CanvasTarget left, CanvasTarget right) => !left.Equals(right);
@@ -131,7 +131,7 @@ public readonly struct CanvasScissor : IEquatable<CanvasScissor> {
 	public static CanvasScissor Intersect(RectI rect) => new(CanvasScissorKind.Intersect, rect);
 
 	public bool Equals(CanvasScissor other) => Kind == other.Kind && Rect.Equals(other.Rect);
-	public override bool Equals(object? obj) => obj is CanvasScissor other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasScissor other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine((int)Kind.Tag, Rect);
 	public static bool operator ==(CanvasScissor left, CanvasScissor right) => left.Equals(right);
 	public static bool operator !=(CanvasScissor left, CanvasScissor right) => !left.Equals(right);
@@ -163,7 +163,7 @@ public readonly struct CanvasOutputState : IEquatable<CanvasOutputState> {
 	}
 
 	public bool Equals(CanvasOutputState other) => eq(Blend, other.Blend) && WriteMask == other.WriteMask;
-	public override bool Equals(object? obj) => obj is CanvasOutputState other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasOutputState other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(hash(Blend), (int)WriteMask.Mask);
 	public static bool operator ==(CanvasOutputState left, CanvasOutputState right) => left.Equals(right);
 	public static bool operator !=(CanvasOutputState left, CanvasOutputState right) => !left.Equals(right);
@@ -202,7 +202,7 @@ public readonly struct CanvasMaterial : IEquatable<CanvasMaterial> {
 	public SdfParams? SdfParams { get; init; }
 
 	public bool Equals(CanvasMaterial other) => TextureInterpretation == other.TextureInterpretation && SdfParams == other.SdfParams;
-	public override bool Equals(object? obj) => obj is CanvasMaterial other && Equals(other);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasMaterial other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine((int)TextureInterpretation.Tag, SdfParams);
 	public static bool operator ==(CanvasMaterial left, CanvasMaterial right) => left.Equals(right);
 	public static bool operator !=(CanvasMaterial left, CanvasMaterial right) => !left.Equals(right);

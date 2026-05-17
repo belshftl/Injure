@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-using Injure.Analyzers.Attributes;
+using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Core;
 

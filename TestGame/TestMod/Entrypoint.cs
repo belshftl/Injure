@@ -12,7 +12,7 @@ using Injure.ModKit.MonoMod;
 using MonoMod.Cil;
 using TestGame.ModApi;
 
-[assembly: HotReloadLevel(AssemblyHotReloadLevel.SafeBoundary)]
+[assembly: ModAssembly("jdoe.test-mod", ModAssemblyHotReloadLevel.SafeBoundary)]
 
 namespace TestMod;
 
@@ -31,11 +31,10 @@ public sealed class Entrypoint : IModEntrypoint<ITestGameModApi> {
 
 	public ValueTask UnloadAsync(CancellationToken ct) => ValueTask.CompletedTask;
 
-	[LoadILHook(TestGame.Hooks.GameplayLayer.GetSomeColor)]
+	[LoadILHook(TestGame.RawHooks.GameplayLayer.GetSomeColor)]
 	public static void IL_GameplayLayer_GetSomeColor(ILContext il) {
 		ILCursor c = new(il);
-		//c.RequireGotoNext("ldsfld Injure.Color32::Magenta", static i => i.MatchLdsfld<Color32>(nameof(Color32.Magenta)));
-		c.RequireGotoNext("ldc.i4 42", static i => i.MatchLdcI4(42));
+		c.RequireGotoNext("ldsfld Injure.Color32::Magenta", static i => i.MatchLdsfld<Color32>(nameof(Color32.Magenta)));
 		FieldInfo fi = typeof(Color32).GetField(nameof(Color32.Green), BindingFlags.Static | BindingFlags.Public) ??
 			throw new MissingFieldException("Color32.Green unexpectedly missing");
 		c.Remove(); // TODO: avoid destructive IL edits, they can mess up IL hooks from other mods
