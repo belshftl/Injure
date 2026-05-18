@@ -6,7 +6,7 @@ using Mono.Cecil;
 
 namespace Injure.Weaver.Patching;
 
-public static class TypeNameUtility {
+public static class TypeNameUtil {
 	public static (string Namespace, string Name) SplitFullTypeName(string fullName) {
 		int index = fullName.LastIndexOf('.');
 		if (index < 0)

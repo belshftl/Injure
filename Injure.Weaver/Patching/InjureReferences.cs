@@ -6,8 +6,20 @@ using Mono.Cecil;
 namespace Injure.Weaver.Patching;
 
 public sealed class InjureReferences {
+	public const string PublicizedAttributeFullName = "Injure.ModKit.Abstractions.Weaver.PublicizedAttribute";
+	public const string PublicizedSignatureAttributeFullName = "Injure.ModKit.Abstractions.Weaver.PublicizedSignatureAttribute";
+	public const string PublicizedStateMachineAttributeFullName = "Injure.ModKit.Abstractions.Weaver.PublicizedStateMachineAttribute";
+	public const string ModHookTargetStoreAttributeFullName = "Injure.ModKit.Abstractions.MonoMod.ModHookTargetStoreAttribute";
+	public const string HookTargetFullName = "Injure.ModKit.Abstractions.MonoMod.HookTarget";
+	
 	public required TypeReference PublicizedAttributeType { get; init; }
 	public required MethodReference PublicizedAttributeCtor { get; init; }
+
+	public required TypeReference PublicizedSignatureAttributeType { get; init; }
+	public required MethodReference PublicizedSignatureAttributeCtor { get; init; }
+
+	public required TypeReference PublicizedStateMachineAttributeType { get; init; }
+	public required MethodReference PublicizedStateMachineAttributeCtor { get; init; }
 
 	public required TypeReference ModHookTargetStoreAttributeType { get; init; }
 	public required MethodReference ModHookTargetStoreAttributeCtor { get; init; }
@@ -18,17 +30,27 @@ public sealed class InjureReferences {
 
 public static class InjureReferenceResolver {
 	public static InjureReferences Resolve(ModuleDefinition module) {
-		TypeDefinition publicizedAttribute = findRequiredType(module, "Injure.ModKit.Abstractions.PublicizedAttribute");
+		TypeDefinition publicizedAttribute = findRequiredType(module, InjureReferences.PublicizedAttributeFullName);
 		MethodDefinition publicizedCtor = findCtor(publicizedAttribute, static ctor =>
 			ctor.Parameters.Count == 0
 		);
 
-		TypeDefinition storeAttribute = findRequiredType(module, "Injure.ModKit.Abstractions.MonoMod.ModHookTargetStoreAttribute");
+		TypeDefinition publicizedSignatureAttribute = findRequiredType(module, InjureReferences.PublicizedSignatureAttributeFullName);
+		MethodDefinition publicizedSignatureCtor = findCtor(publicizedSignatureAttribute, static ctor =>
+			ctor.Parameters.Count == 0
+		);
+
+		TypeDefinition publicizedStateMachineAttribute = findRequiredType(module, InjureReferences.PublicizedStateMachineAttributeFullName);
+		MethodDefinition publicizedStateMachineCtor = findCtor(publicizedStateMachineAttribute, static ctor =>
+			ctor.Parameters.Count == 0
+		);
+
+		TypeDefinition storeAttribute = findRequiredType(module, InjureReferences.ModHookTargetStoreAttributeFullName);
 		MethodDefinition storeAttributeCtor = findCtor(storeAttribute, static ctor =>
 			ctor.Parameters.Count == 1 && ctor.Parameters[0].ParameterType.FullName == "System.Type"
 		);
 
-		TypeDefinition hookTarget = findRequiredType(module, "Injure.ModKit.Abstractions.MonoMod.HookTarget");
+		TypeDefinition hookTarget = findRequiredType(module, InjureReferences.HookTargetFullName);
 		MethodDefinition hookTargetCtor = findCtor(hookTarget, static ctor =>
 			ctor.Parameters.Count == 3 &&
 			ctor.Parameters[0].ParameterType.FullName == "System.String" &&
@@ -39,6 +61,10 @@ public static class InjureReferenceResolver {
 		return new InjureReferences {
 			PublicizedAttributeType = module.ImportReference(publicizedAttribute),
 			PublicizedAttributeCtor = module.ImportReference(publicizedCtor),
+			PublicizedSignatureAttributeType = module.ImportReference(publicizedSignatureAttribute),
+			PublicizedSignatureAttributeCtor = module.ImportReference(publicizedSignatureCtor),
+			PublicizedStateMachineAttributeType = module.ImportReference(publicizedStateMachineAttribute),
+			PublicizedStateMachineAttributeCtor = module.ImportReference(publicizedStateMachineCtor),
 			ModHookTargetStoreAttributeType = module.ImportReference(storeAttribute),
 			ModHookTargetStoreAttributeCtor = module.ImportReference(storeAttributeCtor),
 			HookTargetType = module.ImportReference(hookTarget),

@@ -65,9 +65,6 @@ public sealed class Game : IGame {
 				"MonoMod.RuntimeDetour",
 				"MonoMod.Utils",
 			],
-			HookTargetStoreAssemblies = [
-				typeof(Game).Assembly,
-			],
 			MaxParallelCodeLoads = Environment.ProcessorCount - 1,
 		});
 		await Mods.StartAsync(CancellationToken.None);
