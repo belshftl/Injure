@@ -81,6 +81,11 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 		get => field ?? throw new InternalStateException("mod entrypoint strong ref has already been dropped");
 		set;
 	}
+	private bool reloadEntrypointDropped = false;
+	public required IModReloadEntrypoint<TGameApi>? ReloadEntrypoint {
+		get => !reloadEntrypointDropped ? field : throw new InternalStateException("mod reload entrypoint strong ref has already been dropped");
+		set;
+	}
 	public required OwnerScope OwnerScope {
 		get => field ?? throw new InternalStateException("mod owner scope strong ref has already been dropped");
 		set;
@@ -100,6 +105,8 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 		AssemblyLoadContext = null!;
 		Assembly = null!;
 		Entrypoint = null!;
+		reloadEntrypointDropped = true;
+		ReloadEntrypoint = null!;
 		OwnerScope = null!;
 		GenerationScope = null!;
 		loadHooksBacking?.DropStrongReferences();
