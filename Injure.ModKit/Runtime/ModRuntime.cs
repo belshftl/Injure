@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,7 +27,6 @@ public readonly record struct ModRuntimeOptions<TGameApi> {
 	public required string CacheDirectory { get; init; }
 	public required Func<ModApiFactoryContext, TGameApi> ApiFactory { get; init; }
 	public required IReadOnlyList<string> SharedAssemblies { get; init; }
-	public required IReadOnlyList<Assembly> HookTargetStoreAssemblies { get; init; }
 	public required int MaxParallelCodeLoads { get; init; }
 }
 
@@ -103,7 +103,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private IReadOnlyList<StagedMod> staged = Array.Empty<StagedMod>();
 	private readonly Dictionary<string, LoadedCodeMod<TGameApi>> activeCode = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, LoadedContentMod> activeContent = new(StringComparer.Ordinal);
-	private readonly HookTargetResolver hookTargetResolver = new(options.HookTargetStoreAssemblies);
+	private readonly HookTargetResolver hookTargetResolver = new(AssemblyLoadContext.Default.Assemblies);
 	private ulong nextGeneration = 0;
 
 	private readonly Lock opLock = new();

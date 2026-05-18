@@ -34,7 +34,7 @@ public static class HookEmitter {
 	}
 
 	private static TypeDefinition findOrCreateRoot(ModuleDefinition module, string fullName) {
-		(string ns, string name) = TypeNameUtility.SplitFullTypeName(fullName);
+		(string ns, string name) = TypeNameUtil.SplitFullTypeName(fullName);
 
 		foreach (TypeDefinition type in module.Types)
 			if (type.Namespace == ns && type.Name == name)

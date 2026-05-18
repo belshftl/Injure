@@ -13,10 +13,10 @@ internal sealed class HookTargetResolver {
 	public HookTargetResolver() {}
 	public HookTargetResolver(IEnumerable<Assembly> assemblies) {
 		foreach (Assembly assembly in assemblies)
-			AddStoreAssembly(assembly);
+			TryAddStoreAssembly(assembly);
 	}
 
-	public void AddStoreAssembly(Assembly assembly) {
+	public void TryAddStoreAssembly(Assembly assembly) {
 		foreach (ModHookTargetStoreAttribute attr in assembly.GetCustomAttributes<ModHookTargetStoreAttribute>())
 			addStore(attr.StoreType);
 	}

@@ -14,5 +14,12 @@ public static class CompilerGeneratedPolicy {
 	}
 
 	public static bool NameLooksCompilerGenerated(string methodName) =>
-		methodName.Contains('<') || methodName.Contains('>') || methodName.Contains("__", StringComparison.Ordinal);
+		methodName.Contains('<', StringComparison.Ordinal) || methodName.Contains('>', StringComparison.Ordinal);
+
+	public static bool LooksCompilerGenerated(TypeDefinition type) =>
+		HasCompilerGeneratedAttribute(type) || NameLooksCompilerGenerated(type.Name);
+	public static bool LooksCompilerGenerated(FieldDefinition field) =>
+		HasCompilerGeneratedAttribute(field) || NameLooksCompilerGenerated(field.Name);
+	public static bool LooksCompilerGenerated(MethodDefinition method) =>
+		HasCompilerGeneratedAttribute(method) || NameLooksCompilerGenerated(method.Name);
 }

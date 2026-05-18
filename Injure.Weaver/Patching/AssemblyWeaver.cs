@@ -40,11 +40,12 @@ public static class AssemblyWeaver {
 		using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(options.InputPath, readerParameters);
 		ModuleDefinition module = assembly.MainModule;
 		InjureReferences ij = InjureReferenceResolver.Resolve(module);
+		AssemblyAnalysis analysis = AssemblyAnalyzer.Analyze(module);
 
-		PrePublicizeAnnotations.AnnotateBeforePublicize(module, ij);
-		Publicizer.Publicize(module);
+		PublicizeAnnotations.Annotate(module, ij, in analysis);
+		Publicizer.Publicize(module, in analysis);
 
-		string assemblyName = TypeNameUtility.SanitizeIdentifier(assembly.Name.Name);
+		string assemblyName = TypeNameUtil.SanitizeIdentifier(assembly.Name.Name);
 		string hooksRoot = options.HooksRoot ?? assemblyName + ".Hooks";
 		string rawHooksRoot = options.RawHooksRoot ?? assemblyName + ".RawHooks";
 

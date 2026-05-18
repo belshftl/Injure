@@ -2,7 +2,7 @@
 
 using System;
 
-namespace Injure.ModKit.Abstractions;
+namespace Injure.ModKit.Abstractions.Weaver;
 
 [AttributeUsage(
 	AttributeTargets.Class |

@@ -62,8 +62,8 @@ public static class HookDiscoverer {
 
 	private static HookCandidate createCandidate(string ownerID, HookKind kind, MethodDefinition method, Dictionary<string, int> nameCounts) {
 		string stamp = SignatureHasher.Hash(method)[..8];
-		string container = TypeNameUtility.GetContainerName(method.DeclaringType);
-		string methodBase = TypeNameUtility.GetMethodBaseName(method);
+		string container = TypeNameUtil.GetContainerName(method.DeclaringType);
+		string methodBase = TypeNameUtil.GetMethodBaseName(method);
 		string localID = $"{container}/{methodBase}#{stamp}";
 		string prefix = kind == HookKind.Intended ? "hooks" : "raw-hooks";
 		string id = $"{ownerID}::{prefix}/{localID}";
@@ -79,8 +79,8 @@ public static class HookDiscoverer {
 			ID = id,
 			Method = method,
 			ContainerName = container,
-			ConstantName = TypeNameUtility.SanitizeIdentifier(methodBase + suffix),
-			OrigDelegateName = TypeNameUtility.SanitizeIdentifier("orig_" + methodBase + suffix),
+			ConstantName = TypeNameUtil.SanitizeIdentifier(methodBase + suffix),
+			OrigDelegateName = TypeNameUtil.SanitizeIdentifier("orig_" + methodBase + suffix),
 		};
 	}
 }
