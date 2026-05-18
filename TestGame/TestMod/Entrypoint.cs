@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Injure;
 using Injure.ModKit.Abstractions;
 using Injure.ModKit.Abstractions.MonoMod;
-using Injure.ModKit.Loader;
 using Injure.ModKit.MonoMod;
 using MonoMod.Cil;
 using TestGame.ModApi;

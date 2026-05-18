@@ -43,6 +43,12 @@ public sealed class ModLoadLinkContextImpl<TGameApi>(IReadOnlyDictionary<string,
 	public bool TryGetLoadedDependency(string id, out LoadedOwnerInfo info) => loaded.TryGetValue(id, out info);
 }
 
+public sealed class ModReloadContextImpl<TGameApi> : IModReloadContext<TGameApi> {
+	public required TGameApi Api { get; init; }
+	public required ReloadGeneration Generation { get; init; }
+	public required IReadOnlySet<string> ReloadSet { get; init; }
+}
+
 public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private sealed class ReloadTransaction {
 		public required HashSet<string> ReloadSet { get; init; }
@@ -125,6 +131,11 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	public async ValueTask DiscoverAsync(CancellationToken ct) {
 		requirePhase(RuntimePhase.Empty, nameof(DiscoverAsync));
 		List<DiscoveredMod> result = new();
+		try {
+			Directory.CreateDirectory(modDir);
+		} catch {
+			// swallow
+		}
 		try {
 			foreach (string manifestPath in Directory.EnumerateFiles(modDir, ManifestJson, SearchOption.AllDirectories)) {
 				ct.ThrowIfCancellationRequested();
@@ -315,11 +326,11 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		}
 
 		Dictionary<string, LoadedCodeMod<TGameApi>> oldCode = activeCode
-			.Where(pair => reloadSet.Contains(pair.Key))
-			.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal);
+			.Where(kvp => reloadSet.Contains(kvp.Key))
+			.ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
 		Dictionary<string, LoadedContentMod> oldContent = activeContent
-			.Where(pair => reloadSet.Contains(pair.Key))
-			.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal);
+			.Where(kvp => reloadSet.Contains(kvp.Key))
+			.ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
 
 		Dictionary<string, LoadedCodeMod<TGameApi>> replacementCode = new(StringComparer.Ordinal);
 		Dictionary<string, LoadedContentMod> replacementContent = new(StringComparer.Ordinal);
@@ -371,10 +382,20 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		bool destructiveBoundaryCrossed = false;
 		ExceptionSnapshot reloadErr;
 		try {
-			if (request == ReloadRequestKind.Live)
-				foreach (string id in transaction.ReloadSet)
-					if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? old) && old.Entrypoint is IModLiveReload live)
-						capturedState.Add(id, await live.CaptureReloadStateAsync(ct).ConfigureAwait(false));
+			FrozenSet<string> reloadSetSnapshot = transaction.ReloadSet.ToFrozenSet(StringComparer.Ordinal);
+
+			if (request == ReloadRequestKind.Live) {
+				foreach (string id in transaction.ReloadSet) {
+					if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? old) && old.ReloadEntrypoint is not null) {
+						ModReloadContextImpl<TGameApi> ctx = new() {
+							Api = createApi(old),
+							Generation = old.Staged.Generation,
+							ReloadSet = reloadSetSnapshot,
+						};
+						capturedState.Add(id, await old.ReloadEntrypoint.SaveStateAsync(ctx, ct).ConfigureAwait(false));
+					}
+				}
+			}
 
 			try {
 				await deactivateSetAsync(transaction.ReloadSet, activeGraph, reverse: true, ct).ConfigureAwait(false);
@@ -387,10 +408,18 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				HookDiscoverer<TGameApi>.DiscoverLoadHooks(mod, hookTargetResolver);
 			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.ReplacementCode.Values.ToArray(), maxParallelDomains, ct).ConfigureAwait(false);
 
-			if (request == ReloadRequestKind.Live)
-				foreach (KeyValuePair<string, ModLiveStateBlob> pair in capturedState)
-					if (transaction.ReplacementCode.TryGetValue(pair.Key, out LoadedCodeMod<TGameApi>? next) && next.Entrypoint is IModLiveReload live)
-						await live.RestoreReloadStateAsync(pair.Value, ct).ConfigureAwait(false);
+			if (request == ReloadRequestKind.Live) {
+				foreach (KeyValuePair<string, ModLiveStateBlob> kvp in capturedState) {
+					if (transaction.ReplacementCode.TryGetValue(kvp.Key, out LoadedCodeMod<TGameApi>? next) && next.ReloadEntrypoint is not null) {
+						ModReloadContextImpl<TGameApi> ctx = new() {
+							Api = createApi(next),
+							Generation = next.Staged.Generation,
+							ReloadSet = reloadSetSnapshot,
+						};
+						await next.ReloadEntrypoint.RestoreStateAsync(ctx, kvp.Value, ct).ConfigureAwait(false);
+					}
+				}
+			}
 
 			await activateSetAsync(transaction.ReloadSet, transaction.CandidateGraph, transaction.ReplacementCode, ct).ConfigureAwait(false);
 			publishReload(transaction);
@@ -482,12 +511,18 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		validateModAssemblyAttribute(manifest, assembly);
 		Type entryType = EntrypointDiscovery.FindEntrypointType(assembly, typeof(TGameApi), stagedMod.MainAssemblyPath);
 		IModEntrypoint<TGameApi> entrypoint = (IModEntrypoint<TGameApi>)Activator.CreateInstance(entryType)!;
+		IModReloadEntrypoint<TGameApi>? reloadEntrypoint = null;
+		if (manifest.CodeHotReload == ModCodeHotReloadLevel.Live) {
+			Type reloadEntrypointType = EntrypointDiscovery.FindReloadEntrypointType(assembly, typeof(TGameApi), stagedMod.MainAssemblyPath);
+			reloadEntrypoint = (IModReloadEntrypoint<TGameApi>)Activator.CreateInstance(reloadEntrypointType)!;
+		}
 
 		return new LoadedCodeMod<TGameApi> {
 			Staged = stagedMod,
 			AssemblyLoadContext = alc,
 			Assembly = assembly,
 			Entrypoint = entrypoint,
+			ReloadEntrypoint = reloadEntrypoint,
 			OwnerScope = new OwnerScope(manifest.OwnerID),
 			GenerationScope = new ReloadGenerationScope(stagedMod.Generation),
 			LoadHooks = new(),
@@ -552,8 +587,8 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private void publishReload(ReloadTransaction transaction) {
 		discovered = transaction.CandidateDiscovered;
 		activeGraph = transaction.CandidateGraph;
-		foreach (KeyValuePair<string, LoadedCodeMod<TGameApi>> pair in transaction.ReplacementCode)
-			activeCode[pair.Key] = pair.Value;
+		foreach (KeyValuePair<string, LoadedCodeMod<TGameApi>> kvp in transaction.ReplacementCode)
+			activeCode[kvp.Key] = kvp.Value;
 		staged = staged.Where(mod => !transaction.ReloadSet.Contains(mod.Manifest.OwnerID)).Concat(transaction.ReplacementStaged).ToArray();
 	}
 
@@ -593,8 +628,6 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				continue;
 			if (!canSatisfyReload(code.CodeHotReload, request))
 				throw new ModLoadException(id, $"code-hot-reload '{code.CodeHotReload}' cannot satisfy reload request '{request}'");
-			if (request == ReloadRequestKind.Live && activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? mod) && mod.Entrypoint is not IModLiveReload)
-				throw new ModLoadException(id, "code-hot-reload 'live' requires entrypoint to also implement IModLiveReload");
 		}
 	}
 
