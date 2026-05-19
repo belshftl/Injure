@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -26,14 +27,6 @@ public readonly partial struct RuntimePhase {
 		//LinkHooksApplied,
 		Active,
 		Faulted,
-	}
-}
-
-[ClosedEnum(DefaultIsInvalid = true)]
-public readonly partial struct ReloadRequestKind {
-	public enum Case {
-		SafeBoundary = 1,
-		Live,
 	}
 }
 
@@ -114,14 +107,6 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 	}
 }
 
-[ClosedEnum(DefaultIsInvalid = true)]
-internal readonly partial struct ReloadResultKind {
-	public enum Case {
-		Succeeded = 1,
-		RollbackSucceeded,
-	}
-}
-
 internal sealed class PendingAlcUnload(string ownerID, ModAlc alc) : IStrongRefDroppable {
 	public string OwnerID { get; } = ownerID;
 	public ModAlc Alc {
@@ -134,9 +119,49 @@ internal sealed class PendingAlcUnload(string ownerID, ModAlc alc) : IStrongRefD
 	}
 }
 
-internal readonly record struct ReloadResult(ReloadResultKind Kind, IReadOnlySet<string> ReloadSet, ExceptionSnapshot? Failure, IReadOnlyList<PendingAlcUnload> PendingUnloads) {
-	public static ReloadResult Succeeded(IReadOnlySet<string> reloadSet) =>
-		new(ReloadResultKind.Succeeded, reloadSet, null, []);
-	public static ReloadResult RollbackSucceeded(IReadOnlySet<string> reloadSet, ExceptionSnapshot failure, IReadOnlyList<PendingAlcUnload> pendingUnloads) =>
-		new(ReloadResultKind.RollbackSucceeded, reloadSet, failure, pendingUnloads);
+[ClosedEnum(DefaultIsInvalid = true)]
+internal readonly partial struct ModOperationResultKind {
+	public enum Case {
+		Succeeded = 1,
+		RollbackSucceeded,
+	}
+}
+
+internal readonly record struct ModOperationResult(
+	ModOperationResultKind Kind,
+	IReadOnlySet<string> ReloadedOwners,
+	IReadOnlySet<string> EnabledOwners,
+	IReadOnlySet<string> DisabledOwners,
+	IReadOnlySet<string> UnloadedOwners,
+	ExceptionSnapshot? Failure,
+	IReadOnlyList<PendingAlcUnload> PendingUnloads
+) {
+	public static ModOperationResult Succeeded(
+		IReadOnlySet<string> reloadedOwners,
+		IReadOnlySet<string> enabledOwners,
+		IReadOnlySet<string> disabledOwners,
+		IReadOnlySet<string> unloadedOwners,
+		IReadOnlyList<PendingAlcUnload> pendingUnloads
+	) => new(
+		ModOperationResultKind.Succeeded,
+		reloadedOwners,
+		enabledOwners,
+		disabledOwners,
+		unloadedOwners,
+		null,
+		pendingUnloads
+	);
+
+	public static ModOperationResult RollbackSucceeded(
+		ExceptionSnapshot failure,
+		IReadOnlyList<PendingAlcUnload> pendingUnloads
+	) => new(
+		ModOperationResultKind.RollbackSucceeded,
+		ReloadedOwners: FrozenSet<string>.Empty,
+		EnabledOwners: FrozenSet<string>.Empty,
+		DisabledOwners: FrozenSet<string>.Empty,
+		UnloadedOwners: FrozenSet<string>.Empty,
+		failure,
+		pendingUnloads
+	);
 }

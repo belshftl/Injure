@@ -11,6 +11,11 @@ public static class Actions {
 	public static ActionID Pause { get; private set; }
 	public static ActionID ScrollY { get; private set; }
 
+	// these are temporary
+	public static ActionID ReloadTestMod { get; private set; }
+	public static ActionID DisableTestMod { get; private set; }
+	public static ActionID EnableTestMod { get; private set; }
+
 	public static ActionProfile Profile { get => field ?? throw new InvalidOperationException("Actions.Init() not called yet"); private set; }
 
 	public static void Init() {
@@ -19,6 +24,9 @@ public static class Actions {
 			Confirm = reg.Register("confirm");
 			Pause = reg.Register("pause");
 			ScrollY = reg.Register("scrollY");
+			ReloadTestMod = reg.Register("reload-test-mod");
+			DisableTestMod = reg.Register("disable-test-mod");
+			EnableTestMod = reg.Register("enable-test-mod");
 		});
 
 		ActionMapBuilder b = new();
@@ -39,6 +47,10 @@ public static class Actions {
 
 		b.BindButton(Pause, InputButtonSource.Key(Key.Escape));
 		b.BindButton(Pause, InputButtonSource.GamepadButton(GamepadButton.Start));
+
+		b.BindButton(ReloadTestMod, InputButtonSource.Key(Key.Digit1));
+		b.BindButton(DisableTestMod, InputButtonSource.Key(Key.Digit2));
+		b.BindButton(EnableTestMod, InputButtonSource.Key(Key.Digit3));
 
 		b.BindImpulseAxis(ScrollY, InputImpulseAxisSource.PointerWheel(PointerWheelAxis.Y));
 
