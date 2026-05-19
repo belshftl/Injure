@@ -18,6 +18,7 @@ namespace TestMod;
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi> {
 	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi> ctx, CancellationToken ct) {
+		ctx.Diagnostics.Info("loaded!");
 		ctx.Api.MarkLoaded(ctx.OwnerID);
 		return ValueTask.CompletedTask;
 	}

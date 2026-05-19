@@ -12,6 +12,7 @@ public interface IModLoadContext<out TGameApi> {
 	string OwnerID { get; }
 	Semver Version { get; }
 	TGameApi Api { get; }
+	IOwnerDiagnostics Diagnostics { get; }
 	OwnerScope OwnerScope { get; }
 	ReloadGenerationScope GenerationScope { get; }
 	CancellationToken UnloadToken { get; }
