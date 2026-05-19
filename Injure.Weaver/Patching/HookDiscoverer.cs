@@ -18,7 +18,7 @@ public static class HookDiscoverer {
 	}
 
 	private static void discoverTypeRecursive(string ownerID, TypeDefinition type, List<HookCandidate> result, Dictionary<string, int> nameCounts) {
-		if (CompilerGeneratedPolicy.HasCompilerGeneratedAttribute(type) || CompilerGeneratedPolicy.NameLooksCompilerGenerated(type.Name))
+		if (GeneratedCodePolicy.LooksGenerated(type))
 			return;
 
 		foreach (MethodDefinition method in type.Methods) {
@@ -46,9 +46,7 @@ public static class HookDiscoverer {
 			return false;
 		if (method.IsGetter || method.IsSetter || method.IsAddOn || method.IsRemoveOn || method.IsFire)
 			return false;
-		if (CompilerGeneratedPolicy.HasCompilerGeneratedAttribute(method) || CompilerGeneratedPolicy.HasCompilerGeneratedAttribute(method.DeclaringType))
-			return false;
-		if (CompilerGeneratedPolicy.NameLooksCompilerGenerated(method.Name) || CompilerGeneratedPolicy.NameLooksCompilerGenerated(method.DeclaringType.Name))
+		if (GeneratedCodePolicy.LooksGenerated(method.DeclaringType) || GeneratedCodePolicy.LooksGenerated(method))
 			return false;
 		return true;
 	}
