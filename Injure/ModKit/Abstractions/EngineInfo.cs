@@ -3,5 +3,5 @@
 namespace Injure.ModKit.Abstractions;
 
 public static class EngineInfo {
-	public const string OwnerID = "injure";
+	public const string OwnerID = "Injure";
 }
