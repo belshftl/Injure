@@ -89,7 +89,7 @@ public static class StateMachineDiscovery {
 	}
 
 	private static bool isLikelyAsyncStateMachine(TypeDefinition candidate, MethodDefinition wrapperMethod) {
-		if (!CompilerGeneratedPolicy.HasCompilerGeneratedAttribute(candidate))
+		if (!GeneratedCodePolicy.HasCompilerGeneratedAttribute(candidate))
 			return false;
 		if (!isNestedInSameType(candidate, wrapperMethod.DeclaringType))
 			return false;
@@ -107,7 +107,7 @@ public static class StateMachineDiscovery {
 	}
 
 	private static bool isLikelyIteratorStateMachine(TypeDefinition candidate, MethodDefinition wrapperMethod) {
-		if (!CompilerGeneratedPolicy.HasCompilerGeneratedAttribute(candidate))
+		if (!GeneratedCodePolicy.HasCompilerGeneratedAttribute(candidate))
 			return false;
 		if (!isNestedInSameType(candidate, wrapperMethod.DeclaringType))
 			return false;
@@ -186,7 +186,7 @@ public static class StateMachineDiscovery {
 
 	private static bool nameLooksLikeStateMachineFor(TypeDefinition candidate, MethodDefinition wrapperMethod) {
 		string name = candidate.Name;
-		if (!CompilerGeneratedPolicy.NameLooksCompilerGenerated(name))
+		if (!GeneratedCodePolicy.NameLooksCompilerGenerated(name))
 			return false;
 		return name.Contains(wrapperMethod.Name, StringComparison.Ordinal);
 	}

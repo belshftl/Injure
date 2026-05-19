@@ -5,10 +5,17 @@ using Mono.Cecil;
 
 namespace Injure.Weaver.Patching;
 
-public static class CompilerGeneratedPolicy {
+public static class GeneratedCodePolicy {
 	public static bool HasCompilerGeneratedAttribute(ICustomAttributeProvider provider) {
 		foreach (CustomAttribute attribute in provider.CustomAttributes)
 			if (attribute.AttributeType.FullName == "System.Runtime.CompilerServices.CompilerGeneratedAttribute")
+				return true;
+		return false;
+	}
+
+	public static bool HasGeneratedCodeAttribute(ICustomAttributeProvider provider) {
+		foreach (CustomAttribute attribute in provider.CustomAttributes)
+			if (attribute.AttributeType.FullName == "System.CodeDom.Compiler.GeneratedCodeAttribute")
 				return true;
 		return false;
 	}
@@ -22,4 +29,11 @@ public static class CompilerGeneratedPolicy {
 		HasCompilerGeneratedAttribute(field) || NameLooksCompilerGenerated(field.Name);
 	public static bool LooksCompilerGenerated(MethodDefinition method) =>
 		HasCompilerGeneratedAttribute(method) || NameLooksCompilerGenerated(method.Name);
+
+	public static bool LooksGenerated(TypeDefinition type) =>
+		LooksCompilerGenerated(type) || HasGeneratedCodeAttribute(type);
+	public static bool LooksGenerated(FieldDefinition field) =>
+		LooksCompilerGenerated(field) || HasGeneratedCodeAttribute(field);
+	public static bool LooksGenerated(MethodDefinition method) =>
+		LooksCompilerGenerated(method) || HasGeneratedCodeAttribute(method);
 }

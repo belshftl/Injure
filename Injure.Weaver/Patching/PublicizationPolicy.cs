@@ -16,13 +16,13 @@ public static class PublicizationPolicy {
 	public static PublicizationKind ShouldPublicizeType(TypeDefinition type, in AssemblyAnalysis analysis) {
 		if (analysis.StateMachineTypeFullNames.ContainsKey(type.FullName))
 			return PublicizationKind.StateMachine;
-		return CompilerGeneratedPolicy.LooksCompilerGenerated(type) ? PublicizationKind.No : PublicizationKind.Normal;
+		return GeneratedCodePolicy.LooksCompilerGenerated(type) ? PublicizationKind.No : PublicizationKind.Normal;
 	}
 
 	public static PublicizationKind ShouldPublicizeField(FieldDefinition field, in AssemblyAnalysis analysis) {
 		if (analysis.StateMachineTypeFullNames.ContainsKey(field.DeclaringType.FullName))
 			return PublicizationKind.StateMachine;
-		return CompilerGeneratedPolicy.LooksCompilerGenerated(field) ? PublicizationKind.No : PublicizationKind.Normal;
+		return GeneratedCodePolicy.LooksCompilerGenerated(field) ? PublicizationKind.No : PublicizationKind.Normal;
 	}
 
 	public static PublicizationKind ShouldPublicizeMethod(MethodDefinition method, in AssemblyAnalysis analysis) {
@@ -32,6 +32,6 @@ public static class PublicizationPolicy {
 			return PublicizationKind.StateMachine;
 		if (MethodUtil.IsPropertyAccessor(method) || MethodUtil.IsEventAccessor(method))
 			return PublicizationKind.Normal;
-		return CompilerGeneratedPolicy.LooksCompilerGenerated(method) ? PublicizationKind.No : PublicizationKind.Normal;
+		return GeneratedCodePolicy.LooksCompilerGenerated(method) ? PublicizationKind.No : PublicizationKind.Normal;
 	}
 }

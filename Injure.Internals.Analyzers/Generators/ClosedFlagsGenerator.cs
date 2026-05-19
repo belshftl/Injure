@@ -155,6 +155,7 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		if (info.Namespace is not null)
 			sb.Append("namespace ").Append(info.Namespace).AppendLine(" {");
 
+		sb.Append('\t').AppendLine(@"[global::System.CodeDom.Compiler.GeneratedCodeAttribute(""Injure.Internals.Analyzers.ClosedFlagsGenerator"", ""0.1.0-alpha"")]");
 		sb.Append('\t').Append(info.Accessibility).Append("readonly partial struct ").Append(targetType).Append(" : global::System.IEquatable<").Append(targetType).AppendLine("> {");
 		sb.Append("\t\tprivate readonly Bits ").Append(Constants.ClosedFlagsBackingFieldName).AppendLine(";");
 

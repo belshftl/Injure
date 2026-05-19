@@ -79,6 +79,7 @@ public sealed class StronglyTypedIntGenerator : IIncrementalGenerator {
 		if (info.Namespace is not null)
 			sb.Append("namespace ").Append(info.Namespace).AppendLine(" {");
 
+		sb.Append('\t').AppendLine(@"[global::System.CodeDom.Compiler.GeneratedCodeAttribute(""Injure.Internals.Analyzers.StronglyTypedIntGenerator"", ""0.1.0-alpha"")]");
 		sb.Append('\t').Append(accessibility(info.Symbol)).Append("readonly partial struct ").Append(targetType).Append(" : global::System.IEquatable<").
 			Append(targetType).Append(">, global::System.IComparable<").Append(targetType).AppendLine(">,");
 		sb.Append("\tglobal::System.IComparable, global::System.ISpanFormattable, global::System.IParsable<").Append(targetType).AppendLine(">,");
