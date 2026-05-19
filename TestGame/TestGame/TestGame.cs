@@ -8,6 +8,7 @@ using Injure.Assets;
 using Injure.Core;
 using Injure.Graphics;
 using Injure.Graphics.Text;
+using Injure.ModKit.Abstractions;
 using Injure.ModKit.Runtime;
 using Injure.Timing;
 using Injure.Scheduling;
@@ -18,7 +19,7 @@ namespace TestGame;
 
 internal sealed class TestApi : ITestGameModApi {
 	public void MarkLoaded(string ownerID) {
-		Console.WriteLine($"loaded: {ownerID}");
+		Game.Diagnostics.Info($"mod says it got loaded: {ownerID}");
 	}
 }
 
@@ -41,6 +42,7 @@ public sealed class Game : IGame {
 		get => field ?? throw new InvalidOperationException("game not initialized yet or already shut down");
 		private set;
 	}
+	public static IOwnerDiagnostics Diagnostics => Mods.GameDiagnostics;
 
 	public const string TestFontFilename = "Aileron-Regular.otf";
 	public static AssetRef<Font> TestFont {
@@ -55,6 +57,7 @@ public sealed class Game : IGame {
 		string mods = Path.Combine(root, "Mods");
 		string cache = Path.Combine(root, ".mod-cache");
 		Mods = new(new ModRuntimeOptions<ITestGameModApi> {
+			GameOwnerID = OwnerID,
 			ModDirectory = mods,
 			CacheDirectory = cache,
 			ApiFactory = _ => new TestApi(),
@@ -65,7 +68,6 @@ public sealed class Game : IGame {
 				"MonoMod.RuntimeDetour",
 				"MonoMod.Utils",
 			],
-			MaxParallelCodeLoads = Environment.ProcessorCount - 1,
 		});
 		await Mods.StartAsync(CancellationToken.None);
 

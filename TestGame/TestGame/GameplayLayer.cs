@@ -52,7 +52,7 @@ public sealed class GameplayLayer : Layer {
 		if (ctx.Actions.Buttons[Actions.ReloadTestMod].Pressed)
 			Game.Mods.RequestReload("jdoe.test-mod", Injure.ModKit.Runtime.ReloadRequestKind.SafeBoundary);
 		if (ctx.Actions.Buttons[Actions.DisableTestMod].Pressed)
-			Game.Mods.RequestDisable("jdoe.test-mod", Injure.ModKit.Runtime.DisableRequestKind.ReloadOptionalDependents);
+			Game.Mods.RequestDisable("jdoe.test-mod", Injure.ModKit.Runtime.DisableRequestKind.DisableDependentsAndReloadOptionalDependents);
 		if (ctx.Actions.Buttons[Actions.EnableTestMod].Pressed)
 			Game.Mods.RequestEnable("jdoe.test-mod", Injure.ModKit.Runtime.EnableRequestKind.EnableRequiredDependenciesAndReloadOptionalDependents);
 		if (ui is null)

@@ -17,17 +17,25 @@ using Injure.ModKit.MonoMod;
 
 namespace Injure.ModKit.Runtime;
 
-public readonly record struct ModApiFactoryContext(
-	string OwnerID,
-	OwnerScope OwnerScope
-);
+public readonly struct ModApiFactoryContext {
+	internal ModApiFactoryContext(string forOwnerID, OwnerScope ownerScope) {
+		ForOwnerID = forOwnerID;
+		OwnerScope = ownerScope;
+	}
 
-public readonly record struct ModRuntimeOptions<TGameApi> {
+	public string ForOwnerID { get; }
+	public OwnerScope OwnerScope { get; }
+}
+
+public sealed record ModRuntimeOptions<TGameApi> {
+	public required string GameOwnerID { get; init; }
 	public required string ModDirectory { get; init; }
 	public required string CacheDirectory { get; init; }
 	public required Func<ModApiFactoryContext, TGameApi> ApiFactory { get; init; }
 	public required IReadOnlyList<string> SharedAssemblies { get; init; }
-	public required int MaxParallelCodeLoads { get; init; }
+
+	public IDiagnosticsSink DiagnosticsSink { get; init; } = new DefaultDiagnosticsSink();
+	public int MaxParallelCodeLoads { get; init; } = Environment.ProcessorCount - 1;
 }
 
 internal sealed class ModLoadLinkContextImpl<TGameApi>(IReadOnlyDictionary<string, LoadedOwnerInfo> loaded) : IModLoadContext<TGameApi>, IModLinkContext<TGameApi> {
@@ -36,6 +44,7 @@ internal sealed class ModLoadLinkContextImpl<TGameApi>(IReadOnlyDictionary<strin
 	public required string OwnerID { get; init; }
 	public required Semver Version { get; init; }
 	public required TGameApi Api { get; init; }
+	public required IOwnerDiagnostics Diagnostics { get; init; }
 	public required OwnerScope OwnerScope { get; init; }
 	public required ReloadGenerationScope GenerationScope { get; init; }
 	public required CancellationToken UnloadToken { get; init; }
@@ -132,11 +141,12 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	public const string ManifestJson = "manifest.json";
 	public const int MaxAlcUnloadGcAttempts = 8;
 
-	private readonly int maxParallelDomains = options.MaxParallelCodeLoads;
 	private readonly string modDir = options.ModDirectory;
 	private readonly string cacheDir = options.CacheDirectory;
 	private readonly Func<ModApiFactoryContext, TGameApi> apiFactory = options.ApiFactory;
 	private readonly IReadOnlyList<string> sharedAssemblies = options.SharedAssemblies;
+	private readonly IDiagnosticsSink diagnosticsSink = options.DiagnosticsSink;
+	private readonly int maxParallelDomains = options.MaxParallelCodeLoads;
 	private readonly SemaphoreSlim codeLoadSem = new(options.MaxParallelCodeLoads, options.MaxParallelCodeLoads);
 	private readonly SemaphoreSlim writeLock = new(1, 1);
 
@@ -153,6 +163,10 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private readonly Lock opLock = new();
 	private readonly List<PendingOp> pendingOps = new();
 	private ulong nextOpSeq = 0;
+
+	private readonly OwnerDiagnostics ijDiagnostics = new(EngineInfo.OwnerID, options.DiagnosticsSink, null);
+
+	public IOwnerDiagnostics GameDiagnostics { get; } = new OwnerDiagnostics(options.GameOwnerID, options.DiagnosticsSink, null);
 
 	public async ValueTask StartAsync(CancellationToken ct) {
 		await DiscoverAsync(ct).ConfigureAwait(false);
@@ -365,7 +379,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				foreach (PendingAlcUnload pending in r.PendingUnloads) {
 					WeakReference weak = beginUnload(pending);
 					if (!probeUnload(weak, maxAttempts: MaxAlcUnloadGcAttempts))
-						Console.Error.WriteLine($"warning: ALC for {pending.OwnerID} is still alive after unload request");
+						ijDiagnostics.Warning($"ALC for {pending.OwnerID} is still alive after unload request");
 				}
 			}
 		} finally {
@@ -374,8 +388,6 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	private BoundaryPlan createBoundaryPlan(PendingOp[] batch) {
-		Array.Sort(batch, static (a, b) => a.Seq.CompareTo(b.Seq));
-
 		HashSet<string> candidateEnabled = new(enabledOwners, StringComparer.Ordinal);
 		HashSet<string> reloadRoots = new(StringComparer.Ordinal);
 		bool hasStructuralOps = false;
@@ -661,7 +673,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			}
 		} catch {
 			foreach (LoadedCodeMod<TGameApi> mod in preparedCode.Values)
-				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
+				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ijDiagnostics, ct).ConfigureAwait(false);
 			foreach (LoadedContentMod mod in preparedContent.Values)
 				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
 			throw;
@@ -756,7 +768,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 		if (!destructiveBoundaryCrossed) {
 			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values)
-				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
+				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ijDiagnostics, ct).ConfigureAwait(false);
 			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
 				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
 			throw reloadErr.ToException();
@@ -853,13 +865,13 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 	private async ValueTask runLoadAsync(LoadedCodeMod<TGameApi> mod, IReadOnlyDictionary<string, LoadedOwnerInfo> owners, CancellationToken ct) {
 		TGameApi api = createApi(mod);
-		ModLoadLinkContextImpl<TGameApi> context = createContext(mod, api, owners);
+		ModLoadLinkContextImpl<TGameApi> context = createContext(mod, api, diagnosticsSink, owners);
 		await mod.Entrypoint.LoadAsync(context, ct).ConfigureAwait(false);
 	}
 
 	private async ValueTask runLinkAsync(LoadedCodeMod<TGameApi> mod, IReadOnlyDictionary<string, LoadedOwnerInfo> owners, CancellationToken ct) {
 		TGameApi api = createApi(mod);
-		ModLoadLinkContextImpl<TGameApi> context = createContext(mod, api, owners);
+		ModLoadLinkContextImpl<TGameApi> context = createContext(mod, api, diagnosticsSink, owners);
 		await mod.Entrypoint.LinkAsync(context, ct).ConfigureAwait(false);
 	}
 
@@ -938,11 +950,11 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private static async ValueTask destroyPreparedCodeGenerationAsync(LoadedCodeMod<TGameApi> mod, ReloadInvalidationReason reason, CancellationToken ct) {
+	private static async ValueTask destroyPreparedCodeGenerationAsync(LoadedCodeMod<TGameApi> mod, ReloadInvalidationReason reason, OwnerDiagnostics diagnostics, CancellationToken ct) {
 		await destroyPreparedCodeGenerationNoUnloadAsync(mod, reason, ct);
 		WeakReference weak = beginUnload(detachForUnload(mod));
 		if (!probeUnload(weak, maxAttempts: MaxAlcUnloadGcAttempts))
-			Console.Error.WriteLine($"warning: ALC for {mod.Staged.Manifest.OwnerID} is still alive after unload request");
+			diagnostics.Warning($"ALC for {mod.Staged.Manifest.OwnerID} is still alive after unload request");
 	}
 
 	private static async ValueTask destroyPreparedContentGenerationAsync(LoadedContentMod mod, ReloadInvalidationReason reason, CancellationToken ct) {
@@ -1008,11 +1020,12 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerID, mod.OwnerScope));
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static ModLoadLinkContextImpl<TGameApi> createContext(LoadedCodeMod<TGameApi> mod, TGameApi api, IReadOnlyDictionary<string, LoadedOwnerInfo> owners) =>
+	private static ModLoadLinkContextImpl<TGameApi> createContext(LoadedCodeMod<TGameApi> mod, TGameApi api, IDiagnosticsSink diagnosticsSink, IReadOnlyDictionary<string, LoadedOwnerInfo> owners) =>
 		new(owners) {
 			OwnerID = mod.Staged.Manifest.OwnerID,
 			Version = mod.Staged.Manifest.Version,
 			Api = api,
+			Diagnostics = new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
 			OwnerScope = mod.OwnerScope,
 			GenerationScope = mod.GenerationScope,
 			UnloadToken = mod.GenerationScope.Stopping,
