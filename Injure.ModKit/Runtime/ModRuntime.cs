@@ -30,7 +30,7 @@ public readonly record struct ModRuntimeOptions<TGameApi> {
 	public required int MaxParallelCodeLoads { get; init; }
 }
 
-public sealed class ModLoadLinkContextImpl<TGameApi>(IReadOnlyDictionary<string, LoadedOwnerInfo> loaded) : IModLoadContext<TGameApi>, IModLinkContext<TGameApi> {
+internal sealed class ModLoadLinkContextImpl<TGameApi>(IReadOnlyDictionary<string, LoadedOwnerInfo> loaded) : IModLoadContext<TGameApi>, IModLinkContext<TGameApi> {
 	private readonly IReadOnlyDictionary<string, LoadedOwnerInfo> loaded = loaded;
 
 	public required string OwnerID { get; init; }
@@ -43,49 +43,85 @@ public sealed class ModLoadLinkContextImpl<TGameApi>(IReadOnlyDictionary<string,
 	public bool TryGetLoadedDependency(string id, out LoadedOwnerInfo info) => loaded.TryGetValue(id, out info);
 }
 
-public sealed class ModReloadContextImpl<TGameApi> : IModReloadContext<TGameApi> {
+internal sealed class ModReloadContextImpl<TGameApi> : IModReloadContext<TGameApi> {
 	public required TGameApi Api { get; init; }
 	public required ReloadGeneration Generation { get; init; }
 	public required IReadOnlySet<string> ReloadSet { get; init; }
 }
 
 public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
-	private sealed class ReloadTransaction {
+	private readonly record struct ActiveDependent(string OwnerID, bool IsHard);
+
+	private sealed class BoundaryPlan {
+		public required ReloadRequestKind ReloadKind { get; init; }
+		public required HashSet<string> CandidateEnabledOwners { get; init; }
+		public required HashSet<string> DisableSet { get; init; }
+		public required HashSet<string> EnableSet { get; init; }
+		public required HashSet<string> ReloadRoots { get; init; }
 		public required HashSet<string> ReloadSet { get; init; }
+
+		public bool IsStructural => DisableSet.Count != 0 || EnableSet.Count != 0;
+		public bool IsNoOp => DisableSet.Count == 0 && EnableSet.Count == 0 && ReloadSet.Count == 0;
+
+		public HashSet<string> PrepareSet {
+			get {
+				HashSet<string> result = new(EnableSet, StringComparer.Ordinal);
+				foreach (string id in ReloadSet)
+					result.Add(id);
+				return result;
+			}
+		}
+
+		public HashSet<string> OldTouchedSet {
+			get {
+				HashSet<string> result = new(DisableSet, StringComparer.Ordinal);
+				foreach (string id in ReloadSet)
+					result.Add(id);
+				return result;
+			}
+		}
+	}
+
+	private sealed class Transaction {
+		public required BoundaryPlan Plan { get; init; }
 		public required IReadOnlyList<DiscoveredMod> CandidateDiscovered { get; init; }
 		public required ResolvedModGraph CandidateGraph { get; init; }
 		public required IReadOnlyList<StagedMod> ReplacementStaged { get; init; }
 		public required Dictionary<string, LoadedCodeMod<TGameApi>> OldCode { get; init; }
 		public required Dictionary<string, LoadedContentMod> OldContent { get; init; }
-		public required Dictionary<string, LoadedCodeMod<TGameApi>> ReplacementCode { get; init; }
-		public required Dictionary<string, LoadedContentMod> ReplacementContent { get; init; }
+		public required Dictionary<string, LoadedCodeMod<TGameApi>> PreparedCode { get; init; }
+		public required Dictionary<string, LoadedContentMod> PreparedContent { get; init; }
 
-		public void DropReplacementStrongReferences() {
-			foreach (LoadedCodeMod<TGameApi> mod in ReplacementCode.Values)
+		public void DropPreparedStrongReferences() {
+			foreach (LoadedCodeMod<TGameApi> mod in PreparedCode.Values)
 				mod.DropStrongReferences();
-			foreach (LoadedContentMod mod in ReplacementContent.Values)
+			foreach (LoadedContentMod mod in PreparedContent.Values)
 				mod.DropStrongReferences();
-			ReplacementCode.Clear();
-			ReplacementContent.Clear();
+			PreparedCode.Clear();
+			PreparedContent.Clear();
 		}
 
 		public void DropContainersOnly() {
 			OldCode.Clear();
 			OldContent.Clear();
-			ReplacementCode.Clear();
-			ReplacementContent.Clear();
+			PreparedCode.Clear();
+			PreparedContent.Clear();
 		}
 	}
 
 	private enum OpKind {
 		Reload,
+		Disable,
+		Enable,
 	}
 
 	private readonly record struct PendingOp(
 		ulong Seq,
 		OpKind Kind,
 		string OwnerID,
-		ReloadRequestKind? ReloadKind
+		ReloadRequestKind? ReloadKind = null,
+		DisableRequestKind? DisableKind = null,
+		EnableRequestKind? EnableKind = null
 	);
 
 	private enum ReloadBoundaryKind {
@@ -94,6 +130,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	public const string ManifestJson = "manifest.json";
+	public const int MaxAlcUnloadGcAttempts = 8;
 
 	private readonly int maxParallelDomains = options.MaxParallelCodeLoads;
 	private readonly string modDir = options.ModDirectory;
@@ -109,6 +146,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private IReadOnlyList<StagedMod> staged = Array.Empty<StagedMod>();
 	private readonly Dictionary<string, LoadedCodeMod<TGameApi>> activeCode = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, LoadedContentMod> activeContent = new(StringComparer.Ordinal);
+	private readonly HashSet<string> enabledOwners = new(StringComparer.Ordinal);
 	private readonly HookTargetResolver hookTargetResolver = new(AssemblyLoadContext.Default.Assemblies);
 	private ulong nextGeneration = 0;
 
@@ -136,24 +174,23 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		} catch {
 			// swallow
 		}
-		try {
-			foreach (string manifestPath in Directory.EnumerateFiles(modDir, ManifestJson, SearchOption.AllDirectories)) {
-				ct.ThrowIfCancellationRequested();
-				ModManifest manifest = await ManifestReader.ReadAsync(manifestPath, ct).ConfigureAwait(false);
-				string root = Path.GetDirectoryName(manifestPath)!;
-				result.Add(new DiscoveredMod(new ModSource(root, manifestPath), manifest));
-			}
-		} catch (DirectoryNotFoundException) {
-			// swallow
+		foreach (string manifestPath in enumerateManifests(modDir)) {
+			ct.ThrowIfCancellationRequested();
+			ModManifest manifest = await ManifestReader.ReadAsync(manifestPath, ct).ConfigureAwait(false);
+			string root = Path.GetDirectoryName(manifestPath)!;
+			result.Add(new DiscoveredMod(new ModSource(root, manifestPath), manifest));
 		}
 		discovered = result;
+		enabledOwners.Clear();
+		foreach (DiscoveredMod mod in discovered)
+			enabledOwners.Add(mod.Manifest.OwnerID);
 		phase = RuntimePhase.Discovered;
 	}
 
 	public ValueTask ResolveAsync(CancellationToken ct) {
 		requirePhase(RuntimePhase.Discovered, nameof(ResolveAsync));
 		ct.ThrowIfCancellationRequested();
-		activeGraph = ModRelationshipResolver.Resolve(discovered);
+		activeGraph = ModRelationshipResolver.Resolve(discovered.Where(mod => enabledOwners.Contains(mod.Manifest.OwnerID)).ToArray());
 		phase = RuntimePhase.Resolved;
 		return ValueTask.CompletedTask;
 	}
@@ -240,10 +277,49 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Reload, OwnerID: ownerID, ReloadKind: kind));
 	}
 
+	public void RequestDisable(string ownerID, DisableRequestKind kind) {
+		requirePhase(RuntimePhase.Active, nameof(RequestDisable));
+		lock (opLock)
+			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Disable, OwnerID: ownerID, DisableKind: kind));
+	}
+
+	public void RequestEnable(string ownerID, EnableRequestKind kind) {
+		requirePhase(RuntimePhase.Active, nameof(RequestEnable));
+		lock (opLock)
+			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Enable, OwnerID: ownerID, EnableKind: kind));
+	}
+
 	public void AtSafeBoundary(CancellationToken ct = default) => block(processBoundaryAsync(ReloadBoundaryKind.Safe, ct));
 	public void AtLiveBoundary(CancellationToken ct = default) => block(processBoundaryAsync(ReloadBoundaryKind.Live, ct));
 	public ValueTask AtSafeBoundaryAsync(CancellationToken ct = default) => processBoundaryAsync(ReloadBoundaryKind.Safe, ct);
 	public ValueTask AtLiveBoundaryAsync(CancellationToken ct = default) => processBoundaryAsync(ReloadBoundaryKind.Live, ct);
+
+	private static IEnumerable<string> enumerateManifests(string root) {
+		// if the root disappears halfway through, just return everything we saw so far
+		// might be better to not return anything but that requires enumerating everything upfront
+
+		IEnumerator<string> dirs;
+		try {
+			dirs = Directory.EnumerateDirectories(root).GetEnumerator();
+		} catch (DirectoryNotFoundException) {
+			yield break;
+		}
+		using (dirs) {
+			for (;;) {
+				string dir;
+				try {
+					if (!dirs.MoveNext())
+						yield break;
+					dir = dirs.Current;
+				} catch (DirectoryNotFoundException) {
+					yield break;
+				}
+				string manifest = Path.Combine(dir, ManifestJson);
+				if (File.Exists(manifest))
+					yield return manifest;
+			}
+		}
+	}
 
 	private static void block(ValueTask task) {
 		if (task.IsCompletedSuccessfully) {
@@ -276,30 +352,19 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				if (batch.Length == 0)
 					return;
 
-				ReloadRequestKind request = ReloadRequestKind.SafeBoundary;
-				HashSet<string> roots = new(StringComparer.Ordinal);
-				foreach (PendingOp op in batch) {
-					if (op.Kind == OpKind.Reload)
-						roots.Add(op.OwnerID);
-					if (op.ReloadKind == ReloadRequestKind.Live)
-						request = ReloadRequestKind.Live;
-				}
-				if (roots.Count == 0)
+				BoundaryPlan plan = createBoundaryPlan(batch);
+				if (plan.IsNoOp)
 					continue;
 
-				ResolvedModGraph oldGraph = activeGraph;
-				HashSet<string> reloadSet = ReloadClosure.Compute(roots, oldGraph.ReloadDependentsByTarget);
-				validateReloadCapabilities(reloadSet, request);
-
-				ReloadTransaction transaction = await prepareReloadSetAsync(reloadSet, request, ct).ConfigureAwait(false);
-				ReloadResult r = await commitReloadAsync(transaction, request, ct).ConfigureAwait(false);
+				Transaction transaction = await prepareTransactionAsync(plan, ct).ConfigureAwait(false);
+				ModOperationResult r = await commitTransactionAsync(transaction, ct).ConfigureAwait(false);
 				transaction.DropContainersOnly();
 #pragma warning disable IDE0059 // unnecessary assignment to local
 				transaction = null!;
 #pragma warning restore IDE0059 // unnecessary assignment to local
 				foreach (PendingAlcUnload pending in r.PendingUnloads) {
 					WeakReference weak = beginUnload(pending);
-					if (!probeUnload(weak, maxAttempts: 8))
+					if (!probeUnload(weak, maxAttempts: MaxAlcUnloadGcAttempts))
 						Console.Error.WriteLine($"warning: ALC for {pending.OwnerID} is still alive after unload request");
 				}
 			}
@@ -308,48 +373,285 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		}
 	}
 
-	private async ValueTask<ReloadTransaction> prepareReloadSetAsync(HashSet<string> reloadSet, ReloadRequestKind request, CancellationToken ct) {
+	private BoundaryPlan createBoundaryPlan(PendingOp[] batch) {
+		Array.Sort(batch, static (a, b) => a.Seq.CompareTo(b.Seq));
+
+		HashSet<string> candidateEnabled = new(enabledOwners, StringComparer.Ordinal);
+		HashSet<string> reloadRoots = new(StringComparer.Ordinal);
+		bool hasStructuralOps = false;
+		ReloadRequestKind reloadKind = ReloadRequestKind.SafeBoundary;
+
+		foreach (PendingOp op in batch) {
+			switch (op.Kind) {
+			case OpKind.Reload:
+				if (!candidateEnabled.Contains(op.OwnerID))
+					break;
+				reloadRoots.Add(op.OwnerID);
+				if (op.ReloadKind == ReloadRequestKind.Live)
+					reloadKind = ReloadRequestKind.Live;
+				break;
+			case OpKind.Disable:
+				hasStructuralOps = true;
+				DisableRequestKind drk = op.DisableKind ?? throw new InternalStateException("OpKind.Disable didn't set a disable request kind");
+				applyDisableToCandidateSet(op.OwnerID, drk, candidateEnabled, reloadRoots);
+				break;
+			case OpKind.Enable:
+				hasStructuralOps = true;
+				EnableRequestKind erk = op.EnableKind ?? throw new InternalStateException("OpKind.Enable didn't set an enable request kind");
+				applyEnableToCandidateSet(op.OwnerID, erk, candidateEnabled, reloadRoots);
+				break;
+			}
+		}
+
+		if (hasStructuralOps)
+			reloadKind = ReloadRequestKind.SafeBoundary;
+
+		HashSet<string> disableSet = new(enabledOwners, StringComparer.Ordinal);
+		disableSet.ExceptWith(candidateEnabled);
+
+		HashSet<string> enableSet = new(candidateEnabled, StringComparer.Ordinal);
+		enableSet.ExceptWith(enabledOwners);
+
+		reloadRoots.ExceptWith(disableSet);
+		reloadRoots.ExceptWith(enableSet);
+
+		HashSet<string> reloadSet = computeFilteredReloadClosure(reloadRoots, candidateEnabled, enableSet, disableSet);
+		validateReloadCapabilities(reloadSet, reloadKind);
+		return new BoundaryPlan {
+			ReloadKind = reloadKind,
+			CandidateEnabledOwners = candidateEnabled,
+			DisableSet = disableSet,
+			EnableSet = enableSet,
+			ReloadRoots = reloadRoots,
+			ReloadSet = reloadSet,
+		};
+	}
+
+	private void applyDisableToCandidateSet(string ownerID, DisableRequestKind kind, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
+		if (!candidateEnabled.Contains(ownerID))
+			return;
+
+		Queue<string> queue = new();
+		queue.Enqueue(ownerID);
+
+		while (queue.Count != 0) {
+			string target = queue.Dequeue();
+			if (!candidateEnabled.Contains(target))
+				continue;
+
+			List<ActiveDependent> dependents = findActiveDependentsTargeting(target, candidateEnabled);
+			foreach (ActiveDependent dependent in dependents) {
+				if (!candidateEnabled.Contains(dependent.OwnerID))
+					continue;
+
+				if (kind == DisableRequestKind.Strict)
+					throw new ModLoadException(target, $"cannot disable '{ownerID}' because enabled mod '{dependent.OwnerID}' depends on '{target}'");
+
+				if (dependent.IsHard) {
+					candidateEnabled.Remove(dependent.OwnerID);
+					queue.Enqueue(dependent.OwnerID);
+				} else {
+					if (kind == DisableRequestKind.DisableDependents) {
+						candidateEnabled.Remove(dependent.OwnerID);
+						queue.Enqueue(dependent.OwnerID);
+					} else if (kind == DisableRequestKind.DisableDependentsAndReloadOptionalDependents) {
+						reloadRoots.Add(dependent.OwnerID);
+					}
+				}
+			}
+
+			candidateEnabled.Remove(target);
+		}
+	}
+
+	private void applyEnableToCandidateSet(string ownerID, EnableRequestKind kind, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
+		if (candidateEnabled.Contains(ownerID))
+			return;
+
+		Dictionary<string, DiscoveredMod> discoveredMap = discovered.ToDictionary(static mod => mod.Manifest.OwnerID, StringComparer.Ordinal);
+
+		if (!discoveredMap.ContainsKey(ownerID))
+			throw new ModLoadException(ownerID, $"unknown mod '{ownerID}'");
+
+		bool enableRequiredDependencies = kind.Tag is
+			EnableRequestKind.Case.EnableRequiredDependencies or
+			EnableRequestKind.Case.EnableRequiredDependenciesAndReloadOptionalDependents;
+		HashSet<string> newlyEnabled = computeRequiredEnableClosure(ownerID, enableRequiredDependencies, discoveredMap);
+		foreach (string id in newlyEnabled)
+			candidateEnabled.Add(id);
+
+		if (kind == EnableRequestKind.EnableRequiredDependenciesAndReloadOptionalDependents)
+			foreach (string id in newlyEnabled)
+				addOptionalDependentsTargeting(id, candidateEnabled, reloadRoots);
+	}
+
+	private List<ActiveDependent> findActiveDependentsTargeting(string targetOwnerID, HashSet<string> candidateEnabled) {
+		List<ActiveDependent> result = new();
+		foreach (string ownerID in enabledOwners) {
+			if (!candidateEnabled.Contains(ownerID))
+				continue;
+
+			if (!activeGraph.Mods.TryGetValue(ownerID, out ResolvedMod mod))
+				continue;
+
+			foreach (ModRelationshipManifest relationship in mod.Manifest.Relationships) {
+				if (!StringComparer.Ordinal.Equals(relationship.OwnerID, targetOwnerID))
+					continue;
+
+				switch (relationship.Kind.Tag) {
+				case ModRelationshipKind.Case.RequiresSelfAfter:
+				case ModRelationshipKind.Case.RequiresSelfBefore:
+					result.Add(new ActiveDependent(ownerID, IsHard: true));
+					break;
+				case ModRelationshipKind.Case.IfPresentSelfAfter:
+				case ModRelationshipKind.Case.IfPresentSelfBefore:
+					result.Add(new ActiveDependent(ownerID, IsHard: false));
+					break;
+				}
+			}
+		}
+		return result;
+	}
+
+	private HashSet<string> computeRequiredEnableClosure(string rootOwnerID, bool enableRequiredDependencies, Dictionary<string, DiscoveredMod> discoveredMap) {
+		HashSet<string> result = new(StringComparer.Ordinal);
+		Stack<string> stack = new();
+
+		result.Add(rootOwnerID);
+		stack.Push(rootOwnerID);
+
+		while (stack.Count != 0) {
+			string ownerID = stack.Pop();
+
+			if (!discoveredMap.TryGetValue(ownerID, out DiscoveredMod mod))
+				throw new ModLoadException(ownerID, $"unknown mod '{ownerID}'");
+
+			foreach (ModRelationshipManifest relationship in mod.Manifest.Relationships) {
+				if (!(relationship.Kind.Tag is ModRelationshipKind.Case.RequiresSelfAfter or ModRelationshipKind.Case.RequiresSelfBefore))
+					continue;
+
+				if (!discoveredMap.ContainsKey(relationship.OwnerID))
+					throw new ModLoadException(ownerID, $"required dependency '{relationship.OwnerID}' is missing");
+
+				if (enabledOwners.Contains(relationship.OwnerID) || result.Contains(relationship.OwnerID))
+					continue;
+
+				if (!enableRequiredDependencies)
+					throw new ModLoadException(ownerID, $"required dependency '{relationship.OwnerID}' is disabled");
+				result.Add(relationship.OwnerID);
+				stack.Push(relationship.OwnerID);
+			}
+		}
+		return result;
+	}
+
+	private void addOptionalDependentsTargeting(string targetOwnerID, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
+		foreach (string ownerID in enabledOwners) {
+			if (!candidateEnabled.Contains(ownerID))
+				continue;
+			if (!activeGraph.Mods.TryGetValue(ownerID, out ResolvedMod mod))
+				continue;
+			foreach (ModRelationshipManifest relationship in mod.Manifest.Relationships) {
+				if (!StringComparer.Ordinal.Equals(relationship.OwnerID, targetOwnerID))
+					continue;
+				if (relationship.Kind.Tag is ModRelationshipKind.Case.IfPresentSelfAfter or ModRelationshipKind.Case.IfPresentSelfBefore)
+					reloadRoots.Add(ownerID);
+			}
+		}
+	}
+
+	private HashSet<string> computeFilteredReloadClosure(HashSet<string> roots, HashSet<string> candidateEnabled, HashSet<string> enableSet, HashSet<string> disableSet) {
+		HashSet<string> result = new(StringComparer.Ordinal);
+		Stack<string> stack = new();
+
+		foreach (string root in roots) {
+			if (!enabledOwners.Contains(root))
+				continue;
+			if (!candidateEnabled.Contains(root))
+				continue;
+			if (enableSet.Contains(root))
+				continue;
+			if (disableSet.Contains(root))
+				continue;
+			if (result.Add(root))
+				stack.Push(root);
+		}
+
+		while (stack.Count != 0) {
+			string ownerID = stack.Pop();
+			if (!activeGraph.ReloadDependentsByTarget.TryGetValue(ownerID, out string[]? dependents))
+				continue;
+			foreach (string dependent in dependents) {
+				if (!enabledOwners.Contains(dependent))
+					continue;
+				if (!candidateEnabled.Contains(dependent))
+					continue;
+				if (enableSet.Contains(dependent))
+					continue;
+				if (disableSet.Contains(dependent))
+					continue;
+				if (result.Add(dependent))
+					stack.Push(dependent);
+			}
+		}
+
+		return result;
+	}
+
+	private async ValueTask<Transaction> prepareTransactionAsync(BoundaryPlan plan, CancellationToken ct) {
+		HashSet<string> prepareSet = plan.PrepareSet;
+		HashSet<string> oldTouchedSet = plan.OldTouchedSet;
+
 		Dictionary<string, DiscoveredMod> candidateDiscovered = discovered.ToDictionary(static mod => mod.Manifest.OwnerID, StringComparer.Ordinal);
-		foreach (string id in reloadSet) {
-			DiscoveredMod old = candidateDiscovered[id];
+		foreach (string id in prepareSet) {
+			if (!candidateDiscovered.TryGetValue(id, out DiscoveredMod old))
+				throw new ModLoadException(id, $"unknown mod '{id}'");
 			ModManifest manifest = await ManifestReader.ReadAsync(old.Source.ManifestPath, ct).ConfigureAwait(false);
 			candidateDiscovered[id] = new DiscoveredMod(old.Source, manifest);
 		}
 
-		ResolvedModGraph candidateGraph = ModRelationshipResolver.Resolve(candidateDiscovered.Values.ToArray());
-		validateCandidateReloadCapabilities(candidateGraph, reloadSet, request);
+		ResolvedModGraph candidateGraph = ModRelationshipResolver.Resolve(
+			candidateDiscovered.Values.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Manifest.OwnerID)).ToArray()
+		);
+		validateCandidateReloadCapabilities(candidateGraph, plan.ReloadSet, plan.ReloadKind);
 
 		List<StagedMod> replacementStaged = new();
-		foreach (string id in reloadSet) {
-			ResolvedMod resolved = candidateGraph.Mods[id];
+		foreach (ResolvedMod resolved in candidateGraph.ModsInDeterministicOrder) {
+			if (!prepareSet.Contains(resolved.Manifest.OwnerID))
+				continue;
 			replacementStaged.Add(await stageOneAsync(resolved.Source, resolved.Manifest, ct).ConfigureAwait(false));
 		}
 
 		Dictionary<string, LoadedCodeMod<TGameApi>> oldCode = activeCode
-			.Where(kvp => reloadSet.Contains(kvp.Key))
+			.Where(kvp => oldTouchedSet.Contains(kvp.Key))
 			.ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
 		Dictionary<string, LoadedContentMod> oldContent = activeContent
-			.Where(kvp => reloadSet.Contains(kvp.Key))
+			.Where(kvp => oldTouchedSet.Contains(kvp.Key))
 			.ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
 
-		Dictionary<string, LoadedCodeMod<TGameApi>> replacementCode = new(StringComparer.Ordinal);
-		Dictionary<string, LoadedContentMod> replacementContent = new(StringComparer.Ordinal);
-		Dictionary<string, LoadedOwnerInfo> candidateOwners = buildOwnerInfo(candidateDiscovered.Values.Select(static mod => mod.Manifest));
-		foreach (StagedMod stagedMod in replacementStaged) {
-			if (stagedMod.Manifest is CodeModManifest) {
-				LoadedCodeMod<TGameApi> loaded = await loadCodeModBoundedAsync(stagedMod, ct).ConfigureAwait(false);
-				replacementCode.Add(stagedMod.Manifest.OwnerID, loaded);
-			} else if (stagedMod.Manifest is ContentModManifest) {
-				replacementContent.Add(stagedMod.Manifest.OwnerID, createLoadedContentMod(stagedMod));
-			}
-		}
+		Dictionary<string, LoadedCodeMod<TGameApi>> preparedCode = new(StringComparer.Ordinal);
+		Dictionary<string, LoadedContentMod> preparedContent = new(StringComparer.Ordinal);
 
 		try {
-			await Task.WhenAll(replacementCode.Values.Select(mod => runLoadAsync(mod, candidateOwners, ct).AsTask())).ConfigureAwait(false);
+			foreach (StagedMod stagedMod in replacementStaged) {
+				if (stagedMod.Manifest is CodeModManifest) {
+					LoadedCodeMod<TGameApi> loaded = await loadCodeModBoundedAsync(stagedMod, ct).ConfigureAwait(false);
+					HookDiscoverer<TGameApi>.DiscoverLoadHooks(loaded, hookTargetResolver);
+					preparedCode.Add(stagedMod.Manifest.OwnerID, loaded);
+				} else if (stagedMod.Manifest is ContentModManifest) {
+					preparedContent.Add(stagedMod.Manifest.OwnerID, createLoadedContentMod(stagedMod));
+				}
+			}
+
+			Dictionary<string, LoadedOwnerInfo> candidateOwners = buildOwnerInfo(
+				candidateGraph.ModsInDeterministicOrder.Select(static mod => mod.Manifest)
+			);
+
+			await Task.WhenAll(preparedCode.Values.Select(mod => runLoadAsync(mod, candidateOwners, ct).AsTask())).ConfigureAwait(false);
 			foreach (IReadOnlyList<string> wave in candidateGraph.Waves.Waves) {
 				List<Task> tasks = new();
 				foreach (string id in wave)
-					if (replacementCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? mod))
+					if (preparedCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? mod))
 						tasks.Add(runLinkAsync(mod, candidateOwners, ct).AsTask());
 				try {
 					await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -358,34 +660,35 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				}
 			}
 		} catch {
-			foreach (LoadedCodeMod<TGameApi> mod in replacementCode.Values)
+			foreach (LoadedCodeMod<TGameApi> mod in preparedCode.Values)
 				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
-			foreach (LoadedContentMod mod in replacementContent.Values)
+			foreach (LoadedContentMod mod in preparedContent.Values)
 				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
 			throw;
 		}
 
-		return new ReloadTransaction {
-			ReloadSet = reloadSet,
+		return new Transaction {
+			Plan = plan,
 			CandidateDiscovered = candidateDiscovered.Values.ToArray(),
 			CandidateGraph = candidateGraph,
 			ReplacementStaged = replacementStaged,
 			OldCode = oldCode,
 			OldContent = oldContent,
-			ReplacementCode = replacementCode,
-			ReplacementContent = replacementContent,
+			PreparedCode = preparedCode,
+			PreparedContent = preparedContent,
 		};
 	}
 
-	private async ValueTask<ReloadResult> commitReloadAsync(ReloadTransaction transaction, ReloadRequestKind request, CancellationToken ct) {
+	private async ValueTask<ModOperationResult> commitTransactionAsync(Transaction transaction, CancellationToken ct) {
+		BoundaryPlan plan = transaction.Plan;
 		Dictionary<string, ModLiveStateBlob> capturedState = new(StringComparer.Ordinal);
 		bool destructiveBoundaryCrossed = false;
 		ExceptionSnapshot reloadErr;
 		try {
-			FrozenSet<string> reloadSetSnapshot = transaction.ReloadSet.ToFrozenSet(StringComparer.Ordinal);
+			FrozenSet<string> reloadSetSnapshot = plan.ReloadSet.ToFrozenSet(StringComparer.Ordinal);
 
-			if (request == ReloadRequestKind.Live) {
-				foreach (string id in transaction.ReloadSet) {
+			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live) {
+				foreach (string id in plan.ReloadSet) {
 					if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? old) && old.ReloadEntrypoint is not null) {
 						ModReloadContextImpl<TGameApi> ctx = new() {
 							Api = createApi(old),
@@ -398,19 +701,18 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			}
 
 			try {
-				await deactivateSetAsync(transaction.ReloadSet, activeGraph, reverse: true, ct).ConfigureAwait(false);
+				await deactivateSetAsync(plan.OldTouchedSet, activeGraph, reverse: true, ct).ConfigureAwait(false);
 			} finally {
 				destructiveBoundaryCrossed = true;
 			}
-			await disposeOldOwnerScopesAsync(transaction.ReloadSet).ConfigureAwait(false);
 
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.ReplacementCode.Values)
-				HookDiscoverer<TGameApi>.DiscoverLoadHooks(mod, hookTargetResolver);
-			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.ReplacementCode.Values.ToArray(), maxParallelDomains, ct).ConfigureAwait(false);
+			await disposeOldOwnerScopesAsync(plan.OldTouchedSet).ConfigureAwait(false);
 
-			if (request == ReloadRequestKind.Live) {
+			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.PreparedCode.Values.ToArray(), maxParallelDomains, ct).ConfigureAwait(false);
+
+			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live) {
 				foreach (KeyValuePair<string, ModLiveStateBlob> kvp in capturedState) {
-					if (transaction.ReplacementCode.TryGetValue(kvp.Key, out LoadedCodeMod<TGameApi>? next) && next.ReloadEntrypoint is not null) {
+					if (transaction.PreparedCode.TryGetValue(kvp.Key, out LoadedCodeMod<TGameApi>? next) && next.ReloadEntrypoint is not null) {
 						ModReloadContextImpl<TGameApi> ctx = new() {
 							Api = createApi(next),
 							Generation = next.Staged.Generation,
@@ -421,34 +723,53 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				}
 			}
 
-			await activateSetAsync(transaction.ReloadSet, transaction.CandidateGraph, transaction.ReplacementCode, ct).ConfigureAwait(false);
-			publishReload(transaction);
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.OldCode.Values)
-				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.Reload, ct).ConfigureAwait(false);
-			foreach (LoadedContentMod mod in transaction.OldContent.Values)
-				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.Reload, ct).ConfigureAwait(false);
-			return ReloadResult.Succeeded(transaction.ReloadSet.ToFrozenSet());
+			await activateSetAsync(plan.PrepareSet, transaction.CandidateGraph, transaction.PreparedCode, ct).ConfigureAwait(false);
+			publishTransaction(transaction);
+
+			List<PendingAlcUnload> oldUnloads = new();
+			foreach (LoadedCodeMod<TGameApi> mod in transaction.OldCode.Values) {
+				ReloadInvalidationReason reason = plan.DisableSet.Contains(mod.Staged.Manifest.OwnerID)
+					? ReloadInvalidationReason.Disable
+					: ReloadInvalidationReason.Reload;
+				await destroyPreparedCodeGenerationNoUnloadAsync(mod, reason, ct).ConfigureAwait(false);
+				oldUnloads.Add(detachForUnload(mod));
+			}
+
+			foreach (LoadedContentMod mod in transaction.OldContent.Values) {
+				ReloadInvalidationReason reason = plan.DisableSet.Contains(mod.Staged.Manifest.OwnerID)
+					? ReloadInvalidationReason.Disable
+					: ReloadInvalidationReason.Reload;
+				await destroyPreparedContentGenerationAsync(mod, reason, ct).ConfigureAwait(false);
+			}
+
+			return ModOperationResult.Succeeded(
+				plan.ReloadSet.ToFrozenSet(StringComparer.Ordinal),
+				plan.EnableSet.ToFrozenSet(StringComparer.Ordinal),
+				plan.DisableSet.ToFrozenSet(StringComparer.Ordinal),
+				plan.OldTouchedSet.ToFrozenSet(StringComparer.Ordinal),
+				oldUnloads
+			);
 		} catch (Exception ex) {
 			reloadErr = ExceptionSnapshot.FromException(ex);
 			ex = null!;
 		}
 
 		if (!destructiveBoundaryCrossed) {
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.ReplacementCode.Values)
+			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values)
 				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
-			foreach (LoadedContentMod mod in transaction.ReplacementContent.Values)
+			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
 				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
 			throw reloadErr.ToException();
 		}
 
-		List<PendingAlcUnload> replacementUnloads = new();
+		List<PendingAlcUnload> preparedUnloads = new();
 		List<ExceptionSnapshot> rollbackErrs = new();
 		try {
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.ReplacementCode.Values) {
+			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values) {
 				await destroyPreparedCodeGenerationNoUnloadAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
-				replacementUnloads.Add(detachForUnload(mod));
+				preparedUnloads.Add(detachForUnload(mod));
 			}
-			foreach (LoadedContentMod mod in transaction.ReplacementContent.Values)
+			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
 				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
 		} catch (Exception ex) {
 			rollbackErrs.Add(ExceptionSnapshot.FromException(ex));
@@ -459,16 +780,17 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				old.OwnerScope = new OwnerScope(old.Staged.Manifest.OwnerID);
 			foreach (LoadedContentMod old in transaction.OldContent.Values)
 				old.OwnerScope = new OwnerScope(old.Staged.Manifest.OwnerID);
+
 			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.OldCode.Values.ToArray(), maxParallelDomains, ct).ConfigureAwait(false);
-			await activateSetAsync(transaction.ReloadSet, activeGraph, activeCode, ct).ConfigureAwait(false);
+			await activateSetAsync(plan.OldTouchedSet, activeGraph, activeCode, ct).ConfigureAwait(false);
 		} catch (Exception ex) {
 			rollbackErrs.Add(ExceptionSnapshot.FromException(ex));
 		}
 
 		if (rollbackErrs.Count > 0)
-			throw new AggregateException("reload failed and rollback also failed", rollbackErrs.Select(static e => e.ToException()).Prepend(reloadErr.ToException()));
-		ReloadResult r = ReloadResult.RollbackSucceeded(transaction.ReloadSet.ToFrozenSet(), reloadErr, replacementUnloads);
-		transaction.DropReplacementStrongReferences();
+			throw new AggregateException("mod operation failed and rollback also failed", rollbackErrs.Select(static e => e.ToException()).Prepend(reloadErr.ToException()));
+		ModOperationResult r = ModOperationResult.RollbackSucceeded(reloadErr, preparedUnloads);
+		transaction.DropPreparedStrongReferences();
 		return r;
 	}
 
@@ -584,12 +906,22 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		}
 	}
 
-	private void publishReload(ReloadTransaction transaction) {
+	private void publishTransaction(Transaction transaction) {
+		BoundaryPlan plan = transaction.Plan;
 		discovered = transaction.CandidateDiscovered;
 		activeGraph = transaction.CandidateGraph;
-		foreach (KeyValuePair<string, LoadedCodeMod<TGameApi>> kvp in transaction.ReplacementCode)
+		foreach (string id in plan.DisableSet) {
+			activeCode.Remove(id);
+			activeContent.Remove(id);
+			enabledOwners.Remove(id);
+		}
+		foreach (string id in plan.EnableSet)
+			enabledOwners.Add(id);
+		foreach (KeyValuePair<string, LoadedCodeMod<TGameApi>> kvp in transaction.PreparedCode)
 			activeCode[kvp.Key] = kvp.Value;
-		staged = staged.Where(mod => !transaction.ReloadSet.Contains(mod.Manifest.OwnerID)).Concat(transaction.ReplacementStaged).ToArray();
+		foreach (KeyValuePair<string, LoadedContentMod> kvp in transaction.PreparedContent)
+			activeContent[kvp.Key] = kvp.Value;
+		staged = staged.Where(mod => !plan.OldTouchedSet.Contains(mod.Manifest.OwnerID)).Concat(transaction.ReplacementStaged).ToArray();
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
@@ -609,7 +941,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private static async ValueTask destroyPreparedCodeGenerationAsync(LoadedCodeMod<TGameApi> mod, ReloadInvalidationReason reason, CancellationToken ct) {
 		await destroyPreparedCodeGenerationNoUnloadAsync(mod, reason, ct);
 		WeakReference weak = beginUnload(detachForUnload(mod));
-		if (!probeUnload(weak, maxAttempts: 8))
+		if (!probeUnload(weak, maxAttempts: MaxAlcUnloadGcAttempts))
 			Console.Error.WriteLine($"warning: ALC for {mod.Staged.Manifest.OwnerID} is still alive after unload request");
 	}
 
@@ -641,28 +973,24 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		}
 	}
 
-	private static bool canSatisfyReload(ModCodeHotReloadLevel level, ReloadRequestKind request) {
-		return request.Tag switch {
-			ReloadRequestKind.Case.SafeBoundary => level.Tag is ModCodeHotReloadLevel.Case.SafeBoundary or ModCodeHotReloadLevel.Case.Live,
-			ReloadRequestKind.Case.Live => level == ModCodeHotReloadLevel.Live,
-			_ => false,
-		};
-	}
+	private static bool canSatisfyReload(ModCodeHotReloadLevel level, ReloadRequestKind request) => request.Tag switch {
+		ReloadRequestKind.Case.SafeBoundary => level.Tag is ModCodeHotReloadLevel.Case.SafeBoundary or ModCodeHotReloadLevel.Case.Live,
+		ReloadRequestKind.Case.Live => level == ModCodeHotReloadLevel.Live,
+		_ => false,
+	};
 
-	private static bool isEligibleAtBoundary(in PendingOp op, ReloadBoundaryKind boundary) {
-		return op.Kind switch {
-			OpKind.Reload => op.ReloadKind is ReloadRequestKind request && boundaryAllows(boundary, request),
-			_ => false,
-		};
-	}
+	private static bool isEligibleAtBoundary(in PendingOp op, ReloadBoundaryKind boundary) => op.Kind switch {
+		OpKind.Reload => op.ReloadKind is ReloadRequestKind request && boundaryAllows(boundary, request),
+		OpKind.Disable => boundaryAllows(boundary, ReloadRequestKind.SafeBoundary),
+		OpKind.Enable => boundaryAllows(boundary, ReloadRequestKind.SafeBoundary),
+		_ => false,
+	};
 
-	private static bool boundaryAllows(ReloadBoundaryKind boundary, ReloadRequestKind request) {
-		return request.Tag switch {
-			ReloadRequestKind.Case.SafeBoundary => boundary is ReloadBoundaryKind.Safe or ReloadBoundaryKind.Live,
-			ReloadRequestKind.Case.Live => boundary == ReloadBoundaryKind.Live,
-			_ => false,
-		};
-	}
+	private static bool boundaryAllows(ReloadBoundaryKind boundary, ReloadRequestKind request) => request.Tag switch {
+		ReloadRequestKind.Case.SafeBoundary => boundary is ReloadBoundaryKind.Safe or ReloadBoundaryKind.Live,
+		ReloadRequestKind.Case.Live => boundary == ReloadBoundaryKind.Live,
+		_ => false,
+	};
 
 	private static void validateModAssemblyAttribute(CodeModManifest manifest, Assembly assembly) {
 		ModAssemblyAttribute attribute = assembly.GetCustomAttribute<ModAssemblyAttribute>() ??
@@ -675,12 +1003,13 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			throw new ModLoadException(manifest.OwnerID, $"manifest code-hot-reload '{manifest.CodeHotReload}' does not match assembly attribute HotReloadLevel '{attribute.HotReloadLevel}'");
 	}
 
-	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) {
-		return apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerID, mod.OwnerScope));
-	}
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) =>
+		apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerID, mod.OwnerScope));
 
-	private static ModLoadLinkContextImpl<TGameApi> createContext(LoadedCodeMod<TGameApi> mod, TGameApi api, IReadOnlyDictionary<string, LoadedOwnerInfo> owners) {
-		return new ModLoadLinkContextImpl<TGameApi>(owners) {
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static ModLoadLinkContextImpl<TGameApi> createContext(LoadedCodeMod<TGameApi> mod, TGameApi api, IReadOnlyDictionary<string, LoadedOwnerInfo> owners) =>
+		new(owners) {
 			OwnerID = mod.Staged.Manifest.OwnerID,
 			Version = mod.Staged.Manifest.Version,
 			Api = api,
@@ -688,20 +1017,20 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			GenerationScope = mod.GenerationScope,
 			UnloadToken = mod.GenerationScope.Stopping,
 		};
-	}
 
-	private static Dictionary<string, LoadedOwnerInfo> buildOwnerInfo(IEnumerable<StagedMod> stagedMods) {
-		return buildOwnerInfo(stagedMods.Select(static mod => mod.Manifest));
-	}
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static Dictionary<string, LoadedOwnerInfo> buildOwnerInfo(IEnumerable<StagedMod> stagedMods) =>
+		buildOwnerInfo(stagedMods.Select(static mod => mod.Manifest));
 
-	private static Dictionary<string, LoadedOwnerInfo> buildOwnerInfo(IEnumerable<ModManifest> manifests) {
-		return manifests.ToDictionary(
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static Dictionary<string, LoadedOwnerInfo> buildOwnerInfo(IEnumerable<ModManifest> manifests) =>
+		manifests.ToDictionary(
 			static manifest => manifest.OwnerID,
 			static manifest => new LoadedOwnerInfo(manifest.OwnerID, manifest.Version),
 			StringComparer.Ordinal
 		);
-	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void requirePhase(RuntimePhase expected, string operation) {
 		if (phase != expected)
 			throw new InvalidOperationException($"{operation} requires phase {expected}, but current phase is {phase}");

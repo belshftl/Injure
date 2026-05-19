@@ -45,12 +45,16 @@ public sealed class GameplayLayer : Layer {
 	}
 
 	public override void Update(in LayerTickContext ctx) {
-		if (ctx.Actions.Buttons[Actions.Pause].Pressed)
-			Game.Mods.RequestReload("jdoe.test-mod", Injure.ModKit.Runtime.ReloadRequestKind.SafeBoundary);
 		/*
 		if (ctx.Actions.Buttons[Actions.Pause].Pressed)
 			throw new NotImplementedException();
 		*/
+		if (ctx.Actions.Buttons[Actions.ReloadTestMod].Pressed)
+			Game.Mods.RequestReload("jdoe.test-mod", Injure.ModKit.Runtime.ReloadRequestKind.SafeBoundary);
+		if (ctx.Actions.Buttons[Actions.DisableTestMod].Pressed)
+			Game.Mods.RequestDisable("jdoe.test-mod", Injure.ModKit.Runtime.DisableRequestKind.ReloadOptionalDependents);
+		if (ctx.Actions.Buttons[Actions.EnableTestMod].Pressed)
+			Game.Mods.RequestEnable("jdoe.test-mod", Injure.ModKit.Runtime.EnableRequestKind.EnableRequiredDependenciesAndReloadOptionalDependents);
 		if (ui is null)
 			throw new InvalidOperationException("Update() called before OnEnter()");
 		ui.Update(ctx.Controls, Game.WindowState);
