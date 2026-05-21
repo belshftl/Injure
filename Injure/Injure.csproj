@@ -15,11 +15,6 @@
 		<RepositoryUrl>https://github.com/belshftl/Injure</RepositoryUrl>
 	</PropertyGroup>
 
-	<PropertyGroup>
-                <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-                <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
-        </PropertyGroup>
-
 	<ItemGroup>
 		<ProjectReference Include="../Injure.Internals.Analyzers/Injure.Internals.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		<ProjectReference Include="../Injure.Native/Injure.Native.csproj" />

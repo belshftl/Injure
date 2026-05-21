@@ -2,7 +2,7 @@
 
 using System;
 
-namespace Injure.ModKit.Runtime;
+namespace Injure.ModKit;
 
 public sealed class ForeignException(string originalTypeName, string originalMessage) : Exception($"exception of type '{originalTypeName}': {originalMessage}") {
 	public string OriginalTypeName { get; } = originalTypeName;

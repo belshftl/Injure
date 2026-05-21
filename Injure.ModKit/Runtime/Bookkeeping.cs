@@ -45,18 +45,13 @@ internal readonly record struct StagedMod(ModSource Source, ModManifest Manifest
 
 internal sealed class LoadedContentMod : IStrongRefDroppable {
 	public required StagedMod Staged { get; init; }
-	public required OwnerScope OwnerScope {
-		get => field ?? throw new InternalStateException("mod owner scope strong ref has already been dropped");
-		set;
-	}
-	public required ReloadGenerationScope GenerationScope {
-		get => field ?? throw new InternalStateException("mod generation scope strong ref has already been dropped");
+	public required ActiveOwnerScope Scope {
+		get => field ?? throw new InternalStateException("mod active owner scope strong ref has already been dropped");
 		set;
 	}
 
 	public void DropStrongReferences() {
-		OwnerScope = null!;
-		GenerationScope = null!;
+		Scope = null!;
 	}
 }
 
@@ -70,21 +65,21 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 		get => field ?? throw new InternalStateException("mod assembly strong ref has already been dropped");
 		set;
 	}
-	public required IModEntrypoint<TGameApi> Entrypoint {
+	public required object Entrypoint {
 		get => field ?? throw new InternalStateException("mod entrypoint strong ref has already been dropped");
 		set;
 	}
 	private bool reloadEntrypointDropped = false;
-	public required IModReloadEntrypoint<TGameApi>? ReloadEntrypoint {
+	public required object? ReloadEntrypoint {
 		get => !reloadEntrypointDropped ? field : throw new InternalStateException("mod reload entrypoint strong ref has already been dropped");
 		set;
 	}
-	public required OwnerScope OwnerScope {
-		get => field ?? throw new InternalStateException("mod owner scope strong ref has already been dropped");
+	public required Type LifetimeIdentityType {
+		get => field ?? throw new InternalStateException("mod lifetime identity type strong ref has already been dropped");
 		set;
 	}
-	public required ReloadGenerationScope GenerationScope {
-		get => field ?? throw new InternalStateException("mod generation scope strong ref has already been dropped");
+	public required ActiveOwnerScope Scope {
+		get => field ?? throw new InternalStateException("mod active owner scope strong ref has already been dropped");
 		set;
 	}
 	private GenerationPatchSet? loadHooksBacking;
@@ -99,16 +94,16 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 		Assembly = null!;
 		Entrypoint = null!;
 		reloadEntrypointDropped = true;
-		ReloadEntrypoint = null!;
-		OwnerScope = null!;
-		GenerationScope = null!;
+		ReloadEntrypoint = null;
+		LifetimeIdentityType = null!;
+		Scope = null!;
 		loadHooksBacking?.DropStrongReferences();
 		loadHooksBacking = null;
 	}
 }
 
-internal sealed class PendingAlcUnload(string ownerID, ModAlc alc) : IStrongRefDroppable {
-	public string OwnerID { get; } = ownerID;
+internal sealed class PendingAlcUnload(ReloadGeneration generation, ModAlc alc) : IStrongRefDroppable {
+	public ReloadGeneration Generation { get; } = generation;
 	public ModAlc Alc {
 		get => field ?? throw new InternalStateException("mod ALC strong ref has already been dropped");
 		private set;

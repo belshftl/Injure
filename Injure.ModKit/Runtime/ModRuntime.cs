@@ -18,13 +18,13 @@ using Injure.ModKit.MonoMod;
 namespace Injure.ModKit.Runtime;
 
 public readonly struct ModApiFactoryContext {
-	internal ModApiFactoryContext(string forOwnerID, OwnerScope ownerScope) {
+	internal ModApiFactoryContext(string forOwnerID, IActiveOwnerScope ownerScope) {
 		ForOwnerID = forOwnerID;
 		OwnerScope = ownerScope;
 	}
 
 	public string ForOwnerID { get; }
-	public OwnerScope OwnerScope { get; }
+	public IActiveOwnerScope OwnerScope { get; }
 }
 
 public sealed record ModRuntimeOptions<TGameApi> {
@@ -35,30 +35,80 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public required IReadOnlyList<string> SharedAssemblies { get; init; }
 
 	public IDiagnosticsSink DiagnosticsSink { get; init; } = new DefaultDiagnosticsSink();
-	public int MaxParallelCodeLoads { get; init; } = Environment.ProcessorCount - 1;
+	public int MaxParallelCodeLoads { get; init; } = Math.Max(1, Environment.ProcessorCount - 1);
+	public int MaxParallelDisposals { get; init; } = 8;
 }
 
-internal sealed class ModLoadLinkContextImpl<TGameApi>(IReadOnlyDictionary<string, LoadedOwnerInfo> loaded) : IModLoadContext<TGameApi>, IModLinkContext<TGameApi> {
+internal sealed class ModLoadLinkContextImpl<TGameApi, TLifetime>(
+	IReadOnlyDictionary<string, LoadedOwnerInfo> loaded,
+	string ownerID,
+	Semver version,
+	TGameApi api,
+	IOwnerDiagnostics diagnostics,
+	ActiveOwnerScope scope
+) : IStrongRefDroppable, IModLoadContext<TGameApi, TLifetime>, IModLinkContext<TGameApi, TLifetime> where TLifetime : struct, IModLifetimeIdentity {
 	private readonly IReadOnlyDictionary<string, LoadedOwnerInfo> loaded = loaded;
 
-	public required string OwnerID { get; init; }
-	public required Semver Version { get; init; }
-	public required TGameApi Api { get; init; }
-	public required IOwnerDiagnostics Diagnostics { get; init; }
-	public required OwnerScope OwnerScope { get; init; }
-	public required ReloadGenerationScope GenerationScope { get; init; }
-	public required CancellationToken UnloadToken { get; init; }
+	public string OwnerID { get; } = ownerID;
+	public Semver Version { get; } = version;
+	private bool gameApiDropped = false;
+	public TGameApi Api {
+		get => !gameApiDropped ? field : throw new ReloadGenerationExpiredException(Generation);
+		private set;
+	} = api;
+	public IOwnerDiagnostics Diagnostics {
+		get => field ?? throw new ReloadGenerationExpiredException(Generation);
+		private set;
+	} = diagnostics;
+	public IActiveOwnerScope<TLifetime> Scope {
+		get => field ?? throw new ReloadGenerationExpiredException(Generation);
+		private set;
+	} = scope.AsTyped<TLifetime>();
+	public ReloadGeneration Generation => Scope.Generation;
 
 	public bool TryGetLoadedDependency(string id, out LoadedOwnerInfo info) => loaded.TryGetValue(id, out info);
+
+	public void DropStrongReferences() {
+		gameApiDropped = true;
+		Api = default!;
+		Diagnostics = null!;
+		Scope = null!;
+	}
 }
 
-internal sealed class ModReloadContextImpl<TGameApi> : IModReloadContext<TGameApi> {
-	public required TGameApi Api { get; init; }
-	public required ReloadGeneration Generation { get; init; }
-	public required IReadOnlySet<string> ReloadSet { get; init; }
+internal sealed class ModReloadContextImpl<TGameApi, TLifetime>(
+	TGameApi api,
+	ActiveOwnerScope scope,
+	IReadOnlySet<string> reloadSet,
+	IOwnerDiagnostics diagnostics
+) : IStrongRefDroppable, IModReloadContext<TGameApi, TLifetime> where TLifetime : struct, IModLifetimeIdentity {
+	private bool gameApiDropped = false;
+	public TGameApi Api {
+		get => !gameApiDropped ? field : throw new ReloadGenerationExpiredException(Generation);
+		private set;
+	} = api;
+	public ReloadGeneration Generation => Scope.Generation;
+	public IReadOnlySet<string> ReloadSet { get; } = reloadSet;
+	public IOwnerDiagnostics Diagnostics {
+		get => field ?? throw new ReloadGenerationExpiredException(Generation);
+		private set;
+	} = diagnostics;
+	public IActiveOwnerScope<TLifetime> Scope {
+		get => field ?? throw new ReloadGenerationExpiredException(Generation);
+		private set;
+	} = scope.AsTyped<TLifetime>();
+
+	public void DropStrongReferences() {
+		gameApiDropped = true;
+		Api = default!;
+		Diagnostics = null!;
+		Scope = null!;
+	}
 }
 
 public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
+	private readonly struct ContentLifetimeIdentity : IModLifetimeIdentity {}
+
 	private readonly record struct ActiveDependent(string OwnerID, bool IsHard);
 
 	private sealed class BoundaryPlan {
@@ -146,8 +196,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private readonly Func<ModApiFactoryContext, TGameApi> apiFactory = options.ApiFactory;
 	private readonly IReadOnlyList<string> sharedAssemblies = options.SharedAssemblies;
 	private readonly IDiagnosticsSink diagnosticsSink = options.DiagnosticsSink;
-	private readonly int maxParallelDomains = options.MaxParallelCodeLoads;
-	private readonly SemaphoreSlim codeLoadSem = new(options.MaxParallelCodeLoads, options.MaxParallelCodeLoads);
+	private readonly int maxParallelDomains = Math.Max(1, options.MaxParallelCodeLoads);
+	private readonly int maxParallelDisposals = Math.Max(1, options.MaxParallelDisposals);
+	private readonly SemaphoreSlim codeLoadSem = new(Math.Max(1, options.MaxParallelCodeLoads), Math.Max(1, options.MaxParallelCodeLoads));
 	private readonly SemaphoreSlim writeLock = new(1, 1);
 
 	private RuntimePhase phase = RuntimePhase.Empty;
@@ -260,9 +311,8 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 	public async ValueTask LinkAsync(CancellationToken ct) {
 		requirePhase(RuntimePhase.LoadHooksApplied, nameof(LinkAsync));
-		ResolvedModGraph graph = activeGraph;
 		Dictionary<string, LoadedOwnerInfo> owners = buildOwnerInfo(staged);
-		foreach (IReadOnlyList<string> wave in graph.Waves.Waves) {
+		foreach (IReadOnlyList<string> wave in activeGraph.Waves.Waves) {
 			ct.ThrowIfCancellationRequested();
 			List<Task> tasks = new();
 			foreach (string id in wave)
@@ -280,8 +330,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	public async ValueTask ActivateAsync(CancellationToken ct) {
 		requirePhase(RuntimePhase.Linked, nameof(ActivateAsync));
 		ct.ThrowIfCancellationRequested();
-		ResolvedModGraph graph = activeGraph;
-		await activateSetAsync(activeCode.Keys.ToHashSet(), graph, activeCode, ct).ConfigureAwait(false);
+		await activateSetAsync(activeCode.Keys.ToHashSet(), activeGraph, activeCode, ct).ConfigureAwait(false);
 		phase = RuntimePhase.Active;
 	}
 
@@ -379,7 +428,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				foreach (PendingAlcUnload pending in r.PendingUnloads) {
 					WeakReference weak = beginUnload(pending);
 					if (!probeUnload(weak, maxAttempts: MaxAlcUnloadGcAttempts))
-						ijDiagnostics.Warning($"ALC for {pending.OwnerID} is still alive after unload request");
+						ijDiagnostics.Warning($"ALC for {pending.Generation} is still alive after unload request");
 				}
 			}
 		} finally {
@@ -656,7 +705,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			}
 
 			Dictionary<string, LoadedOwnerInfo> candidateOwners = buildOwnerInfo(
-				candidateGraph.ModsInDeterministicOrder.Select(static mod => mod.Manifest)
+				staged.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Manifest.OwnerID) && !prepareSet.Contains(mod.Manifest.OwnerID)).Concat(replacementStaged)
 			);
 
 			await Task.WhenAll(preparedCode.Values.Select(mod => runLoadAsync(mod, candidateOwners, ct).AsTask())).ConfigureAwait(false);
@@ -702,12 +751,13 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live) {
 				foreach (string id in plan.ReloadSet) {
 					if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? old) && old.ReloadEntrypoint is not null) {
-						ModReloadContextImpl<TGameApi> ctx = new() {
-							Api = createApi(old),
-							Generation = old.Staged.Generation,
-							ReloadSet = reloadSetSnapshot,
-						};
-						capturedState.Add(id, await old.ReloadEntrypoint.SaveStateAsync(ctx, ct).ConfigureAwait(false));
+						object ctx = createReloadContext(old, createApi(old), diagnosticsSink, reloadSetSnapshot);
+						try {
+							capturedState.Add(id, await invokeSaveStateAsync(old, ctx, ct).ConfigureAwait(false));
+						} finally {
+							(ctx as IStrongRefDroppable)?.DropStrongReferences();
+							ctx = null!;
+						}
 					}
 				}
 			}
@@ -718,19 +768,20 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				destructiveBoundaryCrossed = true;
 			}
 
-			await disposeOldOwnerScopesAsync(plan.OldTouchedSet).ConfigureAwait(false);
+			await disposeOldOwnerScopesAsync(plan.OldTouchedSet, plan, ct).ConfigureAwait(false);
 
 			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.PreparedCode.Values.ToArray(), maxParallelDomains, ct).ConfigureAwait(false);
 
 			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live) {
 				foreach (KeyValuePair<string, ModLiveStateBlob> kvp in capturedState) {
 					if (transaction.PreparedCode.TryGetValue(kvp.Key, out LoadedCodeMod<TGameApi>? next) && next.ReloadEntrypoint is not null) {
-						ModReloadContextImpl<TGameApi> ctx = new() {
-							Api = createApi(next),
-							Generation = next.Staged.Generation,
-							ReloadSet = reloadSetSnapshot,
-						};
-						await next.ReloadEntrypoint.RestoreStateAsync(ctx, kvp.Value, ct).ConfigureAwait(false);
+						object ctx = createReloadContext(next, createApi(next), diagnosticsSink, reloadSetSnapshot);
+						try {
+							await invokeRestoreStateAsync(next, ctx, kvp.Value, ct).ConfigureAwait(false);
+						} finally {
+							(ctx as IStrongRefDroppable)?.DropStrongReferences();
+							ctx = null!;
+						}
 					}
 				}
 			}
@@ -789,9 +840,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 		try {
 			foreach (LoadedCodeMod<TGameApi> old in transaction.OldCode.Values)
-				old.OwnerScope = new OwnerScope(old.Staged.Manifest.OwnerID);
+				old.Scope = ActiveOwnerScope.CreateRootForRuntime(old.Staged.Generation, maxParallelDisposals);
 			foreach (LoadedContentMod old in transaction.OldContent.Values)
-				old.OwnerScope = new OwnerScope(old.Staged.Manifest.OwnerID);
+				old.Scope = ActiveOwnerScope.CreateRootForRuntime(old.Staged.Generation, maxParallelDisposals);
 
 			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.OldCode.Values.ToArray(), maxParallelDomains, ct).ConfigureAwait(false);
 			await activateSetAsync(plan.OldTouchedSet, activeGraph, activeCode, ct).ConfigureAwait(false);
@@ -818,13 +869,11 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		return new StagedMod(source, manifest, target, generation, assemblyPath);
 	}
 
-	private static LoadedContentMod createLoadedContentMod(StagedMod stagedMod) {
-		return new LoadedContentMod {
-			Staged = stagedMod,
-			OwnerScope = new OwnerScope(stagedMod.Manifest.OwnerID),
-			GenerationScope = new ReloadGenerationScope(stagedMod.Generation),
-		};
-	}
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private LoadedContentMod createLoadedContentMod(StagedMod stagedMod) => new() {
+		Staged = stagedMod,
+		Scope = ActiveOwnerScope.CreateRootForRuntime(stagedMod.Generation, maxParallelDisposals),
+	};
 
 	private async ValueTask<LoadedCodeMod<TGameApi>> loadCodeModBoundedAsync(StagedMod stagedMod, CancellationToken ct) {
 		await codeLoadSem.WaitAsync(ct).ConfigureAwait(false);
@@ -841,42 +890,67 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			throw new ModLoadException(manifest.OwnerID, $"entry assembly '{manifest.EntryAssembly}' not found");
 
 		ModAlc alc = new(stagedMod.MainAssemblyPath, sharedAssemblies, $"mod:{manifest.OwnerID}:{stagedMod.Generation}");
-		Assembly assembly = alc.LoadFromAssemblyPath(stagedMod.MainAssemblyPath);
-		validateModAssemblyAttribute(manifest, assembly);
-		Type entryType = EntrypointDiscovery.FindEntrypointType(assembly, typeof(TGameApi), stagedMod.MainAssemblyPath);
-		IModEntrypoint<TGameApi> entrypoint = (IModEntrypoint<TGameApi>)Activator.CreateInstance(entryType)!;
-		IModReloadEntrypoint<TGameApi>? reloadEntrypoint = null;
-		if (manifest.CodeHotReload == ModCodeHotReloadLevel.Live) {
-			Type reloadEntrypointType = EntrypointDiscovery.FindReloadEntrypointType(assembly, typeof(TGameApi), stagedMod.MainAssemblyPath);
-			reloadEntrypoint = (IModReloadEntrypoint<TGameApi>)Activator.CreateInstance(reloadEntrypointType)!;
-		}
+		ActiveOwnerScope? scope = null;
+		try {
+			Assembly assembly = alc.LoadFromAssemblyPath(stagedMod.MainAssemblyPath);
+			validateModAssemblyAttribute(manifest, assembly);
 
-		return new LoadedCodeMod<TGameApi> {
-			Staged = stagedMod,
-			AssemblyLoadContext = alc,
-			Assembly = assembly,
-			Entrypoint = entrypoint,
-			ReloadEntrypoint = reloadEntrypoint,
-			OwnerScope = new OwnerScope(manifest.OwnerID),
-			GenerationScope = new ReloadGenerationScope(stagedMod.Generation),
-			LoadHooks = new(),
-		};
+			Type lifetimeIdentityType = ModTypeDiscovery.FindLifetimeIdentityType(assembly, stagedMod.MainAssemblyPath);
+			scope = ActiveOwnerScope.CreateRootForRuntime(stagedMod.Generation, maxParallelDisposals);
+			Type entryType = ModTypeDiscovery.FindEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.MainAssemblyPath);
+			object entrypoint = Activator.CreateInstance(entryType)!;
+			object? reloadEntrypoint = null;
+			if (manifest.CodeHotReload == ModCodeHotReloadLevel.Live) {
+				Type reloadEntrypointType = ModTypeDiscovery.FindReloadEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.MainAssemblyPath);
+				reloadEntrypoint = Activator.CreateInstance(reloadEntrypointType)!;
+			}
+
+			return new LoadedCodeMod<TGameApi> {
+				Staged = stagedMod,
+				AssemblyLoadContext = alc,
+				Assembly = assembly,
+				LifetimeIdentityType = lifetimeIdentityType,
+				Scope = scope,
+				Entrypoint = entrypoint,
+				ReloadEntrypoint = reloadEntrypoint,
+				LoadHooks = new(),
+			};
+		} catch {
+			try {
+				if (scope is not null)
+					block(invalidateScopeAsync(scope, ReloadInvalidationReason.FailureRollback, CancellationToken.None));
+				foreach (Assembly asm in alc.Assemblies)
+					AssemblyScrubber.ScrubStaticReferenceFields(asm);
+				alc.Unload();
+			} catch {
+				// preserve original load failure
+			}
+			throw;
+		}
 	}
 
 	private async ValueTask runLoadAsync(LoadedCodeMod<TGameApi> mod, IReadOnlyDictionary<string, LoadedOwnerInfo> owners, CancellationToken ct) {
-		TGameApi api = createApi(mod);
-		ModLoadLinkContextImpl<TGameApi> context = createContext(mod, api, diagnosticsSink, owners);
-		await mod.Entrypoint.LoadAsync(context, ct).ConfigureAwait(false);
+		object ctx = createContext(mod, createApi(mod), diagnosticsSink, owners);
+		try {
+			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.LoadAsync), ctx, ct).ConfigureAwait(false);
+		} finally {
+			(ctx as IStrongRefDroppable)?.DropStrongReferences();
+			ctx = null!;
+		}
 	}
 
 	private async ValueTask runLinkAsync(LoadedCodeMod<TGameApi> mod, IReadOnlyDictionary<string, LoadedOwnerInfo> owners, CancellationToken ct) {
-		TGameApi api = createApi(mod);
-		ModLoadLinkContextImpl<TGameApi> context = createContext(mod, api, diagnosticsSink, owners);
-		await mod.Entrypoint.LinkAsync(context, ct).ConfigureAwait(false);
+		object ctx = createContext(mod, createApi(mod), diagnosticsSink, owners);
+		try {
+			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.LinkAsync), ctx, ct).ConfigureAwait(false);
+		} finally {
+			(ctx as IStrongRefDroppable)?.DropStrongReferences();
+			ctx = null!;
+		}
 	}
 
 	private static async ValueTask activateOneAsync(LoadedCodeMod<TGameApi> mod, CancellationToken ct) {
-		await mod.Entrypoint.ActivateAsync(ct).ConfigureAwait(false);
+		await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.ActivateAsync), null, ct).ConfigureAwait(false);
 		mod.Active = true;
 	}
 
@@ -886,7 +960,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			List<Task> tasks = new();
 			foreach (string id in wave)
 				if (set.Contains(id) && activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? mod))
-					tasks.Add(mod.Entrypoint.DeactivateAsync(ct).AsTask());
+					tasks.Add(invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.DeactivateAsync), null, ct).AsTask());
 			try {
 				await Task.WhenAll(tasks).ConfigureAwait(false);
 			} finally {
@@ -909,12 +983,13 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		}
 	}
 
-	private async ValueTask disposeOldOwnerScopesAsync(IReadOnlySet<string> set) {
+	private async ValueTask disposeOldOwnerScopesAsync(IReadOnlySet<string> set, BoundaryPlan plan, CancellationToken ct) {
 		foreach (string id in set) {
+			ReloadInvalidationReason reason = plan.DisableSet.Contains(id) ? ReloadInvalidationReason.Disable : ReloadInvalidationReason.Reload;
 			if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? mod))
-				await mod.OwnerScope.DisposeAsync().ConfigureAwait(false);
+				await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
 			if (activeContent.TryGetValue(id, out LoadedContentMod? content))
-				await content.OwnerScope.DisposeAsync().ConfigureAwait(false);
+				await invalidateScopeAsync(content.Scope, reason, ct).ConfigureAwait(false);
 		}
 	}
 
@@ -939,13 +1014,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static async ValueTask destroyPreparedCodeGenerationNoUnloadAsync(LoadedCodeMod<TGameApi> mod, ReloadInvalidationReason reason, CancellationToken ct) {
 		try {
-			await mod.OwnerScope.DisposeAsync().ConfigureAwait(false);
+			await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
 		} finally {
-			try {
-				await mod.Entrypoint.UnloadAsync(ct).ConfigureAwait(false);
-			} finally {
-				await mod.GenerationScope.InvalidateAsync(reason, ct).ConfigureAwait(false);
-			}
+			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.UnloadAsync), null, ct).ConfigureAwait(false);
 		}
 	}
 
@@ -954,15 +1025,11 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		await destroyPreparedCodeGenerationNoUnloadAsync(mod, reason, ct);
 		WeakReference weak = beginUnload(detachForUnload(mod));
 		if (!probeUnload(weak, maxAttempts: MaxAlcUnloadGcAttempts))
-			diagnostics.Warning($"ALC for {mod.Staged.Manifest.OwnerID} is still alive after unload request");
+			diagnostics.Warning($"ALC for {mod.Staged.Generation} is still alive after unload request");
 	}
 
 	private static async ValueTask destroyPreparedContentGenerationAsync(LoadedContentMod mod, ReloadInvalidationReason reason, CancellationToken ct) {
-		try {
-			await mod.OwnerScope.DisposeAsync().ConfigureAwait(false);
-		} finally {
-			await mod.GenerationScope.InvalidateAsync(reason, ct).ConfigureAwait(false);
-		}
+		await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
 	}
 
 	private void validateReloadCapabilities(IReadOnlySet<string> reloadSet, ReloadRequestKind request) {
@@ -1015,31 +1082,108 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			throw new ModLoadException(manifest.OwnerID, $"manifest code-hot-reload '{manifest.CodeHotReload}' does not match assembly attribute HotReloadLevel '{attribute.HotReloadLevel}'");
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) =>
-		apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerID, mod.OwnerScope));
+	private static async ValueTask invokeEntrypointAsync(LoadedCodeMod<TGameApi> mod, string methodName, object? ctx, CancellationToken ct) {
+		Type entrypointInterface = typeof(IModEntrypoint<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType);
+		MethodInfo mi = entrypointInterface.GetMethod(methodName) ?? throw new MissingMethodException(entrypointInterface.FullName, methodName);
+		object?[] args = ctx is null ? new object?[] { ct } : new object?[] { ctx, ct };
+		object? result = invokeModMethod(mi, mod.Entrypoint, args);
+		await expectValueTask(result, methodName).ConfigureAwait(false);
+	}
+
+	private static async ValueTask<ModLiveStateBlob> invokeSaveStateAsync(LoadedCodeMod<TGameApi> mod, object ctx, CancellationToken ct) {
+		if (mod.ReloadEntrypoint is null)
+			throw new InternalStateException("this mod has no ReloadEntrypoint");
+		Type reloadInterface = typeof(IModReloadEntrypoint<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType);
+		MethodInfo mi = reloadInterface.GetMethod(nameof(IModReloadEntrypoint<,>.SaveStateAsync)) ?? throw new MissingMethodException(reloadInterface.FullName, nameof(IModReloadEntrypoint<,>.SaveStateAsync));
+		object? result = invokeModMethod(mi, mod.ReloadEntrypoint, new object?[] { ctx, ct });
+		if (result is ValueTask<ModLiveStateBlob> vt)
+			return await vt.ConfigureAwait(false);
+		throw new InternalStateException($"reload entrypoint method '{mi.Name}' returned unexpected type '{result?.GetType().FullName ?? "<null>"}', did some other unrelated object somehow get assigned to mod.ReloadEntrypoint?");
+	}
+
+	private static async ValueTask invokeRestoreStateAsync(LoadedCodeMod<TGameApi> mod, object ctx, ModLiveStateBlob state, CancellationToken ct) {
+		object reloadEntrypoint = mod.ReloadEntrypoint ?? throw new InvalidOperationException($"mod '{mod.Staged.Manifest.OwnerID}' has no reload entrypoint instance");
+		Type reloadInterface = typeof(IModReloadEntrypoint<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType);
+		MethodInfo mi = reloadInterface.GetMethod(nameof(IModReloadEntrypoint<,>.RestoreStateAsync)) ?? throw new MissingMethodException(reloadInterface.FullName, nameof(IModReloadEntrypoint<,>.RestoreStateAsync));
+		object? result = invokeModMethod(mi, reloadEntrypoint, new object?[] { ctx, state, ct });
+		await expectValueTask(result, mi.Name).ConfigureAwait(false);
+	}
+
+	private static async ValueTask invalidateScopeAsync(IActiveOwnerScope scope, ReloadInvalidationReason reason, CancellationToken ct) {
+		MethodInfo? mi = scope.GetType().GetMethod(
+			"InvalidateAsync",
+			BindingFlags.Instance | BindingFlags.Public,
+			binder: null,
+			types: new[] { typeof(ReloadInvalidationReason), typeof(CancellationToken) },
+			modifiers: null
+		);
+		if (mi is not null) {
+			object? result = mi.Invoke(scope, new object[] { reason, ct });
+			await expectValueTask(result, mi.Name).ConfigureAwait(false);
+			return;
+		}
+		if (scope is IAsyncDisposable ad) {
+			await ad.DisposeAsync().ConfigureAwait(false);
+			return;
+		}
+		throw new InternalStateException($"'{scope.GetType().FullName}' didn't provide a way to get invalidated");
+	}
+
+	private static object? invokeModMethod(MethodInfo mi, object target, object?[] args) {
+		try {
+			return mi.Invoke(target, args);
+		} catch (TargetInvocationException ex) when (ex.InnerException is not null) {
+			throw ExceptionSnapshot.FromException(ex.InnerException).ToException();
+		}
+	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static ModLoadLinkContextImpl<TGameApi> createContext(LoadedCodeMod<TGameApi> mod, TGameApi api, IDiagnosticsSink diagnosticsSink, IReadOnlyDictionary<string, LoadedOwnerInfo> owners) =>
-		new(owners) {
-			OwnerID = mod.Staged.Manifest.OwnerID,
-			Version = mod.Staged.Manifest.Version,
-			Api = api,
-			Diagnostics = new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
-			OwnerScope = mod.OwnerScope,
-			GenerationScope = mod.GenerationScope,
-			UnloadToken = mod.GenerationScope.Stopping,
-		};
+	private static ValueTask expectValueTask(object? result, string methodName) {
+		if (result is not ValueTask vt)
+			throw new InternalStateException($"method '{methodName}' returned unexpected type '{result?.GetType().FullName ?? "<null>"}', did some other unrelated object somehow get assigned to mod.Entrypoint or another internal object?");
+		return vt;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) => apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerID, mod.Scope));
+
+	private static object createContext(
+		LoadedCodeMod<TGameApi> mod,
+		TGameApi api,
+		IDiagnosticsSink diagnosticsSink,
+		IReadOnlyDictionary<string, LoadedOwnerInfo> owners
+	) => Activator.CreateInstance(
+		typeof(ModLoadLinkContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
+		owners,
+		mod.Staged.Manifest.OwnerID,
+		mod.Staged.Manifest.Version,
+		api,
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
+		mod.Scope
+	)!;
+
+	private static object createReloadContext(
+		LoadedCodeMod<TGameApi> mod,
+		TGameApi api,
+		IDiagnosticsSink diagnosticsSink,
+		IReadOnlySet<string> reloadSet
+	) => Activator.CreateInstance(
+		typeof(ModReloadContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
+		api,
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
+		mod.Scope,
+		reloadSet
+	)!;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Dictionary<string, LoadedOwnerInfo> buildOwnerInfo(IEnumerable<StagedMod> stagedMods) =>
-		buildOwnerInfo(stagedMods.Select(static mod => mod.Manifest));
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static Dictionary<string, LoadedOwnerInfo> buildOwnerInfo(IEnumerable<ModManifest> manifests) =>
-		manifests.ToDictionary(
-			static manifest => manifest.OwnerID,
-			static manifest => new LoadedOwnerInfo(manifest.OwnerID, manifest.Version),
+		stagedMods.ToDictionary(
+			static mod => mod.Manifest.OwnerID,
+			static mod => new LoadedOwnerInfo(
+				mod.Manifest.OwnerID,
+				mod.Manifest.Version,
+				mod.Generation
+			),
 			StringComparer.Ordinal
 		);
 
@@ -1051,10 +1195,10 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static PendingAlcUnload detachForUnload(LoadedCodeMod<TGameApi> mod) {
-		string ownerID = mod.Staged.Manifest.OwnerID;
+		ReloadGeneration generation = mod.Staged.Generation;
 		ModAlc alc = mod.AssemblyLoadContext;
 		mod.DropStrongReferences();
-		return new PendingAlcUnload(ownerID, alc);
+		return new PendingAlcUnload(generation, alc);
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
@@ -1079,17 +1223,17 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	private static async ValueTask copyDirectoryAsync(string source, string target, CancellationToken ct) {
-		foreach (string directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
-			Directory.CreateDirectory(Path.Combine(target, Path.GetRelativePath(source, directory)));
+		foreach (string dir in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+			Directory.CreateDirectory(Path.Combine(target, Path.GetRelativePath(source, dir)));
 
 		foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)) {
 			ct.ThrowIfCancellationRequested();
-			string relative = Path.GetRelativePath(source, file);
-			string destination = Path.Combine(target, relative);
-			Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-			await using FileStream input = File.OpenRead(file);
-			await using FileStream output = File.Create(destination);
-			await input.CopyToAsync(output, ct).ConfigureAwait(false);
+			string rel = Path.GetRelativePath(source, file);
+			string dst = Path.Combine(target, rel);
+			Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+			await using FileStream @in = File.OpenRead(file);
+			await using FileStream @out = File.Create(dst);
+			await @in.CopyToAsync(@out, ct).ConfigureAwait(false);
 		}
 	}
 }

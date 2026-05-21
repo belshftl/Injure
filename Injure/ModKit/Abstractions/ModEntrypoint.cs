@@ -6,29 +6,21 @@ using System.Threading.Tasks;
 
 namespace Injure.ModKit.Abstractions;
 
-public readonly record struct LoadedOwnerInfo(string OwnerID, Semver Version); // stub
-
-public interface IModLoadContext<out TGameApi> {
-	string OwnerID { get; }
-	Semver Version { get; }
-	TGameApi Api { get; }
-	IOwnerDiagnostics Diagnostics { get; }
-	OwnerScope OwnerScope { get; }
-	ReloadGenerationScope GenerationScope { get; }
-	CancellationToken UnloadToken { get; }
-}
-
-public interface IModLinkContext<out TGameApi> : IModLoadContext<TGameApi> {
-	bool TryGetLoadedDependency(string ownerID, out LoadedOwnerInfo info);
-}
-
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class ModEntrypointAttribute : Attribute;
 
-public interface IModEntrypoint<in TGameApi> {
-	ValueTask LoadAsync(IModLoadContext<TGameApi> ctx, CancellationToken ct);
-	ValueTask LinkAsync(IModLinkContext<TGameApi> ctx, CancellationToken ct);
+public interface IModEntrypoint<in TGameApi, TLifetime> where TLifetime : struct, IModLifetimeIdentity {
+	ValueTask LoadAsync(IModLoadContext<TGameApi, TLifetime> ctx, CancellationToken ct);
+	ValueTask LinkAsync(IModLinkContext<TGameApi, TLifetime> ctx, CancellationToken ct);
 	ValueTask ActivateAsync(CancellationToken ct);
 	ValueTask DeactivateAsync(CancellationToken ct);
 	ValueTask UnloadAsync(CancellationToken ct);
+}
+
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+public sealed class ModReloadEntrypointAttribute : Attribute;
+
+public interface IModReloadEntrypoint<in TGameApi, TLifetime> where TLifetime : struct, IModLifetimeIdentity {
+	ValueTask<ModLiveStateBlob> SaveStateAsync(IModReloadContext<TGameApi, TLifetime> ctx, CancellationToken ct);
+	ValueTask RestoreStateAsync(IModReloadContext<TGameApi, TLifetime> ctx, ModLiveStateBlob state, CancellationToken ct);
 }
