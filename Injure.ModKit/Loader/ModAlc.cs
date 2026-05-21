@@ -7,7 +7,7 @@ using System.Runtime.Loader;
 
 namespace Injure.ModKit.Loader;
 
-public sealed class ModAlc(string mainAssemblyPath, IEnumerable<string> sharedAssemblyNames, string name) : AssemblyLoadContext(name, isCollectible: true) {
+internal sealed class ModAlc(string mainAssemblyPath, IEnumerable<string> sharedAssemblyNames, string name) : AssemblyLoadContext(name, isCollectible: true) {
 	private readonly AssemblyDependencyResolver resolver = new(mainAssemblyPath);
 	private readonly HashSet<string> sharedAssemblyNames = new(sharedAssemblyNames, StringComparer.OrdinalIgnoreCase);
 

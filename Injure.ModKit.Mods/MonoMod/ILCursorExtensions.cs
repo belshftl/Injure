@@ -5,7 +5,7 @@ using System.Globalization;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 
-namespace Injure.ModKit.MonoMod;
+namespace Injure.ModKit.Mods.MonoMod;
 
 public static class ILCursorExtensions {
 	extension(ILCursor c) {

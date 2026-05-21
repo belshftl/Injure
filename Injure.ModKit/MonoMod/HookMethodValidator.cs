@@ -10,7 +10,7 @@ using Injure.ModKit.Abstractions.MonoMod;
 
 namespace Injure.ModKit.MonoMod;
 
-public sealed class HookValidationException(string message) : InvalidOperationException(message) {
+internal sealed class HookValidationException(string message) : InvalidOperationException(message) {
 }
 
 internal static class HookMethodValidator {

@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+
+		<PackageId>Injure.ModKit.Mods</PackageId>
+		<Version>0.1.0-alpha.0</Version>
+		<Authors>AtBelshftl</Authors>
+		<Description>utilities for mods from the game framework/engine colloquially known as Injure</Description>
+		<RepositoryUrl>https://github.com/belshftl/Injure</RepositoryUrl>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="../Injure/Injure.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.4" />
+	</ItemGroup>
+</Project>

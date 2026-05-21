@@ -2,7 +2,7 @@
 
 using System;
 
-namespace Injure.ModKit.Runtime;
+namespace Injure.ModKit;
 
 public readonly record struct ExceptionSnapshot(string TypeName, string Message) {
 	public override string ToString() => $"{TypeName}: {Message}";

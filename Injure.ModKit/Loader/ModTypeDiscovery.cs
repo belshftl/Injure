@@ -8,9 +8,30 @@ using Injure.ModKit.Abstractions;
 
 namespace Injure.ModKit.Loader;
 
-public static class EntrypointDiscovery {
-	public static Type FindEntrypointType(Assembly assembly, Type gameApiType, string sourceName) {
-		Type expected = typeof(IModEntrypoint<>).MakeGenericType(gameApiType);
+internal static class ModTypeDiscovery {
+	public static Type FindLifetimeIdentityType(Assembly assembly, string sourceName) {
+		Type[] types;
+		try {
+			types = assembly.GetTypes();
+		} catch (ReflectionTypeLoadException ex) {
+			// don't swallow ReflectionTypeLoadException, even if it happens to work right now
+			// we might be accepting an only partially loaded mod
+			throw new ModLoadException($"{sourceName}: failed to load all types from entry assembly: " + string.Join("; ", ex.LoaderExceptions.Select(e => e?.Message)));
+		}
+		Type[] withAttr = types.Where(type =>
+			type is { IsValueType: true, IsEnum: false } &&
+			typeof(IModLifetimeIdentity).IsAssignableFrom(type) &&
+			type.GetCustomAttribute<ModLifetimeIdentityMarkerAttribute>() is not null
+		).ToArray();
+		return withAttr.Length switch {
+			1 => withAttr[0],
+			0 => throw new ModLoadException($"{sourceName}: no types with [ModLifetimeIdentityMarker] found"),
+			_ => throw new ModLoadException($"{sourceName}: multiple types with [ModLifetimeIdentityMarker] found"),
+		};
+	}
+
+	public static Type FindEntrypointType(Assembly assembly, Type gameApiType, Type lifetimeIdentityType, string sourceName) {
+		Type expected = typeof(IModEntrypoint<,>).MakeGenericType(gameApiType, lifetimeIdentityType);
 		Type[] types;
 		try {
 			types = assembly.GetTypes();
@@ -32,8 +53,8 @@ public static class EntrypointDiscovery {
 		};
 	}
 
-	public static Type FindReloadEntrypointType(Assembly assembly, Type gameApiType, string sourceName) {
-		Type expected = typeof(IModReloadEntrypoint<>).MakeGenericType(gameApiType);
+	public static Type FindReloadEntrypointType(Assembly assembly, Type gameApiType, Type lifetimeIdentityType, string sourceName) {
+		Type expected = typeof(IModReloadEntrypoint<,>).MakeGenericType(gameApiType, lifetimeIdentityType);
 		Type[] types;
 		try {
 			types = assembly.GetTypes();

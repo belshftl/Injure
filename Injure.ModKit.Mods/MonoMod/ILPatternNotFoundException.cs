@@ -2,7 +2,7 @@
 
 using System;
 
-namespace Injure.ModKit.MonoMod;
+namespace Injure.ModKit.Mods.MonoMod;
 
 public sealed class ILPatternNotFoundException(
 	string message,

@@ -6,7 +6,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../../Injure/Injure.csproj" Private="false" />
-		<ProjectReference Include="../../Injure.ModKit/Injure.ModKit.csproj" Private="false" />
+		<ProjectReference Include="../../Injure.ModKit.Mods/Injure.ModKit.Mods.csproj" Private="false" />
 		<ProjectReference Include="../TestGame.ModApi/TestGame.ModApi.csproj" Private="false" />
 
 		<!-- placeholder, i'll figure out something better in a bit -->

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Injure;
 using Injure.ModKit.Abstractions;
 using Injure.ModKit.Abstractions.MonoMod;
-using Injure.ModKit.MonoMod;
+using Injure.ModKit.Mods.MonoMod;
 using MonoMod.Cil;
 using TestGame.ModApi;
 
@@ -15,15 +15,18 @@ using TestGame.ModApi;
 
 namespace TestMod;
 
+[ModLifetimeIdentityMarker]
+public readonly struct TestModLifetime : IModLifetimeIdentity {}
+
 [ModEntrypoint]
-public sealed class Entrypoint : IModEntrypoint<ITestGameModApi> {
-	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi> ctx, CancellationToken ct) {
+public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModLifetime> {
+	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModLifetime> ctx, CancellationToken ct) {
 		ctx.Diagnostics.Info("loaded!");
 		ctx.Api.MarkLoaded(ctx.OwnerID);
 		return ValueTask.CompletedTask;
 	}
 
-	public ValueTask LinkAsync(IModLinkContext<ITestGameModApi> ctx, CancellationToken ct) => ValueTask.CompletedTask;
+	public ValueTask LinkAsync(IModLinkContext<ITestGameModApi, TestModLifetime> ctx, CancellationToken ct) => ValueTask.CompletedTask;
 
 	public ValueTask ActivateAsync(CancellationToken ct) => ValueTask.CompletedTask;
 
