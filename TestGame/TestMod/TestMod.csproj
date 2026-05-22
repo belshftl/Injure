@@ -6,6 +6,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../../Injure/Injure.csproj" Private="false" />
+		<ProjectReference Include="../../Injure.ModKit.Analyzers/Injure.ModKit.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		<ProjectReference Include="../../Injure.ModKit.Mods/Injure.ModKit.Mods.csproj" Private="false" />
 		<ProjectReference Include="../TestGame.ModApi/TestGame.ModApi.csproj" Private="false" />
 

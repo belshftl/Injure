@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: MIT
+
+namespace Injure.ModKit.Analyzers.Lifetime;
+
+internal static class KnownTypeMetadataNames {
+	public const string Hook = "MonoMod.RuntimeDetour.Hook";
+	public const string ILHook = "MonoMod.RuntimeDetour.ILHook";
+	public const string NativeDetour = "MonoMod.RuntimeDetour.NativeDetour";
+
+	public const string IDisposable = "System.IDisposable";
+	public const string IAsyncDisposable = "System.IAsyncDisposable";
+
+	public const string Thread = "System.Threading.Thread";
+	public const string Timer = "System.Threading.Timer";
+	public const string TimersTimer = "System.Timers.Timer";
+	public const string PeriodicTimer = "System.Threading.PeriodicTimer";
+	public const string CancellationTokenSource = "System.Threading.CancellationTokenSource";
+	public const string CancellationToken = "System.Threading.CancellationToken";
+
+	public const string Task = "System.Threading.Tasks.Task";
+	public const string ValueTask = "System.Threading.Tasks.ValueTask";
+	public const string ThreadPool = "System.Threading.ThreadPool";
+
+	public const string AssemblyLoadContext = "System.Runtime.Loader.AssemblyLoadContext";
+	public const string Process = "System.Diagnostics.Process";
+
+	public const string GenerationCancellationToken = "Injure.ModKit.Abstractions.GenerationCancellationToken`1";
+	public const string IActiveOwnerScope = "Injure.ModKit.Abstractions.IActiveOwnerScope";
+}
