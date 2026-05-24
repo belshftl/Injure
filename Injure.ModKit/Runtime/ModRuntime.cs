@@ -39,14 +39,14 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public int MaxParallelDisposals { get; init; } = 8;
 }
 
-internal sealed class ModLoadLinkContextImpl<TGameApi, TLifetime>(
+internal sealed class ModLoadLinkContextImpl<TGameApi, L>(
 	IReadOnlyDictionary<string, LoadedOwnerInfo> loaded,
 	string ownerID,
 	Semver version,
 	TGameApi api,
 	IOwnerDiagnostics diagnostics,
 	ActiveOwnerScope scope
-) : IStrongRefDroppable, IModLoadContext<TGameApi, TLifetime>, IModLinkContext<TGameApi, TLifetime> where TLifetime : struct, IModLifetimeIdentity {
+) : IStrongRefDroppable, IModLoadContext<TGameApi, L>, IModLinkContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	private readonly IReadOnlyDictionary<string, LoadedOwnerInfo> loaded = loaded;
 
 	public string OwnerID { get; } = ownerID;
@@ -60,10 +60,10 @@ internal sealed class ModLoadLinkContextImpl<TGameApi, TLifetime>(
 		get => field ?? throw new ReloadGenerationExpiredException(Generation);
 		private set;
 	} = diagnostics;
-	public IActiveOwnerScope<TLifetime> Scope {
+	public IActiveOwnerScope<L> Scope {
 		get => field ?? throw new ReloadGenerationExpiredException(Generation);
 		private set;
-	} = scope.AsTyped<TLifetime>();
+	} = scope.AsTyped<L>();
 	public ReloadGeneration Generation => Scope.Generation;
 
 	public bool TryGetLoadedDependency(string id, out LoadedOwnerInfo info) => loaded.TryGetValue(id, out info);
@@ -76,12 +76,12 @@ internal sealed class ModLoadLinkContextImpl<TGameApi, TLifetime>(
 	}
 }
 
-internal sealed class ModReloadContextImpl<TGameApi, TLifetime>(
+internal sealed class ModReloadContextImpl<TGameApi, L>(
 	TGameApi api,
 	ActiveOwnerScope scope,
 	IReadOnlySet<string> reloadSet,
 	IOwnerDiagnostics diagnostics
-) : IStrongRefDroppable, IModReloadContext<TGameApi, TLifetime> where TLifetime : struct, IModLifetimeIdentity {
+) : IStrongRefDroppable, IModReloadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	private bool gameApiDropped = false;
 	public TGameApi Api {
 		get => !gameApiDropped ? field : throw new ReloadGenerationExpiredException(Generation);
@@ -93,10 +93,10 @@ internal sealed class ModReloadContextImpl<TGameApi, TLifetime>(
 		get => field ?? throw new ReloadGenerationExpiredException(Generation);
 		private set;
 	} = diagnostics;
-	public IActiveOwnerScope<TLifetime> Scope {
+	public IActiveOwnerScope<L> Scope {
 		get => field ?? throw new ReloadGenerationExpiredException(Generation);
 		private set;
-	} = scope.AsTyped<TLifetime>();
+	} = scope.AsTyped<L>();
 
 	public void DropStrongReferences() {
 		gameApiDropped = true;
