@@ -24,16 +24,14 @@ internal static class Lifetime {
 		isEnabledByDefault: true
 	);
 
-	/*
 	public static readonly DiagnosticDescriptor AsyncCallNeedsGenerationToken = new(
 		id: "IJM0102",
-		title: "cancellable async call should use generation-bounded cancellation",
-		messageFormat: "async call '{0}' accepts a CancellationToken but is not passed a generation-bounded token",
+		title: "Cancellable async call should use generation-bounded cancellation",
+		messageFormat: "Async call '{0}' accepts a CancellationToken but is not passed a generation-bounded token",
 		category: "ReloadSafety",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
 	);
-	*/
 
 	public static readonly DiagnosticDescriptor AnalysisBailout = new(
 		id: "IJM0199",

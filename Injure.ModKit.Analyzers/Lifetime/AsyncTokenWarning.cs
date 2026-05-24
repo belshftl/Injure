@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: MIT
+
+using Microsoft.CodeAnalysis;
+
+namespace Injure.ModKit.Analyzers.Lifetime;
+
+internal readonly record struct AsyncTokenWarning(
+	IMethodSymbol TargetMethod,
+	Location Location
+);

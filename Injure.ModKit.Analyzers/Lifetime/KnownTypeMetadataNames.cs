@@ -19,6 +19,8 @@ internal static class KnownTypeMetadataNames {
 
 	public const string Task = "System.Threading.Tasks.Task";
 	public const string ValueTask = "System.Threading.Tasks.ValueTask";
+	public const string TaskOfT = "System.Threading.Tasks.Task`1";
+	public const string ValueTaskOfT = "System.Threading.Tasks.ValueTask`1";
 	public const string ThreadPool = "System.Threading.ThreadPool";
 
 	public const string AssemblyLoadContext = "System.Runtime.Loader.AssemblyLoadContext";

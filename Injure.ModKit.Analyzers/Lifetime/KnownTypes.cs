@@ -22,6 +22,8 @@ internal sealed class KnownTypes(Compilation comp) {
 
 	public INamedTypeSymbol? Task { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Task);
 	public INamedTypeSymbol? ValueTask { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ValueTask);
+	public INamedTypeSymbol? TaskOfT { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.TaskOfT);
+	public INamedTypeSymbol? ValueTaskOfT { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ValueTaskOfT);
 	public INamedTypeSymbol? ThreadPool { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ThreadPool);
 
 	public INamedTypeSymbol? AssemblyLoadContext { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssemblyLoadContext);

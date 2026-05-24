@@ -120,17 +120,35 @@ public sealed class ActiveOwnerScope : IActiveOwnerScope, IActiveOwnerScopeRunti
 		}
 	}
 
-	public CancellationToken RawStopping => stoppingCts.Token;
+	public CancellationToken RawStopping {
+		get {
+			if (IsInvalidated)
+				throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
+			return stoppingCts.Token;
+		}
+	}
 
-	public ActiveOwnerScopeView<L> AsTyped<L>() where L : struct, IModLifetimeIdentity => new(this);
+	public ActiveOwnerScopeView<L> AsTyped<L>() where L : struct, IModLifetimeIdentity {
+		if (IsInvalidated)
+			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
+		return new ActiveOwnerScopeView<L>(this);
+	}
 
-	public GenerationCancellationToken<L> CreateStoppingToken<L>() where L : struct, IModLifetimeIdentity =>
-		new(Generation, stoppingCts.Token);
+	public GenerationCancellationToken<L> CreateStoppingToken<L>() where L : struct, IModLifetimeIdentity {
+		if (IsInvalidated)
+			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
+		return new GenerationCancellationToken<L>(Generation, stoppingCts.Token);
+	}
 
-	public GenerationCancellationSource<L> CreateCancellationSource<L>() where L : struct, IModLifetimeIdentity =>
-		CreateLinkedCancellationSource<L>(CancellationToken.None);
+	public GenerationCancellationSource<L> CreateCancellationSource<L>() where L : struct, IModLifetimeIdentity {
+		if (IsInvalidated)
+			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
+		return CreateLinkedCancellationSource<L>(CancellationToken.None);
+	}
 
 	public GenerationCancellationSource<L> CreateLinkedCancellationSource<L>(CancellationToken ct) where L : struct, IModLifetimeIdentity {
+		if (IsInvalidated)
+			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
 		CancellationTokenSource linked = ct.CanBeCanceled
 			? CancellationTokenSource.CreateLinkedTokenSource(stoppingCts.Token, ct)
 			: CancellationTokenSource.CreateLinkedTokenSource(stoppingCts.Token);
@@ -386,15 +404,17 @@ public sealed class ActiveOwnerScope : IActiveOwnerScope, IActiveOwnerScopeRunti
 
 public sealed class ActiveOwnerScopeView<L> : IActiveOwnerScope<L> where L : struct, IModLifetimeIdentity {
 	private readonly ActiveOwnerScope core;
+	private readonly GenerationCancellationToken<L> stoppingBacking;
 
 	internal ActiveOwnerScopeView(ActiveOwnerScope core) {
 		this.core = core;
+		stoppingBacking = core.CreateStoppingToken<L>();
 	}
 
 	public string OwnerID => core.OwnerID;
 	public ReloadGeneration Generation => core.Generation;
 	public CancellationToken RawStopping => core.RawStopping;
-	public GenerationCancellationToken<L> Stopping => core.CreateStoppingToken<L>();
+	public GenerationCancellationToken<L> Stopping => stoppingBacking;
 	public GenerationCancellationSource<L> CreateCancellationSource() => core.CreateCancellationSource<L>();
 	public GenerationCancellationSource<L> CreateLinkedCancellationSource(CancellationToken cancellationToken) =>
 		core.CreateLinkedCancellationSource<L>(cancellationToken);
