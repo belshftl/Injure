@@ -2,7 +2,6 @@
 
 using System;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using Injure;
 using Injure.ModKit.Abstractions;
@@ -16,24 +15,28 @@ using TestGame.ModApi;
 namespace TestMod;
 
 [ModLifetimeIdentityMarker]
-public readonly struct TestModLifetime : IModLifetimeIdentity {
+public readonly struct TestModL : IModLifetimeIdentity {
 }
 
 [ModEntrypoint]
-public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModLifetime> {
-	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModLifetime> ctx, CancellationToken ct) {
+public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
+	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) {
 		ctx.Diagnostics.Info("loaded!");
 		ctx.Api.MarkLoaded(ctx.OwnerID);
 		return ValueTask.CompletedTask;
 	}
 
-	public ValueTask LinkAsync(IModLinkContext<ITestGameModApi, TestModLifetime> ctx, CancellationToken ct) => ValueTask.CompletedTask;
+	public ValueTask LinkAsync(IModLinkContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) =>
+		ValueTask.CompletedTask;
 
-	public ValueTask ActivateAsync(CancellationToken ct) => ValueTask.CompletedTask;
+	public ValueTask ActivateAsync(GenerationCancellationToken<TestModL> ct) =>
+		ValueTask.CompletedTask;
 
-	public ValueTask DeactivateAsync(CancellationToken ct) => ValueTask.CompletedTask;
+	public ValueTask DeactivateAsync(GenerationCancellationToken<TestModL> ct) =>
+		ValueTask.CompletedTask;
 
-	public ValueTask UnloadAsync(CancellationToken ct) => ValueTask.CompletedTask;
+	public ValueTask UnloadAsync(GenerationCancellationToken<TestModL> ct) =>
+		ValueTask.CompletedTask;
 
 	[LoadILHook(TestGame.RawHooks.GameplayLayer.GetSomeColor)]
 	public static void IL_GameplayLayer_GetSomeColor(ILContext il) {

@@ -12,8 +12,7 @@ internal static class Core {
 		messageFormat: "Mod assemblies must declare a [ModAssembly] attribute",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor BadHotReloadLevel = new(
@@ -22,8 +21,7 @@ internal static class Core {
 		messageFormat: "[ModAssembly] hot reload level value '{0}' s not a named ModAssemblyHotReloadLevel value",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor MissingLifetimeIdentityMarker = new(
@@ -32,8 +30,7 @@ internal static class Core {
 		messageFormat: "Mods must declare a [ModLifetimeIdentityMarker] empty readonly struct implementing IModLifetimeIdentity",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor BadLifetimeIdentityMarkerTarget = new(
@@ -42,8 +39,7 @@ internal static class Core {
 		messageFormat: "[ModLifetimeIdentityMarker] target struct '{0}' must be an empty readonly struct implementing IModLifetimeIdentity",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor DuplicateLifetimeIdentityMarker = new(
@@ -52,8 +48,7 @@ internal static class Core {
 		messageFormat: "There must be exactly one [ModLifetimeIdentityMarker] in the entire assembly; found {0}",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor MissingEntrypoint = new(
@@ -62,8 +57,7 @@ internal static class Core {
 		messageFormat: "Mods must declare a [ModEntrypoint] non-generic sealed class implementing IModEntrypoint<in TGameApi, L>",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor BadEntrypointTarget = new(
@@ -72,8 +66,7 @@ internal static class Core {
 		messageFormat: "[ModEntrypoint] target class '{0}' must be a non-generic sealed class implementing IModEntrypoint<in TGameApi, L> with lifetime marker '{1}'",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor DuplicateEntrypoint = new(
@@ -82,8 +75,7 @@ internal static class Core {
 		messageFormat: "There must be exactly one [ModEntrypoint] in the entire assembly; found {0}",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor MissingReloadEntrypoint = new(
@@ -92,8 +84,7 @@ internal static class Core {
 		messageFormat: "Live-reloadable mods must declare a [ModReloadEntrypoint] non-generic sealed class implementing IModReloadEntrypoint<in TGameApi, L>",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor BadReloadEntrypointTarget = new(
@@ -102,8 +93,7 @@ internal static class Core {
 		messageFormat: "[ModReloadEntrypoint] target class '{0}' must be a non-generic sealed class implementing IModReloadEntrypoint<in TGameApi, L> with TGameApi '{1}' and lifetime marker '{2}'",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor DuplicateReloadEntrypoint = new(
@@ -112,8 +102,7 @@ internal static class Core {
 		messageFormat: "There must be exactly one [ModReloadEntrypoint] in the entire assembly; found {0}",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor DisallowedReloadEntrypoint = new(
@@ -122,8 +111,7 @@ internal static class Core {
 		messageFormat: "A [ModReloadEntrypoint] is only allowed for mods whose hot reload level is Live",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true,
-		customTags: new[] { WellKnownDiagnosticTags.CompilationEnd }
+		isEnabledByDefault: true
 	);
 #pragma warning restore RS2008 // enable analyzer release tracking
 }

@@ -2,15 +2,19 @@
 
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 
 namespace Injure.ModKit.Analyzers.Lifetime;
 
-internal sealed class MethodAnalyzer(LifetimeRuleSet rules, GenerationTokenProvenance tokenProvenance) {
+internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, GenerationTokenProvenance tokenProvenance) {
+	private readonly KnownTypes known = known;
 	private readonly LifetimeRuleSet rules = rules;
 	private readonly GenerationTokenProvenance tokenProvenance = tokenProvenance;
 	private readonly List<ObligationTransitionEvent> events = new();
+	private readonly List<AsyncTokenWarning> asyncTokenWarnings = new();
+	private readonly HashSet<int> reportedExceptionLeaks = new();
 	private readonly Dictionary<ILabelSymbol, List<PendingGoto>> pendingGotosByTarget = new(SymbolEqualityComparer.Default);
 	private int nextObligationID;
 	private LabelPositionMap? labelPositions;
@@ -38,6 +42,7 @@ internal sealed class MethodAnalyzer(LifetimeRuleSet rules, GenerationTokenProve
 			BailoutReason = bailoutReason,
 			Obligations = snapshotResult(result),
 			Events = events.ToImmutableArray(),
+			AsyncTokenWarnings = asyncTokenWarnings.ToImmutableArray(),
 		};
 	}
 
@@ -302,9 +307,13 @@ internal sealed class MethodAnalyzer(LifetimeRuleSet rules, GenerationTokenProve
 			return result;
 		if (isKnownCleanupInvocation(operation, state))
 			return result;
+		FlowState throwState = state.Clone();
+		List<ObligationTransitionEvent> throwEvents = new();
+		throwState.TransitionOpenToExceptionLeaked(location, ObligationTransitionCause.MayThrow, throwEvents);
+		events.AddRange(throwEvents.Where(e => reportedExceptionLeaks.Add(e.ObligationID)));
 		result.Exits.Add(new ControlFlowExit {
 			Kind = ControlExitKind.Throw,
-			State = state.Clone(),
+			State = throwState,
 			Location = location,
 			Cause = ObligationTransitionCause.MayThrow,
 		});
@@ -382,7 +391,7 @@ internal sealed class MethodAnalyzer(LifetimeRuleSet rules, GenerationTokenProve
 				exit.State.TransitionOpenToLeaked(exit.Location, ObligationTransitionCause.Return, events);
 				break;
 			case ControlExitKind.Throw when exit.Cause == ObligationTransitionCause.MayThrow:
-				exit.State.TransitionOpenToExceptionLeaked(exit.Location, ObligationTransitionCause.MayThrow, events);
+				// no-op, maybeThrow already did the transition
 				break;
 			case ControlExitKind.Throw:
 				exit.State.TransitionOpenToLeaked(exit.Location, ObligationTransitionCause.Throw, events);
@@ -483,7 +492,7 @@ internal sealed class MethodAnalyzer(LifetimeRuleSet rules, GenerationTokenProve
 				return;
 			}
 
-			if (allowDiscardCreation && isDiscardTarget(assignment.Target)) {
+			if (allowDiscardCreation && (assignment.Target is IDiscardOperation || assignment.Target.Syntax.ToString() == "_")) {
 				processCreation(creation, local: null, state, reportDiscardedValue: true);
 				return;
 			}
@@ -535,6 +544,8 @@ internal sealed class MethodAnalyzer(LifetimeRuleSet rules, GenerationTokenProve
 				continue;
 			obl.PassedToCalls.Add(new PassedToCallFact(invocation.TargetMethod, i, arg.Parameter?.RefKind ?? RefKind.None, arg.Syntax.GetLocation()));
 		}
+
+		checkAsyncCancellationToken(invocation);
 	}
 
 	private void processCreation(IObjectCreationOperation creation, ILocalSymbol? local, FlowState state, bool reportDiscardedValue) {
@@ -570,12 +581,6 @@ internal sealed class MethodAnalyzer(LifetimeRuleSet rules, GenerationTokenProve
 		return false;
 	}
 
-	private static bool isDiscardTarget(IOperation operation) {
-		if (operation is IDiscardOperation)
-			return true;
-		return operation.Syntax.ToString() == "_";
-	}
-
 	private static void collectUsingLocals(IOperation operation, List<ILocalSymbol> locals) {
 		foreach (IOperation current in enumerateUsingResourceOperations(operation))
 			if (current is IVariableDeclaratorOperation declarator)
@@ -589,10 +594,53 @@ internal sealed class MethodAnalyzer(LifetimeRuleSet rules, GenerationTokenProve
 				yield return nested;
 	}
 
+	private void checkAsyncCancellationToken(IInvocationOperation invocation) {
+		if (!isAsyncLike(invocation.TargetMethod))
+			return;
+
+		bool foundTokenParam = false;
+		bool hasGenerationBoundedToken = false;
+		foreach (IParameterSymbol param in invocation.TargetMethod.Parameters) {
+			if (!isCancellationToken(param.Type))
+				continue;
+			foundTokenParam = true;
+			break;
+		}
+		if (!foundTokenParam)
+			return;
+
+		foreach (IArgumentOperation arg in invocation.Arguments) {
+			if (arg.Parameter is null || !isCancellationToken(arg.Parameter.Type))
+				continue;
+			if (tokenProvenance.IsGenerationBoundedToken(arg.Value)) {
+				hasGenerationBoundedToken = true;
+				break;
+			}
+		}
+		if (!hasGenerationBoundedToken)
+			asyncTokenWarnings.Add(new AsyncTokenWarning(invocation.TargetMethod, invocation.Syntax.GetLocation()));
+	}
+
 	private static void satisfyUsingLocals(FlowState state, List<ILocalSymbol> locals, Location location) {
 		foreach (ILocalSymbol local in locals)
 			state.TrySatisfyLocal(local, ObligationSatisfactionLevel.Method, location);
 	}
+
+	private bool isAsyncLike(IMethodSymbol method) {
+		if (method.ReturnType is not INamedTypeSymbol named)
+			return false;
+		return symbolEquals(named.OriginalDefinition, known.Task) ||
+			symbolEquals(named.OriginalDefinition, known.TaskOfT) ||
+			symbolEquals(named.OriginalDefinition, known.ValueTask) ||
+			symbolEquals(named.OriginalDefinition, known.ValueTaskOfT);
+	}
+
+	private bool isCancellationToken(ITypeSymbol? type) =>
+		type is INamedTypeSymbol named && known.CancellationToken is not null &&
+		SymbolEqualityComparer.Default.Equals(named, known.CancellationToken);
+
+	private static bool symbolEquals(ISymbol? left, ISymbol? right) =>
+		left is not null && right is not null && SymbolEqualityComparer.Default.Equals(left, right);
 
 	private ImmutableArray<LifetimeObligation> snapshotResult(FlowResult result) {
 		FlowState? merged = result.ContinueState?.Clone();

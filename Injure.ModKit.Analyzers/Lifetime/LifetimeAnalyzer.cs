@@ -11,6 +11,7 @@ public sealed class LifetimeAnalyzer : DiagnosticAnalyzer {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
 		Diagnostics.Lifetime.LifetimeObligationLeaked,
 		Diagnostics.Lifetime.LifetimeObligationExceptionLeaked,
+		Diagnostics.Lifetime.AsyncCallNeedsGenerationToken,
 		Diagnostics.Lifetime.AnalysisBailout
 	);
 
@@ -30,7 +31,7 @@ public sealed class LifetimeAnalyzer : DiagnosticAnalyzer {
 			IOperation body = blockCtx.OperationBlocks[0];
 			GenerationTokenProvenance tokenProvenance = new(known);
 			LifetimeRuleSet rules = new(known, tokenProvenance);
-			MethodAnalyzer analyzer = new(rules, tokenProvenance);
+			MethodAnalyzer analyzer = new(known, rules, tokenProvenance);
 			MethodLifetimeResult result = analyzer.Analyze(body);
 
 			if (result.AnalysisBailedOut && result.BailoutLocation is not null) {
@@ -64,6 +65,9 @@ public sealed class LifetimeAnalyzer : DiagnosticAnalyzer {
 				default: continue;
 				}
 			}
+
+			foreach (AsyncTokenWarning w in result.AsyncTokenWarnings)
+				blockCtx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Lifetime.AsyncCallNeedsGenerationToken, w.Location, w.TargetMethod.Name));
 		});
 	}
 }

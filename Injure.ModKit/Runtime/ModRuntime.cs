@@ -422,14 +422,14 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				Transaction transaction = await prepareTransactionAsync(plan, ct).ConfigureAwait(false);
 				ModOperationResult r = await commitTransactionAsync(transaction, ct).ConfigureAwait(false);
 				transaction.DropContainersOnly();
-#pragma warning disable IDE0059 // unnecessary assignment to local
 				transaction = null!;
-#pragma warning restore IDE0059 // unnecessary assignment to local
 				foreach (PendingAlcUnload pending in r.PendingUnloads) {
 					WeakReference weak = beginUnload(pending);
 					if (!probeUnload(weak, maxAttempts: MaxAlcUnloadGcAttempts))
 						ijDiagnostics.Warning($"ALC for {pending.Generation} is still alive after unload request");
 				}
+				if (r.Kind == ModOperationResultKind.RollbackSucceeded && r.Failure is { } failure)
+					throw failure.ToException();
 			}
 		} finally {
 			writeLock.Release();
@@ -693,6 +693,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		Dictionary<string, LoadedCodeMod<TGameApi>> preparedCode = new(StringComparer.Ordinal);
 		Dictionary<string, LoadedContentMod> preparedContent = new(StringComparer.Ordinal);
 
+		ExceptionSnapshot prepareErr;
 		try {
 			foreach (StagedMod stagedMod in replacementStaged) {
 				if (stagedMod.Manifest is CodeModManifest) {
@@ -720,30 +721,46 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 					tasks.Clear();
 				}
 			}
-		} catch {
-			foreach (LoadedCodeMod<TGameApi> mod in preparedCode.Values)
-				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ijDiagnostics, ct).ConfigureAwait(false);
-			foreach (LoadedContentMod mod in preparedContent.Values)
-				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
-			throw;
-		}
 
-		return new Transaction {
-			Plan = plan,
-			CandidateDiscovered = candidateDiscovered.Values.ToArray(),
-			CandidateGraph = candidateGraph,
-			ReplacementStaged = replacementStaged,
-			OldCode = oldCode,
-			OldContent = oldContent,
-			PreparedCode = preparedCode,
-			PreparedContent = preparedContent,
-		};
+			return new Transaction {
+				Plan = plan,
+				CandidateDiscovered = candidateDiscovered.Values.ToArray(),
+				CandidateGraph = candidateGraph,
+				ReplacementStaged = replacementStaged,
+				OldCode = oldCode,
+				OldContent = oldContent,
+				PreparedCode = preparedCode,
+				PreparedContent = preparedContent,
+			};
+		} catch (Exception ex) {
+			prepareErr = ExceptionSnapshot.FromException(ex);
+			ex = null!;
+		}
+		List<ExceptionSnapshot> cleanupErrs = new();
+		foreach (LoadedCodeMod<TGameApi> mod in preparedCode.Values) {
+			try {
+				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ijDiagnostics, ct).ConfigureAwait(false);
+			} catch (Exception cleanupEx) {
+				cleanupErrs.Add(ExceptionSnapshot.FromException(cleanupEx));
+			}
+		}
+		foreach (LoadedContentMod mod in preparedContent.Values) {
+			try {
+				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
+			} catch (Exception cleanupEx) {
+				cleanupErrs.Add(ExceptionSnapshot.FromException(cleanupEx));
+			}
+		}
+		if (cleanupErrs.Count > 0)
+			throw new AggregateException("mod preparation failed and cleanup also failed", cleanupErrs.Select(static e => e.ToException()).Prepend(prepareErr.ToException()));
+		throw prepareErr.ToException();
 	}
 
 	private async ValueTask<ModOperationResult> commitTransactionAsync(Transaction transaction, CancellationToken ct) {
 		BoundaryPlan plan = transaction.Plan;
 		Dictionary<string, ModLiveStateBlob> capturedState = new(StringComparer.Ordinal);
 		bool destructiveBoundaryCrossed = false;
+		bool publishBoundaryCrossed = false;
 		ExceptionSnapshot reloadErr;
 		try {
 			FrozenSet<string> reloadSetSnapshot = plan.ReloadSet.ToFrozenSet(StringComparer.Ordinal);
@@ -768,6 +785,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				destructiveBoundaryCrossed = true;
 			}
 
+			foreach (LoadedCodeMod<TGameApi> mod in transaction.OldCode.Values)
+				await unloadCodeGenerationAsync(mod, ct).ConfigureAwait(false);
+
 			await disposeOldOwnerScopesAsync(plan.OldTouchedSet, plan, ct).ConfigureAwait(false);
 
 			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.PreparedCode.Values.ToArray(), maxParallelDomains, ct).ConfigureAwait(false);
@@ -788,22 +808,11 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 			await activateSetAsync(plan.PrepareSet, transaction.CandidateGraph, transaction.PreparedCode, ct).ConfigureAwait(false);
 			publishTransaction(transaction);
+			publishBoundaryCrossed = true;
 
 			List<PendingAlcUnload> oldUnloads = new();
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.OldCode.Values) {
-				ReloadInvalidationReason reason = plan.DisableSet.Contains(mod.Staged.Manifest.OwnerID)
-					? ReloadInvalidationReason.Disable
-					: ReloadInvalidationReason.Reload;
-				await destroyPreparedCodeGenerationNoUnloadAsync(mod, reason, ct).ConfigureAwait(false);
+			foreach (LoadedCodeMod<TGameApi> mod in transaction.OldCode.Values)
 				oldUnloads.Add(detachForUnload(mod));
-			}
-
-			foreach (LoadedContentMod mod in transaction.OldContent.Values) {
-				ReloadInvalidationReason reason = plan.DisableSet.Contains(mod.Staged.Manifest.OwnerID)
-					? ReloadInvalidationReason.Disable
-					: ReloadInvalidationReason.Reload;
-				await destroyPreparedContentGenerationAsync(mod, reason, ct).ConfigureAwait(false);
-			}
 
 			return ModOperationResult.Succeeded(
 				plan.ReloadSet.ToFrozenSet(StringComparer.Ordinal),
@@ -816,6 +825,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			reloadErr = ExceptionSnapshot.FromException(ex);
 			ex = null!;
 		}
+
+		if (publishBoundaryCrossed)
+			throw reloadErr.ToException(); // post-publish rollback is unsafe and will most likely corrupt state, just don't bother
 
 		if (!destructiveBoundaryCrossed) {
 			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values)
@@ -1012,11 +1024,16 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
+	private static async ValueTask unloadCodeGenerationAsync(LoadedCodeMod<TGameApi> mod, CancellationToken ct) {
+		await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.UnloadAsync), null, ct).ConfigureAwait(false);
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static async ValueTask destroyPreparedCodeGenerationNoUnloadAsync(LoadedCodeMod<TGameApi> mod, ReloadInvalidationReason reason, CancellationToken ct) {
 		try {
-			await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
+			await unloadCodeGenerationAsync(mod, ct).ConfigureAwait(false);
 		} finally {
-			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.UnloadAsync), null, ct).ConfigureAwait(false);
+			await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
 		}
 	}
 
@@ -1082,10 +1099,35 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			throw new ModLoadException(manifest.OwnerID, $"manifest code-hot-reload '{manifest.CodeHotReload}' does not match assembly attribute HotReloadLevel '{attribute.HotReloadLevel}'");
 	}
 
+	private static readonly MethodInfo createLinkedCancellationSourceMethod = getCreateLinkedCancellationSourceMethod();
+
+	private static MethodInfo getCreateLinkedCancellationSourceMethod() {
+		foreach (MethodInfo mi in typeof(ActiveOwnerScope).GetMethods(BindingFlags.Instance | BindingFlags.Public)) {
+			ParameterInfo[] parameters = mi.GetParameters();
+			if (
+				mi.Name == nameof(ActiveOwnerScope.CreateLinkedCancellationSource) &&
+				mi.IsGenericMethodDefinition &&
+				parameters.Length == 1 &&
+				parameters[0].ParameterType == typeof(CancellationToken)
+			)
+				return mi;
+		}
+		throw new MissingMethodException(typeof(ActiveOwnerScope).FullName, nameof(ActiveOwnerScope.CreateLinkedCancellationSource));
+	}
+
+	private static IDisposable createLinkedGenerationCancellationSource(LoadedCodeMod<TGameApi> mod, CancellationToken ct, out object token) {
+		object gcs = createLinkedCancellationSourceMethod.MakeGenericMethod(mod.LifetimeIdentityType).Invoke(mod.Scope, new object[] { ct })!;
+		PropertyInfo tokenProperty = gcs.GetType().GetProperty(nameof(GenerationCancellationSource<>.Token)) ??
+			throw new MissingMemberException(gcs.GetType().FullName, nameof(GenerationCancellationSource<>.Token));
+		token = tokenProperty.GetValue(gcs)!;
+		return (IDisposable)gcs;
+	}
+
 	private static async ValueTask invokeEntrypointAsync(LoadedCodeMod<TGameApi> mod, string methodName, object? ctx, CancellationToken ct) {
 		Type entrypointInterface = typeof(IModEntrypoint<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType);
 		MethodInfo mi = entrypointInterface.GetMethod(methodName) ?? throw new MissingMethodException(entrypointInterface.FullName, methodName);
-		object?[] args = ctx is null ? new object?[] { ct } : new object?[] { ctx, ct };
+		using IDisposable gcs = createLinkedGenerationCancellationSource(mod, ct, out object gct);
+		object?[] args = ctx is null ? new object?[] { gct } : new object?[] { ctx, gct };
 		object? result = invokeModMethod(mi, mod.Entrypoint, args);
 		await expectValueTask(result, methodName).ConfigureAwait(false);
 	}
@@ -1095,7 +1137,8 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			throw new InternalStateException("this mod has no ReloadEntrypoint");
 		Type reloadInterface = typeof(IModReloadEntrypoint<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType);
 		MethodInfo mi = reloadInterface.GetMethod(nameof(IModReloadEntrypoint<,>.SaveStateAsync)) ?? throw new MissingMethodException(reloadInterface.FullName, nameof(IModReloadEntrypoint<,>.SaveStateAsync));
-		object? result = invokeModMethod(mi, mod.ReloadEntrypoint, new object?[] { ctx, ct });
+		using IDisposable gcs = createLinkedGenerationCancellationSource(mod, ct, out object gct);
+		object? result = invokeModMethod(mi, mod.ReloadEntrypoint, new object?[] { ctx, gct });
 		if (result is ValueTask<ModLiveStateBlob> vt)
 			return await vt.ConfigureAwait(false);
 		throw new InternalStateException($"reload entrypoint method '{mi.Name}' returned unexpected type '{result?.GetType().FullName ?? "<null>"}', did some other unrelated object somehow get assigned to mod.ReloadEntrypoint?");
@@ -1105,7 +1148,8 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		object reloadEntrypoint = mod.ReloadEntrypoint ?? throw new InvalidOperationException($"mod '{mod.Staged.Manifest.OwnerID}' has no reload entrypoint instance");
 		Type reloadInterface = typeof(IModReloadEntrypoint<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType);
 		MethodInfo mi = reloadInterface.GetMethod(nameof(IModReloadEntrypoint<,>.RestoreStateAsync)) ?? throw new MissingMethodException(reloadInterface.FullName, nameof(IModReloadEntrypoint<,>.RestoreStateAsync));
-		object? result = invokeModMethod(mi, reloadEntrypoint, new object?[] { ctx, state, ct });
+		using IDisposable gcs = createLinkedGenerationCancellationSource(mod, ct, out object gct);
+		object? result = invokeModMethod(mi, reloadEntrypoint, new object?[] { ctx, state, gct });
 		await expectValueTask(result, mi.Name).ConfigureAwait(false);
 	}
 
@@ -1170,9 +1214,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	) => Activator.CreateInstance(
 		typeof(ModReloadContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
 		mod.Scope,
-		reloadSet
+		reloadSet,
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation)
 	)!;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
