@@ -16,7 +16,8 @@ using TestGame.ModApi;
 namespace TestMod;
 
 [ModLifetimeIdentityMarker]
-public readonly struct TestModLifetime : IModLifetimeIdentity {}
+public readonly struct TestModLifetime : IModLifetimeIdentity {
+}
 
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModLifetime> {

@@ -10,7 +10,7 @@ public interface IGenerationCancellationToken {
 	CancellationToken Token { get; }
 }
 
-public readonly struct GenerationCancellationToken<TLifetime> : IGenerationCancellationToken where TLifetime : struct, IModLifetimeIdentity {
+public readonly struct GenerationCancellationToken<L> : IGenerationCancellationToken where L : struct, IModLifetimeIdentity {
 	private readonly CancellationToken token;
 	private readonly int inited;
 
@@ -38,7 +38,7 @@ public readonly struct GenerationCancellationToken<TLifetime> : IGenerationCance
 
 	public CancellationTokenRegistration Register(Action callback) => Token.Register(callback);
 
-	public static implicit operator CancellationToken(GenerationCancellationToken<TLifetime> token) => token.Token;
+	public static implicit operator CancellationToken(GenerationCancellationToken<L> token) => token.Token;
 }
 
 internal sealed class GenerationCancellationSourceCore(ReloadGeneration generation, CancellationTokenSource cts) : IDisposable {
@@ -72,13 +72,13 @@ internal sealed class GenerationCancellationSourceCore(ReloadGeneration generati
 	}
 }
 
-public sealed class GenerationCancellationSource<TLifetime> : IDisposable where TLifetime : struct, IModLifetimeIdentity {
+public sealed class GenerationCancellationSource<L> : IDisposable where L : struct, IModLifetimeIdentity {
 	private readonly GenerationCancellationSourceCore core;
 	internal GenerationCancellationSource(GenerationCancellationSourceCore core) {
 		this.core = core;
 	}
 	public ReloadGeneration Generation => core.Generation;
-	public GenerationCancellationToken<TLifetime> Token => new(core.Generation, core.Token);
+	public GenerationCancellationToken<L> Token => new(core.Generation, core.Token);
 	public void Cancel() => core.Cancel();
 	public void Dispose() => core.Dispose();
 }

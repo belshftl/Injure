@@ -28,11 +28,11 @@ public interface IActiveOwnerScopeRuntimeControl : IAsyncDisposable {
 	IReadOnlyList<ReloadWeakReferenceSnapshot> SnapshotWeakReferences();
 }
 
-public interface IActiveOwnerScope<TLifetime> : IActiveOwnerScope where TLifetime : struct, IModLifetimeIdentity {
-	GenerationCancellationToken<TLifetime> Stopping { get; }
+public interface IActiveOwnerScope<L> : IActiveOwnerScope where L : struct, IModLifetimeIdentity {
+	GenerationCancellationToken<L> Stopping { get; }
 
-	GenerationCancellationSource<TLifetime> CreateCancellationSource();
-	GenerationCancellationSource<TLifetime> CreateLinkedCancellationSource(CancellationToken cancellationToken);
+	GenerationCancellationSource<L> CreateCancellationSource();
+	GenerationCancellationSource<L> CreateLinkedCancellationSource(CancellationToken cancellationToken);
 }
 
 public readonly record struct ActiveOwnerScopeFailure(
@@ -122,22 +122,22 @@ public sealed class ActiveOwnerScope : IActiveOwnerScope, IActiveOwnerScopeRunti
 
 	public CancellationToken RawStopping => stoppingCts.Token;
 
-	public ActiveOwnerScopeView<TLifetime> AsTyped<TLifetime>() where TLifetime : struct, IModLifetimeIdentity => new(this);
+	public ActiveOwnerScopeView<L> AsTyped<L>() where L : struct, IModLifetimeIdentity => new(this);
 
-	public GenerationCancellationToken<TLifetime> CreateStoppingToken<TLifetime>() where TLifetime : struct, IModLifetimeIdentity =>
+	public GenerationCancellationToken<L> CreateStoppingToken<L>() where L : struct, IModLifetimeIdentity =>
 		new(Generation, stoppingCts.Token);
 
-	public GenerationCancellationSource<TLifetime> CreateCancellationSource<TLifetime>() where TLifetime : struct, IModLifetimeIdentity =>
-		CreateLinkedCancellationSource<TLifetime>(CancellationToken.None);
+	public GenerationCancellationSource<L> CreateCancellationSource<L>() where L : struct, IModLifetimeIdentity =>
+		CreateLinkedCancellationSource<L>(CancellationToken.None);
 
-	public GenerationCancellationSource<TLifetime> CreateLinkedCancellationSource<TLifetime>(CancellationToken ct) where TLifetime : struct, IModLifetimeIdentity {
+	public GenerationCancellationSource<L> CreateLinkedCancellationSource<L>(CancellationToken ct) where L : struct, IModLifetimeIdentity {
 		CancellationTokenSource linked = ct.CanBeCanceled
 			? CancellationTokenSource.CreateLinkedTokenSource(stoppingCts.Token, ct)
 			: CancellationTokenSource.CreateLinkedTokenSource(stoppingCts.Token);
 		GenerationCancellationSourceCore source = new(Generation, linked);
 		try {
 			AddDisposable(source);
-			return new GenerationCancellationSource<TLifetime>(source);
+			return new GenerationCancellationSource<L>(source);
 		} catch {
 			source.Dispose();
 			throw;
@@ -384,7 +384,7 @@ public sealed class ActiveOwnerScope : IActiveOwnerScope, IActiveOwnerScopeRunti
 	}
 }
 
-public sealed class ActiveOwnerScopeView<TLifetime> : IActiveOwnerScope<TLifetime> where TLifetime : struct, IModLifetimeIdentity {
+public sealed class ActiveOwnerScopeView<L> : IActiveOwnerScope<L> where L : struct, IModLifetimeIdentity {
 	private readonly ActiveOwnerScope core;
 
 	internal ActiveOwnerScopeView(ActiveOwnerScope core) {
@@ -394,10 +394,10 @@ public sealed class ActiveOwnerScopeView<TLifetime> : IActiveOwnerScope<TLifetim
 	public string OwnerID => core.OwnerID;
 	public ReloadGeneration Generation => core.Generation;
 	public CancellationToken RawStopping => core.RawStopping;
-	public GenerationCancellationToken<TLifetime> Stopping => core.CreateStoppingToken<TLifetime>();
-	public GenerationCancellationSource<TLifetime> CreateCancellationSource() => core.CreateCancellationSource<TLifetime>();
-	public GenerationCancellationSource<TLifetime> CreateLinkedCancellationSource(CancellationToken cancellationToken) =>
-		core.CreateLinkedCancellationSource<TLifetime>(cancellationToken);
+	public GenerationCancellationToken<L> Stopping => core.CreateStoppingToken<L>();
+	public GenerationCancellationSource<L> CreateCancellationSource() => core.CreateCancellationSource<L>();
+	public GenerationCancellationSource<L> CreateLinkedCancellationSource(CancellationToken cancellationToken) =>
+		core.CreateLinkedCancellationSource<L>(cancellationToken);
 	public void AddDisposable(IDisposable disposable) => core.AddDisposable(disposable);
 	public void AddAsyncDisposable(IAsyncDisposable disposable) => core.AddAsyncDisposable(disposable);
 	public void AddOrderedDisposable(IDisposable disposable) => core.AddOrderedDisposable(disposable);

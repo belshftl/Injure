@@ -114,12 +114,9 @@ internal sealed class PendingAlcUnload(ReloadGeneration generation, ModAlc alc) 
 	}
 }
 
-[ClosedEnum(DefaultIsInvalid = true)]
-internal readonly partial struct ModOperationResultKind {
-	public enum Case {
-		Succeeded = 1,
-		RollbackSucceeded,
-	}
+internal enum ModOperationResultKind {
+	Succeeded,
+	RollbackSucceeded,
 }
 
 internal readonly record struct ModOperationResult(
