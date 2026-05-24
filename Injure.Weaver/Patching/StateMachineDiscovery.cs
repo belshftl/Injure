@@ -7,7 +7,7 @@ using Mono.Cecil.Cil;
 
 using Injure.Weaver.Model;
 
-using ResultDict = System.Collections.Generic.Dictionary<string, Injure.Weaver.Model.PublicizedStateMachineKindMirror>;
+using ResultDict = System.Collections.Generic.Dictionary<string, Injure.Weaver.Model.PublicizedStateMachineKind>;
 
 namespace Injure.Weaver.Patching;
 
@@ -55,9 +55,9 @@ public static class StateMachineDiscovery {
 			if (!isLikelyAsyncStateMachine(candidate, method))
 				continue;
 
-			PublicizedStateMachineKindMirror kind = returnsAsyncEnumerableOrEnumerator(method.ReturnType)
-				? PublicizedStateMachineKindMirror.AsyncIterator
-				: PublicizedStateMachineKindMirror.Async;
+			PublicizedStateMachineKind kind = returnsAsyncEnumerableOrEnumerator(method.ReturnType)
+				? PublicizedStateMachineKind.AsyncIterator
+				: PublicizedStateMachineKind.Async;
 
 			addOrUpgrade(result, candidate.FullName, kind);
 		}
@@ -80,9 +80,9 @@ public static class StateMachineDiscovery {
 			if (!isLikelyIteratorStateMachine(candidate, method))
 				continue;
 
-			PublicizedStateMachineKindMirror kind = implementsAsyncEnumerableOrEnumerator(candidate)
-				? PublicizedStateMachineKindMirror.AsyncIterator
-				: PublicizedStateMachineKindMirror.Iterator;
+			PublicizedStateMachineKind kind = implementsAsyncEnumerableOrEnumerator(candidate)
+				? PublicizedStateMachineKind.AsyncIterator
+				: PublicizedStateMachineKind.Iterator;
 
 			addOrUpgrade(result, candidate.FullName, kind);
 		}
@@ -225,17 +225,17 @@ public static class StateMachineDiscovery {
 		}
 	}
 
-	private static void addOrUpgrade(ResultDict result, string fullName, PublicizedStateMachineKindMirror kind) {
-		if (!result.TryGetValue(fullName, out PublicizedStateMachineKindMirror existing)) {
+	private static void addOrUpgrade(ResultDict result, string fullName, PublicizedStateMachineKind kind) {
+		if (!result.TryGetValue(fullName, out PublicizedStateMachineKind existing)) {
 			result.Add(fullName, kind);
 			return;
 		}
 		if (existing == kind)
 			return;
-		if (kind == PublicizedStateMachineKindMirror.AsyncIterator || existing == PublicizedStateMachineKindMirror.AsyncIterator) {
-			result[fullName] = PublicizedStateMachineKindMirror.AsyncIterator;
+		if (kind == PublicizedStateMachineKind.AsyncIterator || existing == PublicizedStateMachineKind.AsyncIterator) {
+			result[fullName] = PublicizedStateMachineKind.AsyncIterator;
 			return;
 		}
-		result[fullName] = PublicizedStateMachineKindMirror.Unknown;
+		result[fullName] = PublicizedStateMachineKind.Unknown;
 	}
 }

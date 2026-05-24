@@ -18,7 +18,7 @@ public static class AssemblyAnalyzer {
 			if (!VisibilityUtil.IsPublic(type))
 				originallyNonPublic.Add(type.FullName);
 
-		Dictionary<string, PublicizedStateMachineKindMirror> stateMachines = StateMachineDiscovery.Discover(types);
+		Dictionary<string, PublicizedStateMachineKind> stateMachines = StateMachineDiscovery.Discover(types);
 
 		return new AssemblyAnalysis {
 			OriginallyNonPublicTypeFullNames = originallyNonPublic.ToFrozenSet(StringComparer.Ordinal),
