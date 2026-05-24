@@ -168,6 +168,18 @@ jobs:
         run: >
           dotnet pack Injure/Injure.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
+      - name: Pack Injure.ModKit
+        run: >
+          dotnet pack Injure.ModKit/Injure.ModKit.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Pack Injure.ModKit.Analyzers
+        run: >
+          dotnet pack Injure.ModKit.Analyzers/Injure.ModKit.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Pack Injure.ModKit.Mods
+        run: >
+          dotnet pack Injure.ModKit.Mods/Injure.ModKit.Mods.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+
       - name: Add GitHub Packages source
         run: >
           dotnet nuget add source --username ${{ github.repository_owner }} --password ${{ secrets.GITHUB_TOKEN }}
