@@ -822,7 +822,9 @@ public sealed class AssetStore {
 	/// <param name="ownerID">Owner ID to register the source under.</param>
 	/// <param name="source">Source to register.</param>
 	/// <param name="localID">Local ID for the source, used for deterministic ordering and tie-breaking.</param>
-	/// <param name="localPriority">Owner-local priority; higher-priority sources within the same owner are tried first.</param>
+	/// <param name="localPriority">
+	/// Owner-local priority; lower (closer to negative infinity) priority sources within the same owner are tried first.
+	/// </param>
 	/// <param name="beforeOwners">
 	/// If not <see langword="null"/>, this source will be tried before any sources registered
 	/// under one of the specified owner IDs, with the specified constraint kinds.
@@ -862,7 +864,9 @@ public sealed class AssetStore {
 	/// <param name="ownerID">Owner ID to register the resolver under.</param>
 	/// <param name="resolver">Resolver to regiIf not <see langword="null"/>ster.</param>
 	/// <param name="localID">Local ID for the resolver, used for deterministic ordering and tie-breaking.</param>
-	/// <param name="localPriority">Owner-local priority; higher-priority resolvers within the same owner are tried first.</param>
+	/// <param name="localPriority">
+	/// Owner-local priority; lower (closer to negative infinity) priority resolvers within the same owner are tried first.
+	/// </param>
 	/// <param name="beforeOwners">
 	/// If not <see langword="null"/>, this resolver will be tried before any resolvers registered
 	/// under one of the specified owner IDs, with the specified constraint kinds.
@@ -924,7 +928,9 @@ public sealed class AssetStore {
 	/// <param name="ownerID">Owner ID to register the creator under.</param>
 	/// <param name="creator">Creator to register.</param>
 	/// <param name="localID">Local ID for the creator, used for deterministic ordering and tie-breaking.</param>
-	/// <param name="localPriority">Owner-local priority; higher-priority creators within the same owner are tried first.</param>
+	/// <param name="localPriority">
+	/// Owner-local priority; lower (closer to negative infinity) priority creators within the same owner are tried first.
+	/// </param>
 	/// <param name="beforeOwners">
 	/// If not <see langword="null"/>, this creator will be tried before any creators registered
 	/// under one of the specified owner IDs, with the specified constraint kinds.
@@ -981,8 +987,8 @@ public sealed class AssetStore {
 	/// <param name="watcher">Watcher to register.</param>
 	/// <param name="localID">Local ID for the watcher, used for deterministic ordering and tie-breaking.</param>
 	/// <param name="localPriority">
-	/// Owner-local priority; higher-priority watchers within the same owner will be subscribed to new
-	/// dependencies first.
+	/// Owner-local priority; lower (closer to negative infinity) priority watchers within the same owner will
+	/// be subscribed to new dependencies first.
 	/// </param>
 	/// <param name="beforeOwners">
 	/// If not <see langword="null"/>, this watcher will be subscribed to new dependencies before

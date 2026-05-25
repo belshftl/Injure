@@ -10,8 +10,8 @@ public class OwnerOrderingTests {
 	[Fact]
 	public void LocalPriorityWorks() {
 		OwnerOrderedEntry<string>[] entries = [
-			new("third",  "owner", "b", 0),
-			new("first",  "owner", "a", 2),
+			new("third",  "owner", "b", 2),
+			new("first",  "owner", "a", 0),
 			new("second", "owner", "c", 1),
 		];
 		string[] result = OwnerOrderedSorter.Sort(entries);
@@ -115,7 +115,7 @@ public class OwnerOrderingTests {
 	public void OwnerOrderingThenLocalPriority() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("ownerA second", "ownerA", "a", 0),
-			new("ownerA first",  "ownerA", "z", 1),
+			new("ownerA first",  "ownerA", "z", -1),
 			new("ownerB first",  "ownerB", "b", 0, beforeOwners: [OwnerOrderingConstraint.Soft("ownerA")]),
 		];
 		string[] result = OwnerOrderedSorter.Sort(entries);

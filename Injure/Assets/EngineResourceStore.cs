@@ -34,7 +34,7 @@ public sealed class EngineResourceStore {
 	/// Registers an engine resource source.
 	/// </summary>
 	/// <param name="source">Source to register.</param>
-	/// <param name="priority">Source priority; sources with higher priority values are tried first.</param>
+	/// <param name="priority">Source priority; sources with lower (closer to negative infinity) priority are tried first.</param>
 	/// <remarks>
 	/// <para>Priority ordering is temporary and is expected to be replaced by owner-ordering soon.</para>
 	/// <para>Unregistry is not supported, though this decision is not final.</para>
@@ -46,7 +46,7 @@ public sealed class EngineResourceStore {
 			SourceEntry[] @new = new SourceEntry[old.Length + 1];
 			Array.Copy(old, @new, old.Length);
 			@new[old.Length] = new SourceEntry(source, priority);
-			Array.Sort(@new, static (SourceEntry a, SourceEntry b) => b.Priority.CompareTo(a.Priority));
+			Array.Sort(@new, static (a, b) => a.Priority.CompareTo(b.Priority));
 			Volatile.Write(ref sources, @new);
 		}
 	}

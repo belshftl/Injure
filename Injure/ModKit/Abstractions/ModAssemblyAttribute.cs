@@ -6,7 +6,7 @@ namespace Injure.ModKit.Abstractions;
 
 // open enum since it must be usable in the attribute
 // NOTE: this enum's numeric values are ABI, do NOT change them
-// this enum's numeric values are also mirrored in Injure.ModKit.Analyzers/Core/ModAssemblyAttributeReader.cs
+// this enum's numeric values are also mirrored in Injure.ModKit.Analyzers/Core/Model.cs
 public enum ModAssemblyHotReloadLevel {
 	None = 1,
 	SafeBoundary = 2,

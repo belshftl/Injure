@@ -22,8 +22,9 @@ public sealed class LifetimeAnalyzer : DiagnosticAnalyzer {
 	}
 
 	private static void startCompilation(CompilationStartAnalysisContext ctx) {
+		if (!Shared.HotReloadModel.TryGetHotReloadLevel(ctx.Compilation, out var lv) || lv < Shared.ModAssemblyHotReloadLevelMirror.SafeBoundary)
+			return;
 		KnownTypes known = new(ctx.Compilation);
-
 		ctx.RegisterOperationBlockAction(blockCtx => {
 			if (blockCtx.OperationBlocks.Length == 0)
 				return;
