@@ -113,5 +113,61 @@ internal static class Core {
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
 	);
+
+	public static readonly DiagnosticDescriptor LifetimeIdentityInterfaceAsValue = new(
+		id: "IJM0013",
+		title: "IModLifetimeIdentity used as an ordinary type",
+		messageFormat: "'{0}' is a lifetime identity marker and must not be used as an ordinary value/member type",
+		category: "Core",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true
+	);
+
+	public static readonly DiagnosticDescriptor LifetimeIdentityTypeParamAsValue = new(
+		id: "IJM0014",
+		title: "Lifetime identity type parameter used as an ordinary type",
+		messageFormat: "Type parameter '{0}' is a lifetime identity marker and must not be used as an ordinary value/member type",
+		category: "Core",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true
+	);
+
+	public static readonly DiagnosticDescriptor MissingStructLifetimeConstraint = new(
+		id: "IJM0015",
+		title: "Lifetime identity type parameter can be constrained to struct",
+		messageFormat: "Add 'struct' to the IModLifetimeIdentity constraint for type parameter '{0}'",
+		category: "Core",
+		defaultSeverity: DiagnosticSeverity.Hidden,
+		isEnabledByDefault: true
+	);
+
+	public static readonly DiagnosticDescriptor StaticEventInNonReloadableMod = new(
+		id: "IJM0016",
+		title: "Static event in non-reloadable mod",
+		messageFormat: "Static events are arbitrary, possibly cross-ALC registration buckets with no mechanism to force unregistry and can easily leak old generations of reloadable mods; they're allowed in non-reloadable mods, but strongly prefer a IActiveOwnerScope-managed object instead",
+		category: "Core",
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true
+	);
+
+	public static readonly DiagnosticDescriptor StaticEventInReloadableMod = new(
+		id: "IJM0017",
+		title: "Static event in reloadable mod",
+		messageFormat: "Static events are impossible to use correctly in reloadable mods; registrations easily leak old generation state of other mods, state cannot survive reloads, and they promote bad APIs relying on fragile reflection tracking that falls apart for instance methods or capturing lambdas",
+		category: "Core",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true
+	);
+
+	/*
+	public static readonly DiagnosticDescriptor HookFieldInReloadableMod = new(
+		id: "IJM0018",
+		title: "Hook field/property in reloadable mod",
+		messageFormat: "Don't store hooks in fields/properties in reloadable mods; keep hooks scoped to either the entire generation or the same method that creates it, and prefer built-in hook APIs. For conditional behavior, keep the hook installed and branch inside the hook.",
+		category: "Core",
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true
+	);
+	*/
 #pragma warning restore RS2008 // enable analyzer release tracking
 }

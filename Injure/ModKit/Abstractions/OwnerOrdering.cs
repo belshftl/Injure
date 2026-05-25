@@ -146,10 +146,13 @@ public static class OwnerOrderedSorter {
 		int resultidx = 0;
 		foreach (Node<T> node in ordered) {
 			node.Items.Sort(static (a, b) => {
-				int n = b.LocalPriority.CompareTo(a.LocalPriority);
+				int n = a.LocalPriority.CompareTo(b.LocalPriority);
 				if (n != 0)
 					return n;
-				return StringComparer.Ordinal.Compare(a.LocalID, b.LocalID);
+				n = StringComparer.Ordinal.Compare(a.LocalID, b.LocalID);
+				if (n == 0)
+					throw new InternalStateException("duplicate LocalID got into local-priority sort");
+				return n;
 			});
 			foreach (OwnerOrderedEntry<T> ent in node.Items)
 				result[resultidx++] = ent.Item;

@@ -20,10 +20,10 @@ public readonly struct TestModL : IModLifetimeIdentity {
 
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
-	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) {
+	public async ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) {
+		await Task.Delay(2000, ct);
 		ctx.Diagnostics.Info("loaded!");
 		ctx.Api.MarkLoaded(ctx.OwnerID);
-		return ValueTask.CompletedTask;
 	}
 
 	public ValueTask LinkAsync(IModLinkContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) =>
