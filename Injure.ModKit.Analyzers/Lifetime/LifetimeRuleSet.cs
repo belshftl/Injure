@@ -24,30 +24,38 @@ internal sealed class LifetimeRuleSet(KnownTypes known, GenerationTokenProvenanc
 	public ObligationCreation? TryCreateFromObjectCreation(IObjectCreationOperation creation) {
 		static ObligationCreation required(LifetimeObligationKind kind, string displayName) =>
 			new(kind, ObligationSatisfactionLevel.Generation, ObligationSatisfactionLevel.None, displayName);
-
 		ITypeSymbol? type = creation.Type;
 		if (known.IsOrDerivesFrom(type, known.Hook))
-			return required(LifetimeObligationKind.Hook, "Hook");
+			return required(LifetimeObligationKind.Hook, "hook");
 		if (known.IsOrDerivesFrom(type, known.ILHook))
-			return required(LifetimeObligationKind.ILHook, "ILHook");
+			return required(LifetimeObligationKind.ILHook, "IL hook");
 		if (known.IsOrDerivesFrom(type, known.NativeDetour))
-			return required(LifetimeObligationKind.NativeDetour, "NativeDetour");
+			return required(LifetimeObligationKind.NativeDetour, "native detour");
 		if (known.IsOrDerivesFrom(type, known.Thread))
-			return required(LifetimeObligationKind.Thread, "Thread");
+			return required(LifetimeObligationKind.Thread, "thread");
 		if (known.IsOrDerivesFrom(type, known.Timer) || known.IsOrDerivesFrom(type, known.TimersTimer))
-			return required(LifetimeObligationKind.Timer, "Timer");
+			return required(LifetimeObligationKind.Timer, "timer");
 		if (known.IsOrDerivesFrom(type, known.PeriodicTimer))
-			return required(LifetimeObligationKind.PeriodicTimer, "PeriodicTimer");
+			return required(LifetimeObligationKind.PeriodicTimer, "periodic timer");
 		if (known.IsOrDerivesFrom(type, known.CancellationTokenSource))
-			return required(LifetimeObligationKind.CancellationTokenSource, "CancellationTokenSource");
+			return required(LifetimeObligationKind.CancellationTokenSource, "cancellation token source");
 		if (known.IsOrDerivesFrom(type, known.AssemblyLoadContext))
-			return required(LifetimeObligationKind.AssemblyLoadContext, "AssemblyLoadContext");
+			return required(LifetimeObligationKind.AssemblyLoadContext, "assembly load context");
 		if (known.IsOrDerivesFrom(type, known.Process))
-			return required(LifetimeObligationKind.Process, "Process");
+			return required(LifetimeObligationKind.Process, "process");
 		return null;
 	}
 
-	public ObligationCreation? TryCreateFromInvocation(IInvocationOperation invocation) {
+	public ObligationCreation? TryCreateFromReturnInvocationCreation(IInvocationOperation invocation) {
+		static ObligationCreation required(LifetimeObligationKind kind, string displayName) =>
+			new(kind, ObligationSatisfactionLevel.Generation, ObligationSatisfactionLevel.None, displayName);
+		IMethodSymbol method = invocation.TargetMethod;
+		if (isAssetStoreRegistryMethod(method))
+			return required(LifetimeObligationKind.AssetStoreRegistration, "asset store registration");
+		return null;
+	}
+
+	public ObligationCreation? TryCreateFromSideEffectInvocation(IInvocationOperation invocation) {
 		IMethodSymbol method = invocation.TargetMethod;
 		if (isTaskRun(method) || isTaskFactoryStartNew(method))
 			return new ObligationCreation(
@@ -73,12 +81,13 @@ internal sealed class LifetimeRuleSet(KnownTypes known, GenerationTokenProvenanc
 			LifetimeObligationKind.Hook => tryDispose(invocation, obl),
 			LifetimeObligationKind.ILHook => tryDispose(invocation, obl),
 			LifetimeObligationKind.NativeDetour => tryDispose(invocation, obl),
+			LifetimeObligationKind.Thread => tryThreadJoin(invocation, obl),
 			LifetimeObligationKind.Timer => tryDispose(invocation, obl),
 			LifetimeObligationKind.PeriodicTimer => tryDispose(invocation, obl),
 			LifetimeObligationKind.CancellationTokenSource => tryDispose(invocation, obl),
-			LifetimeObligationKind.Process => tryDispose(invocation, obl),
-			LifetimeObligationKind.Thread => tryThreadJoin(invocation, obl),
 			LifetimeObligationKind.AssemblyLoadContext => tryAlcUnload(invocation, obl),
+			LifetimeObligationKind.Process => tryDispose(invocation, obl),
+			LifetimeObligationKind.AssetStoreRegistration => tryDispose(invocation, obl),
 			_ => null,
 		};
 	}
@@ -86,23 +95,21 @@ internal sealed class LifetimeRuleSet(KnownTypes known, GenerationTokenProvenanc
 	public ObligationSatisfaction? TryGetTransfer(IInvocationOperation invocation, LifetimeObligation obl) {
 		if (obl.Local is null)
 			return null;
-		if (!isOwnerScopeTransferMethod(invocation.TargetMethod))
-			return null;
-		foreach (IArgumentOperation argument in invocation.Arguments) {
-			if (TryGetLocalReference(argument.Value, out ILocalSymbol? local) &&
-				SymbolEqualityComparer.Default.Equals(local, obl.Local)) {
-				return new ObligationSatisfaction(ObligationSatisfactionLevel.Generation, "transferred to active owner scope");
-			}
-		}
+		if (isOwnerScopeTransferMethod(invocation.TargetMethod))
+			foreach (IArgumentOperation arg in invocation.Arguments)
+				if (TryGetLocalReference(arg.Value, out ILocalSymbol? local) && SymbolEqualityComparer.Default.Equals(local, obl.Local))
+					return new ObligationSatisfaction(ObligationSatisfactionLevel.Generation, "transferred to active owner scope");
 		return null;
 	}
 
 	public bool HasGenerationBoundedTokenArgument(IInvocationOperation invocation) {
-		foreach (IArgumentOperation argument in invocation.Arguments)
-			if (tokenProvenance.IsGenerationBoundedToken(argument.Value))
+		foreach (IArgumentOperation arg in invocation.Arguments)
+			if (tokenProvenance.IsGenerationBoundedToken(arg.Value))
 				return true;
 		return false;
 	}
+
+	public bool IsTransferMethod(IMethodSymbol method) => isOwnerScopeTransferMethod(method);
 
 	private ObligationSatisfaction? tryDispose(IInvocationOperation invocation, LifetimeObligation obl) {
 		if (!isReceiverLocal(invocation, obl.Local!))
@@ -147,6 +154,11 @@ internal sealed class LifetimeRuleSet(KnownTypes known, GenerationTokenProvenanc
 			return true;
 		return known.Implements(containing, known.IActiveOwnerScope);
 	}
+
+	private bool isAssetStoreRegistryMethod(IMethodSymbol method) =>
+		(method.Name is "RegisterSource" or "RegisterResolver" ||
+		(method.Name is "RegisterCreator" or "RegisterDependencyWatcher" && method.Arity == 1) ||
+		(method.Name is "RegisterStagedCreator" && method.Arity == 2)) && SymbolEqualityComparer.Default.Equals(method.ContainingType, known.AssetStore);
 
 	private bool isTaskRun(IMethodSymbol method) =>
 		method.Name == "Run" && SymbolEqualityComparer.Default.Equals(method.ContainingType, known.Task);

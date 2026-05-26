@@ -103,11 +103,11 @@ public sealed class AssetStoreWatcherTests {
 		store.RegisterSource(ownerID, new TestSource(dep), "source");
 		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
 		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
-		AssetDependencyWatcherHandle handle = store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
+		AssetStoreRegistration r = store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
 		asset.Warm();
-		store.UnregisterDependencyWatcher(handle);
+		r.Dispose();
 
 		watcher.Raise(dep);
 		Assert.False(asset.HasQueuedReload);

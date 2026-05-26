@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Linq;
 
 using Injure.Internals.Analyzers.Attributes;
+using Injure.ModKit.Abstractions;
 
 namespace Injure.Assets;
 
@@ -47,6 +48,55 @@ public readonly partial struct AssetReloadRequestOrigin {
 }
 
 /// <summary>
+/// Describes a <see cref="IAssetDependency"/> value. Used for diagnostics / failure reports
+/// to avoid storing <see cref="IAssetDependency"/> objects long-term, potentially rooting collectible ALCs.
+/// </summary>
+public readonly record struct AssetDependencySnapshot(
+	string BestEffortTypeName,
+	string BestEffortDebugDescription,
+	string? TypeName,
+	string? FullTypeName,
+	string? AssemblyQualifiedTypeName,
+	string? AssemblyName,
+	string? DebugDescription
+) {
+	/// <summary>
+	/// Returns a human-readable best-effort description string.
+	/// </summary>
+	public override string ToString() => $"{BestEffortTypeName}: {BestEffortDebugDescription}";
+
+	/// <summary>
+	/// Creates an <see cref="AssetDependencySnapshot"/> from the provided asset dependency.
+	/// </summary>
+	public static AssetDependencySnapshot FromDependency(IAssetDependency dep) {
+		ArgumentNullException.ThrowIfNull(dep);
+		Type type = dep.GetType();
+		string? debugDescription = catchEx(() => dep.DebugDescription, null);
+		string? typeName = catchEx(() => type.Name, null);
+		string? fullTypeName = catchEx(() => type.FullName, null);
+		string? assemblyQualifiedTypeName = catchEx(() => type.AssemblyQualifiedName, null);
+		string? assemblyName = catchEx(() => type.Assembly.GetName().Name, null);
+		return new AssetDependencySnapshot(
+			BestEffortTypeName: !string.IsNullOrWhiteSpace(fullTypeName) ? fullTypeName : (!string.IsNullOrWhiteSpace(typeName) ? typeName : "<unknown dependency type>"),
+			BestEffortDebugDescription: !string.IsNullOrWhiteSpace(debugDescription) ? debugDescription : "<dependency description unavailable>",
+			TypeName: typeName,
+			FullTypeName: fullTypeName,
+			AssemblyQualifiedTypeName: assemblyQualifiedTypeName,
+			AssemblyName: assemblyName,
+			DebugDescription: debugDescription
+		);
+	}
+
+	private static T? catchEx<T>(Func<T?> read, T? fallback) {
+		try {
+			return read();
+		} catch {
+			return fallback;
+		}
+	}
+}
+
+/// <summary>
 /// Describes a failed asset reload attempt.
 /// </summary>
 /// <param name="Asset">Asset key identifying the asset whose reload failed.</param>
@@ -54,7 +104,7 @@ public readonly partial struct AssetReloadRequestOrigin {
 /// <param name="Stage">Stage where the reload failed.</param>
 /// <param name="Origin">Origin of the reload request.</param>
 /// <param name="Trigger">Dependency that triggered the reload, if any.</param>
-/// <param name="Exception">Exception that caused the reload failure.</param>
+/// <param name="ExceptionSnapshot">Exception that caused the reload failure.</param>
 /// <remarks>
 /// Failed reloads do not replace the currently live version. The old live version remains active
 /// until a later reload succeeds or the asset/store is otherwise discarded.
@@ -64,8 +114,8 @@ public sealed record AssetReloadFailure(
 	ulong TargetVersion,
 	AssetReloadFailureStage Stage,
 	AssetReloadRequestOrigin Origin,
-	IAssetDependency? Trigger,
-	Exception Exception
+	AssetDependencySnapshot? Trigger,
+	ExceptionSnapshot ExceptionSnapshot
 );
 
 /// <summary>
@@ -82,10 +132,11 @@ public readonly record struct AssetReloadReport(
 	/// </summary>
 	/// <exception cref="AggregateException">
 	/// Thrown when <see cref="Failures"/> contains one or more entries. Contains
-	/// all of the <see cref="AssetReloadFailure.Exception"/>s in them.
+	/// all of the <see cref="AssetReloadFailure.ExceptionSnapshot"/>s in them
+	/// converted to <see cref="ForeignException"/>s.
 	/// </exception>
 	public void ThrowIfFailed() {
 		if (!Failures.IsDefaultOrEmpty)
-			throw new AggregateException(Failures.Select(static f => f.Exception));
+			throw new AggregateException(Failures.Select(static f => f.ExceptionSnapshot.ToException()));
 	}
 }

@@ -16,8 +16,8 @@ public sealed class AssetStoreBasicTests {
 		TestDependencyWatcher watcher = new();
 		store.RegisterSource(ownerID, new TestSource(new TestDependency("dep")), "source");
 		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		AssetCreatorHandle ch = store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
-		AssetDependencyWatcherHandle wh = store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
+		AssetStoreRegistration cr = store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
+		AssetStoreRegistration wr = store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
 		Assert.False(asset.IsLoaded);
@@ -45,13 +45,13 @@ public sealed class AssetStoreBasicTests {
 		lease = asset.Borrow();
 		Assert.Equal(2ul, lease.Version);
 
-		store.UnregisterCreator(ch);
+		cr.Dispose();
 		Assert.Throws<InvalidOperationException>(() => _ = default(AssetNamespace).Namespace);
 		AssetNamespace n = store.WithNamespace(ownerID);
 		AssetRef<TestAsset> asset2 = n.Get<TestAsset>("asset2");
 		Assert.Throws<AssetUnhandledException>(() => _ = asset2.Borrow());
 
-		store.UnregisterDependencyWatcher(wh);
+		wr.Dispose();
 		Assert.True(watcher.Disposed);
 	}
 

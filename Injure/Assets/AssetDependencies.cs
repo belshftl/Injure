@@ -20,20 +20,35 @@ namespace Injure.Assets;
 /// based on value identity rather than object identity.
 /// </para>
 /// </remarks>
-public interface IAssetDependency {}
+public interface IAssetDependency {
+	/// <summary>
+	/// A human-readable description of this asset dependency, usable for diagnostics, failure reports,
+	/// and debugging.
+	/// </summary>
+	/// <remarks>
+	/// Must be stable for the lifetime of the dependency value; if that's violated, it probably
+	/// won't work as expected either way since this string may be cached.
+	/// Not opt-out; returning <see langword="null"/> or, worse, throwing is bad behavior.
+	/// </remarks>
+	string DebugDescription { get; }
+}
 
 /// <summary>
 /// Dependency representing a file on the local filesystem.
 /// </summary>
 /// <param name="FullPath">Full path to the file.</param>
-public sealed record FileAssetDependency(string FullPath) : IAssetDependency;
+public sealed record FileAssetDependency(string FullPath) : IAssetDependency {
+	public string DebugDescription => FullPath;
+}
 
 /// <summary>
 /// Dependency representing an embedded assembly resource.
 /// </summary>
 /// <param name="Assembly">Assembly containing the resource.</param>
 /// <param name="ResourcePath">Manifest resource name.</param>
-public sealed record EmbeddedAssetDependency(Assembly Assembly, string ResourcePath) : IAssetDependency;
+public sealed record EmbeddedAssetDependency(Assembly Assembly, string ResourcePath) : IAssetDependency {
+	public string DebugDescription => $"{Assembly}:{ResourcePath}";
+}
 
 /// <summary>
 /// Records dependencies discovered while preparing an asset version.
