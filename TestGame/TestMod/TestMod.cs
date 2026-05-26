@@ -10,7 +10,7 @@ using Injure.ModKit.Mods.MonoMod;
 using MonoMod.Cil;
 using TestGame.ModApi;
 
-[assembly: ModAssembly("jdoe.test-mod", ModAssemblyHotReloadLevel.SafeBoundary)]
+[assembly: ModAssembly("jdoe.test-mod", ModAssemblyHotReloadLevel.Live)]
 
 namespace TestMod;
 
@@ -20,16 +20,16 @@ public readonly struct TestModL : IModLifetimeIdentity {
 
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
-	public async ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) {
-		await Task.Delay(2000, ct);
+	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) {
 		ctx.Diagnostics.Info("loaded!");
 		ctx.Api.MarkLoaded(ctx.OwnerID);
+		return ValueTask.CompletedTask;
 	}
 
 	public ValueTask LinkAsync(IModLinkContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) =>
 		ValueTask.CompletedTask;
 
-	public ValueTask ActivateAsync(GenerationCancellationToken<TestModL> ct) =>
+	public ValueTask ActivateAsync(IModActivateContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) =>
 		ValueTask.CompletedTask;
 
 	public ValueTask DeactivateAsync(GenerationCancellationToken<TestModL> ct) =>
@@ -46,5 +46,18 @@ public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
 			throw new MissingFieldException("Color32.Green unexpectedly missing");
 		c.Remove(); // TODO: avoid destructive IL edits, they can mess up IL hooks from other mods
 		c.EmitLdsfld(fi);
+	}
+}
+
+[ModReloadEntrypoint]
+public sealed class ReloadEntrypoint : IModReloadEntrypoint<ITestGameModApi, TestModL> {
+	public ValueTask<ModLiveStateBlob> SaveStateAsync(IModReloadContext<ITestGameModApi, TestModL> ctx, GenerationCancellationToken<TestModL> ct) {
+		ctx.Diagnostics.Info("saving live state...");
+		return new ValueTask<ModLiveStateBlob>(ModLiveStateBlob.FromUtf8(new(0, 1, 0), ":3"));
+	}
+
+	public ValueTask RestoreStateAsync(IModReloadContext<ITestGameModApi, TestModL> ctx, ModLiveStateBlob state, GenerationCancellationToken<TestModL> ct) {
+		ctx.Diagnostics.Info("restoring live state...");
+		return ValueTask.CompletedTask;
 	}
 }

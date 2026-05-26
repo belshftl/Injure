@@ -35,9 +35,9 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 
 	internal AssetID(string ns, string path, bool skipValidation) {
 		if (!skipValidation) {
-			if (!tryValidateNamespace(ns, out string? err))
+			if (!ValidateNamespace(ns, out string? err))
 				throw new ArgumentException(err, nameof(ns));
-			if (!tryValidatePath(path, out err))
+			if (!ValidatePath(path, out err))
 				throw new ArgumentException(err, nameof(path));
 		}
 		Namespace = ns;
@@ -73,7 +73,7 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 		int i = s.IndexOf("::", StringComparison.Ordinal);
 		if (i < 0 || s.IndexOf("::", i + 2, StringComparison.Ordinal) >= 0)
 			return false;
-		if (!tryValidateNamespace(s.AsSpan(0, i), out _) || !tryValidatePath(s.AsSpan(i + 2), out _))
+		if (!ValidateNamespace(s.AsSpan(0, i), out _) || !ValidatePath(s.AsSpan(i + 2), out _))
 			return false;
 		val = new AssetID(s[..i], s[(i + 2)..], skipValidation: true);
 		return true;
@@ -93,16 +93,18 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 	/// The parsed value.
 	/// </returns>
 	/// <exception cref="FormatException">
-	/// Thrown if the string is not in the format <c>namespace::path</c> or has
-	/// an invalid namespace or path.
+	/// Thrown if the string is not in the format <c>namespace::path</c>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if the string has an invalid namespace or path component.
 	/// </exception>
 	public static AssetID Parse([NotNull] string? s) {
 		ArgumentNullException.ThrowIfNull(s);
 		int i = s.IndexOf("::", StringComparison.Ordinal);
 		if (i < 0 || s.IndexOf("::", i + 2, StringComparison.Ordinal) >= 0)
 			throw new FormatException("string must contain exactly one occurrence of ::");
-		validateNamespace(s.AsSpan(0, i));
-		validatePath(s.AsSpan(i + 2));
+		ValidateNamespaceOrThrow(s.AsSpan(0, i));
+		ValidatePathOrThrow(s.AsSpan(i + 2));
 		return new AssetID(s[..i], s[(i + 2)..], skipValidation: true);
 	}
 	/// <inheritdoc cref="Parse(string)"/>
@@ -127,14 +129,14 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 		int i = span.IndexOf("::");
 		if (i < 0 || span[(i + 2)..].IndexOf("::") >= 0)
 			return false;
-		if (!tryValidateNamespace(span[..i], out _) || !tryValidatePath(span[(i + 2)..], out _))
+		if (!ValidateNamespace(span[..i], out _) || !ValidatePath(span[(i + 2)..], out _))
 			return false;
 		val = new AssetID(new string(span[..i]), new string(span[(i + 2)..]), skipValidation: true);
 		return true;
 	}
 	/// <inheritdoc cref="TryParse(ReadOnlySpan{char}, out AssetID)"/>
 	/// <remarks>
-	/// <paramref name="provider"/> is ignored and is for compatibility with <see cref="IParsable{TSelf}"/>.
+	/// <paramref name="provider"/> is ignored and is for compatibility with <see cref="ISpanParsable{TSelf}"/>.
 	/// </remarks>
 	public static bool TryParse(ReadOnlySpan<char> span, IFormatProvider? provider, out AssetID val) => TryParse(span, out val);
 
@@ -147,26 +149,47 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 	/// The parsed value.
 	/// </returns>
 	/// <exception cref="FormatException">
-	/// Thrown if the string is not in the format <c>namespace::path</c> or has
-	/// an invalid namespace or path.
+	/// Thrown if the string is not in the format <c>namespace::path</c>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if the string has an invalid namespace or path component.
 	/// </exception>
 	public static AssetID Parse(ReadOnlySpan<char> span) {
 		int i = span.IndexOf("::");
 		if (i < 0 || span[(i + 2)..].IndexOf("::") >= 0)
 			throw new FormatException("string must contain exactly one occurrence of ::");
-		validateNamespace(span[..i]);
-		validatePath(span[(i + 2)..]);
+		ValidateNamespaceOrThrow(span[..i]);
+		ValidatePathOrThrow(span[(i + 2)..]);
 		return new AssetID(new string(span[..i]), new string(span[(i + 2)..]), skipValidation: true);
 	}
 	/// <inheritdoc cref="Parse(ReadOnlySpan{char})"/>
 	/// <remarks>
-	/// <paramref name="provider"/> is ignored and is for compatibility with <see cref="IParsable{TSelf}"/>.
+	/// <paramref name="provider"/> is ignored and is for compatibility with <see cref="ISpanParsable{TSelf}"/>.
 	/// </remarks>
 	public static AssetID Parse(ReadOnlySpan<char> span, IFormatProvider? provider) => Parse(span);
 
 	// ==========================================================================
 	// the string validation corner
-	private static bool tryValidateNamespace(ReadOnlySpan<char> s, [NotNullWhen(false)] out string? err) {
+
+	/// <summary>
+	/// Checks an asset namespace for validity.
+	/// </summary>
+	/// <returns>
+	/// <see langword="true"/> if <paramref name="s"/> is a valid asset namespace;
+	/// <see langword="false"/> otherwise.
+	/// </returns>
+	/// <param name="s">String to perform the check on.</param>
+	/// <param name="err">If the method returned <see langword="false"/>, an error string describing the invalidity.</param>
+	/// <remarks>
+	/// <para>
+	/// Valid owner IDs are guaranteed to be valid asset namespaces.
+	/// </para>
+	/// <para>
+	/// The validation rules are currently the same as for owner IDs, but until the whole API stabilizes,
+	/// the right to make owner ID validation stricter than asset namespace validation is reserved.
+	/// </para>
+	/// </remarks>
+	public static bool ValidateNamespace(ReadOnlySpan<char> s, [NotNullWhen(false)] out string? err) {
 		if (s.IsEmpty) {
 			err = "asset namespace must not be empty";
 			return false;
@@ -184,12 +207,26 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 		err = null;
 		return true;
 	}
-	private static void validateNamespace(ReadOnlySpan<char> s) {
-		if (!tryValidateNamespace(s, out string? err))
-			throw new FormatException(err);
+
+	/// <summary>
+	/// Checks an asset namespace for validity, throwing <see cref="ArgumentException"/> if it's invalid.
+	/// </summary>
+	/// <inheritdoc cref="ValidateNamespace(ReadOnlySpan{char}, out string?)"/>
+	public static void ValidateNamespaceOrThrow(ReadOnlySpan<char> s) {
+		if (!ValidateNamespace(s, out string? err))
+			throw new ArgumentException(err);
 	}
 
-	private static bool tryValidatePath(ReadOnlySpan<char> s, [NotNullWhen(false)] out string? err) {
+	/// <summary>
+	/// Checks an asset path for validity.
+	/// </summary>
+	/// <returns>
+	/// <see langword="true"/> if <paramref name="s"/> is a valid asset path;
+	/// <see langword="false"/> otherwise.
+	/// </returns>
+	/// <param name="s">String to perform the check on.</param>
+	/// <param name="err">If the method returned <see langword="false"/>, an error string describing the invalidity.</param>
+	public static bool ValidatePath(ReadOnlySpan<char> s, [NotNullWhen(false)] out string? err) {
 		static bool checkSeg(ReadOnlySpan<char> seg, [NotNullWhen(false)] out string? err) {
 			if (seg.IsEmpty) {
 				err = "asset path must not contain empty path segments";
@@ -247,9 +284,14 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 		err = null;
 		return true;
 	}
-	private static void validatePath(ReadOnlySpan<char> s) {
-		if (!tryValidatePath(s, out string? err))
-			throw new FormatException(err);
+
+	/// <summary>
+	/// Checks an asset path for validity, throwing <see cref="ArgumentException"/> if it's invalid.
+	/// </summary>
+	/// <inheritdoc cref="ValidatePath(ReadOnlySpan{char}, out string?)"/>
+	public static void ValidatePathOrThrow(ReadOnlySpan<char> s) {
+		if (!ValidatePath(s, out string? err))
+			throw new ArgumentException(err);
 	}
 }
 

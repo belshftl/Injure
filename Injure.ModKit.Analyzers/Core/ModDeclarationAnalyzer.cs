@@ -138,7 +138,7 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 		}
 		if (model.ReloadEntrypointCandidates.Length > 1)
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.DuplicateReloadEntrypoint, SymbolHelpers.GetBestLocation(type), type.ToDisplayString()));
-		validateReloadEntrypointCandidate(ctx, known.ModEntrypointInterface, model.LifetimeIdentity.Type, model.Entrypoint.GameApiType, type);
+		validateReloadEntrypointCandidate(ctx, known.ModReloadEntrypointInterface, model.LifetimeIdentity.Type, model.Entrypoint.GameApiType, type);
 	}
 
 	private static void validateEntrypointCandidate(

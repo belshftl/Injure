@@ -697,6 +697,12 @@ public sealed class AssetStore {
 	}
 
 	/// <summary>
+	/// Creates a convenience <see cref="AssetNamespace"/> object for more ergonomic namespace-scoped
+	/// use of this store, using the provided namespace.
+	/// </summary>
+	public AssetNamespace WithNamespace(string ns) => new(this, ns);
+
+	/// <summary>
 	/// Attaches the current thread to this <see cref="AssetStore"/> for deferred
 	/// asset version reclamation tracking.
 	/// </summary>
