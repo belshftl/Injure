@@ -10,6 +10,7 @@ internal static class AttributeSources {
 #nullable enable
 #pragma warning disable CS1591
 namespace Injure.Internals.Analyzers.Attributes {
+	[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 	[global::System.AttributeUsage(global::System.AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
 	internal sealed class ClosedEnumAttribute : global::System.Attribute {
 		public bool DefaultIsInvalid { get; init; }
@@ -26,6 +27,7 @@ namespace Injure.Internals.Analyzers.Attributes {
 #nullable enable
 #pragma warning disable CS1591
 namespace Injure.Internals.Analyzers.Attributes {
+	[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 	[global::System.AttributeUsage(global::System.AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
 	internal sealed class ClosedEnumMirrorAttribute : global::System.Attribute {
 		public global::System.Type MirrorType { get; }
@@ -46,6 +48,7 @@ namespace Injure.Internals.Analyzers.Attributes {
 #nullable enable
 #pragma warning disable CS1591
 namespace Injure.Internals.Analyzers.Attributes {
+	[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 	[global::System.AttributeUsage(global::System.AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
 	internal sealed class ClosedFlagsAttribute : global::System.Attribute {
 		public bool DefaultIsInvalid { get; init; }
@@ -62,6 +65,7 @@ namespace Injure.Internals.Analyzers.Attributes {
 #nullable enable
 #pragma warning disable CS1591
 namespace Injure.Internals.Analyzers.Attributes {
+	[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 	[global::System.AttributeUsage(global::System.AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
 	internal sealed class ClosedFlagsMirrorAttribute : global::System.Attribute {
 		public global::System.Type MirrorType { get; }
@@ -80,6 +84,7 @@ namespace Injure.Internals.Analyzers.Attributes {
 #nullable enable
 #pragma warning disable CS1591
 namespace Injure.Internals.Analyzers.Attributes {
+	[global::Microsoft.CodeAnalysis.EmbeddedAttribute]
 	[global::System.AttributeUsage(global::System.AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
 	internal sealed class StronglyTypedIntAttribute : global::System.Attribute {
 		public global::System.Type BackingType { get; }

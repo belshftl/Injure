@@ -26,8 +26,7 @@ public readonly struct OwnerOrderingConstraint {
 	public OwnerOrderingConstraintKind Kind { get; }
 
 	private OwnerOrderingConstraint(string ownerID, OwnerOrderingConstraintKind kind) {
-		if (string.IsNullOrWhiteSpace(ownerID))
-			throw new ArgumentException("owner ID cannot be null/empty/whitespace", nameof(ownerID));
+		ModMetadataValidation.ValidateOwnerIDOrThrow(ownerID);
 		OwnerID = ownerID;
 		Kind = kind;
 	}
@@ -53,10 +52,8 @@ public sealed class OwnerOrderedEntry<T> {
 		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
 	) {
 		ArgumentNullException.ThrowIfNull(item);
-		if (string.IsNullOrWhiteSpace(ownerID))
-			throw new ArgumentException("owner ID cannot be null/empty/whitespace", nameof(ownerID));
-		if (string.IsNullOrWhiteSpace(localID))
-			throw new ArgumentException("local ID cannot be null/empty/whitespace", nameof(localID));
+		ModMetadataValidation.ValidateOwnerIDOrThrow(ownerID);
+		ModMetadataValidation.ValidateLocalIDOrThrow(localID);
 		Item = item;
 		OwnerID = ownerID;
 		LocalID = localID;
@@ -71,8 +68,6 @@ public sealed class OwnerOrderedEntry<T> {
 		HashSet<string> seen = new(StringComparer.Ordinal);
 		List<OwnerOrderingConstraint> list = new();
 		foreach (OwnerOrderingConstraint cons in owners) {
-			if (string.IsNullOrWhiteSpace(cons.OwnerID))
-				throw new ArgumentException("owner list cannot contain null/empty/whitespace strings", paramName);
 			if (!seen.Add(cons.OwnerID))
 				throw new ArgumentException("owner list cannot contain duplicates", paramName);
 			list.Add(cons);
@@ -253,6 +248,7 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 
 	private readonly Dictionary<ulong, OwnerOrderedEntry<T>> entries = new();
 	private readonly Dictionary<string, HashSet<string>> localIDsByOwner = new(StringComparer.Ordinal);
+	private readonly Dictionary<(string OwnerID, string LocalID), ulong> idsByOwnerLocalID = new();
 	private ulong nextID = 0; // first ID will be 1 since this gets incremented upfront
 	private T[] snapshot = Array.Empty<T>();
 
@@ -340,6 +336,66 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 		}
 	}
 
+	/// <summary>
+	/// Removes entries en masse by owner ID instead of by registration handle.
+	/// </summary>
+	/// <remarks>
+	/// Primarily intended for situations like cleanup when an owner ID is gone and has leftover registrations.
+	/// Prefer <see cref="UnregisterLocked(ulong, out OwnerOrderedEntry{T}?)"/> for most cases.
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID.
+	/// </exception>
+	public OwnerOrderedEntry<T>[] UnregisterAllByOwnerIDLocked(string ownerID) {
+		ModMetadataValidation.ValidateOwnerIDOrThrow(ownerID);
+		if (!localIDsByOwner.TryGetValue(ownerID, out HashSet<string>? localIDs))
+			return Array.Empty<OwnerOrderedEntry<T>>();
+
+		List<RemovedEntry> removedEntries = new(capacity: localIDs.Count);
+		try {
+			ulong[] ids = new ulong[localIDs.Count];
+			int i = 0;
+			foreach (string localID in localIDs)
+				ids[i++] = idsByOwnerLocalID[(ownerID, localID)];
+
+			for (i = 0; i < ids.Length; i++)
+				removeEntry(ids[i], removedEntries);
+
+			T[] s = OwnerOrderedSorter.Sort(entries.Values.ToArray());
+			Volatile.Write(ref snapshot, s);
+
+			OwnerOrderedEntry<T>[] result = new OwnerOrderedEntry<T>[removedEntries.Count];
+			for (i = 0; i < removedEntries.Count; i++)
+				result[i] = removedEntries[i].Entry;
+			return result;
+		} catch {
+			rollbackRemoved(removedEntries);
+			throw;
+		}
+	}
+
+	/// <summary>
+	/// Removes an entry by owner/local ID instead of by registration handle.
+	/// </summary>
+	/// <remarks>
+	/// Primarily intended for situations like cleanup when the registration handle was lost.
+	/// Prefer <see cref="UnregisterLocked(ulong, out OwnerOrderedEntry{T}?)"/> for most cases.
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID or if <paramref name="localID"/>
+	/// is not a valid local ID.
+	/// </exception>
+	public bool UnregisterByOwnerAndLocalIDsLocked(string ownerID, string localID, [NotNullWhen(true)] out OwnerOrderedEntry<T>? removed) {
+		ModMetadataValidation.ValidateOwnerIDOrThrow(ownerID);
+		ModMetadataValidation.ValidateLocalIDOrThrow(localID);
+		ArgumentNullException.ThrowIfNull(localID);
+		if (!idsByOwnerLocalID.TryGetValue((ownerID, localID), out ulong id)) {
+			removed = null;
+			return false;
+		}
+		return UnregisterLocked(id, out removed);
+	}
+
 	public ulong[] ReplaceManyLocked(IReadOnlySet<ulong> remove, IReadOnlyList<OwnerOrderedEntry<T>> add) {
 		ArgumentNullException.ThrowIfNull(remove);
 		ArgumentNullException.ThrowIfNull(add);
@@ -385,6 +441,7 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 			throw new OwnerOrderingException($"duplicate LocalID '{entry.LocalID}' for owner '{entry.OwnerID}'");
 		ulong id = checked(nextID + 1);
 		entries.Add(id, entry);
+		idsByOwnerLocalID.Add((entry.OwnerID, entry.LocalID), id);
 		nextID = id;
 		added.Add(new AddedEntry(id, entry.OwnerID, entry.LocalID, createdLocalIDSet));
 		return id;
@@ -395,6 +452,7 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 			return false;
 		HashSet<string> localIDs = localIDsByOwner[removed.OwnerID];
 		entries.Remove(id);
+		idsByOwnerLocalID.Remove((removed.OwnerID, removed.LocalID));
 		bool removedLocalID = localIDs.Remove(removed.LocalID);
 		bool removedOwnerSet = false;
 		if (localIDs.Count == 0) {
@@ -409,6 +467,7 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 		for (int i = added.Count - 1; i >= 0; i--) {
 			AddedEntry entry = added[i];
 			entries.Remove(entry.ID);
+			idsByOwnerLocalID.Remove((entry.OwnerID, entry.LocalID));
 			HashSet<string> localIDs = localIDsByOwner[entry.OwnerID];
 			localIDs.Remove(entry.LocalID);
 			if (entry.CreatedOwnerSet)
@@ -420,6 +479,7 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 		for (int i = removedEntries.Count - 1; i >= 0; i--) {
 			RemovedEntry removed = removedEntries[i];
 			entries.Add(removed.ID, removed.Entry);
+			idsByOwnerLocalID.Add((removed.Entry.OwnerID, removed.Entry.LocalID), removed.ID);
 			HashSet<string> localIDs;
 			if (removed.RemovedOwnerSet) {
 				localIDs = new HashSet<string>(StringComparer.Ordinal);
@@ -462,6 +522,16 @@ public sealed class OwnerOrderedRegistry<T> {
 	public OwnerOrderedEntry<T>[] UnregisterMany(IReadOnlySet<ulong> ids) {
 		lock (@lock)
 			return inner.UnregisterManyLocked(ids);
+	}
+
+	public OwnerOrderedEntry<T>[] UnregisterAllByOwnerID(string ownerID) {
+		lock (@lock)
+			return inner.UnregisterAllByOwnerIDLocked(ownerID);
+	}
+
+	public bool UnregisterByOwnerAndLocalIDs(string ownerID, string localID, [NotNullWhen(true)] out OwnerOrderedEntry<T>? removed) {
+		lock (@lock)
+			return inner.UnregisterByOwnerAndLocalIDsLocked(ownerID, localID, out removed);
 	}
 
 	public ulong[] ReplaceMany(IReadOnlySet<ulong> remove, IReadOnlyList<OwnerOrderedEntry<T>> add) {

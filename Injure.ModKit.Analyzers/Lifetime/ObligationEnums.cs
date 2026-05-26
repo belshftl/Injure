@@ -14,6 +14,7 @@ internal enum LifetimeObligationKind {
 	Process,
 	StartedTask,
 	ThreadPoolWorkItem,
+	AssetStoreRegistration,
 }
 
 internal enum ObligationState {

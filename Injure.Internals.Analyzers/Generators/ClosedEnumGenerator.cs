@@ -41,6 +41,7 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 	// IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context) {
 		context.RegisterPostInitializationOutput(static (IncrementalGeneratorPostInitializationContext ctx) => {
+			ctx.AddEmbeddedAttributeDefinition();
 			ctx.AddSource(AttributeSources.ClosedEnumAttributeFilename, SourceText.From(AttributeSources.ClosedEnumAttribute, Encoding.UTF8));
 			ctx.AddSource(AttributeSources.ClosedEnumMirrorAttributeFilename, SourceText.From(AttributeSources.ClosedEnumMirrorAttribute, Encoding.UTF8));
 		});

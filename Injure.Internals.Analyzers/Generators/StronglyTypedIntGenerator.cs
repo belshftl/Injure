@@ -26,9 +26,10 @@ public sealed class StronglyTypedIntGenerator : IIncrementalGenerator {
 	// ==========================================================================
 	// IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context) {
-		context.RegisterPostInitializationOutput(static (IncrementalGeneratorPostInitializationContext ctx) =>
-			ctx.AddSource(AttributeSources.StronglyTypedIntAttributeFilename, SourceText.From(AttributeSources.StronglyTypedIntAttribute, Encoding.UTF8))
-		);
+		context.RegisterPostInitializationOutput(static (IncrementalGeneratorPostInitializationContext ctx) => {
+			ctx.AddEmbeddedAttributeDefinition();
+			ctx.AddSource(AttributeSources.StronglyTypedIntAttributeFilename, SourceText.From(AttributeSources.StronglyTypedIntAttribute, Encoding.UTF8));
+		});
 		IncrementalValuesProvider<TargetInfo?> targets = context.SyntaxProvider.ForAttributeWithMetadataName(
 			AttributeSources.StronglyTypedIntAttributeMetadataName,
 			predicate: static (SyntaxNode node, CancellationToken _) => node is StructDeclarationSyntax,

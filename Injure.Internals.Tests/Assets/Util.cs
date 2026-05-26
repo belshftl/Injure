@@ -41,7 +41,9 @@ public sealed class TestAsset(string val) : IRevokable {
 	public void Revoke() => Volatile.Write(ref revoked, 1);
 }
 
-public sealed record TestDependency(string Name) : IAssetDependency;
+public sealed record TestDependency(string Name) : IAssetDependency {
+	public string DebugDescription => Name;
+}
 
 public sealed class TestDependencyWatcher : IAssetDependencyWatcher<TestDependency> {
 	public HashSet<TestDependency> Watched { get; } = new HashSet<TestDependency>();

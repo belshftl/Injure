@@ -29,6 +29,9 @@ internal sealed class KnownTypes(Compilation comp) {
 	public INamedTypeSymbol? AssemblyLoadContext { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssemblyLoadContext);
 	public INamedTypeSymbol? Process { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Process);
 
+	public INamedTypeSymbol? AssetStore { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssetStore);
+	public INamedTypeSymbol? AssetStoreRegistration { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssetStoreRegistration);
+
 	public INamedTypeSymbol? GenerationCancellationToken { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.GenerationCancellationToken);
 	public INamedTypeSymbol? IActiveOwnerScope { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IActiveOwnerScope);
 

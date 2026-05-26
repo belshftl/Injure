@@ -194,6 +194,10 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 			err = "asset namespace must not be empty";
 			return false;
 		}
+		if (s.Length > 128) {
+			err = "asset namespace must be at most 128 characters long";
+			return false;
+		}
 		if (!char.IsAsciiLetterOrDigit(s[0])) {
 			err = "asset namespace must start with an ASCII letter or ASCII digit";
 			return false;

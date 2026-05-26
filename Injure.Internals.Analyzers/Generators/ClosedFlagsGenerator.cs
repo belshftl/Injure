@@ -41,6 +41,7 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 	// IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context) {
 		context.RegisterPostInitializationOutput(static (IncrementalGeneratorPostInitializationContext ctx) => {
+			ctx.AddEmbeddedAttributeDefinition();
 			ctx.AddSource(AttributeSources.ClosedFlagsAttributeFilename, SourceText.From(AttributeSources.ClosedFlagsAttribute, Encoding.UTF8));
 			ctx.AddSource(AttributeSources.ClosedFlagsMirrorAttributeFilename, SourceText.From(AttributeSources.ClosedFlagsMirrorAttribute, Encoding.UTF8));
 		});

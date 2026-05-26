@@ -6,6 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 
+using Injure.ModKit.Abstractions;
+
 namespace Injure.Assets;
 
 /// <summary>
@@ -26,7 +28,7 @@ public interface IUntypedAssetRef {
 	bool HasQueuedReload { get; }
 
 	/// <summary>Last exception that occurred while initially loading this asset, if any.</summary>
-	Exception? LastLoadException { get; }
+	ExceptionSnapshot? LastLoadException { get; }
 
 	/// <summary>Last reload failure recorded for this asset, if any.</summary>
 	AssetReloadFailure? LastReloadFailure { get; }
@@ -91,7 +93,7 @@ public sealed class AssetRef<T> : IUntypedAssetRef where T : class {
 	/// <remarks>
 	/// Reload failures are reported separately through <see cref="LastReloadFailure"/>.
 	/// </remarks>
-	public Exception? LastLoadException => Slot.LastLoadException;
+	public ExceptionSnapshot? LastLoadException => Slot.LastLoadException;
 
 	/// <summary>
 	/// Last reload failure recorded for this asset, if any.
