@@ -39,7 +39,7 @@ public sealed class Game : IGame {
 	public static WindowState WindowState => GameServices.Host.Window.State;
 
 	public static ModRuntime<ITestGameModApi> Mods {
-		get => field ?? throw new InvalidOperationException("game not initialized yet or already shut down");
+		get => field ?? throw new InvalidOperationException("mod runtime not initialized yet");
 		private set;
 	}
 	public static IOwnerDiagnostics Diagnostics => Mods.GameDiagnostics;
@@ -81,6 +81,7 @@ public sealed class Game : IGame {
 
 	public void Init(GameServices sv) {
 		GameServices = sv;
+		Mods.AttachGameActivateBlocking(sv);
 		Assets.RegisterSource(OwnerID, new DirectoryAssetSource(OwnerID, AssetsDirectory), "AssetsDirectory");
 		Actions.Init();
 		LayerTags.Init();
@@ -100,10 +101,11 @@ public sealed class Game : IGame {
 	}
 
 	public void Shutdown() {
+		Mods.DetachGameDeactivateBlocking();
 		GameServices = null!;
 	}
 
 	public void BetweenSchedulerTicks() {
-		Mods.AtSafeBoundary(); // stub, you shouldn't actually call this here
+		Mods.AtLiveBoundaryBlocking(); // TODO: figure out where this should properly be called because it's Not here
 	}
 }

@@ -105,6 +105,8 @@ public static class ManifestReader {
 
 		ModPackageKind type = requiredEnum<ModPackageKind>(root, "type", sourceName);
 		string id = new(requiredString(root, "id", sourceName));
+		if (!ModMetadataValidation.ValidateOwnerID(id, out string? err))
+			throw new ModLoadException($"{sourceName}: invalid owner ID '{id}': {err}");
 		Semver version = Semver.Parse(requiredString(root, "version", sourceName));
 		string? displayName = optionalString(root, "display-name");
 		List<ModRelationshipManifest> relationships = readRelationships(root, sourceName);

@@ -1,5 +1,6 @@
 ﻿// SPDX-License-Identifier: MIT
 
+using System;
 using System.Threading.Tasks;
 
 using Injure.Assets;
@@ -45,7 +46,9 @@ public sealed class AssetStoreBasicTests {
 		Assert.Equal(2ul, lease.Version);
 
 		store.UnregisterCreator(ch);
-		AssetRef<TestAsset> asset2 = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset2"));
+		Assert.Throws<InvalidOperationException>(() => _ = default(AssetNamespace).Namespace);
+		AssetNamespace n = store.WithNamespace(ownerID);
+		AssetRef<TestAsset> asset2 = n.Get<TestAsset>("asset2");
 		Assert.Throws<AssetUnhandledException>(() => _ = asset2.Borrow());
 
 		store.UnregisterDependencyWatcher(wh);

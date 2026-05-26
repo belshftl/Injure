@@ -11,7 +11,7 @@ public sealed class ModEntrypointAttribute : Attribute;
 public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeIdentity {
 	ValueTask LoadAsync(IModLoadContext<TGameApi, L> ctx, GenerationCancellationToken<L> ct);
 	ValueTask LinkAsync(IModLinkContext<TGameApi, L> ctx, GenerationCancellationToken<L> ct);
-	ValueTask ActivateAsync(GenerationCancellationToken<L> ct);
+	ValueTask ActivateAsync(IModActivateContext<TGameApi, L> ctx, GenerationCancellationToken<L> ct);
 	ValueTask DeactivateAsync(GenerationCancellationToken<L> ct);
 	ValueTask UnloadAsync(GenerationCancellationToken<L> ct);
 }

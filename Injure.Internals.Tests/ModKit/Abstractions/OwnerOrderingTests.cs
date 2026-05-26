@@ -6,7 +6,7 @@ using Injure.ModKit.Abstractions;
 
 namespace Injure.Internals.Tests.ModKit.Abstractions;
 
-public class OwnerOrderingTests {
+public sealed class OwnerOrderingTests {
 	[Fact]
 	public void LocalPriorityWorks() {
 		OwnerOrderedEntry<string>[] entries = [
