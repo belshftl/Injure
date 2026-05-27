@@ -39,7 +39,7 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public IDiagnosticsSink DiagnosticsSink { get; init; } = new DefaultDiagnosticsSink();
 	public TimeSpan UnloadGracePeriod { get; init; } = TimeSpan.FromMilliseconds(100);
 	public int MaxParallelCodeLoads { get; init; } = Math.Max(1, Environment.ProcessorCount - 1);
-	public int MaxParallelDisposals { get; init; } = 8;
+	public int MaxScopeTeardownParallelism { get; init; } = 8;
 }
 
 internal sealed class ModLoadContextImpl<TGameApi, L>(
@@ -303,7 +303,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private readonly IDiagnosticsSink diagnosticsSink = options.DiagnosticsSink ??  throw new ArgumentNullException(nameof(options), "DiagnosticsSink cannot be null");
 	private readonly TimeSpan unloadGracePeriod = options.UnloadGracePeriod;
 	private readonly int maxParallelDomains = Math.Max(1, options.MaxParallelCodeLoads);
-	private readonly int maxParallelDisposals = Math.Max(1, options.MaxParallelDisposals);
+	private readonly int maxScopeTeardownParallelism = Math.Max(1, options.MaxScopeTeardownParallelism);
 	private readonly SemaphoreSlim codeLoadSem = new(Math.Max(1, options.MaxParallelCodeLoads), Math.Max(1, options.MaxParallelCodeLoads));
 	private readonly SemaphoreSlim writeLock = new(1, 1);
 
@@ -1008,14 +1008,14 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		List<ExceptionSnapshot> cleanupErrs = new();
 		foreach (LoadedCodeMod<TGameApi> mod in preparedCode.Values) {
 			try {
-				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, diagnostics, ct).ConfigureAwait(false);
+				await destroyPreparedCodeGenerationAsync(mod, ReloadTeardownReason.FailureRollback, diagnostics, ct).ConfigureAwait(false);
 			} catch (Exception cleanupEx) when (!ExceptionPolicy.IsInternalState(cleanupEx)) {
 				cleanupErrs.Add(ExceptionSnapshot.FromException(cleanupEx));
 			}
 		}
 		foreach (LoadedContentMod mod in preparedContent.Values) {
 			try {
-				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
+				await destroyPreparedContentGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 			} catch (Exception cleanupEx) when (!ExceptionPolicy.IsInternalState(cleanupEx)) {
 				cleanupErrs.Add(ExceptionSnapshot.FromException(cleanupEx));
 			}
@@ -1104,9 +1104,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 		if (!destructiveBoundaryCrossed) {
 			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values)
-				await destroyPreparedCodeGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, diagnostics, ct).ConfigureAwait(false);
+				await destroyPreparedCodeGenerationAsync(mod, ReloadTeardownReason.FailureRollback, diagnostics, ct).ConfigureAwait(false);
 			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
-				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
+				await destroyPreparedContentGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 			throw reloadErr.ToException();
 		}
 
@@ -1114,20 +1114,20 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		List<ExceptionSnapshot> rollbackErrs = new();
 		try {
 			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values) {
-				await destroyPreparedCodeGenerationNoUnloadAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
+				await destroyPreparedCodeGenerationNoUnloadAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 				preparedUnloads.Add(detachForUnload(mod));
 			}
 			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
-				await destroyPreparedContentGenerationAsync(mod, ReloadInvalidationReason.FailureRollback, ct).ConfigureAwait(false);
+				await destroyPreparedContentGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
 			rollbackErrs.Add(ExceptionSnapshot.FromException(ex));
 		}
 
 		try {
 			foreach (LoadedCodeMod<TGameApi> old in transaction.OldCode.Values)
-				old.Scope = ActiveOwnerScope.CreateRoot(old.Staged.Generation, maxParallelDisposals);
+				old.Scope = new ActiveOwnerScope(old.Staged.Generation, maxScopeTeardownParallelism);
 			foreach (LoadedContentMod old in transaction.OldContent.Values)
-				old.Scope = ActiveOwnerScope.CreateRoot(old.Staged.Generation, maxParallelDisposals);
+				old.Scope = new ActiveOwnerScope(old.Staged.Generation, maxScopeTeardownParallelism);
 
 			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.OldCode.Values.ToArray(), maxParallelDomains, ct).ConfigureAwait(false);
 			if (wasActive)
@@ -1158,7 +1158,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private LoadedContentMod createLoadedContentMod(StagedMod stagedMod) => new() {
 		Staged = stagedMod,
-		Scope = ActiveOwnerScope.CreateRoot(stagedMod.Generation, maxParallelDisposals),
+		Scope = new ActiveOwnerScope(stagedMod.Generation, maxScopeTeardownParallelism),
 	};
 
 	private async ValueTask<LoadedCodeMod<TGameApi>> loadCodeModBoundedAsync(StagedMod stagedMod, CancellationToken ct) {
@@ -1182,7 +1182,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			validateModAssemblyAttribute(manifest, assembly);
 
 			Type lifetimeIdentityType = ModTypeDiscovery.FindLifetimeIdentityType(assembly, stagedMod.MainAssemblyPath);
-			scope = ActiveOwnerScope.CreateRoot(stagedMod.Generation, maxParallelDisposals);
+			scope = new ActiveOwnerScope(stagedMod.Generation, maxScopeTeardownParallelism);
 			Type entryType = ModTypeDiscovery.FindEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.MainAssemblyPath);
 			object entrypoint = Activator.CreateInstance(entryType)!;
 			object? reloadEntrypoint = null;
@@ -1204,7 +1204,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
 			try {
 				if (scope is not null)
-					block(invalidateScopeAsync(scope, ReloadInvalidationReason.FailureRollback, CancellationToken.None));
+					block(invalidateScopeAsync(scope, ReloadTeardownReason.FailureRollback, CancellationToken.None));
 				foreach (Assembly asm in alc.Assemblies)
 					AssemblyScrubber.ScrubStaticReferenceFields(asm);
 				alc.Unload();
@@ -1284,7 +1284,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 	private async ValueTask disposeOldOwnerScopesAsync(IReadOnlySet<string> set, BoundaryPlan plan, CancellationToken ct) {
 		foreach (string id in set) {
-			ReloadInvalidationReason reason = plan.DisableSet.Contains(id) ? ReloadInvalidationReason.Disable : ReloadInvalidationReason.Reload;
+			ReloadTeardownReason reason = plan.DisableSet.Contains(id) ? ReloadTeardownReason.Disable : ReloadTeardownReason.Reload;
 			if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? mod))
 				await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
 			if (activeContent.TryGetValue(id, out LoadedContentMod? content))
@@ -1316,7 +1316,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private static async ValueTask destroyPreparedCodeGenerationNoUnloadAsync(LoadedCodeMod<TGameApi> mod, ReloadInvalidationReason reason, CancellationToken ct) {
+	private static async ValueTask destroyPreparedCodeGenerationNoUnloadAsync(LoadedCodeMod<TGameApi> mod, ReloadTeardownReason reason, CancellationToken ct) {
 		try {
 			await unloadCodeGenerationAsync(mod, ct).ConfigureAwait(false);
 		} finally {
@@ -1325,7 +1325,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private async ValueTask destroyPreparedCodeGenerationAsync(LoadedCodeMod<TGameApi> mod, ReloadInvalidationReason reason, OwnerDiagnostics diagnostics, CancellationToken ct) {
+	private async ValueTask destroyPreparedCodeGenerationAsync(LoadedCodeMod<TGameApi> mod, ReloadTeardownReason reason, OwnerDiagnostics diagnostics, CancellationToken ct) {
 		await destroyPreparedCodeGenerationNoUnloadAsync(mod, reason, ct);
 		if (unloadGracePeriod > TimeSpan.Zero)
 			await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
@@ -1335,7 +1335,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static async ValueTask destroyPreparedContentGenerationAsync(LoadedContentMod mod, ReloadInvalidationReason reason, CancellationToken ct) {
+	private static async ValueTask destroyPreparedContentGenerationAsync(LoadedContentMod mod, ReloadTeardownReason reason, CancellationToken ct) {
 		await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
 	}
 
@@ -1443,7 +1443,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		await expectValueTask(result, mi.Name).ConfigureAwait(false);
 	}
 
-	private static ValueTask invalidateScopeAsync(IActiveOwnerScope scope, ReloadInvalidationReason reason, CancellationToken ct) {
+	private static ValueTask invalidateScopeAsync(IActiveOwnerScope scope, ReloadTeardownReason reason, CancellationToken ct) {
 		if (scope is not ActiveOwnerScope sc)
 			throw new InternalStateException($"'{scope.GetType().FullName}' isn't an ActiveOwnerScope so we can't invalidate it");
 		return sc.InvalidateAsync(reason, ct);

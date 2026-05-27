@@ -90,20 +90,8 @@ public sealed class LayerStack : IDisposable {
 		PendingOpKind Kind,
 		Layer? Layer,
 		Layer? NewLayer,
-		TickerHandle Ticker
+		TickerHandle? Ticker
 	);
-
-	private sealed class TickerSubscription {
-		private readonly LayerStack owner;
-		public readonly TickerHandle Ticker;
-		public readonly TickerCallback Callback;
-		public TickerSubscription(LayerStack owner, TickerHandle ticker) {
-			this.owner = owner;
-			Ticker = ticker;
-			Callback = callback;
-		}
-		private void callback(in TickCallbackInfo info) => owner.tickerCallback(Ticker, in info);
-	}
 
 	// ==========================================================================
 	// fields
@@ -114,7 +102,7 @@ public sealed class LayerStack : IDisposable {
 	private readonly List<PendingOp> pending = new();
 
 	private readonly Dictionary<TickerHandle, int> refcounts = new();
-	private readonly Dictionary<TickerHandle, TickerSubscription> subs = new();
+	private readonly Dictionary<TickerHandle, TickerSubscriptionHandle> subs = new();
 
 	private bool disposed;
 	private bool applying;
@@ -149,7 +137,7 @@ public sealed class LayerStack : IDisposable {
 		if (!mentions(layer))
 			return false;
 
-		pending.Add(new PendingOp(PendingOpKind.Remove, layer, NewLayer: null, Ticker: default));
+		pending.Add(new PendingOp(PendingOpKind.Remove, layer, NewLayer: null, Ticker: null));
 		maybeApplyPending();
 		return true;
 	}
@@ -351,16 +339,16 @@ public sealed class LayerStack : IDisposable {
 				foreach (PendingOp op in batch) {
 					switch (op.Kind) {
 					case PendingOpKind.PushTop:
-						enter(op.Layer!, op.Ticker, pushToTop: true);
+						enter(op.Layer!, op.Ticker!, pushToTop: true);
 						break;
 					case PendingOpKind.PushBottom:
-						enter(op.Layer!, op.Ticker, pushToTop: false);
+						enter(op.Layer!, op.Ticker!, pushToTop: false);
 						break;
 					case PendingOpKind.Remove:
 						leave(op.Layer!);
 						break;
 					case PendingOpKind.Replace:
-						replace(op.Layer!, op.NewLayer!, op.Ticker);
+						replace(op.Layer!, op.NewLayer!, op.Ticker!);
 						break;
 					case PendingOpKind.Clear:
 						clear();
@@ -459,8 +447,8 @@ public sealed class LayerStack : IDisposable {
 			ent.Runtime.Dispose();
 		}
 		entries.Clear();
-		foreach (TickerSubscription sub in subs.Values)
-			tickers.Unsubscribe(sub.Ticker, sub.Callback);
+		foreach (TickerSubscriptionHandle sub in subs.Values)
+			sub.Remove();
 		refcounts.Clear();
 		subs.Clear();
 		input.DiscardAll();
@@ -509,11 +497,7 @@ public sealed class LayerStack : IDisposable {
 			refcounts[ticker] = n + 1;
 			return;
 		}
-
-		TickerSubscription sub = new(this, ticker);
-		if (!tickers.Subscribe(ticker, sub.Callback))
-			throw new InternalStateException("failed to subscribe callback for ticker");
-
+		TickerSubscriptionHandle sub = ticker.Subscribe((in info) => tickerCallback(ticker, in info));
 		refcounts.Add(ticker, 1);
 		subs.Add(ticker, sub);
 	}
@@ -528,7 +512,7 @@ public sealed class LayerStack : IDisposable {
 		}
 
 		refcounts.Remove(ticker);
-		if (subs.Remove(ticker, out TickerSubscription? sub))
-			tickers.Unsubscribe(sub.Ticker, sub.Callback);
+		if (subs.Remove(ticker, out TickerSubscriptionHandle? sub))
+			sub.Remove();
 	}
 }

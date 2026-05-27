@@ -26,8 +26,10 @@ internal static class KnownTypeMetadataNames {
 	public const string AssemblyLoadContext = "System.Runtime.Loader.AssemblyLoadContext";
 	public const string Process = "System.Diagnostics.Process";
 
-	public const string AssetStore = "Injure.Assets.AssetStore";
 	public const string AssetStoreRegistration = "Injure.Assets.AssetStoreRegistration";
+	public const string TickerHandle = "Injure.Scheduling.TickerHandle";
+	public const string TickerSubscriptionHandle = "Injure.Scheduling.TickerSubscriptionHandle";
+	public const string IReloadTeardown = "Injure.Assets.IReloadTeardown";
 
 	public const string GenerationCancellationToken = "Injure.ModKit.Abstractions.GenerationCancellationToken`1";
 	public const string IActiveOwnerScope = "Injure.ModKit.Abstractions.IActiveOwnerScope";
