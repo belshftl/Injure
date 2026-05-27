@@ -17,9 +17,9 @@ internal readonly record struct ObligationSatisfaction(
 	string Reason
 );
 
-internal sealed class LifetimeRuleSet(KnownTypes known, GenerationTokenProvenance tokenProvenance) {
+internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance tokenProvenance) {
 	private readonly KnownTypes known = known;
-	private readonly GenerationTokenProvenance tokenProvenance = tokenProvenance;
+	private readonly BoundedTokenProvenance tokenProvenance = tokenProvenance;
 
 	public ObligationCreation? TryCreateFromObjectCreation(IObjectCreationOperation creation) {
 		static ObligationCreation required(LifetimeObligationKind kind, string displayName) =>
@@ -67,14 +67,14 @@ internal sealed class LifetimeRuleSet(KnownTypes known, GenerationTokenProvenanc
 			return new ObligationCreation(
 				LifetimeObligationKind.StartedTask,
 				ObligationSatisfactionLevel.Generation,
-				HasGenerationBoundedTokenArgument(invocation) ? ObligationSatisfactionLevel.Generation : ObligationSatisfactionLevel.None,
+				HasBoundedTokenArgument(invocation) ? ObligationSatisfactionLevel.Generation : ObligationSatisfactionLevel.None,
 				"started task"
 			);
 		if (isThreadPoolQueue(method))
 			return new ObligationCreation(
 				LifetimeObligationKind.ThreadPoolWorkItem,
 				ObligationSatisfactionLevel.Generation,
-				HasGenerationBoundedTokenArgument(invocation) ? ObligationSatisfactionLevel.Generation : ObligationSatisfactionLevel.None,
+				HasBoundedTokenArgument(invocation) ? ObligationSatisfactionLevel.Generation : ObligationSatisfactionLevel.None,
 				"thread pool work item"
 			);
 		return null;
@@ -111,9 +111,9 @@ internal sealed class LifetimeRuleSet(KnownTypes known, GenerationTokenProvenanc
 		return null;
 	}
 
-	public bool HasGenerationBoundedTokenArgument(IInvocationOperation invocation) {
+	public bool HasBoundedTokenArgument(IInvocationOperation invocation) {
 		foreach (IArgumentOperation arg in invocation.Arguments)
-			if (tokenProvenance.IsGenerationBoundedToken(arg.Value))
+			if (tokenProvenance.IsBoundedToken(arg.Value))
 				return true;
 		return false;
 	}

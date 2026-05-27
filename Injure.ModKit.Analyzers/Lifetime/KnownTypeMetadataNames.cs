@@ -31,6 +31,6 @@ internal static class KnownTypeMetadataNames {
 	public const string TickerSubscriptionHandle = "Injure.Scheduling.TickerSubscriptionHandle";
 	public const string IReloadTeardown = "Injure.Assets.IReloadTeardown";
 
-	public const string GenerationCancellationToken = "Injure.ModKit.Abstractions.GenerationCancellationToken`1";
+	public const string BoundedCt = "Injure.ModKit.Abstractions.BoundedCt`1";
 	public const string IActiveOwnerScope = "Injure.ModKit.Abstractions.IActiveOwnerScope";
 }

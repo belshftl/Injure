@@ -33,6 +33,6 @@ internal sealed class KnownTypes(Compilation comp) {
 	public INamedTypeSymbol? TickerSubscriptionHandle { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.TickerSubscriptionHandle);
 	public INamedTypeSymbol? IReloadTeardown { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IReloadTeardown);
 
-	public INamedTypeSymbol? GenerationCancellationToken { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.GenerationCancellationToken);
+	public INamedTypeSymbol? BoundedCt { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.BoundedCt);
 	public INamedTypeSymbol? IActiveOwnerScope { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IActiveOwnerScope);
 }

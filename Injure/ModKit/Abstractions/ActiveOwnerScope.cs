@@ -21,8 +21,8 @@ public interface IActiveOwnerScope {
 }
 
 public interface IActiveOwnerScope<L> : IActiveOwnerScope where L : struct, IModLifetimeIdentity {
-	GenerationCancellationToken<L> Stopping { get; }
+	BoundedCt<L> Stopping { get; }
 
-	GenerationCancellationSource<L> CreateCancellationSource();
-	GenerationCancellationSource<L> CreateLinkedCancellationSource(CancellationToken cancellationToken);
+	BoundedCts<L> CreateCts();
+	BoundedCts<L> CreateLinkedCts(CancellationToken link);
 }

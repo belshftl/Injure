@@ -55,16 +55,7 @@ public readonly partial struct RenderTimingMode {
 	}
 }
 
-[ClosedEnum]
-public readonly partial struct LoopTimingMode {
-	public enum Case {
-		Normal,
-		Uncapped, // you probably don't want this unless you really know what you're doing
-	}
-}
-
 public readonly record struct TimingSettings(
 	RenderTimingMode RenderMode, double TargetFPS,
-	LoopTimingMode LoopMode = default, double TargetLoopHz = 960.0,
-	int MaxLoopDeadlineMissByLoopDurations = 4
+	double TargetLoopHz = 480.0, int MaxLoopDeadlineMissByLoopDurations = 4
 );

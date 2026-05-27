@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using Hexa.NET.SDL3;
 
@@ -44,15 +45,13 @@ public static unsafe class Runner {
 				err = "TargetFPS must be non-zero/negative if RenderMode == RenderTimingMode.Capped";
 				return false;
 			}
-			if (settings.LoopMode == LoopTimingMode.Normal) {
-				if (settings.TargetLoopHz <= 0.0) {
-					err = "TargetLoopHz must be non-zero/negative if LoopMode == LoopTimingMode.Normal";
-					return false;
-				}
-				if (settings.TargetFPS > settings.TargetLoopHz) {
-					err = "TargetFPS cannot be higher than TargetLoopHz; if you want to go higher, increase TargetLoopHz";
-					return false;
-				}
+			if (settings.TargetLoopHz <= 0.0) {
+				err = "TargetLoopHz must be non-zero/negative";
+				return false;
+			}
+			if (settings.TargetFPS > settings.TargetLoopHz) {
+				err = "TargetFPS cannot be higher than TargetLoopHz; if you want to go higher, increase TargetLoopHz";
+				return false;
 			}
 			Settings = settings;
 			Changed = true;
@@ -77,7 +76,7 @@ public static unsafe class Runner {
 
 	private static GameServices services = null!;
 	private static CanvasSharedResources canvasResources = null!;
-	private static bool running = false;
+	private static int running = 0;
 
 	private static void handleEvent(in SDLEvent ev, ref bool quitRequested, InputSystem input, IGame game) {
 		if ((SDLEventType)ev.Type == SDLEventType.Quit)
@@ -141,22 +140,17 @@ public static unsafe class Runner {
 		TimingSettings tmst = tmconf.Settings;
 
 		// validation and basic init
-		if (tmst.RenderMode == RenderTimingMode.Capped) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetFPS);
-		if (tmst.LoopMode == LoopTimingMode.Normal) {
-			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetLoopHz);
-			if (tmst.TargetFPS > tmst.TargetLoopHz)
-				throw new ArgumentException("TargetFPS cannot be higher than TargetLoopHz; if you want to go higher, increase TargetLoopHz");
-		}
+		if (tmst.RenderMode == RenderTimingMode.Capped)
+			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetFPS);
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetLoopHz);
+		if (tmst.TargetFPS > tmst.TargetLoopHz)
+			throw new ArgumentException("TargetFPS cannot be higher than TargetLoopHz; if you want to go higher, increase TargetLoopHz");
 
-		if (running)
+		if (Interlocked.Exchange(ref running, 1) != 0)
 			throw new InvalidOperationException("an IGame instance is already running");
-		running = true;
 
 		double renderStep = tmst.TargetFPS > 0.0 ? 1.0 / tmst.TargetFPS : 0.0;
-		double loopStep = tmst.TargetLoopHz > 0.0 ? 1.0 / tmst.TargetLoopHz : 0.0;
-		MonoTick loopStepTicks = (MonoTick)(ulong)Math.Round(loopStep * (double)MonoTick.Frequency);
-		if (loopStepTicks < (MonoTick)1)
-			loopStepTicks = (MonoTick)1;
+		MonoTick loopStep = MonoTick.PeriodFromHz(tmst.TargetLoopHz);
 
 		MonoTick t1_5ms = (MonoTick)(ulong)((UInt128)MonoTick.Frequency.Value * 15 / 10000);
 		MonoTick t0_5ms = (MonoTick)(ulong)((UInt128)MonoTick.Frequency.Value * 5 / 10000);
@@ -215,8 +209,10 @@ bootstrapCancelled:
 
 		// service/system init
 		// TODO: the builtin source/resolver/creator registry should be moved out somewhere
-		MonoTick budget = (MonoTick)Math.Min((ulong)loopStepTicks, (ulong)MonoTick.PeriodFromHz(tmst.TargetLoopHz));
-		TickerScheduler sched = new(new TickerSchedulerOptions(MaxBatchDuration: budget));
+		TickerScheduler sched = new(new TickerSchedulerOptions(
+			MaxBatchDuration: loopStep,
+			Budget: TickerBudgetOptions.CreateDefault(loopStep)
+		));
 		InputSystem input = new();
 		ActionRegistry actionRegistry = new();
 		LayerStack layerStack = new(sched, input);
@@ -269,7 +265,7 @@ bootstrapCancelled:
 
 		// actual main loop
 		double renderAccum = 0.0;
-		MonoTick nextLoopDeadline = MonoTick.GetCurrent() + loopStepTicks;
+		MonoTick nextLoopDeadline = MonoTick.GetCurrent() + loopStep;
 
 		MonoTick last = MonoTick.GetCurrent();
 
@@ -298,12 +294,8 @@ bootstrapCancelled:
 				renderStep = tmst.TargetFPS > 0.0 ? 1.0 / tmst.TargetFPS : 0.0;
 				renderAccum = 0.0;
 
-				loopStep = tmst.TargetLoopHz > 0.0 ? 1.0 / tmst.TargetLoopHz : 0.0;
-				loopStepTicks = (MonoTick)(ulong)Math.Round(loopStep * (double)MonoTick.Frequency);
-				if (loopStepTicks < (MonoTick)1)
-					loopStepTicks = (MonoTick)1;
-				if (tmst.LoopMode == LoopTimingMode.Normal)
-					nextLoopDeadline = MonoTick.GetCurrent() + loopStepTicks;
+				loopStep = MonoTick.PeriodFromHz(tmst.TargetLoopHz);
+				nextLoopDeadline = MonoTick.GetCurrent() + loopStep;
 			}
 
 			while (SDL.PollEvent(&ev))
@@ -329,52 +321,52 @@ bootstrapCancelled:
 			// make sure we don't oversleep if there's a retimed ticker
 			sched.ApplyPending();
 
-			if (tmst.LoopMode == LoopTimingMode.Normal) {
-				MonoTick deadline = nextLoopDeadline;
-				if (sched.TryGetEarliestNextAt(out MonoTick nextTickDeadline) && nextTickDeadline < deadline)
-					deadline = nextTickDeadline;
+			MonoTick deadline = nextLoopDeadline;
+			if (sched.TryGetEarliestNextAt(out MonoTick nextTickDeadline) && nextTickDeadline < deadline)
+				deadline = nextTickDeadline;
 
-				bool reachedLoopDeadline = false;
-				//bool restartLoop = false;
-				for (;;) {
-					MonoTick now = MonoTick.GetCurrent();
-					if (now >= deadline) {
-						reachedLoopDeadline = now >= nextLoopDeadline;
+			bool reachedLoopDeadline = false;
+			//bool restartLoop = false;
+			for (;;) {
+				MonoTick now = MonoTick.GetCurrent();
+				if (now >= deadline) {
+					reachedLoopDeadline = now >= nextLoopDeadline;
+					break;
+				}
+				MonoTick remaining = deadline - now;
+				if (remaining > t1_5ms) { // n > 1.5ms
+					MonoTick n = remaining - t0_5ms; // 0.5ms of safety
+					int ms = (int)((UInt128)n.Value * 1000 / (UInt128)MonoTick.Frequency.Value);
+					if (ms > 0 && SDL.WaitEventTimeout(&ev, ms)) {
+						handleEvent(in ev, ref quitRequested, input, game);
+						while (SDL.PollEvent(&ev))
+							handleEvent(in ev, ref quitRequested, input, game);
+						if (quitRequested)
+							break;
+						// TODO: figure out what this means, i should've left a more descriptive
+						// comment because i don't actually remember what this is supposed to accomplish
+						//restartLoop = true; // OnHostEvent may have queued ticker changes
 						break;
 					}
-					MonoTick remaining = deadline - now;
-					if (remaining > t1_5ms) { // n > 1.5ms
-						MonoTick n = remaining - t0_5ms; // 0.5ms of safety
-						int ms = (int)((UInt128)n.Value * 1000 / (UInt128)MonoTick.Frequency.Value);
-						if (ms > 0 && SDL.WaitEventTimeout(&ev, ms)) {
-							handleEvent(in ev, ref quitRequested, input, game);
-							while (SDL.PollEvent(&ev))
-								handleEvent(in ev, ref quitRequested, input, game);
-							if (quitRequested)
-								break;
-							// TODO: figure out what this means, i should've left a more descriptive
-							// comment because i don't actually remember what this is supposed to accomplish
-							//restartLoop = true; // OnHostEvent may have queued ticker changes
-							break;
-						}
-					} else if (remaining > t0_1ms) { // 1.5ms >= n > 0.1ms
-						MonoTick n = remaining - t0_1ms; // 0.1ms of safety
-						PreciseWait.Wait((long)((UInt128)n.Value * 1000000000 / (UInt128)MonoTick.Frequency.Value));
-					} else { // 0.1ms >= n > 0ms
-						Thread.SpinWait(128);
-					}
+				} else if (remaining > t0_1ms) { // 1.5ms >= n > 0.1ms
+					MonoTick n = remaining - t0_1ms; // 0.1ms of safety
+					// XXX: relies on the fact that MonoTick is nanoseconds, if it ever changes replace it with the commented one
+					// PreciseWait.Wait((long)((UInt128)n.Value * 1000000000 / (UInt128)MonoTick.Frequency.Value));
+					PreciseWait.Wait((long)n.Value);
+				} else { // 0.1ms >= n > 0ms
+					Thread.SpinWait(128);
 				}
+			}
 
-				if (quitRequested)
-					break;
-				//if (restartLoop)
-				//	continue;
-				if (reachedLoopDeadline) {
-					nextLoopDeadline += loopStepTicks;
-					MonoTick now2 = MonoTick.GetCurrent();
-					if ((long)(now2.Value - nextLoopDeadline.Value) > (long)(loopStepTicks.Value * (ulong)tmst.MaxLoopDeadlineMissByLoopDurations))
-						nextLoopDeadline = now2 + loopStepTicks;
-				}
+			if (quitRequested)
+				break;
+			//if (restartLoop)
+			//	continue;
+			if (reachedLoopDeadline) {
+				nextLoopDeadline += loopStep;
+				MonoTick now2 = MonoTick.GetCurrent();
+				if ((long)(now2.Value - nextLoopDeadline.Value) > (long)(loopStep.Value * (ulong)tmst.MaxLoopDeadlineMissByLoopDurations))
+					nextLoopDeadline = now2 + loopStep;
 			}
 		}
 
@@ -392,6 +384,6 @@ bootstrapCancelled:
 earlyquit:
 		PreciseWait.Deinit();
 		SDLOwner.ShutdownSDL();
-		running = false;
+		Volatile.Write(ref running, 0);
 	}
 }

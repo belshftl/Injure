@@ -6,8 +6,8 @@ using Injure.Timing;
 
 namespace Injure.Layers;
 
-public readonly ref struct LayerTickContext(TickCallbackInfo tickInfo, double dt, double rawDt, double time, double rawTime, ulong tickNum, InputView input, ControlView controls) {
-	public TickCallbackInfo TickInfo { get; } = tickInfo;
+public readonly ref struct LayerTickContext(TickCallbackTimingInfo tickInfo, double dt, double rawDt, double time, double rawTime, ulong tickNum, InputView input, ControlView controls) {
+	public TickCallbackTimingInfo TickInfo { get; } = tickInfo;
 	public MonoTick Tick => TickInfo.ActualAt;
 	public MonoTick ScheduledTick => TickInfo.ScheduledAt;
 

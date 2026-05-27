@@ -7,6 +7,7 @@ using Injure.Graphics;
 using Injure.Graphics.Text;
 using Injure.Input;
 using Injure.Layers;
+using Injure.Scheduling;
 using Injure.UI;
 
 namespace TestGame;
@@ -44,7 +45,7 @@ public sealed class GameplayLayer : Layer {
 		};
 	}
 
-	public override void Update(in LayerTickContext ctx) {
+	public override void Update(in LayerTickContext ctx, in TickDeadline deadline) {
 		/*
 		if (ctx.Actions.Buttons[Actions.Pause].Pressed)
 			throw new NotImplementedException();

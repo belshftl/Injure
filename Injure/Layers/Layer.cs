@@ -6,6 +6,7 @@ using Injure.Coroutines;
 using Injure.Graphics;
 using Injure.Input;
 using Injure.Internals.Analyzers.Attributes;
+using Injure.Scheduling;
 
 namespace Injure.Layers;
 
@@ -59,7 +60,7 @@ public abstract class Layer {
 	public virtual ActionProfile? ActionProfile => null;
 
 	public abstract void OnEnter();
-	public abstract void Update(in LayerTickContext ctx);
+	public abstract void Update(in LayerTickContext ctx, in TickDeadline deadline);
 	public abstract void Render(Canvas cv);
 	public abstract void OnLeave();
 }

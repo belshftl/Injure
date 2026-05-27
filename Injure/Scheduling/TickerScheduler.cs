@@ -8,10 +8,42 @@ using Injure.Timing;
 
 namespace Injure.Scheduling;
 
-internal readonly record struct DueTickerCall(TickerCallback? Callback, TickCallbackInfo Info);
+internal struct EwmaMonoTick {
+	private MonoTick val;
+	private bool initialized;
+
+	public readonly bool HasValue => initialized;
+	public readonly MonoTick Value => val;
+
+	public void AddSample(MonoTick sample, int alphaShift) {
+		ArgumentOutOfRangeException.ThrowIfNegative(alphaShift);
+
+		if (!initialized) {
+			val = sample;
+			initialized = true;
+			return;
+		}
+
+		if (sample >= val)
+			val += (sample - val) >> alphaShift;
+		else
+			val -= (val - sample) >> alphaShift;
+	}
+}
+
+internal sealed class TickerSubscription(TickerCallback callback) {
+	public TickerCallback Callback { get; } = callback;
+	public EwmaMonoTick RuntimeEwma;
+	public MonoTick LastRuntime;
+	public ulong InvocationCount;
+	public ulong OverrunCount;
+}
+
+internal readonly record struct DueTickerCall(TickerSubscription Subscription, TickCallbackTimingInfo Info);
 
 internal sealed class ScheduledTicker {
 	private readonly TickerOptions options;
+	private readonly List<TickerSubscription> subscriptions = new();
 	private TickerTiming timing;
 
 	private bool hadCallback;
@@ -23,7 +55,6 @@ internal sealed class ScheduledTicker {
 	public MonoTick NextAt { get; private set; }
 	public int Priority => options.Priority;
 	public ulong InsertionOrder { get; private set; } // tie breaker for deterministic sorting of equal ones
-	internal event TickerCallback? CallbackEv;
 
 	public ScheduledTicker(in TickerSpec spec) {
 		if (spec.Timing.Period == MonoTick.Zero)
@@ -86,8 +117,21 @@ internal sealed class ScheduledTicker {
 		}
 	}
 
-	public bool TryTakeOneIfDue(MonoTick now, uint batchID, out DueTickerCall call) {
-		call = default;
+	public TickerSubscription AddSubscription(TickerCallback callback) {
+		TickerSubscription subscription = new(callback);
+		subscriptions.Add(subscription);
+		return subscription;
+	}
+
+	public bool RemoveSubscription(TickerSubscription subscription) {
+		return subscriptions.Remove(subscription);
+	}
+
+	public void ClearSubscriptions() {
+		subscriptions.Clear();
+	}
+
+	public bool TryTakeOneIfDue(MonoTick now, uint batchID, List<DueTickerCall> calls) {
 		if (now < NextAt)
 			return false;
 
@@ -112,27 +156,21 @@ internal sealed class ScheduledTicker {
 		default:
 			throw new UnreachableException();
 		}
-		TickerCallback? callback = CallbackEv;
-		if (callback is null) {
-			markCallbackState(scheduledAt, now);
-			return true;
-		}
-		call = new DueTickerCall(callback, makeInfo(scheduledAt, now));
+
+		TickCallbackTimingInfo info = makeInfo(scheduledAt, now);
+		foreach (TickerSubscription subscription in subscriptions)
+			calls.Add(new DueTickerCall(subscription, info));
 		markCallbackState(scheduledAt, now);
 		return true;
 	}
 
-	public void ClearCallbacks() {
-		CallbackEv = null;
-	}
-
-	private TickCallbackInfo makeInfo(MonoTick scheduledAt, MonoTick actualAt) {
+	private TickCallbackTimingInfo makeInfo(MonoTick scheduledAt, MonoTick actualAt) {
 		MonoTick previousScheduledAt = hadCallback ? lastScheduledAt : scheduledAt - timing.Period;
 		MonoTick previousActualAt = hadCallback ? lastActualAt : actualAt - timing.Period;
 		MonoTick elapsed = hadCallback ? actualAt - lastActualAt : timing.Period;
 		MonoTick late = actualAt >= scheduledAt ? actualAt - scheduledAt : MonoTick.Zero;
 
-		return new TickCallbackInfo(
+		return new TickCallbackTimingInfo(
 			ScheduledAt: scheduledAt,
 			ActualAt: actualAt,
 			PreviousScheduledAt: previousScheduledAt,
@@ -150,10 +188,78 @@ internal sealed class ScheduledTicker {
 	}
 }
 
+public readonly record struct TickerBudgetOptions(
+	MonoTick TargetLoopPeriod,
+	MonoTick ReservedLoopSlack,
+	uint OvercommitNumerator,
+	uint OvercommitDenominator,
+	MonoTick ColdStartWeight,
+	MonoTick MinWeight,
+	MonoTick MaxWeight,
+	MonoTick MinCallbackBudget,
+	MonoTick MaxCallbackBudget,
+	int EwmaAlphaShift
+) {
+	public static TickerBudgetOptions CreateDefault(MonoTick targetLoopPeriod, MonoTick? reservedLoopSlack = null) {
+		static MonoTick defaultReservedSlack(MonoTick targetLoopPeriod) {
+			// reserve ~10% of the loop period clamped to [1/64, 1/4]
+			MonoTick slack = targetLoopPeriod / (MonoTick)10;
+			MonoTick min = maxOne(targetLoopPeriod >> 6);
+			MonoTick max = targetLoopPeriod >> 2;
+			if (slack < min)
+				return min;
+			if (slack > max)
+				return max;
+			return slack;
+		}
+		static MonoTick maxOne(MonoTick value) {
+			return value == MonoTick.Zero ? (MonoTick)1 : value;
+		}
+
+		if (targetLoopPeriod == MonoTick.Zero)
+			throw new ArgumentOutOfRangeException(nameof(targetLoopPeriod), "target loop period must be nonzero");
+		MonoTick slack = reservedLoopSlack ?? defaultReservedSlack(targetLoopPeriod);
+		if (slack > (targetLoopPeriod >> 1)) // keep slack sane, at most 1/2 of the full loop
+			slack = targetLoopPeriod >> 1;
+		return new TickerBudgetOptions(
+			TargetLoopPeriod: targetLoopPeriod,
+			ReservedLoopSlack: slack,
+			OvercommitNumerator: 8,
+			OvercommitDenominator: 1,
+			ColdStartWeight: targetLoopPeriod >> 6,
+			MinWeight: maxOne(targetLoopPeriod >> 12),
+			MaxWeight: targetLoopPeriod,
+			MinCallbackBudget: maxOne(targetLoopPeriod >> 10),
+			MaxCallbackBudget: targetLoopPeriod,
+			EwmaAlphaShift: 4
+		);
+	}
+
+	public static readonly TickerBudgetOptions Default480Hz = CreateDefault(MonoTick.PeriodFromHz(480.0));
+
+	internal TickerBudgetOptions Normalize() {
+		TickerBudgetOptions options = Equals(default) ? Default480Hz : this;
+		if (options.OvercommitDenominator == 0)
+			options = options with { OvercommitDenominator = 1 };
+		if (options.OvercommitNumerator == 0)
+			options = options with { OvercommitNumerator = 1 };
+		if (options.EwmaAlphaShift < 0)
+			options = options with { EwmaAlphaShift = 0 };
+		if (options.MinWeight == MonoTick.Zero)
+			options = options with { MinWeight = new MonoTick(1) };
+		if (options.MaxWeight != MonoTick.Zero && options.MaxWeight < options.MinWeight)
+			options = options with { MaxWeight = options.MinWeight };
+		if (options.MaxCallbackBudget != MonoTick.Zero && options.MaxCallbackBudget < options.MinCallbackBudget)
+			options = options with { MaxCallbackBudget = options.MinCallbackBudget };
+		return options;
+	}
+}
+
 public readonly record struct TickerSchedulerOptions(
 	int BatchCallLimit = 64,
 	int EventPollInterval = 8,
-	MonoTick MaxBatchDuration = default
+	MonoTick MaxBatchDuration = default,
+	TickerBudgetOptions Budget = default
 );
 
 public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITickerRegistry {
@@ -188,7 +294,7 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 	);
 
 	private readonly Lock @lock = new();
-	private readonly TickerSchedulerOptions options = options;
+	private readonly TickerSchedulerOptions options = options with { Budget = options.Budget.Normalize() };
 	private readonly List<TickerSlot> slots = new();
 	private readonly List<int> activeSlots = new();
 	private readonly List<TickerCommand> pending = new();
@@ -228,17 +334,16 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 		lock (@lock) {
 			if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
 				throw new InvalidOperationException("this ticker has not been found in the registry (already removed?)");
-			slots[slotidx].Scheduled.CallbackEv += callback;
-			return new TickerSubscriptionHandle(this, handle, callback);
+			TickerSubscription subscription = slots[slotidx].Scheduled.AddSubscription(callback);
+			return new TickerSubscriptionHandle(this, handle, subscription);
 		}
 	}
 
-	internal bool Unsubscribe(TickerHandle handle, TickerCallback callback) {
+	internal bool Unsubscribe(TickerHandle handle, TickerSubscription subscription) {
 		lock (@lock) {
 			if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
 				return false;
-			slots[slotidx].Scheduled.CallbackEv -= callback;
-			return true;
+			return slots[slotidx].Scheduled.RemoveSubscription(subscription);
 		}
 	}
 
@@ -259,7 +364,7 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 				case TickerCommandKind.Remove:
 					if (slot.State == TickerSlotState.Empty)
 						break;
-					slot.Scheduled.ClearCallbacks();
+					slot.Scheduled.ClearSubscriptions();
 					slot.State = TickerSlotState.Empty;
 					break;
 				case TickerCommandKind.Retime:
@@ -278,29 +383,31 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 		uint batchID;
 		lock (@lock)
 			batchID = ++nextBatchID;
+
 		int calls = 0;
 		MonoTick start = MonoTick.GetCurrent();
+		List<DueTickerCall> dueCalls = new();
+		List<MonoTick> dueBudgets = new();
+
 		for (;;) {
-			DueTickerCall call = default;
-			bool tookAny = false;
-			lock (@lock) {
-				rebuildActiveSlots();
-				foreach (int slotIndex in activeSlots) {
-					TickerSlot slot = slots[slotIndex];
-					if (slot.State != TickerSlotState.Active)
-						continue;
-					MonoTick now = MonoTick.GetCurrent();
-					if (!slot.Scheduled.TryTakeOneIfDue(now, batchID, out call))
-						continue;
-					tookAny = true;
-					break;
-				}
-			}
+			bool tookAny = takeNextDueCalls(batchID, dueCalls);
 			if (!tookAny)
 				return;
-			if (call.Callback is not null)
-				call.Callback(call.Info);
-			calls++;
+
+			if (dueCalls.Count > 0) {
+				planBudgets(dueCalls, dueBudgets);
+
+				for (int i = 0; i < dueCalls.Count; i++)
+					invokeDueCall(dueCalls[i], dueBudgets[i]);
+
+				calls += dueCalls.Count;
+			} else {
+				calls++;
+			}
+
+			dueCalls.Clear();
+			dueBudgets.Clear();
+
 			if (calls >= options.BatchCallLimit)
 				return;
 			if (options.EventPollInterval > 0 && calls > options.EventPollInterval)
@@ -323,6 +430,106 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 			nextAt = slots[firstSlot].Scheduled.NextAt;
 			return true;
 		}
+	}
+
+	private bool takeNextDueCalls(uint batchID, List<DueTickerCall> calls) {
+		lock (@lock) {
+			calls.Clear();
+			rebuildActiveSlots();
+			foreach (int slotIndex in activeSlots) {
+				TickerSlot slot = slots[slotIndex];
+				if (slot.State != TickerSlotState.Active)
+					continue;
+				MonoTick now = MonoTick.GetCurrent();
+				if (!slot.Scheduled.TryTakeOneIfDue(now, batchID, calls))
+					continue;
+				return true;
+			}
+			return false;
+		}
+	}
+
+	private void invokeDueCall(DueTickerCall call, MonoTick budget) {
+		MonoTick callbackStart = MonoTick.GetCurrent();
+		TickDeadline deadline = budget > MonoTick.Zero ? new TickDeadline(callbackStart + budget) : default;
+
+		TickCallbackTimingInfo info = call.Info;
+		call.Subscription.Callback(in info, in deadline);
+
+		MonoTick callbackEnd = MonoTick.GetCurrent();
+		MonoTick runtime = callbackEnd - callbackStart;
+
+		lock (@lock) {
+			call.Subscription.LastRuntime = runtime;
+			call.Subscription.InvocationCount++;
+			call.Subscription.RuntimeEwma.AddSample(runtime, options.Budget.EwmaAlphaShift);
+			if (deadline.HasDeadline && callbackEnd >= deadline.DeadlineAt)
+				call.Subscription.OverrunCount++;
+		}
+	}
+
+	private void planBudgets(List<DueTickerCall> calls, List<MonoTick> budgets) {
+		budgets.Clear();
+		budgets.Capacity = Math.Max(budgets.Capacity, calls.Count);
+
+		MonoTick effectiveBudget = getEffectiveBatchBudget();
+		if (effectiveBudget == MonoTick.Zero) {
+			for (int i = 0; i < calls.Count; i++)
+				budgets.Add(MonoTick.Zero);
+			return;
+		}
+
+		UInt128 totalWeight = 0;
+		for (int i = 0; i < calls.Count; i++)
+			totalWeight += getSubscriptionWeight(calls[i].Subscription).Value;
+
+		if (totalWeight == 0) {
+			MonoTick equalBudget = clamp(mulDiv(effectiveBudget, 1, (ulong)calls.Count), options.Budget.MinCallbackBudget, options.Budget.MaxCallbackBudget);
+			for (int i = 0; i < calls.Count; i++)
+				budgets.Add(equalBudget);
+			return;
+		}
+
+		for (int i = 0; i < calls.Count; i++) {
+			MonoTick weight = getSubscriptionWeight(calls[i].Subscription);
+			MonoTick budget = mulDiv(effectiveBudget, weight.Value, totalWeight);
+			budgets.Add(clamp(budget, options.Budget.MinCallbackBudget, options.Budget.MaxCallbackBudget));
+		}
+	}
+
+	private MonoTick getEffectiveBatchBudget() {
+		TickerBudgetOptions budget = options.Budget;
+		if (budget.TargetLoopPeriod <= budget.ReservedLoopSlack)
+			return MonoTick.Zero;
+		MonoTick baseBudget = budget.TargetLoopPeriod - budget.ReservedLoopSlack;
+		return mulDiv(baseBudget, budget.OvercommitNumerator, budget.OvercommitDenominator);
+	}
+
+	private MonoTick getSubscriptionWeight(TickerSubscription subscription) {
+		MonoTick weight = subscription.RuntimeEwma.HasValue ? subscription.RuntimeEwma.Value : options.Budget.ColdStartWeight;
+		return clamp(weight, options.Budget.MinWeight, options.Budget.MaxWeight);
+	}
+
+	private static MonoTick clamp(MonoTick value, MonoTick min, MonoTick max) {
+		if (value < min)
+			return min;
+		if (max != MonoTick.Zero && value > max)
+			return max;
+		return value;
+	}
+
+	private static MonoTick mulDiv(MonoTick value, ulong numerator, ulong denominator) {
+		if (denominator == 0)
+			throw new DivideByZeroException();
+		UInt128 result = (UInt128)value.Value * numerator / denominator;
+		return checked((MonoTick)(ulong)result);
+	}
+
+	private static MonoTick mulDiv(MonoTick value, ulong numerator, UInt128 denominator) {
+		if (denominator == 0)
+			throw new DivideByZeroException();
+		UInt128 result = (UInt128)value.Value * numerator / denominator;
+		return checked((MonoTick)(ulong)result);
 	}
 
 	private int makeSlot() {
