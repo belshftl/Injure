@@ -3,10 +3,12 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-
+using System.Threading;
 using Injure.Timing;
 
 namespace Injure.Scheduling;
+
+internal readonly record struct DueTickerCall(TickerCallback? Callback, TickCallbackInfo Info);
 
 internal sealed class ScheduledTicker {
 	private readonly TickerOptions options;
@@ -75,7 +77,7 @@ internal sealed class ScheduledTicker {
 				throw new InternalStateException("oldPeriod is somehow zero, this should've been rejected earlier");
 			if (oldNextAt > commitAt) {
 				MonoTick rem = oldNextAt - commitAt;
-				UInt128 newrem128 = ((UInt128)rem.Value * (UInt128)timing.Period.Value) / (UInt128)oldPeriod.Value;
+				UInt128 newrem128 = (UInt128)rem.Value * (UInt128)timing.Period.Value / (UInt128)oldPeriod.Value;
 				NextAt = commitAt + checked((MonoTick)(ulong)newrem128);
 			} else {
 				NextAt = commitAt;
@@ -84,9 +86,12 @@ internal sealed class ScheduledTicker {
 		}
 	}
 
-	public bool TryRunOneIfDue(MonoTick now, uint batchID) {
+	public bool TryTakeOneIfDue(MonoTick now, uint batchID, out DueTickerCall call) {
+		call = default;
 		if (now < NextAt)
 			return false;
+
+		MonoTick scheduledAt;
 		switch (options.OverrunMode.Tag) {
 		case TickerOverrunMode.Case.CatchUp:
 			if (lastBatchID != batchID) {
@@ -95,27 +100,39 @@ internal sealed class ScheduledTicker {
 			}
 			if (runsThisBatch >= options.MaxBurst)
 				return false;
-			doCallback(NextAt, now);
+			scheduledAt = NextAt;
 			NextAt += timing.Period;
 			runsThisBatch++;
-			return true;
+			break;
 		case TickerOverrunMode.Case.Once:
-			MonoTick scheduledAt = NextAt;
-			doCallback(scheduledAt, now);
+			scheduledAt = NextAt;
 			MonoTick missed = (now - scheduledAt) / timing.Period;
 			NextAt = scheduledAt + checked(timing.Period * (missed + (MonoTick)1));
-			return true;
+			break;
 		default:
 			throw new UnreachableException();
 		}
+		TickerCallback? callback = CallbackEv;
+		if (callback is null) {
+			markCallbackState(scheduledAt, now);
+			return true;
+		}
+		call = new DueTickerCall(callback, makeInfo(scheduledAt, now));
+		markCallbackState(scheduledAt, now);
+		return true;
 	}
 
-	private void doCallback(MonoTick scheduledAt, MonoTick actualAt) {
+	public void ClearCallbacks() {
+		CallbackEv = null;
+	}
+
+	private TickCallbackInfo makeInfo(MonoTick scheduledAt, MonoTick actualAt) {
 		MonoTick previousScheduledAt = hadCallback ? lastScheduledAt : scheduledAt - timing.Period;
 		MonoTick previousActualAt = hadCallback ? lastActualAt : actualAt - timing.Period;
 		MonoTick elapsed = hadCallback ? actualAt - lastActualAt : timing.Period;
 		MonoTick late = actualAt >= scheduledAt ? actualAt - scheduledAt : MonoTick.Zero;
-		CallbackEv?.Invoke(new TickCallbackInfo(
+
+		return new TickCallbackInfo(
 			ScheduledAt: scheduledAt,
 			ActualAt: actualAt,
 			PreviousScheduledAt: previousScheduledAt,
@@ -123,7 +140,10 @@ internal sealed class ScheduledTicker {
 			Period: timing.Period,
 			Elapsed: elapsed,
 			Late: late
-		));
+		);
+	}
+
+	private void markCallbackState(MonoTick scheduledAt, MonoTick actualAt) {
 		lastScheduledAt = scheduledAt;
 		lastActualAt = actualAt;
 		hadCallback = true;
@@ -136,7 +156,6 @@ public readonly record struct TickerSchedulerOptions(
 	MonoTick MaxBatchDuration = default
 );
 
-// not thread safe
 public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITickerRegistry {
 	private enum TickerSlotState {
 		Empty,
@@ -168,6 +187,7 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 		TickerRetimingMode RetimingMode = default
 	);
 
+	private readonly Lock @lock = new();
 	private readonly TickerSchedulerOptions options = options;
 	private readonly List<TickerSlot> slots = new();
 	private readonly List<int> activeSlots = new();
@@ -176,111 +196,133 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 	private uint nextBatchID;
 
 	public TickerHandle Add(in TickerSpec spec) {
-		int slotidx = makeSlot();
-		slots[slotidx].State = TickerSlotState.PendingAdd;
-		slots[slotidx].Scheduled = new ScheduledTicker(in spec);
-		TickerHandle handle = new(slotidx, slots[slotidx].Generation);
-		pending.Add(new TickerCommand(TickerCommandKind.Add, handle));
-		return handle;
+		lock (@lock) {
+			int slotidx = makeSlot();
+			slots[slotidx].State = TickerSlotState.PendingAdd;
+			slots[slotidx].Scheduled = new ScheduledTicker(in spec);
+			TickerHandle handle = new(this, slotidx, slots[slotidx].Generation);
+			pending.Add(new TickerCommand(TickerCommandKind.Add, handle));
+			return handle;
+		}
 	}
 
-	public bool Remove(TickerHandle handle) {
-		if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
-			return false;
-		pending.Add(new TickerCommand(TickerCommandKind.Remove, handle));
-		return true;
+	internal bool Remove(TickerHandle handle) {
+		lock (@lock) {
+			if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
+				return false;
+			pending.Add(new TickerCommand(TickerCommandKind.Remove, handle));
+			return true;
+		}
 	}
 
-	public bool Retime(TickerHandle handle, in TickerTiming timing, TickerRetimingMode mode = default) {
-		if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
-			return false;
-		pending.Add(new TickerCommand(TickerCommandKind.Retime, handle, timing, mode));
-		return true;
+	internal bool Retime(TickerHandle handle, in TickerTiming timing, TickerRetimingMode mode) {
+		lock (@lock) {
+			if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
+				return false;
+			pending.Add(new TickerCommand(TickerCommandKind.Retime, handle, timing, mode));
+			return true;
+		}
 	}
 
-	public bool Subscribe(TickerHandle handle, TickerCallback callback) {
-		if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
-			return false;
-		slots[slotidx].Scheduled.CallbackEv += callback;
-		return true;
+	internal TickerSubscriptionHandle Subscribe(TickerHandle handle, TickerCallback callback) {
+		lock (@lock) {
+			if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
+				throw new InvalidOperationException("this ticker has not been found in the registry (already removed?)");
+			slots[slotidx].Scheduled.CallbackEv += callback;
+			return new TickerSubscriptionHandle(this, handle, callback);
+		}
 	}
 
-	public bool Unsubscribe(TickerHandle handle, TickerCallback callback) {
-		if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
-			return false;
-		slots[slotidx].Scheduled.CallbackEv -= callback;
-		return true;
+	internal bool Unsubscribe(TickerHandle handle, TickerCallback callback) {
+		lock (@lock) {
+			if (!tryGetSlot(handle, out int slotidx) || slots[slotidx].State == TickerSlotState.Empty)
+				return false;
+			slots[slotidx].Scheduled.CallbackEv -= callback;
+			return true;
+		}
 	}
 
 	public void ApplyPending() {
-		MonoTick commitAt = MonoTick.GetCurrent();
-		foreach (TickerCommand cmd in pending) {
-			if (!tryGetSlot(cmd.Handle, out int slotIndex))
-				continue;
-			TickerSlot slot = slots[slotIndex];
-			switch (cmd.Kind) {
-			case TickerCommandKind.Add:
-				if (slot.State != TickerSlotState.PendingAdd)
+		lock (@lock) {
+			MonoTick commitAt = MonoTick.GetCurrent();
+			foreach (TickerCommand cmd in pending) {
+				if (!tryGetSlot(cmd.Handle, out int slotIndex))
+					continue;
+				TickerSlot slot = slots[slotIndex];
+				switch (cmd.Kind) {
+				case TickerCommandKind.Add:
+					if (slot.State != TickerSlotState.PendingAdd)
+						break;
+					slot.Scheduled.Activate(commitAt, nextInsertionOrder++);
+					slot.State = TickerSlotState.Active;
 					break;
-				slot.Scheduled.Activate(commitAt, nextInsertionOrder++);
-				slot.State = TickerSlotState.Active;
-				break;
-			case TickerCommandKind.Remove:
-				slot.State = TickerSlotState.Empty;
-				break;
-			case TickerCommandKind.Retime:
-				if (slot.State == TickerSlotState.Empty)
+				case TickerCommandKind.Remove:
+					if (slot.State == TickerSlotState.Empty)
+						break;
+					slot.Scheduled.ClearCallbacks();
+					slot.State = TickerSlotState.Empty;
 					break;
-				slot.Scheduled.Retime(commitAt, cmd.Timing, cmd.RetimingMode);
-				break;
+				case TickerCommandKind.Retime:
+					if (slot.State == TickerSlotState.Empty)
+						break;
+					slot.Scheduled.Retime(commitAt, cmd.Timing, cmd.RetimingMode);
+					break;
+				}
 			}
+			pending.Clear();
+			rebuildActiveSlots();
 		}
-		pending.Clear();
-		rebuildActiveSlots();
 	}
 
 	public void RunDueTickers() {
-		uint batchID = ++nextBatchID;
+		uint batchID;
+		lock (@lock)
+			batchID = ++nextBatchID;
 		int calls = 0;
 		MonoTick start = MonoTick.GetCurrent();
 		for (;;) {
-			rebuildActiveSlots();
-			bool ranAny = false;
-			foreach (TickerSlot slot in slots) {
-				if (slot.State != TickerSlotState.Active)
-					continue;
-				MonoTick now = MonoTick.GetCurrent();
-				if (!slot.Scheduled.TryRunOneIfDue(now, batchID))
-					continue;
-				ranAny = true;
-				calls++;
-				if (calls >= options.BatchCallLimit || (options.EventPollInterval > 0 && calls > options.EventPollInterval)) {
-					rebuildActiveSlots();
-					return;
-				}
-				if (options.MaxBatchDuration > MonoTick.Zero) {
-					MonoTick elapsed = MonoTick.GetCurrent() - start;
-					if (elapsed >= options.MaxBatchDuration) {
-						rebuildActiveSlots();
-						return;
-					}
+			DueTickerCall call = default;
+			bool tookAny = false;
+			lock (@lock) {
+				rebuildActiveSlots();
+				foreach (int slotIndex in activeSlots) {
+					TickerSlot slot = slots[slotIndex];
+					if (slot.State != TickerSlotState.Active)
+						continue;
+					MonoTick now = MonoTick.GetCurrent();
+					if (!slot.Scheduled.TryTakeOneIfDue(now, batchID, out call))
+						continue;
+					tookAny = true;
+					break;
 				}
 			}
-			if (!ranAny) {
-				rebuildActiveSlots();
+			if (!tookAny)
 				return;
+			if (call.Callback is not null)
+				call.Callback(call.Info);
+			calls++;
+			if (calls >= options.BatchCallLimit)
+				return;
+			if (options.EventPollInterval > 0 && calls > options.EventPollInterval)
+				return;
+			if (options.MaxBatchDuration > MonoTick.Zero) {
+				MonoTick elapsed = MonoTick.GetCurrent() - start;
+				if (elapsed >= options.MaxBatchDuration)
+					return;
 			}
 		}
 	}
 
 	public bool TryGetEarliestNextAt(out MonoTick nextAt) {
-		if (activeSlots.Count == 0) {
-			nextAt = MonoTick.Zero;
-			return false;
+		lock (@lock) {
+			if (activeSlots.Count == 0) {
+				nextAt = MonoTick.Zero;
+				return false;
+			}
+			int firstSlot = activeSlots[0];
+			nextAt = slots[firstSlot].Scheduled.NextAt;
+			return true;
 		}
-		int firstSlot = activeSlots[0];
-		nextAt = slots[firstSlot].Scheduled.NextAt;
-		return true;
 	}
 
 	private int makeSlot() {

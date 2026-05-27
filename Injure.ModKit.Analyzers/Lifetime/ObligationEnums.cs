@@ -15,6 +15,9 @@ internal enum LifetimeObligationKind {
 	StartedTask,
 	ThreadPoolWorkItem,
 	AssetStoreRegistration,
+	Ticker,
+	TickerSubscription,
+	IReloadTeardown,
 }
 
 internal enum ObligationState {

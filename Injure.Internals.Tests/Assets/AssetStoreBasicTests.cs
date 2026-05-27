@@ -45,13 +45,13 @@ public sealed class AssetStoreBasicTests {
 		lease = asset.Borrow();
 		Assert.Equal(2ul, lease.Version);
 
-		cr.Dispose();
+		cr.Remove();
 		Assert.Throws<InvalidOperationException>(() => _ = default(AssetNamespace).Namespace);
 		AssetNamespace n = store.WithNamespace(ownerID);
 		AssetRef<TestAsset> asset2 = n.Get<TestAsset>("asset2");
 		Assert.Throws<AssetUnhandledException>(() => _ = asset2.Borrow());
 
-		wr.Dispose();
+		wr.Remove();
 		Assert.True(watcher.Disposed);
 	}
 

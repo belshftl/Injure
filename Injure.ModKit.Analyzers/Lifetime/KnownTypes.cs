@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Lifetime;
@@ -29,24 +28,11 @@ internal sealed class KnownTypes(Compilation comp) {
 	public INamedTypeSymbol? AssemblyLoadContext { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssemblyLoadContext);
 	public INamedTypeSymbol? Process { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Process);
 
-	public INamedTypeSymbol? AssetStore { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssetStore);
 	public INamedTypeSymbol? AssetStoreRegistration { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssetStoreRegistration);
+	public INamedTypeSymbol? TickerHandle { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.TickerHandle);
+	public INamedTypeSymbol? TickerSubscriptionHandle { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.TickerSubscriptionHandle);
+	public INamedTypeSymbol? IReloadTeardown { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IReloadTeardown);
 
 	public INamedTypeSymbol? GenerationCancellationToken { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.GenerationCancellationToken);
 	public INamedTypeSymbol? IActiveOwnerScope { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IActiveOwnerScope);
-
-	public bool IsOrDerivesFrom(ITypeSymbol? type, INamedTypeSymbol? candidateBase) {
-		if (type is null || candidateBase is null)
-			return false;
-		for (ITypeSymbol? sym = type; sym is not null; sym = sym.BaseType)
-			if (SymbolEqualityComparer.Default.Equals(sym.OriginalDefinition, candidateBase.OriginalDefinition))
-				return true;
-		return false;
-	}
-
-	public bool Implements(ITypeSymbol? type, INamedTypeSymbol? iface) {
-		if (type is null || iface is null)
-			return false;
-		return type.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, iface.OriginalDefinition));
-	}
 }

@@ -27,17 +27,13 @@ internal enum AssetRegistrationKind {
 /// <summary>
 /// Handle to a registered asset pipeline component or dependency watcher in an asset store.
 /// </summary>
-/// <remarks>
-/// Disposal is only necessary if the registration needs to be removed; there are no held
-/// resources or objects that need disposal.
-/// </remarks>
-public sealed class AssetStoreRegistration : IDisposable {
+public sealed class AssetStoreRegistration : IReloadTeardown {
 	private AssetStore? store;
 	private readonly ulong storeID;
 	private readonly AssetRegistrationKind kind;
 	private readonly ulong id;
 	private Type? type;
-	private int disposed = 0;
+	private int removed = 0;
 
 	internal AssetStoreRegistration(AssetStore store, AssetRegistrationKind kind, ulong id, Type? type) {
 		this.store = store;
@@ -48,22 +44,20 @@ public sealed class AssetStoreRegistration : IDisposable {
 	}
 
 	/// <summary>
-	/// Whether <see cref="Dispose()"/> has been called at least once.
-	/// Does not equal to whether the registration has been unregistered.
-	/// </summary>
-	public bool IsDisposed => Volatile.Read(ref disposed) != 0;
-
-	/// <summary>
 	/// Removes the registration. No-op if it has already been removed.
 	/// </summary>
-	public void Dispose() {
-		if (Interlocked.Exchange(ref disposed, 1) != 0)
+	public void Remove() {
+		if (Interlocked.Exchange(ref removed, 1) != 0)
 			return;
-		(store ?? throw new InternalStateException("is the disposed-flag guard above broken..?")).UnregisterRegistration(storeID, kind, id, type);
+		(store ?? throw new InternalStateException("is the flag guard above broken..?")).UnregisterRegistration(storeID, kind, id, type);
 		store = null;
 		type = null;
-		GC.SuppressFinalize(this);
 	}
+
+	/// <summary>
+	/// <see cref="IReloadTeardown"/> implementation; equivalent to <see cref="Remove()"/>.
+	/// </summary>
+	public void Teardown(in ReloadTeardownContext ctx) => Remove();
 }
 
 /// <summary>

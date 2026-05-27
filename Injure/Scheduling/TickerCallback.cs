@@ -13,3 +13,5 @@ public readonly record struct TickCallbackInfo(
 	MonoTick Elapsed,
 	MonoTick Late
 );
+
+public delegate void TickerCallback(in TickCallbackInfo info);

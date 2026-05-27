@@ -17,7 +17,30 @@ internal readonly record struct ReloadWeakReferenceSnapshot(
 	string TargetTypeName
 );
 
-internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
+internal readonly record struct ActiveOwnerScopeFailure(
+	ReloadGeneration Generation,
+	int Index,
+	string Operation,
+	string ItemTypeName,
+	string ExceptionType,
+	string Message,
+	string Details
+) {
+	public static ActiveOwnerScopeFailure FromException(ReloadGeneration generation, int index, string operation, string itemTypeName, Exception ex) =>
+		new(generation, index, operation, itemTypeName, ex.GetType().FullName ?? ex.GetType().Name, ex.Message, ex.ToString());
+}
+
+internal sealed class ActiveOwnerScopeException(
+	ReloadGeneration generation,
+	ReloadTeardownReason reason,
+	IReadOnlyList<ActiveOwnerScopeFailure> failures
+) : Exception($"active owner scope invalidation failed for '{generation}' with {failures.Count} failure(s)") {
+	public ReloadGeneration Generation { get; } = generation;
+	public ReloadTeardownReason Reason { get; } = reason;
+	public IReadOnlyList<ActiveOwnerScopeFailure> Failures { get; } = failures;
+}
+
+internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 	private readonly record struct TrackedWeakReference(WeakReference Reference, string Category, string Description);
 
 	private struct OwnedDisposable {
@@ -51,10 +74,10 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
 	}
 
 	private readonly Lock @lock = new();
-	private readonly int maxParallelDisposals;
+	private readonly int maxParallelism;
 	private readonly CancellationTokenSource stoppingCts = new();
 
-	private List<IReloadInvalidatable>? invalidatables = new();
+	private List<IReloadTeardown>? teardowns = new();
 	private List<OwnedDisposable>? parallel = new();
 	private List<OwnedDisposable>? ordered = new();
 	private List<TrackedWeakReference>? weakRefs = new();
@@ -113,15 +136,19 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
 		}
 	}
 
-	private ActiveOwnerScope(ReloadGeneration generation, int maxParallelDisposals) {
+	internal ActiveOwnerScope(ReloadGeneration generation, int maxParallelism) {
 		Generation = generation;
-		this.maxParallelDisposals = Math.Max(1, maxParallelDisposals);
+		this.maxParallelism = Math.Max(1, maxParallelism);
 	}
 
-	public static ActiveOwnerScope CreateRoot(
-		ReloadGeneration generation,
-		int maxParallelDisposals = 8
-	) => new(generation, maxParallelDisposals);
+	public void AddTeardown(IReloadTeardown item) {
+		ArgumentNullException.ThrowIfNull(item);
+		lock (@lock) {
+			if (invalidated || teardowns is null)
+				throw new ReloadGenerationExpiredException(Generation);
+			teardowns.Add(item);
+		}
+	}
 
 	public void AddDisposable(IDisposable disposable) {
 		ArgumentNullException.ThrowIfNull(disposable);
@@ -141,15 +168,6 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
 	public void AddOrderedAsyncDisposable(IAsyncDisposable disposable) {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: true);
-	}
-
-	public void Track(IReloadInvalidatable item) {
-		ArgumentNullException.ThrowIfNull(item);
-		lock (@lock) {
-			if (invalidated || invalidatables is null)
-				throw new ReloadGenerationExpiredException(Generation);
-			invalidatables.Add(item);
-		}
 	}
 
 	public void TrackWeak(object item, string category, string description = "") {
@@ -185,23 +203,13 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
 		ReloadWeakReferenceSnapshot[] result = new ReloadWeakReferenceSnapshot[snapshot.Length];
 		for (int i = 0; i < snapshot.Length; i++) {
 			object? target = snapshot[i].Reference.Target;
-			result[i] = new ReloadWeakReferenceSnapshot(
-				Generation,
-				snapshot[i].Category,
-				snapshot[i].Description,
-				target is not null,
-				target?.GetType().FullName ?? "<collected>"
-			);
+			result[i] = new ReloadWeakReferenceSnapshot(Generation, snapshot[i].Category, snapshot[i].Description, target is not null, target?.GetType().FullName ?? "<collected>");
 		}
 		return result;
 	}
 
-	public ValueTask DisposeAsync() {
-		return InvalidateAsync(ReloadInvalidationReason.Shutdown, CancellationToken.None);
-	}
-
-	public async ValueTask InvalidateAsync(ReloadInvalidationReason reason, CancellationToken ct) {
-		IReloadInvalidatable[] inv;
+	public async ValueTask InvalidateAsync(ReloadTeardownReason reason, CancellationToken ct) {
+		IReloadTeardown[] tear;
 		OwnedDisposable[] parr;
 		OwnedDisposable[] ord;
 
@@ -210,7 +218,7 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
 				return;
 			ct.ThrowIfCancellationRequested();
 			invalidated = true;
-			inv = snapshotReverseAndClear(ref invalidatables);
+			tear = snapshotReverseAndClear(ref teardowns);
 			parr = snapshotAndClear(ref parallel);
 			ord = snapshotAndClear(ref ordered);
 			weakRefs?.Clear();
@@ -222,22 +230,14 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
 			try {
 				stoppingCts.Cancel();
 			} catch (Exception ex) {
-				(failures ??= new()).Add(
-					ActiveOwnerScopeFailure.FromException(
-						Generation,
-						index: -1,
-						operation: "cancel generation stopping token",
-						itemTypeName: "CancellationTokenSource",
-						ex
-					)
-				);
+				(failures ??= new()).Add(ActiveOwnerScopeFailure.FromException(Generation, index: -1, operation: "cancel generation stopping token", itemTypeName: "CancellationTokenSource", ex));
 			}
 
-			await invalidateAsync(inv, reason, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
-			await disposeParallelAsync(Generation, parr, maxParallelDisposals, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
+			await teardownAsync(tear, reason, maxParallelism, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
+			await disposeParallelAsync(parr, maxParallelism, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
 			await disposeOrderedAsync(ord, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
 		} finally {
-			Array.Clear(inv);
+			Array.Clear(tear);
 			Array.Clear(parr);
 			Array.Clear(ord);
 			stoppingCts.Dispose();
@@ -247,63 +247,33 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
 			throw new ActiveOwnerScopeException(Generation, reason, failures);
 	}
 
-	private async ValueTask invalidateAsync(
-		IReloadInvalidatable[] snapshot,
-		ReloadInvalidationReason reason,
-		Action<ActiveOwnerScopeFailure> addFailure
-	) {
-		ReloadInvalidationContext ctx = new() {
-			OwnerID = OwnerID,
-			OldGeneration = Generation,
-			Reason = reason,
-		};
-
-		for (int i = 0; i < snapshot.Length; i++) {
-			IReloadInvalidatable? item = snapshot[i];
-			if (item is null)
-				continue;
-
-			string typeName = item.GetType().FullName ?? item.GetType().Name;
-			try {
-				item.Invalidate(ctx);
-			} catch (Exception ex) {
-				addFailure(ActiveOwnerScopeFailure.FromException(Generation, i, "invalidate item", typeName, ex));
-			} finally {
-				snapshot[i] = null!;
-			}
-		}
-		await ValueTask.CompletedTask;
-	}
-
-	private static async ValueTask disposeParallelAsync(
-		ReloadGeneration generation,
-		OwnedDisposable[] disps,
-		int maxWorkerCount,
-		Action<ActiveOwnerScopeFailure> addFailure
-	) {
-		if (disps.Length == 0)
+	private async ValueTask teardownAsync(IReloadTeardown[] items, ReloadTeardownReason reason, int maxWorkerCount, Action<ActiveOwnerScopeFailure> addFailure) {
+		if (items.Length == 0)
 			return;
+
+		ReloadTeardownContext ctx = new(OwnerID, Generation, reason);
 
 		Lock failureLock = new();
 		int nextIndex = -1;
-		int workerCount = Math.Min(maxWorkerCount, disps.Length);
+		int workerCount = Math.Min(maxWorkerCount, items.Length);
 		Task[] workers = new Task[workerCount];
 		for (int worker = 0; worker < workerCount; worker++) {
-			workers[worker] = Task.Run(async () => {
+			workers[worker] = Task.Run(() => {
 				for (;;) {
 					int i = Interlocked.Increment(ref nextIndex);
-					if (i >= disps.Length)
+					if (i >= items.Length)
 						return;
-					string typeName = disps[i].TypeName;
+					if (items[i] is null)
+						continue;
+					string typeName = items[i].GetType().FullName ?? items[i].GetType().Name;
 					try {
-						await disps[i].DisposeAsync().ConfigureAwait(false);
+						items[i].Teardown(in ctx);
 					} catch (Exception ex) {
-						ActiveOwnerScopeFailure failure =
-							ActiveOwnerScopeFailure.FromException(generation, i, "dispose parallel item", typeName, ex);
+						ActiveOwnerScopeFailure failure = ActiveOwnerScopeFailure.FromException(Generation, i, "tear down IReloadTeardown item", typeName, ex);
 						lock (failureLock)
 							addFailure(failure);
 					} finally {
-						disps[i] = default;
+						items[i] = null!;
 					}
 				}
 			});
@@ -311,18 +281,45 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope, IAsyncDisposable {
 		await Task.WhenAll(workers).ConfigureAwait(false);
 	}
 
-	private async ValueTask disposeOrderedAsync(
-		OwnedDisposable[] disps,
-		Action<ActiveOwnerScopeFailure> addFailure
-	) {
-		for (int i = disps.Length - 1; i >= 0; i--) {
-			string typeName = disps[i].TypeName;
+	private async ValueTask disposeParallelAsync(OwnedDisposable[] items, int maxWorkerCount, Action<ActiveOwnerScopeFailure> addFailure) {
+		if (items.Length == 0)
+			return;
+
+		Lock failureLock = new();
+		int nextIndex = -1;
+		int workerCount = Math.Min(maxWorkerCount, items.Length);
+		Task[] workers = new Task[workerCount];
+		for (int worker = 0; worker < workerCount; worker++) {
+			workers[worker] = Task.Run(async () => {
+				for (;;) {
+					int i = Interlocked.Increment(ref nextIndex);
+					if (i >= items.Length)
+						return;
+					string typeName = items[i].TypeName;
+					try {
+						await items[i].DisposeAsync().ConfigureAwait(false);
+					} catch (Exception ex) {
+						ActiveOwnerScopeFailure failure = ActiveOwnerScopeFailure.FromException(Generation, i, "dispose unordered IDisposable item", typeName, ex);
+						lock (failureLock)
+							addFailure(failure);
+					} finally {
+						items[i] = default;
+					}
+				}
+			});
+		}
+		await Task.WhenAll(workers).ConfigureAwait(false);
+	}
+
+	private async ValueTask disposeOrderedAsync(OwnedDisposable[] items, Action<ActiveOwnerScopeFailure> addFailure) {
+		for (int i = items.Length - 1; i >= 0; i--) {
+			string typeName = items[i].TypeName;
 			try {
-				await disps[i].DisposeAsync().ConfigureAwait(false);
+				await items[i].DisposeAsync().ConfigureAwait(false);
 			} catch (Exception ex) {
-				addFailure(ActiveOwnerScopeFailure.FromException(Generation, i, "dispose ordered item", typeName, ex));
+				addFailure(ActiveOwnerScopeFailure.FromException(Generation, i, "dispose ordered IDisposable item", typeName, ex));
 			} finally {
-				disps[i] = default;
+				items[i] = default;
 			}
 		}
 	}
@@ -367,10 +364,10 @@ internal sealed class ActiveOwnerScopeView<L> : IActiveOwnerScope<L> where L : s
 	public GenerationCancellationSource<L> CreateCancellationSource() => core.CreateCancellationSource<L>();
 	public GenerationCancellationSource<L> CreateLinkedCancellationSource(CancellationToken cancellationToken) =>
 		core.CreateLinkedCancellationSource<L>(cancellationToken);
+	public void AddTeardown(IReloadTeardown item) => core.AddTeardown(item);
 	public void AddDisposable(IDisposable disposable) => core.AddDisposable(disposable);
 	public void AddAsyncDisposable(IAsyncDisposable disposable) => core.AddAsyncDisposable(disposable);
 	public void AddOrderedDisposable(IDisposable disposable) => core.AddOrderedDisposable(disposable);
 	public void AddOrderedAsyncDisposable(IAsyncDisposable disposable) => core.AddOrderedAsyncDisposable(disposable);
-	public void Track(IReloadInvalidatable item) => core.Track(item);
 	public void TrackWeak(object item, string category, string description = "") => core.TrackWeak(item, category, description);
 }

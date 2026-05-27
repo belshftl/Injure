@@ -1,19 +1,42 @@
 // SPDX-License-Identifier: MIT
 
 using System;
-using System.Diagnostics.CodeAnalysis;
+using System.Threading;
+using Injure.ModKit.Abstractions;
 
 namespace Injure.Scheduling;
 
-public readonly struct TickerHandle(int slot, int generation) : IEquatable<TickerHandle> {
-	public static readonly TickerHandle Invalid = default;
-	public int Slot { get; } = slot;
-	public int Generation { get; } = generation;
-	public readonly bool IsValid => Generation > 0;
+public sealed class TickerHandle : IReloadTeardown {
+	internal readonly TickerScheduler Owner;
+	internal readonly int Slot;
+	internal readonly int Generation;
+	private int removed = 0;
 
-	public bool Equals(TickerHandle other) => Slot == other.Slot && Generation == other.Generation;
-	public override bool Equals([NotNullWhen(true)] object? obj) => obj is TickerHandle other && Equals(other);
-	public override int GetHashCode() => unchecked((Slot * 397) ^ Generation);
-	public static bool operator ==(TickerHandle left, TickerHandle right) => left.Equals(right);
-	public static bool operator !=(TickerHandle left, TickerHandle right) => !left.Equals(right);
+	internal TickerHandle(TickerScheduler owner, int slot, int generation) {
+		if (generation <= 0)
+			throw new InternalStateException("badly constructed TickerHandle; negative or 0 is not a valid generation");
+		Owner = owner;
+		Slot = slot;
+		Generation = generation;
+	}
+
+	public bool Remove() {
+		if (Interlocked.Exchange(ref removed, 1) != 0)
+			return false;
+		return Owner.Remove(this);
+	}
+
+	public bool Retime(in TickerTiming timing, TickerRetimingMode mode) {
+		if (Volatile.Read(ref removed) != 0)
+			return false;
+		return Owner.Retime(this, in timing, mode);
+	}
+
+	public TickerSubscriptionHandle Subscribe(TickerCallback callback) {
+		if (Volatile.Read(ref removed) != 0)
+			throw new InvalidOperationException("this ticker has already been removed from the registry");
+		return Owner.Subscribe(this, callback);
+	}
+
+	public void Teardown(in ReloadTeardownContext ctx) => Remove();
 }

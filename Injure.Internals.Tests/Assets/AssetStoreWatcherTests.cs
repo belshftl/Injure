@@ -107,7 +107,7 @@ public sealed class AssetStoreWatcherTests {
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
 		asset.Warm();
-		r.Dispose();
+		r.Remove();
 
 		watcher.Raise(dep);
 		Assert.False(asset.HasQueuedReload);
