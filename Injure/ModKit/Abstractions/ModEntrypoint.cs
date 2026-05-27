@@ -9,17 +9,17 @@ namespace Injure.ModKit.Abstractions;
 public sealed class ModEntrypointAttribute : Attribute;
 
 public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeIdentity {
-	ValueTask LoadAsync(IModLoadContext<TGameApi, L> ctx, GenerationCancellationToken<L> ct);
-	ValueTask LinkAsync(IModLinkContext<TGameApi, L> ctx, GenerationCancellationToken<L> ct);
-	ValueTask ActivateAsync(IModActivateContext<TGameApi, L> ctx, GenerationCancellationToken<L> ct);
-	ValueTask DeactivateAsync(GenerationCancellationToken<L> ct);
-	ValueTask UnloadAsync(GenerationCancellationToken<L> ct);
+	ValueTask LoadAsync(IModLoadContext<TGameApi, L> ctx, BoundedCt<L> ct);
+	ValueTask LinkAsync(IModLinkContext<TGameApi, L> ctx, BoundedCt<L> ct);
+	ValueTask ActivateAsync(IModActivateContext<TGameApi, L> ctx, BoundedCt<L> ct);
+	ValueTask DeactivateAsync(BoundedCt<L> ct);
+	ValueTask UnloadAsync(BoundedCt<L> ct);
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class ModReloadEntrypointAttribute : Attribute;
 
 public interface IModReloadEntrypoint<in TGameApi, L> where L : struct, IModLifetimeIdentity {
-	ValueTask<ModLiveStateBlob> SaveStateAsync(IModReloadContext<TGameApi, L> ctx, GenerationCancellationToken<L> ct);
-	ValueTask RestoreStateAsync(IModReloadContext<TGameApi, L> ctx, ModLiveStateBlob state, GenerationCancellationToken<L> ct);
+	ValueTask<ModLiveStateBlob> SaveStateAsync(IModReloadContext<TGameApi, L> ctx, BoundedCt<L> ct);
+	ValueTask RestoreStateAsync(IModReloadContext<TGameApi, L> ctx, ModLiveStateBlob state, BoundedCt<L> ct);
 }

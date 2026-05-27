@@ -1407,8 +1407,8 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 	private static IDisposable createLinkedGenerationCancellationSource(LoadedCodeMod<TGameApi> mod, CancellationToken ct, out object token) {
 		object gcs = createLinkedCancellationSourceMethod.MakeGenericMethod(mod.LifetimeIdentityType).Invoke(mod.Scope, new object[] { ct })!;
-		PropertyInfo tokenProperty = gcs.GetType().GetProperty(nameof(GenerationCancellationSource<>.Token)) ??
-			throw new MissingMemberException(gcs.GetType().FullName, nameof(GenerationCancellationSource<>.Token));
+		PropertyInfo tokenProperty = gcs.GetType().GetProperty(nameof(BoundedCts<>.Token)) ??
+			throw new MissingMemberException(gcs.GetType().FullName, nameof(BoundedCts<>.Token));
 		token = tokenProperty.GetValue(gcs)!;
 		return (IDisposable)gcs;
 	}

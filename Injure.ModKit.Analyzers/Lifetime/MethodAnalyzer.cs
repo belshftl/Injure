@@ -8,10 +8,10 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Injure.ModKit.Analyzers.Lifetime;
 
-internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, GenerationTokenProvenance tokenProvenance) {
+internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, BoundedTokenProvenance tokenProvenance) {
 	private readonly KnownTypes known = known;
 	private readonly LifetimeRuleSet rules = rules;
-	private readonly GenerationTokenProvenance tokenProvenance = tokenProvenance;
+	private readonly BoundedTokenProvenance tokenProvenance = tokenProvenance;
 	private readonly List<ObligationTransitionEvent> events = new();
 	private readonly List<AsyncTokenWarning> asyncTokenWarnings = new();
 	private readonly HashSet<int> reportedExceptionLeaks = new();
@@ -679,7 +679,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Ge
 			return;
 
 		bool foundTokenParam = false;
-		bool hasGenerationBoundedToken = false;
+		bool hasBoundedToken = false;
 		foreach (IParameterSymbol param in invocation.TargetMethod.Parameters) {
 			if (!isCancellationToken(param.Type))
 				continue;
@@ -692,12 +692,12 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Ge
 		foreach (IArgumentOperation arg in invocation.Arguments) {
 			if (arg.Parameter is null || !isCancellationToken(arg.Parameter.Type))
 				continue;
-			if (tokenProvenance.IsGenerationBoundedToken(arg.Value)) {
-				hasGenerationBoundedToken = true;
+			if (tokenProvenance.IsBoundedToken(arg.Value)) {
+				hasBoundedToken = true;
 				break;
 			}
 		}
-		if (!hasGenerationBoundedToken)
+		if (!hasBoundedToken)
 			asyncTokenWarnings.Add(new AsyncTokenWarning(invocation.TargetMethod, invocation.Syntax.GetLocation()));
 	}
 

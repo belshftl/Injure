@@ -108,28 +108,28 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		return new ActiveOwnerScopeView<L>(this);
 	}
 
-	public GenerationCancellationToken<L> CreateStoppingToken<L>() where L : struct, IModLifetimeIdentity {
+	public BoundedCt<L> CreateStoppingToken<L>() where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
 			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
-		return new GenerationCancellationToken<L>(Generation, stoppingCts.Token);
+		return new BoundedCt<L>(Generation, stoppingCts.Token);
 	}
 
-	public GenerationCancellationSource<L> CreateCancellationSource<L>() where L : struct, IModLifetimeIdentity {
+	public BoundedCts<L> CreateCancellationSource<L>() where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
 			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
 		return CreateLinkedCancellationSource<L>(CancellationToken.None);
 	}
 
-	public GenerationCancellationSource<L> CreateLinkedCancellationSource<L>(CancellationToken ct) where L : struct, IModLifetimeIdentity {
+	public BoundedCts<L> CreateLinkedCancellationSource<L>(CancellationToken ct) where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
 			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
 		CancellationTokenSource linked = ct.CanBeCanceled
 			? CancellationTokenSource.CreateLinkedTokenSource(stoppingCts.Token, ct)
 			: CancellationTokenSource.CreateLinkedTokenSource(stoppingCts.Token);
-		GenerationCancellationSourceCore source = new(Generation, linked);
+		BoundedCtsCore source = new(Generation, linked);
 		try {
 			AddDisposable(source);
-			return new GenerationCancellationSource<L>(source);
+			return new BoundedCts<L>(source);
 		} catch {
 			source.Dispose();
 			throw;
@@ -351,7 +351,7 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 
 internal sealed class ActiveOwnerScopeView<L> : IActiveOwnerScope<L> where L : struct, IModLifetimeIdentity {
 	private readonly ActiveOwnerScope core;
-	private readonly GenerationCancellationToken<L> stoppingBacking;
+	private readonly BoundedCt<L> stoppingBacking;
 
 	internal ActiveOwnerScopeView(ActiveOwnerScope core) {
 		this.core = core;
@@ -360,9 +360,9 @@ internal sealed class ActiveOwnerScopeView<L> : IActiveOwnerScope<L> where L : s
 
 	public string OwnerID => core.OwnerID;
 	public ReloadGeneration Generation => core.Generation;
-	public GenerationCancellationToken<L> Stopping => stoppingBacking;
-	public GenerationCancellationSource<L> CreateCancellationSource() => core.CreateCancellationSource<L>();
-	public GenerationCancellationSource<L> CreateLinkedCancellationSource(CancellationToken cancellationToken) =>
+	public BoundedCt<L> Stopping => stoppingBacking;
+	public BoundedCts<L> CreateCts() => core.CreateCancellationSource<L>();
+	public BoundedCts<L> CreateLinkedCts(CancellationToken cancellationToken) =>
 		core.CreateLinkedCancellationSource<L>(cancellationToken);
 	public void AddTeardown(IReloadTeardown item) => core.AddTeardown(item);
 	public void AddDisposable(IDisposable disposable) => core.AddDisposable(disposable);

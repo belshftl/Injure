@@ -215,7 +215,7 @@ public sealed class LayerStack : IDisposable {
 
 	// ==========================================================================
 	// ticker
-	private void tickerCallback(TickerHandle ticker, in TickCallbackInfo info) {
+	private void tickerCallback(TickerHandle ticker, in TickCallbackTimingInfo info, in TickDeadline deadline) {
 		if (disposed)
 			return;
 
@@ -267,7 +267,7 @@ public sealed class LayerStack : IDisposable {
 					input: inputView,
 					controls: controls
 				);
-				ent.Layer.Update(in ctx);
+				ent.Layer.Update(in ctx, in deadline);
 				rt.TickCoroutines(dt, rawDt);
 			}
 		} finally {
@@ -497,7 +497,7 @@ public sealed class LayerStack : IDisposable {
 			refcounts[ticker] = n + 1;
 			return;
 		}
-		TickerSubscriptionHandle sub = ticker.Subscribe((in info) => tickerCallback(ticker, in info));
+		TickerSubscriptionHandle sub = ticker.Subscribe((in info, in deadline) => tickerCallback(ticker, in info, in deadline));
 		refcounts.Add(ticker, 1);
 		subs.Add(ticker, sub);
 	}

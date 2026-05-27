@@ -9,24 +9,24 @@ namespace Injure.Scheduling;
 public sealed class TickerSubscriptionHandle : IReloadTeardown {
 	private TickerScheduler? owner;
 	private TickerHandle? ticker;
-	private TickerCallback? callback;
+	private TickerSubscription? subscription;
 	private int removed = 0;
 
-	internal TickerSubscriptionHandle(TickerScheduler owner, TickerHandle ticker, TickerCallback callback) {
+	internal TickerSubscriptionHandle(TickerScheduler owner, TickerHandle ticker, TickerSubscription subscription) {
 		this.owner = owner;
 		this.ticker = ticker;
-		this.callback = callback;
+		this.subscription = subscription;
 	}
 
 	public bool Remove() {
 		if (Interlocked.Exchange(ref removed, 1) != 0)
 			return false;
-		if (owner is null || ticker is null || callback is null)
+		if (owner is null || ticker is null || subscription is null)
 			throw new InternalStateException("is the flag guard above broken..?");
-		bool ret = owner.Unsubscribe(ticker, callback);
+		bool ret = owner.Unsubscribe(ticker, subscription);
 		owner = null;
 		ticker = null;
-		callback = null;
+		subscription = null;
 		return ret;
 	}
 

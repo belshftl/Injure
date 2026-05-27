@@ -5,18 +5,18 @@ using System.Threading;
 
 namespace Injure.ModKit.Abstractions;
 
-public interface IGenerationCancellationToken {
+public interface IBoundedCt {
 	ReloadGeneration Generation { get; }
 	CancellationToken Token { get; }
 }
 
-public readonly struct GenerationCancellationToken<L> : IGenerationCancellationToken where L : struct, IModLifetimeIdentity {
+public readonly struct BoundedCt<L> : IBoundedCt where L : struct, IModLifetimeIdentity {
 	private readonly CancellationToken token;
 	private readonly int inited;
 
-	internal GenerationCancellationToken(ReloadGeneration generation, CancellationToken token) {
+	internal BoundedCt(ReloadGeneration generation, CancellationToken token) {
 		if (!token.CanBeCanceled)
-			throw new InternalStateException("badly constructed GenerationCancellationToken");
+			throw new InternalStateException("badly constructed BoundedCt");
 		Generation = generation;
 		this.token = token;
 		inited = 1;
@@ -27,7 +27,7 @@ public readonly struct GenerationCancellationToken<L> : IGenerationCancellationT
 	public CancellationToken Token {
 		get {
 			if (inited == 0)
-				throw new InvalidOperationException("this GenerationCancellationToken was not initialized (did you accidentally pass `default`?)");
+				throw new InvalidOperationException("this BoundedCt was not initialized (did you accidentally pass `default`?)");
 			return token;
 		}
 	}
@@ -38,10 +38,10 @@ public readonly struct GenerationCancellationToken<L> : IGenerationCancellationT
 
 	public CancellationTokenRegistration Register(Action callback) => Token.Register(callback);
 
-	public static implicit operator CancellationToken(GenerationCancellationToken<L> token) => token.Token;
+	public static implicit operator CancellationToken(BoundedCt<L> token) => token.Token;
 }
 
-internal sealed class GenerationCancellationSourceCore(ReloadGeneration generation, CancellationTokenSource cts) : IDisposable {
+internal sealed class BoundedCtsCore(ReloadGeneration generation, CancellationTokenSource cts) : IDisposable {
 	private readonly ReloadGeneration generation = generation;
 	private readonly CancellationTokenSource cts = cts;
 	private int disposed = 0;
@@ -72,13 +72,13 @@ internal sealed class GenerationCancellationSourceCore(ReloadGeneration generati
 	}
 }
 
-public sealed class GenerationCancellationSource<L> : IDisposable where L : struct, IModLifetimeIdentity {
-	private readonly GenerationCancellationSourceCore core;
-	internal GenerationCancellationSource(GenerationCancellationSourceCore core) {
+public sealed class BoundedCts<L> : IDisposable where L : struct, IModLifetimeIdentity {
+	private readonly BoundedCtsCore core;
+	internal BoundedCts(BoundedCtsCore core) {
 		this.core = core;
 	}
 	public ReloadGeneration Generation => core.Generation;
-	public GenerationCancellationToken<L> Token => new(core.Generation, core.Token);
+	public BoundedCt<L> Token => new(core.Generation, core.Token);
 	public void Cancel() => core.Cancel();
 	public void Dispose() => core.Dispose();
 }
