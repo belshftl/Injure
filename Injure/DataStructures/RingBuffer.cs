@@ -107,7 +107,7 @@ public sealed class RingBuffer<T> : IReadOnlyList<T> {
 	public int Capacity => buf.Length;
 
 	/// <summary>
-	/// Gets the number of elements currently stored in the buffer.
+	/// The number of elements currently stored in the buffer.
 	/// </summary>
 	public int Count => count;
 
