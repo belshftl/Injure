@@ -34,7 +34,7 @@ internal sealed class LayerRuntime : ILayerTickTracker, IDisposable {
 		actionCtx = profile is null ? null : new ActionContext(profile);
 	}
 
-	public void UpdatePerfTracked(MonoTick tick) {
+	public void UpdateTickTracked(MonoTick tick) {
 		foreach (ITickTimestampReceiver r in toUpdate)
 			r.Update(tick);
 	}

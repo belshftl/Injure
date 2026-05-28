@@ -152,13 +152,12 @@ public static unsafe class Runner {
 		double renderStep = tmst.TargetFPS > 0.0 ? 1.0 / tmst.TargetFPS : 0.0;
 		MonoTick loopStep = MonoTick.PeriodFromHz(tmst.TargetLoopHz);
 
-		MonoTick t1_5ms = (MonoTick)(ulong)((UInt128)MonoTick.Frequency.Value * 15 / 10000);
-		MonoTick t0_5ms = (MonoTick)(ulong)((UInt128)MonoTick.Frequency.Value * 5 / 10000);
-		MonoTick t0_1ms = (MonoTick)(ulong)((UInt128)MonoTick.Frequency.Value * 1 / 10000);
+		MonoTick t1_5ms = MonoTick.FromSeconds(0.0015);
+		MonoTick t0_5ms = MonoTick.FromSeconds(0.0005);
+		MonoTick t0_1ms = MonoTick.FromSeconds(0.0001);
 
 		// sdl/precisewait init
 		initSDLFrom(in winconf);
-		PreciseWait.Init();
 		game.Loading(new LoadingContext(LoadingPhase.Start, redrawRequested: true));
 		MonoTick loadingStartTick = MonoTick.GetCurrent();
 
@@ -181,12 +180,12 @@ public static unsafe class Runner {
 					case SDLEventType.WindowPixelSizeChanged:
 					case SDLEventType.WindowResized:
 					case SDLEventType.RenderTargetsReset:
-						elapsed = (double)(MonoTick.GetCurrent() - loadingStartTick) / (double)MonoTick.Frequency;
+						elapsed = (MonoTick.GetCurrent() - loadingStartTick).ToSeconds();
 						game.Loading(new LoadingContext(LoadingPhase.Tick, elapsed, redrawRequested: true));
 						break;
 					}
 				}
-				elapsed = (double)(MonoTick.GetCurrent() - loadingStartTick) / (double)MonoTick.Frequency;
+				elapsed = (MonoTick.GetCurrent() - loadingStartTick).ToSeconds();
 				game.Loading(new LoadingContext(LoadingPhase.Tick, elapsed));
 			}
 bootstrapCancelled:
@@ -194,7 +193,7 @@ bootstrapCancelled:
 		}
 		if (!bootstrap.IsCompletedSuccessfully)
 			goto earlyquit;
-		elapsed = (double)(MonoTick.GetCurrent() - loadingStartTick) / (double)MonoTick.Frequency;
+		elapsed = (MonoTick.GetCurrent() - loadingStartTick).ToSeconds();
 		game.Loading(new LoadingContext(LoadingPhase.Finish, elapsed));
 
 		// webgpu setup
@@ -350,9 +349,7 @@ bootstrapCancelled:
 					}
 				} else if (remaining > t0_1ms) { // 1.5ms >= n > 0.1ms
 					MonoTick n = remaining - t0_1ms; // 0.1ms of safety
-					// XXX: relies on the fact that MonoTick is nanoseconds, if it ever changes replace it with the commented one
-					// PreciseWait.Wait((long)((UInt128)n.Value * 1000000000 / (UInt128)MonoTick.Frequency.Value));
-					PreciseWait.Wait((long)n.Value);
+					PreciseWait.Wait(checked((long)n.ToNanoseconds()));
 				} else { // 0.1ms >= n > 0ms
 					Thread.SpinWait(128);
 				}
@@ -382,7 +379,6 @@ bootstrapCancelled:
 		gpuDevice.Dispose();
 
 earlyquit:
-		PreciseWait.Deinit();
 		SDLOwner.ShutdownSDL();
 		Volatile.Write(ref running, 0);
 	}
