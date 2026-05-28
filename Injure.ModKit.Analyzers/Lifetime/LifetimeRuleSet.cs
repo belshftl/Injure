@@ -17,6 +17,12 @@ internal readonly record struct ObligationSatisfaction(
 	string Reason
 );
 
+internal readonly record struct ReturnedSatisfiedObligation(
+	int ParameterOrdinal,
+	ObligationSatisfactionLevel Level,
+	string Reason
+);
+
 internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance tokenProvenance) {
 	private readonly KnownTypes known = known;
 	private readonly BoundedTokenProvenance tokenProvenance = tokenProvenance;
@@ -101,13 +107,42 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 		};
 	}
 
+	public ReturnedSatisfiedObligation? TryGetReturnedSatisfiedObligation(IInvocationOperation invocation) {
+		AttributeData? attr = tryGetAttribute(invocation.TargetMethod, known.SatisfiesAndReturnsAttribute);
+		if (attr is null)
+			return null;
+
+		int ordinal = -1;
+		if (attr.ConstructorArguments.Length == 1) {
+			TypedConstant arg = attr.ConstructorArguments[0];
+			if (arg.Value is int index) {
+				ordinal = index;
+			} else if (arg.Value is string name) {
+				for (int i = 0; i < invocation.TargetMethod.Parameters.Length; i++) {
+					if (invocation.TargetMethod.Parameters[i].Name == name) {
+						ordinal = i;
+						break;
+					}
+				}
+			}
+		}
+		if (ordinal < 0 || ordinal >= invocation.TargetMethod.Parameters.Length)
+			return null;
+		return new ReturnedSatisfiedObligation(ordinal, ObligationSatisfactionLevel.Generation, "returned generation-satisfied obligation");
+	}
+
 	public ObligationSatisfaction? TryGetTransfer(IInvocationOperation invocation, LifetimeObligation obl) {
 		if (obl.Local is null)
 			return null;
-		if (isOwnerScopeTransferMethod(invocation.TargetMethod))
-			foreach (IArgumentOperation arg in invocation.Arguments)
-				if (TryGetLocalReference(arg.Value, out ILocalSymbol? local) && SymbolEqualityComparer.Default.Equals(local, obl.Local))
-					return new ObligationSatisfaction(ObligationSatisfactionLevel.Generation, "transferred to active owner scope");
+		ReturnedSatisfiedObligation? returned = TryGetReturnedSatisfiedObligation(invocation);
+		if (returned is null)
+			return null;
+		foreach (IArgumentOperation argument in invocation.Arguments) {
+			if (argument.Parameter?.Ordinal != returned.Value.ParameterOrdinal)
+				continue;
+			if (TryGetLocalReference(argument.Value, out ILocalSymbol? local) && SymbolEqualityComparer.Default.Equals(local, obl.Local))
+				return new ObligationSatisfaction(returned.Value.Level, returned.Value.Reason);
+		}
 		return null;
 	}
 
@@ -117,8 +152,6 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 				return true;
 		return false;
 	}
-
-	public bool IsTransferMethod(IMethodSymbol method) => isOwnerScopeTransferMethod(method);
 
 	private ObligationSatisfaction? tryDispose(IInvocationOperation invocation, LifetimeObligation obl) {
 		if (!isReceiverLocal(invocation, obl.Local!))
@@ -175,15 +208,6 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 		return new ObligationSatisfaction(ObligationSatisfactionLevel.Method, "removed");
 	}
 
-	private bool isOwnerScopeTransferMethod(IMethodSymbol method) {
-		if (!(method.Name is "AddTeardown" or "AddDisposable" or "AddAsyncDisposable" or "AddOrderedDisposable" or "AddOrderedAsyncDisposable"))
-			return false;
-		INamedTypeSymbol? containing = method.ContainingType;
-		if (containing is null || known.IActiveOwnerScope is null)
-			return false;
-		return containing.IsOrImplements(known.IActiveOwnerScope);
-	}
-
 	private bool isTaskRun(IMethodSymbol method) =>
 		method.Name == "Run" && SymbolEqualityComparer.Default.Equals(method.ContainingType, known.Task);
 
@@ -196,6 +220,22 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 	private static bool isReceiverLocal(IInvocationOperation invocation, ILocalSymbol local) =>
 		invocation.Instance is not null && TryGetLocalReference(invocation.Instance, out ILocalSymbol? receiverLocal) &&
 			SymbolEqualityComparer.Default.Equals(receiverLocal, local);
+
+	private static AttributeData? tryGetAttribute(IMethodSymbol method, INamedTypeSymbol? attrType) {
+		if (attrType is null)
+			return null;
+		foreach (AttributeData attr in method.GetAttributes())
+			if (isAttribute(attr, attrType))
+				return attr;
+		if (!SymbolEqualityComparer.Default.Equals(method, method.OriginalDefinition))
+			foreach (AttributeData attr in method.OriginalDefinition.GetAttributes())
+				if (isAttribute(attr, attrType))
+					return attr;
+		return null;
+	}
+
+	private static bool isAttribute(AttributeData attr, INamedTypeSymbol attrType) => attr.AttributeClass is not null &&
+		SymbolEqualityComparer.Default.Equals(attr.AttributeClass.OriginalDefinition, attrType.OriginalDefinition);
 
 	public static bool TryGetLocalReference(IOperation operation, out ILocalSymbol local) {
 		if (operation is IConversionOperation conversion)

@@ -11,6 +11,6 @@
 		<ProjectReference Include="../TestGame.ModApi/TestGame.ModApi.csproj" Private="false" />
 
 		<!-- placeholder, i'll figure out something better in a bit -->
-		<Reference Include="../TestGame/bin/Release/net10.0/linux-x64/TestGame.dll" Private="false" />
+		<Reference Include="../TestGame/bin/Debug/net10.0/linux-x64/TestGame.dll" Private="false" />
 	</ItemGroup>
 </Project>

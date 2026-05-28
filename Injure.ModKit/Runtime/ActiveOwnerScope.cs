@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Injure.ModKit.Abstractions;
+using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.ModKit.Runtime;
 
@@ -108,19 +109,19 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		return new ActiveOwnerScopeView<L>(this);
 	}
 
-	public BoundedCt<L> CreateStoppingToken<L>() where L : struct, IModLifetimeIdentity {
+	public BoundedCt<L> CreateStoppingCt<L>() where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
 			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
 		return new BoundedCt<L>(Generation, stoppingCts.Token);
 	}
 
-	public BoundedCts<L> CreateCancellationSource<L>() where L : struct, IModLifetimeIdentity {
+	public BoundedCts<L> CreateCts<L>() where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
 			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
-		return CreateLinkedCancellationSource<L>(CancellationToken.None);
+		return CreateLinkedCts<L>(CancellationToken.None);
 	}
 
-	public BoundedCts<L> CreateLinkedCancellationSource<L>(CancellationToken ct) where L : struct, IModLifetimeIdentity {
+	public BoundedCts<L> CreateLinkedCts<L>(CancellationToken ct) where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
 			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
 		CancellationTokenSource linked = ct.CanBeCanceled
@@ -141,33 +142,43 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		this.maxParallelism = Math.Max(1, maxParallelism);
 	}
 
-	public void AddTeardown(IReloadTeardown item) {
-		ArgumentNullException.ThrowIfNull(item);
+	[SatisfiesAndReturns(nameof(teardown))]
+	public T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown {
+		ArgumentNullException.ThrowIfNull(teardown);
 		lock (@lock) {
 			if (invalidated || teardowns is null)
 				throw new ReloadGenerationExpiredException(Generation);
-			teardowns.Add(item);
+			teardowns.Add(teardown);
+			return teardown;
 		}
 	}
 
-	public void AddDisposable(IDisposable disposable) {
+	[SatisfiesAndReturns(nameof(disposable))]
+	public T AddDisposable<T>(T disposable) where T : notnull, IDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: false);
+		return disposable;
 	}
 
-	public void AddAsyncDisposable(IAsyncDisposable disposable) {
+	[SatisfiesAndReturns(nameof(disposable))]
+	public T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: false);
+		return disposable;
 	}
 
-	public void AddOrderedDisposable(IDisposable disposable) {
+	[SatisfiesAndReturns(nameof(disposable))]
+	public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: true);
+		return disposable;
 	}
 
-	public void AddOrderedAsyncDisposable(IAsyncDisposable disposable) {
+	[SatisfiesAndReturns(nameof(disposable))]
+	public T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: true);
+		return disposable;
 	}
 
 	public void TrackWeak(object item, string category, string description = "") {
@@ -355,19 +366,19 @@ internal sealed class ActiveOwnerScopeView<L> : IActiveOwnerScope<L> where L : s
 
 	internal ActiveOwnerScopeView(ActiveOwnerScope core) {
 		this.core = core;
-		stoppingBacking = core.CreateStoppingToken<L>();
+		stoppingBacking = core.CreateStoppingCt<L>();
 	}
 
 	public string OwnerID => core.OwnerID;
 	public ReloadGeneration Generation => core.Generation;
 	public BoundedCt<L> Stopping => stoppingBacking;
-	public BoundedCts<L> CreateCts() => core.CreateCancellationSource<L>();
+	public BoundedCts<L> CreateCts() => core.CreateCts<L>();
 	public BoundedCts<L> CreateLinkedCts(CancellationToken cancellationToken) =>
-		core.CreateLinkedCancellationSource<L>(cancellationToken);
-	public void AddTeardown(IReloadTeardown item) => core.AddTeardown(item);
-	public void AddDisposable(IDisposable disposable) => core.AddDisposable(disposable);
-	public void AddAsyncDisposable(IAsyncDisposable disposable) => core.AddAsyncDisposable(disposable);
-	public void AddOrderedDisposable(IDisposable disposable) => core.AddOrderedDisposable(disposable);
-	public void AddOrderedAsyncDisposable(IAsyncDisposable disposable) => core.AddOrderedAsyncDisposable(disposable);
+		core.CreateLinkedCts<L>(cancellationToken);
+	[SatisfiesAndReturns(nameof(teardown))] public T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown => core.AddTeardown(teardown);
+	[SatisfiesAndReturns(nameof(disposable))] public T AddDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddDisposable(disposable);
+	[SatisfiesAndReturns(nameof(disposable))] public T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddAsyncDisposable(disposable);
+	[SatisfiesAndReturns(nameof(disposable))] public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddOrderedDisposable(disposable);
+	[SatisfiesAndReturns(nameof(disposable))] public T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddOrderedAsyncDisposable(disposable);
 	public void TrackWeak(object item, string category, string description = "") => core.TrackWeak(item, category, description);
 }

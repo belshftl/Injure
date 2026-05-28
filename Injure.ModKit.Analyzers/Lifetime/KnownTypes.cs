@@ -35,4 +35,5 @@ internal sealed class KnownTypes(Compilation comp) {
 
 	public INamedTypeSymbol? BoundedCt { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.BoundedCt);
 	public INamedTypeSymbol? IActiveOwnerScope { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IActiveOwnerScope);
+	public INamedTypeSymbol? SatisfiesAndReturnsAttribute { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.SatisfiesAndReturnsAttribute);
 }
