@@ -37,7 +37,7 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public required IReadOnlyList<string> SharedAssemblies { get; init; }
 
 	public IDiagnosticsSink DiagnosticsSink { get; init; } = new DefaultDiagnosticsSink();
-	public TimeSpan UnloadGracePeriod { get; init; } = TimeSpan.FromMilliseconds(100);
+	public TimeSpan UnloadGracePeriod { get; init; } = TimeSpan.FromMilliseconds(75);
 	public int MaxParallelCodeLoads { get; init; } = Math.Max(1, Environment.ProcessorCount - 1);
 	public int MaxScopeTeardownParallelism { get; init; } = 8;
 }
@@ -55,15 +55,15 @@ internal sealed class ModLoadContextImpl<TGameApi, L>(
 	public string OwnerID { get; } = ownerID;
 	public Semver Version { get; } = version;
 	public TGameApi Api {
-		get => !gameApiDropped ? field : throw new ReloadGenerationExpiredException(generation);
+		get => !gameApiDropped ? field : throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), generation);
 		private set;
 	} = api;
 	public IOwnerDiagnostics Diagnostics {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), generation);
 		private set;
 	} = diagnostics;
 	public IActiveOwnerScope<L> Scope {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), generation);
 		private set;
 	} = scope.AsTyped<L>();
 	public ReloadGeneration Generation => generation;
@@ -93,15 +93,15 @@ internal sealed class ModLinkContextImpl<TGameApi, L>(
 	public string OwnerID { get; } = ownerID;
 	public Semver Version { get; } = version;
 	public TGameApi Api {
-		get => !gameApiDropped ? field : throw new ReloadGenerationExpiredException(generation);
+		get => !gameApiDropped ? field : throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), generation);
 		private set;
 	} = api;
 	public IOwnerDiagnostics Diagnostics {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), generation);
 		private set;
 	} = diagnostics;
 	public IActiveOwnerScope<L> Scope {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), generation);
 		private set;
 	} = scope.AsTyped<L>();
 	public ReloadGeneration Generation => generation;
@@ -136,20 +136,20 @@ internal sealed class ModActivateContextImpl<TGameApi, L>(
 	public string OwnerID { get; } = ownerID;
 	public Semver Version { get; } = version;
 	public TGameApi Api {
-		get => !gameApiDropped ? field : throw new ReloadGenerationExpiredException(generation);
+		get => !gameApiDropped ? field : throw new ModLifecycleContextExpiredException(nameof(IModActivateContext<,>), generation);
 		private set;
 	} = api;
 	public IOwnerDiagnostics Diagnostics {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModActivateContext<,>), generation);
 		private set;
 	} = diagnostics;
 	public IActiveOwnerScope<L> Scope {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModActivateContext<,>), generation);
 		private set;
 	} = scope.AsTyped<L>();
 	public ReloadGeneration Generation => generation;
 	public GameServices GameServices {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModActivateContext<,>), generation);
 		private set;
 	} = gameServices;
 
@@ -179,18 +179,18 @@ internal sealed class ModReloadContextImpl<TGameApi, L>(
 	public string OwnerID { get; } = ownerID;
 	public Semver Version { get; } = version;
 	public TGameApi Api {
-		get => !gameApiDropped ? field : throw new ReloadGenerationExpiredException(generation);
+		get => !gameApiDropped ? field : throw new ModLifecycleContextExpiredException(nameof(IModReloadContext<,>), generation);
 		private set;
 	} = api;
 	public ReloadGeneration Generation => generation;
 	public IReadOnlySet<string> ReloadSet { get; } = reloadSet;
-	public GameServices? GameServices => !gameServicesDropped ? gameServices : throw new ReloadGenerationExpiredException(generation);
+	public GameServices? GameServices => !gameServicesDropped ? gameServices : throw new ModLifecycleContextExpiredException(nameof(IModReloadContext<,>), generation);
 	public IOwnerDiagnostics Diagnostics {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModReloadContext<,>), generation);
 		private set;
 	} = diagnostics;
 	public IActiveOwnerScope<L> Scope {
-		get => field ?? throw new ReloadGenerationExpiredException(generation);
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModReloadContext<,>), generation);
 		private set;
 	} = scope.AsTyped<L>();
 
@@ -1395,14 +1395,14 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		foreach (MethodInfo mi in typeof(ActiveOwnerScope).GetMethods(BindingFlags.Instance | BindingFlags.Public)) {
 			ParameterInfo[] parameters = mi.GetParameters();
 			if (
-				mi.Name == nameof(ActiveOwnerScope.CreateLinkedCancellationSource) &&
+				mi.Name == nameof(ActiveOwnerScope.CreateLinkedCts) &&
 				mi.IsGenericMethodDefinition &&
 				parameters.Length == 1 &&
 				parameters[0].ParameterType == typeof(CancellationToken)
 			)
 				return mi;
 		}
-		throw new MissingMethodException(typeof(ActiveOwnerScope).FullName, nameof(ActiveOwnerScope.CreateLinkedCancellationSource));
+		throw new MissingMethodException(typeof(ActiveOwnerScope).FullName, nameof(ActiveOwnerScope.CreateLinkedCts));
 	}
 
 	private static IDisposable createLinkedGenerationCancellationSource(LoadedCodeMod<TGameApi> mod, CancellationToken ct, out object token) {

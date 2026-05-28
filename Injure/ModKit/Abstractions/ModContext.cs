@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -44,4 +45,13 @@ public interface IModActivateContext<out TGameApi, L> : IModLoadContext<TGameApi
 public interface IModReloadContext<out TGameApi, L> : IModLoadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IReadOnlySet<string> ReloadSet { get; }
 	GameServices? GameServices { get; }
+}
+
+public sealed class ModLifecycleContextExpiredException : Exception {
+	public string Kind { get; }
+	public ReloadGeneration Generation { get; }
+	internal ModLifecycleContextExpiredException(string kind, ReloadGeneration generation) : base($"{kind} object for {generation} is no longer valid past the method return; cache the values you'd like to keep around such as Api/Scope/Diagnostics, don't retain or capture the whole object") {
+		Kind = kind;
+		Generation = generation;
+	}
 }

@@ -33,4 +33,5 @@ internal static class KnownTypeMetadataNames {
 
 	public const string BoundedCt = "Injure.ModKit.Abstractions.BoundedCt`1";
 	public const string IActiveOwnerScope = "Injure.ModKit.Abstractions.IActiveOwnerScope";
+	public const string SatisfiesAndReturnsAttribute = "Injure.ModKit.Abstractions.CodeAnalysis.SatisfiesAndReturnsAttribute";
 }

@@ -550,44 +550,48 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 	}
 
 	private void processInlineTransferCreations(IInvocationOperation invocation, FlowState state) {
-		if (!rules.IsTransferMethod(invocation.TargetMethod))
+		ReturnedSatisfiedObligation? returned = rules.TryGetReturnedSatisfiedObligation(invocation);
+		if (returned is null)
 			return;
-		foreach (IArgumentOperation arg in invocation.Arguments)
-			processInlineTransferValue(arg.Value, state, invocation.Syntax.GetLocation());
-	}
+		foreach (IArgumentOperation arg in invocation.Arguments) {
+			if (arg.Parameter?.Ordinal != returned.Value.ParameterOrdinal)
+				continue;
+			processInlineTransferValue(arg.Value, state, invocation.Syntax.GetLocation(), returned.Value.Level);
+		}
+}
 
-	private void processInlineTransferValue(IOperation operation, FlowState state, Location transferLocation) {
+	private void processInlineTransferValue(IOperation operation, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
 		operation = unwrapConversion(operation);
 
 		if (LifetimeRuleSet.TryGetLocalReference(operation, out ILocalSymbol? local) && state.TryGetByLocal(local, out LifetimeObligation localObligation)) {
-			localObligation.TrySatisfy(ObligationSatisfactionLevel.Generation, transferLocation);
+			localObligation.TrySatisfy(level, transferLocation);
 			return;
 		}
 
 		switch (operation) {
 		case IObjectCreationOperation creation:
-			processTransferredCreation(creation, state, transferLocation);
+			processTransferredCreation(creation, state, transferLocation, level);
 			break;
 		case IInvocationOperation invocation:
-			processTransferredReturnInvocationCreation(invocation, state, transferLocation);
+			processTransferredReturnInvocationCreation(invocation, state, transferLocation, level);
 			break;
 		case IConditionalOperation conditional:
-			processInlineTransferValue(conditional.WhenTrue, state, transferLocation);
+			processInlineTransferValue(conditional.WhenTrue, state, transferLocation, level);
 			if (conditional.WhenFalse is not null)
-				processInlineTransferValue(conditional.WhenFalse, state, transferLocation);
+				processInlineTransferValue(conditional.WhenFalse, state, transferLocation, level);
 			break;
 		case ICoalesceOperation coalesce:
-			processInlineTransferValue(coalesce.Value, state, transferLocation);
-			processInlineTransferValue(coalesce.WhenNull, state, transferLocation);
+			processInlineTransferValue(coalesce.Value, state, transferLocation, level);
+			processInlineTransferValue(coalesce.WhenNull, state, transferLocation, level);
 			break;
 		case IArrayCreationOperation { Initializer: not null } arrayCreation:
 			foreach (IOperation value in arrayCreation.Initializer.ElementValues)
-				processInlineTransferValue(value, state, transferLocation);
+				processInlineTransferValue(value, state, transferLocation, level);
 			break;
 		}
 	}
 
-	private void processTransferredCreation(IObjectCreationOperation creation, FlowState state, Location transferLocation) {
+	private void processTransferredCreation(IObjectCreationOperation creation, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
 		ObligationCreation? classified = rules.TryCreateFromObjectCreation(creation);
 		if (classified is null)
 			return;
@@ -595,10 +599,15 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		ObligationCreation c = classified.Value;
 		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, null, c.DisplayName, creation.Syntax.GetLocation());
 		state.Add(obl);
-		obl.TrySatisfy(ObligationSatisfactionLevel.Generation, transferLocation);
+		obl.TrySatisfy(level, transferLocation);
 	}
 
-	private void processTransferredReturnInvocationCreation(IInvocationOperation invocation, FlowState state, Location transferLocation) {
+	private void processTransferredReturnInvocationCreation(IInvocationOperation invocation, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
+		if (rules.TryGetReturnedSatisfiedObligation(invocation) is not null) {
+			processInlineTransferCreations(invocation, state);
+			return;
+		}
+
 		ObligationCreation? classified = rules.TryCreateFromReturnInvocationCreation(invocation);
 		if (classified is null)
 			return;
@@ -606,7 +615,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		ObligationCreation c = classified.Value;
 		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, null, c.DisplayName, invocation.Syntax.GetLocation());
 		state.Add(obl);
-		obl.TrySatisfy(ObligationSatisfactionLevel.Generation, transferLocation);
+		obl.TrySatisfy(level, transferLocation);
 	}
 
 	private void processCreation(IObjectCreationOperation creation, ILocalSymbol? local, FlowState state, bool reportDiscardedValue) {
@@ -623,6 +632,8 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 	}
 
 	private void processReturnInvocationCreation(IInvocationOperation invocation, ILocalSymbol? local, FlowState state, bool reportDiscardedValue) {
+		if (rules.TryGetReturnedSatisfiedObligation(invocation) is not null)
+			return;
 		ObligationCreation? classified = rules.TryCreateFromReturnInvocationCreation(invocation);
 		if (classified is null)
 			return;
