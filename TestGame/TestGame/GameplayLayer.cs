@@ -2,6 +2,8 @@
 
 using System;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using Injure;
 using Injure.Graphics;
 using Injure.Graphics.Text;
@@ -25,6 +27,11 @@ public sealed class GameplayLayer : Layer {
 	public override LayerFeatures Features => LayerFeatures.Render | LayerFeatures.Input;
 	public override LayerTagSet Tags => tags;
 	public override ActionProfile? ActionProfile => Actions.Profile;
+
+	public override async Task WarmAsync(CancellationToken ct) {
+		// TODO figure out something more ergonomic for "all assets from a layer that need to be warmed and then will be used"
+		await Game.TestFont.WarmAsync(ct);
+	}
 
 	public override void OnEnter() {
 		UITextStyle style = new(

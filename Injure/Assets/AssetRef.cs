@@ -104,7 +104,7 @@ public sealed class AssetRef<T> : IUntypedAssetRef where T : class {
 	public AssetReloadFailure? LastReloadFailure => Slot.LastReloadFailure;
 
 	/// <summary>
-	/// Actively borrows the current live version.
+	/// Borrows the current live version, or creates it if there isn't one.
 	/// </summary>
 	/// <returns>
 	/// An <see cref="AssetLease{T}"/> over the current live version.
@@ -122,17 +122,49 @@ public sealed class AssetRef<T> : IUntypedAssetRef where T : class {
 	public AssetLease<T> Borrow() => Slot.Borrow();
 
 	/// <summary>
-	/// Passively borrows the current live version.
+	/// Attempts to borrow the current live version.
 	/// </summary>
 	/// <param name="lease">An <see cref="AssetLease{T}"/> for the current live version, if one exists.</param>
 	/// <returns>
 	/// <see langword="true"/> if a current live version exists; otherwise <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
-	/// <para>This method never blocks or creates any new versions of the asset, including initial materialization.</para>
-	/// <para>Guaranteed to succeed after <see cref="WarmAsync(CancellationToken)"/> or its blocking wrapper.</para>
+	/// <para>
+	/// See <see cref="PassiveBorrow()"/> for a non-throwing variant.
+	/// </para>
+	/// <para>
+	/// This method never blocks or creates any new versions of the asset, including initial materialization.
+	/// </para>
+	/// <para>
+	/// Guaranteed to succeed after a successful <see cref="WarmAsync(CancellationToken)"/> or its blocking wrapper
+	/// unless later evicted by <see cref="Evict()"/>, in which case a warm is necessary again.
+	/// </para>
 	/// </remarks>
 	public bool TryPassiveBorrow(out AssetLease<T> lease) => Slot.TryPassiveBorrow(out lease);
+
+	/// <summary>
+	/// Borrows the current live version, or throws if there isn't one.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// See <see cref="TryPassiveBorrow(out AssetLease{T})"/> for a non-throwing variant.
+	/// </para>
+	/// <para>
+	/// This method never blocks or creates any new versions of the asset, including initial materialization.
+	/// </para>
+	/// <para>
+	/// Guaranteed to succeed after a successful <see cref="WarmAsync(CancellationToken)"/> or its blocking wrapper
+	/// unless later evicted by <see cref="Evict()"/>, in which case a warm is necessary again.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if the asset has no live version.
+	/// </exception>
+	public AssetLease<T> PassiveBorrow() {
+		if (!Slot.TryPassiveBorrow(out AssetLease<T> lease))
+			throw new InvalidOperationException("asset has no live version");
+		return lease;
+	}
 
 	/// <summary>
 	/// Ensures that a current live version exists.

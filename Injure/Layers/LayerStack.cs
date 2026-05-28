@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Injure.Graphics;
 using Injure.Input;
@@ -79,11 +81,20 @@ public sealed class LayerStack : IDisposable {
 	}
 
 	private enum PendingOpKind {
+		BeginPushTop,
+		BeginPushBottom,
+		Remove,
+		BeginReplace,
+		Clear,
+		FinishPushTop,
+		FinishPushBottom,
+		FinishReplace,
+	}
+
+	private enum WarmingOpKind {
 		PushTop,
 		PushBottom,
-		Remove,
 		Replace,
-		Clear,
 	}
 
 	private readonly record struct PendingOp(
@@ -93,6 +104,15 @@ public sealed class LayerStack : IDisposable {
 		TickerHandle? Ticker
 	);
 
+	private readonly record struct WarmingOp(
+		WarmingOpKind Kind,
+		Layer Layer,
+		Layer? OldLayer,
+		TickerHandle Ticker,
+		CancellationTokenSource Cts,
+		Task Task
+	);
+
 	// ==========================================================================
 	// fields
 	private readonly ITickerRegistry tickers;
@@ -100,6 +120,7 @@ public sealed class LayerStack : IDisposable {
 
 	private readonly List<LayerEntry> entries = new(); // bottom -> top
 	private readonly List<PendingOp> pending = new();
+	private readonly List<WarmingOp> warming = new();
 
 	private readonly Dictionary<TickerHandle, int> refcounts = new();
 	private readonly Dictionary<TickerHandle, TickerSubscriptionHandle> subs = new();
@@ -126,17 +147,20 @@ public sealed class LayerStack : IDisposable {
 		pending.Add(new PendingOp(kind, layer, NewLayer: null, ticker));
 		maybeApplyPending();
 	}
-	public void PushTop(Layer layer, TickerHandle ticker) => push(PendingOpKind.PushTop, layer, ticker);
-	public void PushBottom(Layer layer, TickerHandle ticker) => push(PendingOpKind.PushBottom, layer, ticker);
+	public void PushTop(Layer layer, TickerHandle ticker) => push(PendingOpKind.BeginPushTop, layer, ticker);
+	public void PushBottom(Layer layer, TickerHandle ticker) => push(PendingOpKind.BeginPushBottom, layer, ticker);
 
 	public bool Remove(Layer layer) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ArgumentNullException.ThrowIfNull(layer);
 		if (!ReferenceEquals(layer.Owner, this))
 			return false;
+		if (cancelWarmingLayer(layer))
+			return true;
 		if (!mentions(layer))
 			return false;
 
+		cancelWarmingReplacementsForOldLayer(layer);
 		pending.Add(new PendingOp(PendingOpKind.Remove, layer, NewLayer: null, Ticker: null));
 		maybeApplyPending();
 		return true;
@@ -154,7 +178,7 @@ public sealed class LayerStack : IDisposable {
 			throw new InvalidOperationException("new layer already belongs to a stack");
 
 		newLayer.Owner = this;
-		pending.Add(new PendingOp(PendingOpKind.Replace, oldLayer, newLayer, ticker));
+		pending.Add(new PendingOp(PendingOpKind.BeginReplace, oldLayer, newLayer, ticker));
 		maybeApplyPending();
 		return true;
 	}
@@ -199,12 +223,15 @@ public sealed class LayerStack : IDisposable {
 		clear();
 		foreach (PendingOp op in pending) {
 			switch (op.Kind) {
-			case PendingOpKind.PushTop:
-			case PendingOpKind.PushBottom:
+			case PendingOpKind.BeginPushTop:
+			case PendingOpKind.BeginPushBottom:
+			case PendingOpKind.FinishPushTop:
+			case PendingOpKind.FinishPushBottom:
 				if (op.Layer is not null && ReferenceEquals(op.Layer.Owner, this))
 					op.Layer.Owner = null;
 				break;
-			case PendingOpKind.Replace:
+			case PendingOpKind.BeginReplace:
+			case PendingOpKind.FinishReplace:
 				if (op.NewLayer is not null && ReferenceEquals(op.NewLayer.Owner, this))
 					op.NewLayer.Owner = null;
 				break;
@@ -254,7 +281,7 @@ public sealed class LayerStack : IDisposable {
 
 				double dt = tm.Transform(rawDt);
 				tm.Advance(dt, rawDt);
-				rt.UpdatePerfTracked(info.ActualAt);
+				rt.UpdateTickTracked(info.ActualAt);
 
 				ControlView controls = rt.UpdateControls(info.ActualAt, inputView);
 				LayerTickContext ctx = new(
@@ -322,8 +349,44 @@ public sealed class LayerStack : IDisposable {
 	// ==========================================================================
 	// pending ops
 	private void maybeApplyPending() {
-		if (callbackDepth == 0 && renderDepth == 0)
+		if (callbackDepth == 0 && renderDepth == 0) {
+			pollWarmups();
 			applyPending();
+		}
+	}
+
+	private void pollWarmups() {
+		for (int i = warming.Count - 1; i >= 0; i--) {
+			WarmingOp op = warming[i];
+			if (!op.Task.IsCompleted)
+				continue;
+
+			warming.RemoveAt(i);
+			op.Cts.Dispose();
+			if (op.Task.IsCanceled) {
+				if (ReferenceEquals(op.Layer.Owner, this))
+					op.Layer.Owner = null;
+				continue;
+			}
+			if (op.Task.IsFaulted) {
+				if (ReferenceEquals(op.Layer.Owner, this))
+					op.Layer.Owner = null;
+				Exception ex = op.Task.Exception.GetBaseException();
+				System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
+			}
+
+			switch (op.Kind) {
+			case WarmingOpKind.PushTop:
+				pending.Add(new PendingOp(PendingOpKind.FinishPushTop, op.Layer, null, op.Ticker));
+				break;
+			case WarmingOpKind.PushBottom:
+				pending.Add(new PendingOp(PendingOpKind.FinishPushBottom, op.Layer, null, op.Ticker));
+				break;
+			case WarmingOpKind.Replace:
+				pending.Add(new PendingOp(PendingOpKind.FinishReplace, op.OldLayer, op.Layer, op.Ticker));
+				break;
+			}
+		}
 	}
 
 	private void applyPending() {
@@ -338,17 +401,26 @@ public sealed class LayerStack : IDisposable {
 
 				foreach (PendingOp op in batch) {
 					switch (op.Kind) {
-					case PendingOpKind.PushTop:
-						enter(op.Layer!, op.Ticker!, pushToTop: true);
+					case PendingOpKind.BeginPushTop:
+						beginWarmPush(op.Layer!, op.Ticker!, pushToTop: true);
 						break;
-					case PendingOpKind.PushBottom:
-						enter(op.Layer!, op.Ticker!, pushToTop: false);
+					case PendingOpKind.BeginPushBottom:
+						beginWarmPush(op.Layer!, op.Ticker!, pushToTop: false);
+						break;
+					case PendingOpKind.BeginReplace:
+						beginWarmReplace(op.Layer!, op.NewLayer!, op.Ticker!);
+						break;
+					case PendingOpKind.FinishPushTop:
+						enterWarmed(op.Layer!, op.Ticker!, pushToTop: true);
+						break;
+					case PendingOpKind.FinishPushBottom:
+						enterWarmed(op.Layer!, op.Ticker!, pushToTop: false);
+						break;
+					case PendingOpKind.FinishReplace:
+						replaceWarmed(op.Layer!, op.NewLayer!, op.Ticker!);
 						break;
 					case PendingOpKind.Remove:
 						leave(op.Layer!);
-						break;
-					case PendingOpKind.Replace:
-						replace(op.Layer!, op.NewLayer!, op.Ticker!);
 						break;
 					case PendingOpKind.Clear:
 						clear();
@@ -361,7 +433,59 @@ public sealed class LayerStack : IDisposable {
 		}
 	}
 
-	private void enter(Layer layer, TickerHandle ticker, bool pushToTop) {
+	private void beginWarmPush(Layer layer, TickerHandle ticker, bool pushToTop) {
+		if (!ReferenceEquals(layer.Owner, this) || findEntryIdx(layer) >= 0)
+			return;
+
+		CancellationTokenSource cts = new();
+		Task task;
+		try {
+			task = runWarmAsync(layer, cts.Token);
+		} catch {
+			cts.Dispose();
+			if (ReferenceEquals(layer.Owner, this))
+				layer.Owner = null;
+			throw;
+		}
+
+		warming.Add(new WarmingOp {
+			Kind = pushToTop ? WarmingOpKind.PushTop : WarmingOpKind.PushBottom,
+			Layer = layer,
+			Ticker = ticker,
+			Cts = cts,
+			Task = task,
+		});
+	}
+
+	private void beginWarmReplace(Layer oldLayer, Layer newLayer, TickerHandle ticker) {
+		if (findEntryIdx(oldLayer) < 0) {
+			if (ReferenceEquals(newLayer.Owner, this))
+				newLayer.Owner = null;
+			return;
+		}
+
+		CancellationTokenSource cts = new();
+		Task task;
+		try {
+			task = runWarmAsync(newLayer, cts.Token);
+		} catch {
+			cts.Dispose();
+			if (ReferenceEquals(newLayer.Owner, this))
+				newLayer.Owner = null;
+			throw;
+		}
+
+		warming.Add(new WarmingOp {
+			Kind = WarmingOpKind.Replace,
+			OldLayer = oldLayer,
+			Layer = newLayer,
+			Ticker = ticker,
+			Cts = cts,
+			Task = task,
+		});
+	}
+
+	private void enterWarmed(Layer layer, TickerHandle ticker, bool pushToTop) {
 		if (!ReferenceEquals(layer.Owner, this) || findEntryIdx(layer) >= 0)
 			return;
 
@@ -381,9 +505,18 @@ public sealed class LayerStack : IDisposable {
 		else
 			entries.Insert(0, ent);
 
-		grabTicker(ticker);
-		layer.AttachRuntime(runtime);
-		layer.OnEnter();
+		try {
+			grabTicker(ticker);
+			layer.AttachRuntime(runtime);
+			layer.OnEnter();
+		} catch {
+			entries.Remove(ent);
+			layer.DetachRuntime();
+			layer.Owner = null;
+			runtime.Dispose();
+			releaseTicker(ticker);
+			throw;
+		}
 	}
 
 	private void leave(Layer layer) {
@@ -404,7 +537,7 @@ public sealed class LayerStack : IDisposable {
 		releaseTicker(entry.Ticker);
 	}
 
-	private void replace(Layer oldLayer, Layer newLayer, TickerHandle newTicker) {
+	private void replaceWarmed(Layer oldLayer, Layer newLayer, TickerHandle newTicker) {
 		int idx = findEntryIdx(oldLayer);
 		if (idx < 0) {
 			if (ReferenceEquals(newLayer.Owner, this))
@@ -433,13 +566,24 @@ public sealed class LayerStack : IDisposable {
 			Tags = newLayer.Tags,
 		};
 
-		if (oldTicker != newTicker)
-			grabTicker(newTicker);
-		newLayer.AttachRuntime(newRuntime);
-		newLayer.OnEnter();
+		try {
+			if (oldTicker != newTicker)
+				grabTicker(newTicker);
+			newLayer.AttachRuntime(newRuntime);
+			newLayer.OnEnter();
+		} catch {
+			entries.RemoveAt(idx);
+			newLayer.DetachRuntime();
+			newLayer.Owner = null;
+			newRuntime.Dispose();
+			if (oldTicker != newTicker)
+				releaseTicker(newTicker);
+			throw;
+		}
 	}
 
 	private void clear() {
+		cancelAllWarms();
 		foreach (LayerEntry ent in entries) {
 			ent.Layer.OnLeave();
 			ent.Layer.DetachRuntime();
@@ -455,13 +599,74 @@ public sealed class LayerStack : IDisposable {
 	}
 
 	// ==========================================================================
+	// warm
+	private static Task runWarmAsync(Layer layer, CancellationToken ct) =>
+		Task.Run(async () => {
+			ct.ThrowIfCancellationRequested();
+			await layer.WarmAsync(ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+		}, ct);
+
+	private bool cancelWarmingLayer(Layer layer) {
+		for (int i = warming.Count - 1; i >= 0; i--) {
+			WarmingOp op = warming[i];
+			if (!ReferenceEquals(op.Layer, layer))
+				continue;
+
+			op.Cts.Cancel();
+			warming.RemoveAt(i);
+			op.Cts.Dispose();
+
+			if (ReferenceEquals(op.Layer.Owner, this))
+				op.Layer.Owner = null;
+			return true;
+		}
+		return false;
+	}
+
+	private void cancelWarmingReplacementsForOldLayer(Layer oldLayer) {
+		for (int i = warming.Count - 1; i >= 0; i--) {
+			WarmingOp op = warming[i];
+			if (op.Kind != WarmingOpKind.Replace)
+				continue;
+			if (!ReferenceEquals(op.OldLayer, oldLayer))
+				continue;
+
+			op.Cts.Cancel();
+			warming.RemoveAt(i);
+			op.Cts.Dispose();
+
+			if (ReferenceEquals(op.Layer.Owner, this))
+				op.Layer.Owner = null;
+		}
+	}
+
+	private void cancelAllWarms() {
+		foreach (WarmingOp op in warming) {
+			op.Cts.Cancel();
+			op.Cts.Dispose();
+			if (ReferenceEquals(op.Layer.Owner, this))
+				op.Layer.Owner = null;
+		}
+		warming.Clear();
+	}
+
+	// ==========================================================================
 	// bookkeeping
 	private bool mentions(Layer layer) {
 		bool ret = findEntryIdx(layer) >= 0;
+		foreach (WarmingOp op in warming) {
+			if (ReferenceEquals(op.Layer, layer))
+				ret = true;
+			if (ReferenceEquals(op.OldLayer, layer))
+				ret = true;
+		}
 		foreach (PendingOp op in pending) {
 			switch (op.Kind) {
-			case PendingOpKind.PushTop:
-			case PendingOpKind.PushBottom:
+			case PendingOpKind.BeginPushTop:
+			case PendingOpKind.BeginPushBottom:
+			case PendingOpKind.FinishPushTop:
+			case PendingOpKind.FinishPushBottom:
 				if (ReferenceEquals(op.Layer, layer))
 					ret = true;
 				break;
@@ -469,7 +674,8 @@ public sealed class LayerStack : IDisposable {
 				if (ReferenceEquals(op.Layer, layer))
 					ret = false;
 				break;
-			case PendingOpKind.Replace:
+			case PendingOpKind.BeginReplace:
+			case PendingOpKind.FinishReplace:
 				if (ReferenceEquals(op.Layer, layer))
 					ret = false;
 				if (ReferenceEquals(op.NewLayer, layer))
