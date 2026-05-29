@@ -11,7 +11,6 @@ using Hexa.NET.SDL3;
 
 using Injure.Assets;
 using Injure.Assets.Builtin;
-using Injure.Audio;
 using Injure.Graphics;
 using Injure.Graphics.Text;
 using Injure.Input;
@@ -235,7 +234,6 @@ bootstrapCancelled:
 			assets.RegisterStagedCreator(EngineInfo.OwnerID, new Texture2DAssetCreator(gpuDevice), "Texture2DAssetCreator");
 			assetCtx = assets.AttachCurrentThread();
 		}
-		AudioEngine? audio = svconf.Audio ? new AudioEngine() : null;
 		TextSystem? text = null;
 		if (svconf.Text) {
 			text = new TextSystem(gpuDevice);
@@ -254,7 +252,6 @@ bootstrapCancelled:
 			eresources,
 			assets,
 			assetCtx,
-			audio,
 			text
 		);
 
@@ -372,7 +369,6 @@ bootstrapCancelled:
 		canvasResources.Dispose();
 		services.Shutdown();
 		text?.Dispose();
-		audio?.Dispose();
 		assetCtx?.Dispose();
 		viewGlobals.Dispose();
 		sfOutput.Dispose();

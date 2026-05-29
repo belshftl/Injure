@@ -5,7 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 
 using Injure.Assets;
-using Injure.Audio;
 using Injure.Graphics.Text;
 using Injure.Input;
 using Injure.Layers;
@@ -105,7 +104,6 @@ public sealed class GameServices {
 	private readonly GameServiceLifetime lifetime;
 	private readonly AssetStore? assets;
 	private readonly AssetThreadContext? assetMainThreadCtx;
-	private readonly AudioEngine? audio;
 	private readonly TextSystem? text;
 
 	// required:
@@ -118,10 +116,8 @@ public sealed class GameServices {
 
 	// optional:
 	public AssetStore Assets { get => AliveAndNonnull(lifetime, assets, "assets subsystem is not enabled"); }
-	public AudioEngine Audio { get => AliveAndNonnull(lifetime, audio, "audio subsystem is not enabled"); }
 	public TextSystem Text { get => AliveAndNonnull(lifetime, text, "text subsystem is not enabled"); }
 	public bool HasAssets => Alive(lifetime, assets is not null);
-	public bool HasAudio => Alive(lifetime, audio is not null);
 	public bool HasText => Alive(lifetime, text is not null);
 
 	internal GameServices(
@@ -136,7 +132,6 @@ public sealed class GameServices {
 		EngineResourceStore engineResources,
 		AssetStore? assets,
 		AssetThreadContext? assetMainThreadCtx,
-		AudioEngine? audio,
 		TextSystem? text
 	) {
 		if ((assets is null) ^ (assetMainThreadCtx is null))
@@ -150,7 +145,6 @@ public sealed class GameServices {
 		Advanced = new AdvancedServices(lifetime, engineResources, assetMainThreadCtx);
 		this.assets = assets;
 		this.assetMainThreadCtx = assetMainThreadCtx;
-		this.audio = audio;
 		this.text = text;
 	}
 

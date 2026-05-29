@@ -72,7 +72,7 @@ public sealed class Game : IGame {
 		await Mods.StartAsync(CancellationToken.None);
 
 		Runner.Run(g, new GameConfig(
-			Service: new ServiceConfig(Assets: true, Audio: false, Text: true),
+			Service: new ServiceConfig(Assets: true, Text: true),
 			Window: new WindowConfig(new WindowSettings(Title: "TestGame", Width: 640, Height: 480)),
 			Render: new RenderConfig(new RenderSettings(PresentMode.Adaptive)),
 			Timing: new TimingConfig(new TimingSettings(RenderTimingMode.Capped, TargetFPS: 60.0))
@@ -101,7 +101,7 @@ public sealed class Game : IGame {
 	}
 
 	public void Shutdown() {
-		Mods.DetachGameDeactivateBlocking();
+		Mods.ShutdownOrAbortBlocking();
 		GameServices = null!;
 	}
 

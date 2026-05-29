@@ -6,7 +6,6 @@ namespace Injure.Core;
 
 public readonly record struct ServiceConfig(
 	bool Assets,
-	bool Audio,
 	bool Text
 );
 
