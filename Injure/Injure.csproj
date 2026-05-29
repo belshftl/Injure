@@ -42,9 +42,6 @@
 
 		<!-- asset decoding -->
 		<PackageReference Include="StbImageSharp" Version="2.30.15" />
-
-		<!-- audio -->
-		<PackageReference Include="Miniaudio-CS" Version="1.0.4" />
 	</ItemGroup>
 
 	<ItemGroup>

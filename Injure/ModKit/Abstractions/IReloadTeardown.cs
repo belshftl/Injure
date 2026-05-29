@@ -12,8 +12,9 @@ public readonly partial struct ReloadTeardownReason {
 		Reload = 1,
 		Disable,
 		Shutdown,
+		Abort,
 		FailureRollback,
-		PartialReload
+		PartialReload,
 	}
 }
 

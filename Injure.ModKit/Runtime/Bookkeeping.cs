@@ -25,8 +25,11 @@ public readonly partial struct RuntimePhase {
 		LoadHooksApplied,
 		Linked,
 		//LinkHooksApplied,
+		GameAttached,
 		Active,
 		Faulted,
+		Shutdown,
+		Aborted,
 	}
 }
 
