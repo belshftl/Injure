@@ -14,17 +14,17 @@ internal sealed class LayerRuntime : ILayerTickTracker, IDisposable {
 	public CoroutineScheduler Coroutines { get; }
 	public CoroutineScope CoroutineScope { get; }
 
-	private readonly List<ITickTimestampReceiver> toUpdate;
+	private readonly List<IMonoTickReceiver> toUpdate;
 	private ActionContext? actionCtx;
 
 	public LayerRuntime() {
 		Time = new LayerTimeDomain();
 		Coroutines = new CoroutineScheduler();
 		CoroutineScope = CoroutineScope.CreateRoot(Coroutines, "Layer");
-		toUpdate = new List<ITickTimestampReceiver>();
+		toUpdate = new List<IMonoTickReceiver>();
 	}
 
-	public T Track<T>(T obj) where T : class, ITickTimestampReceiver {
+	public T Track<T>(T obj) where T : class, IMonoTickReceiver {
 		ArgumentNullException.ThrowIfNull(obj);
 		toUpdate.Add(obj);
 		return obj;
@@ -35,7 +35,7 @@ internal sealed class LayerRuntime : ILayerTickTracker, IDisposable {
 	}
 
 	public void UpdateTickTracked(MonoTick tick) {
-		foreach (ITickTimestampReceiver r in toUpdate)
+		foreach (IMonoTickReceiver r in toUpdate)
 			r.Update(tick);
 	}
 

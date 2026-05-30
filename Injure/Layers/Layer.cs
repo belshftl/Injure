@@ -80,7 +80,7 @@ public abstract class Layer {
 	protected CoroutineScope CoroutineScope => Runtime?.CoroutineScope ?? throw new InvalidOperationException(eMsg);
 
 	/// <summary>
-	/// Runtime-provided tick tracker (automatic updater of <see cref="Timing.ITickTimestampReceiver"/>
+	/// Runtime-provided tick tracker (automatic updater of <see cref="Timing.IMonoTickReceiver"/>
 	/// objects) for this layer.
 	/// </summary>
 	/// <remarks>

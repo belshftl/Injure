@@ -5,5 +5,5 @@ using Injure.Timing;
 namespace Injure.Layers;
 
 public interface ILayerTickTracker {
-	T Track<T>(T obj) where T : class, ITickTimestampReceiver;
+	T Track<T>(T obj) where T : class, IMonoTickReceiver;
 }

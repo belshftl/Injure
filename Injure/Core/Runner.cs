@@ -346,7 +346,7 @@ bootstrapCancelled:
 					}
 				} else if (remaining > t0_1ms) { // 1.5ms >= n > 0.1ms
 					MonoTick n = remaining - t0_1ms; // 0.1ms of safety
-					PreciseWait.Wait(checked((long)n.ToNanoseconds()));
+					PreciseWait.WaitPreferUndershoot(checked((long)n.ToNanoseconds()));
 				} else { // 0.1ms >= n > 0ms
 					Thread.SpinWait(128);
 				}

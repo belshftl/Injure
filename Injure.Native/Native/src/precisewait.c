@@ -23,7 +23,7 @@ extern "C" {
 
 EXPORT int  precisewait_init(void);
 EXPORT void precisewait_deinit(void);
-EXPORT int  precisewait(int64_t ns);
+EXPORT int  precisewait(int64_t ns, int overshoot);
 
 #if defined(__cplusplus)
 }
@@ -43,7 +43,7 @@ static HANDLE timer = NULL;
 int
 precisewait_init(void)
 {
-	if (timer != NULL)
+	if (timer != NULL), __attribute__((__unused__)) int overshoot
 		return 0;
 	timer = CreateWaitableTimerExW(NULL, NULL,
 		CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
@@ -63,7 +63,7 @@ precisewait_deinit(void)
 }
 
 int
-precisewait(int64_t ns)
+precisewait(int64_t ns, int overshoot)
 {
 	if (ns < 0)
 		return ERROR_INVALID_PARAMETER;
@@ -77,7 +77,10 @@ precisewait(int64_t ns)
 	 * also it has to be negative for a relative timer
 	 */
 	LARGE_INTEGER time;
-	time.QuadPart = -((LONGLONG)ns / 100); /* floor */
+	if (!overshoot)
+		time.QuadPart = -((LONGLONG)ns / 100); /* floor */
+	else
+		time.QuadPart = -((LONGLONG)(ns / 100 + (ns % 100 != 0))); /* ceil */
 	if (!SetWaitableTimer(timer, &time, 0, NULL, NULL, FALSE))
 		return (int)GetLastError();
 	DWORD rv = WaitForSingleObject(timer, INFINITE);
@@ -127,7 +130,7 @@ toabs(uint64_t ns)
 }
 
 int
-precisewait(int64_t ns)
+precisewait(int64_t ns, __attribute__((__unused__)) int overshoot)
 {
 	if (ns < 0)
 		return KERN_INVALID_ARGUMENT;
@@ -194,7 +197,7 @@ addns(struct timespec tp, int64_t ns)
 }
 
 int
-precisewait(int64_t ns)
+precisewait(int64_t ns, __attribute__((__unused__)) int overshoot)
 {
 	if (ns < 0)
 		return EINVAL;

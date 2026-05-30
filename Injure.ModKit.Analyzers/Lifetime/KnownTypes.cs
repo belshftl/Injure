@@ -7,7 +7,7 @@ namespace Injure.ModKit.Analyzers.Lifetime;
 internal sealed class KnownTypes(Compilation comp) {
 	public INamedTypeSymbol? Hook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Hook);
 	public INamedTypeSymbol? ILHook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILHook);
-	public INamedTypeSymbol? NativeDetour { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.NativeDetour);
+	public INamedTypeSymbol? NativeHook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.NativeHook);
 
 	public INamedTypeSymbol? IDisposable { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IDisposable);
 	public INamedTypeSymbol? IAsyncDisposable { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IAsyncDisposable);

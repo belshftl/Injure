@@ -3,5 +3,5 @@
 namespace Injure.ModKit;
 
 internal interface IStrongRefDroppable {
-	public void DropStrongReferences();
+	void DropStrongReferences();
 }
