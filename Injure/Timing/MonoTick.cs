@@ -13,6 +13,8 @@ namespace Injure.Timing;
 /// </summary>
 [StronglyTypedInt(typeof(ulong))]
 public readonly partial struct MonoTick : IRealTimeScalar<MonoTick> {
+	static MonoTick ITimelineScalar<MonoTick>.Zero => Zero;
+
 	/// <summary>
 	/// How many ticks make up a second.
 	/// </summary>

@@ -9,7 +9,7 @@ using Injure.Timing;
 
 namespace Injure.Layers;
 
-internal sealed class LayerRuntime : ILayerTickTracker, IDisposable {
+internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	public LayerTimeDomain Time { get; }
 	public CoroutineScheduler Coroutines { get; }
 	public CoroutineScope CoroutineScope { get; }
@@ -24,7 +24,7 @@ internal sealed class LayerRuntime : ILayerTickTracker, IDisposable {
 		toUpdate = new List<IMonoTickReceiver>();
 	}
 
-	public T Track<T>(T obj) where T : class, IMonoTickReceiver {
+	public T Feed<T>(T obj) where T : class, IMonoTickReceiver {
 		ArgumentNullException.ThrowIfNull(obj);
 		toUpdate.Add(obj);
 		return obj;
@@ -34,7 +34,7 @@ internal sealed class LayerRuntime : ILayerTickTracker, IDisposable {
 		actionCtx = profile is null ? null : new ActionContext(profile);
 	}
 
-	public void UpdateTickTracked(MonoTick tick) {
+	public void UpdateTickFed(MonoTick tick) {
 		foreach (IMonoTickReceiver r in toUpdate)
 			r.Update(tick);
 	}

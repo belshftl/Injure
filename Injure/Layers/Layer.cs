@@ -45,15 +45,15 @@ public readonly record struct LayerBlockRule(LayerBlockMask Blocked, LayerTagSet
 /// </para>
 /// <para>
 /// Expensive preparation should be done in <see cref="WarmAsync"/>. Activation-bound
-/// services such as time domain, coroutines, tick tracking, etc. are only available
-/// from <see cref="OnEnter"/> until <see cref="OnLeave"/> returns.
+/// services such as time domain, coroutines, <see cref="Timing.IMonoTickReceiver"/> auto-update,
+/// etc. are only available from <see cref="OnEnter"/> until <see cref="OnLeave"/> returns.
 /// </para>
 /// </remarks>
 public abstract class Layer {
 	internal LayerStack? Owner { get; set; }
 	internal LayerRuntime? Runtime { get; private set; }
 
-	private const string eMsg = "activation-bound layer services (time domain, coroutines, tick tracking) are not available yet (most likely, you have to move this code from the constructor or WarmAsync to OnEnter)";
+	private const string eMsg = "activation-bound layer services (time domain, coroutines, IMonoTickReceiver auto-update) are not available yet; most likely, you have to move this code from the constructor or WarmAsync to OnEnter";
 
 	/// <summary>
 	/// Runtime-provided time domain for this layer.
@@ -80,13 +80,13 @@ public abstract class Layer {
 	protected CoroutineScope CoroutineScope => Runtime?.CoroutineScope ?? throw new InvalidOperationException(eMsg);
 
 	/// <summary>
-	/// Runtime-provided tick tracker (automatic updater of <see cref="Timing.IMonoTickReceiver"/>
-	/// objects) for this layer.
+	/// Runtime-provided automatic updater of <see cref="Timing.IMonoTickReceiver"/>
+	/// objects for this layer.
 	/// </summary>
 	/// <remarks>
 	/// This is an activation-bound service.
 	/// </remarks>
-	protected ILayerTickTracker TickTracker => Runtime ?? throw new InvalidOperationException(eMsg);
+	protected ILayerTickFeeder TickFeeder => Runtime ?? throw new InvalidOperationException(eMsg);
 
 	internal void AttachRuntime(LayerRuntime runtime) {
 		Runtime = runtime ?? throw new InternalStateException("AttachRuntime got passed null");

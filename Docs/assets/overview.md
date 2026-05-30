@@ -28,7 +28,6 @@ Design goals include:
 Current limitations (all of these are planned to be fixed before a stable release):
 - API mostly not as volatile anymore but still prerelease quality and not stabilized
 - there is no good way to replace assets yet, something like owner-ordered slot replacements for `AssetRef`s are planned
-- no built-in file watcher yet
 - path behavior on Windows hasn't been tested yet
 - `EngineResourceStore`, etc may need a rename and also being a bit less barebones
 

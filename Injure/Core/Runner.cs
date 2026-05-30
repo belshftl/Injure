@@ -19,7 +19,6 @@ using Injure.Rendering;
 using Injure.Scheduling;
 using Injure.Timing;
 
-using EngineInfo = Injure.ModKit.Abstractions.EngineInfo;
 using Thread = System.Threading.Thread;
 
 namespace Injure.Core;
@@ -206,7 +205,6 @@ bootstrapCancelled:
 		TimingController timingControl = new(tmst);
 
 		// service/system init
-		// TODO: the builtin source/resolver/creator registry should be moved out somewhere
 		TickerScheduler sched = new(new TickerSchedulerOptions(
 			MaxBatchDuration: loopStep,
 			Budget: TickerBudgetOptions.CreateDefault(loopStep)
@@ -229,16 +227,15 @@ bootstrapCancelled:
 		AssetThreadContext? assetCtx = null;
 		if (svconf.Assets) {
 			assets = new AssetStore();
-			assets.RegisterResolver(EngineInfo.OwnerID, new Texture2DJsonAssetResolver(), "Texture2DJsonAssetResolver");
-			assets.RegisterResolver(EngineInfo.OwnerID, new Texture2DImageAssetResolver(), "Texture2DImageAssetResolver");
-			assets.RegisterStagedCreator(EngineInfo.OwnerID, new Texture2DAssetCreator(gpuDevice), "Texture2DAssetCreator");
+			BuiltinAssetRegistrations.RegisterBaseInto(assets);
+			BuiltinAssetRegistrations.RegisterTexture2DInto(assets, gpuDevice);
 			assetCtx = assets.AttachCurrentThread();
 		}
 		TextSystem? text = null;
 		if (svconf.Text) {
 			text = new TextSystem(gpuDevice);
-			assets?.RegisterResolver(EngineInfo.OwnerID, new FontAssetResolver(), "FontSourceAssetResolver");
-			assets?.RegisterCreator(EngineInfo.OwnerID, new FontAssetCreator(text), "FontSourceAssetCreator");
+			if (assets is not null)
+				BuiltinAssetRegistrations.RegisterFontInto(assets, text);
 		}
 		services = new GameServices(
 			sched,
