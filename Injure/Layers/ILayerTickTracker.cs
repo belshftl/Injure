@@ -4,6 +4,6 @@ using Injure.Timing;
 
 namespace Injure.Layers;
 
-public interface ILayerTickTracker {
-	T Track<T>(T obj) where T : class, IMonoTickReceiver;
+public interface ILayerTickFeeder {
+	T Feed<T>(T obj) where T : class, IMonoTickReceiver;
 }

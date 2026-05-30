@@ -87,7 +87,7 @@ public sealed class StronglyTypedIntGenerator : IIncrementalGenerator {
 		sb.Append("\tglobal::System.ISpanParsable<").Append(targetType).AppendLine("> {");
 		sb.Append("\t\tprivate readonly ").Append(backingType).Append(' ').Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
 		sb.Append("\t\tpublic ").Append(backingType).Append(" Value => ").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static ").Append(targetType).AppendLine(" Zero { get; } = new(0);");
+		sb.Append("\t\tpublic static readonly ").Append(targetType).AppendLine(" Zero = new(0);");
 		sb.Append("\t\tpublic ").Append(targetType).Append("(").Append(backingType).AppendLine(" val) {");
 		sb.Append("\t\t\t").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(" = val;");
 		sb.AppendLine("\t\t}");

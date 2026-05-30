@@ -281,7 +281,7 @@ public sealed class LayerStack : IDisposable {
 
 				double dt = tm.Transform(rawDt);
 				tm.Advance(dt, rawDt);
-				rt.UpdateTickTracked(info.ActualAt);
+				rt.UpdateTickFed(info.ActualAt);
 
 				ControlView controls = rt.UpdateControls(info.ActualAt, inputView);
 				LayerTickContext ctx = new(
