@@ -35,8 +35,8 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 			return required(LifetimeObligationKind.Hook, "hook");
 		if (type.IsOrDerivesFrom(known.ILHook))
 			return required(LifetimeObligationKind.ILHook, "IL hook");
-		if (type.IsOrDerivesFrom(known.NativeDetour))
-			return required(LifetimeObligationKind.NativeDetour, "native detour");
+		if (type.IsOrDerivesFrom(known.NativeHook))
+			return required(LifetimeObligationKind.NativeHook, "native hook");
 		if (type.IsOrDerivesFrom(known.Thread))
 			return required(LifetimeObligationKind.Thread, "thread");
 		if (type.IsOrDerivesFrom(known.Timer) || type.IsOrDerivesFrom(known.TimersTimer))
@@ -92,7 +92,7 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 		return obl.Kind switch {
 			LifetimeObligationKind.Hook => tryDispose(invocation, obl),
 			LifetimeObligationKind.ILHook => tryDispose(invocation, obl),
-			LifetimeObligationKind.NativeDetour => tryDispose(invocation, obl),
+			LifetimeObligationKind.NativeHook => tryDispose(invocation, obl),
 			LifetimeObligationKind.Thread => tryThreadJoin(invocation, obl),
 			LifetimeObligationKind.Timer => tryDispose(invocation, obl),
 			LifetimeObligationKind.PeriodicTimer => tryDispose(invocation, obl),

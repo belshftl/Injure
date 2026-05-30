@@ -5,7 +5,7 @@ namespace Injure.ModKit.Analyzers.Lifetime;
 internal enum LifetimeObligationKind {
 	Hook,
 	ILHook,
-	NativeDetour,
+	NativeHook,
 	Thread,
 	Timer,
 	PeriodicTimer,

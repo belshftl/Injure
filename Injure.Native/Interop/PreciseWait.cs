@@ -18,7 +18,7 @@ public static partial class PreciseWait {
 
 	[LibraryImport("injurenative")]
 	[UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-	private static partial int precisewait(long ns);
+	private static partial int precisewait(long ns, [MarshalAs(UnmanagedType.Bool)] bool overshoot);
 
 	private static bool inited = false;
 
@@ -50,10 +50,10 @@ public static partial class PreciseWait {
 		}
 	}
 
-	public static void Wait(long ns) {
+	public static void Wait(long ns, bool overshoot) {
 		if (!inited)
 			throw new InvalidOperationException("PreciseWait not initialized");
 		ArgumentOutOfRangeException.ThrowIfNegative(ns);
-		wrap("precisewait", precisewait(ns));
+		wrap("precisewait", precisewait(ns, overshoot));
 	}
 }

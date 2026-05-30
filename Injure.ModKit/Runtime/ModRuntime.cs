@@ -354,8 +354,6 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	public async ValueTask ShutdownOrAbortAsync(CancellationToken ct = default) {
-		if (phase == RuntimePhase.Empty)
-			return;
 		if (phase == RuntimePhase.Faulted) {
 			await AbortAsync().ConfigureAwait(false);
 			return;
@@ -633,14 +631,18 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	public async ValueTask ShutdownAsync(CancellationToken ct = default) {
 		await writeLock.WaitAsync(ct).ConfigureAwait(false);
 		try {
+			if (phase == RuntimePhase.Empty || phase == RuntimePhase.Shutdown) {
+				phase = RuntimePhase.Shutdown;
+				return;
+			}
 			if (phase == RuntimePhase.Faulted)
 				throw new InvalidOperationException("runtime is faulted; use AbortAsync() for emergency cleanup");
+			if (phase == RuntimePhase.Aborted)
+				throw new InvalidOperationException("runtime has already been aborted");
 			lock (opLock)
 				pendingOps.Clear();
 
 			RuntimePhase startingPhase = phase;
-			if (startingPhase == RuntimePhase.Empty)
-				return;
 			if (startingPhase == RuntimePhase.Active) {
 				await deactivateSetAsync(activeCode.Keys.ToHashSet(StringComparer.Ordinal), activeGraph, reverse: true, ct).ConfigureAwait(false);
 				phase = RuntimePhase.GameAttached;
@@ -676,6 +678,8 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	public async ValueTask AbortAsync() {
 		await writeLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
 		try {
+			if (phase == RuntimePhase.Empty || phase == RuntimePhase.Shutdown || phase == RuntimePhase.Aborted)
+				return; // finally block should set phase = RuntimePhase.Aborted
 			lock (opLock)
 				pendingOps.Clear();
 

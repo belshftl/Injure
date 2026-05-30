@@ -5,7 +5,7 @@ namespace Injure.ModKit.Analyzers.Lifetime;
 internal static class KnownTypeMetadataNames {
 	public const string Hook = "MonoMod.RuntimeDetour.Hook";
 	public const string ILHook = "MonoMod.RuntimeDetour.ILHook";
-	public const string NativeDetour = "MonoMod.RuntimeDetour.NativeDetour";
+	public const string NativeHook = "MonoMod.RuntimeDetour.NativeHook";
 
 	public const string IDisposable = "System.IDisposable";
 	public const string IAsyncDisposable = "System.IAsyncDisposable";
