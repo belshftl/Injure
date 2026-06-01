@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+using System;
+
 namespace Injure.ModKit.Analyzers.Lifetime;
 
 internal enum LifetimeObligationKind {
@@ -55,6 +57,28 @@ internal enum ControlExitKind {
 	Continue,
 }
 
-internal static class ObligationSatisfactionLevels {
-	public static bool Satisfies(ObligationSatisfactionLevel actual, ObligationSatisfactionLevel required) => actual >= required;
+internal enum FlowMergeKind {
+	Conditional,
+	LoopIteration,
+	Goto,
+	TryCatch,
+	TryFinally,
+	Snapshot,
+}
+
+[Flags]
+internal enum ObligationPathState {
+	None                = 0,
+	Absent              = 1 << 0,
+	Open                = 1 << 1,
+	Satisfied           = 1 << 2,
+	MethodSatisfied     = 1 << 3,
+	GenerationSatisfied = 1 << 4,
+	Leaked              = 1 << 5,
+	ExceptionLeaked     = 1 << 6,
+}
+
+internal enum ObligationLeakKind {
+	AllKnownPaths,
+	OnlySomePaths,
 }

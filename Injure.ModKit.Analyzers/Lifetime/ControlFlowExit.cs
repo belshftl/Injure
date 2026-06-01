@@ -10,6 +10,8 @@ internal sealed class ControlFlowExit {
 	public required Location Location { get; init; }
 	public ILabelSymbol? Target { get; init; }
 	public ObligationTransitionCause Cause { get; init; }
+	public ITypeSymbol? ExceptionType { get; init; }
+	public bool ExceptionTypeUnknown { get; init; }
 
 	public ControlFlowExit Clone() => new() {
 		Kind = Kind,
@@ -17,5 +19,7 @@ internal sealed class ControlFlowExit {
 		Location = Location,
 		Target = Target,
 		Cause = Cause,
+		ExceptionType = ExceptionType,
+		ExceptionTypeUnknown = ExceptionTypeUnknown,
 	};
 }

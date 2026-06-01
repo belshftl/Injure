@@ -19,10 +19,7 @@ public readonly partial struct CoroutineStatus {
 public readonly partial struct CoroCancellationReason {
 	public enum Case {
 		ManualStop = 1,
-		OwnerRemoved,
 		ScopeCancelled,
-		ScopeEnded,
-		Timeout,
 		FaultPropagation,
 	}
 }
