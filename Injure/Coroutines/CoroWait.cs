@@ -91,9 +91,10 @@ internal sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFa
 					throw new CoroutineCancelledException(handle, info.CancellationReason ?? CoroCancellationReason.ManualStop);
 				return false;
 			case CoroutineStatus.Case.Faulted:
-				// XXX we need a nicer api than just "null-suppress Fault if the status is Faulted"
+				if (info.Fault is null)
+					throw new InternalStateException("expected Fault to be nonnull on Faulted status");
 				if (propagateFault)
-					throw new CoroutineChildFaultException(handle, info.Fault!);
+					throw new CoroutineChildFaultException(handle, info.Fault);
 				return false;
 			default:
 				throw new UnreachableException();

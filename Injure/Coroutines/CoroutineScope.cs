@@ -60,6 +60,6 @@ public sealed class CoroutineScope {
 		return false;
 	}
 
-	internal bool TryRegister(CoroutineHandle handle) => !Cancelled ? members.Add(handle) : false;
+	internal bool TryRegister(CoroutineHandle handle) => !Cancelled && members.Add(handle);
 	internal void Unregister(CoroutineHandle handle) => members.Remove(handle);
 }

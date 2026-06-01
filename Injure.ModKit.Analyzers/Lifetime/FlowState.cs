@@ -67,18 +67,27 @@ internal sealed class FlowState {
 		return builder.ToImmutable();
 	}
 
-	public static FlowState MergeWorst(FlowState left, FlowState right, Location location) {
-		FlowState result = left.Clone();
-		foreach (LifetimeObligation rightObligation in right.byID.Values) {
-			if (result.byID.TryGetValue(rightObligation.ID, out LifetimeObligation? leftObligation)) {
-				LifetimeObligation merged = LifetimeObligation.MergeWorst(leftObligation, rightObligation, location);
-				result.byID[merged.ID] = merged;
-				if (merged.Local is not null)
-					result.byLocal[merged.Local] = merged.ID;
+	public static FlowState MergeWorst(FlowState left, FlowState right, Location location, FlowMergeKind kind) {
+		FlowState result = new();
+		foreach (LifetimeObligation leftObligation in left.byID.Values) {
+			if (right.byID.TryGetValue(leftObligation.ID, out LifetimeObligation? rightObligation)) {
+				LifetimeObligation merged = LifetimeObligation.MergeWorst(leftObligation, rightObligation, location, kind);
+				result.Add(merged);
 			} else {
-				result.Add(rightObligation.Clone());
+				LifetimeObligation merged = leftObligation.Clone();
+				merged.AddPathDivergence(new ObligationPathDivergence(kind, location, leftObligation.ToPathState(), ObligationPathState.Absent));
+				result.Add(merged);
 			}
 		}
+
+		foreach (LifetimeObligation rightObligation in right.byID.Values) {
+			if (left.byID.ContainsKey(rightObligation.ID))
+				continue;
+			LifetimeObligation merged = rightObligation.Clone();
+			merged.AddPathDivergence(new ObligationPathDivergence(kind, location, ObligationPathState.Absent, rightObligation.ToPathState()));
+			result.Add(merged);
+		}
+
 		return result;
 	}
 }

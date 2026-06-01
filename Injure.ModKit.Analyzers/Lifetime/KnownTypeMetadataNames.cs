@@ -9,6 +9,7 @@ internal static class KnownTypeMetadataNames {
 
 	public const string IDisposable = "System.IDisposable";
 	public const string IAsyncDisposable = "System.IAsyncDisposable";
+	public const string Exception = "System.Exception";
 
 	public const string Thread = "System.Threading.Thread";
 	public const string Timer = "System.Threading.Timer";

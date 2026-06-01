@@ -19,8 +19,7 @@ namespace Injure.Coroutines;
 public sealed class CoroutineScheduler {
 	// ==========================================================================
 	// internal types
-	private sealed class CoroutineStackFrame(IEnumerator enumerator,
-			string debugName, string sourceFile = "", int sourceLine = 0, string sourceMember = "") : IDisposable {
+	private sealed class CoroutineStackFrame(IEnumerator enumerator, string debugName, string sourceFile = "", int sourceLine = 0, string sourceMember = "") : IDisposable {
 		public IEnumerator Enumerator = enumerator;
 		public string DebugName = debugName;
 		public string SourceFile = sourceFile;
@@ -52,9 +51,8 @@ public sealed class CoroutineScheduler {
 		public CoroutineTrace? PreservedTerminalTrace;
 		private bool terminated = false;
 
-		// not a Stack<CoroutineStackFrame> because there was kind of no reason
-		// to and this makes dumping the entire stack / accessing a frame N deep / etc
-		// easier
+		// not a Stack<CoroutineStackFrame> because there was kind of no reason to and this
+		// makes dumping the entire stack / accessing a frame N deep / etc easier
 		private readonly List<CoroutineStackFrame> stack = new();
 		public int StackDepth => stack.Count;
 
@@ -167,14 +165,14 @@ public sealed class CoroutineScheduler {
 	private CoroutineTick tick;
 
 	/// <summary>
-	/// Controls how unhandled coroutine faults are processed after the scheduler
-	/// is finished with the current tick.
+	/// How unhandled coroutine faults are processed after the scheduler is finished
+	/// with the current tick.
 	/// </summary>
 	/// <remarks>
-	/// "Unhandled" means coroutine faults that are not otherwise observed or
-	/// propagated through structured child execution or explicit handle waits.
+	/// "Unhandled" means coroutine faults that are not otherwise observed/propagated
+	/// through child execution or handle waits.
 	/// Processing is done after faulted coroutines have already been transitioned
-	/// to terminal state, unwound, recorded, and queued for reaping.
+	/// to terminal state, unwound, recorded, and queued to be reaped.
 	/// </remarks>
 	public CoroUnhandledFaultMode UnhandledFaultMode { get; set; } = CoroUnhandledFaultMode.LogAndThrowAfterTick;
 
@@ -200,8 +198,7 @@ public sealed class CoroutineScheduler {
 
 	// ==========================================================================
 	// public api
-	private CoroutineHandle start(IEnumerator routine, CoroutineScope scope, bool defer, CoroutineOptions? options,
-			string callerFile, int callerLine, string callerMember) {
+	private CoroutineHandle start(IEnumerator routine, CoroutineScope scope, bool defer, CoroutineOptions? options, string callerFile, int callerLine, string callerMember) {
 		ArgumentNullException.ThrowIfNull(routine);
 		ArgumentNullException.ThrowIfNull(scope);
 		if (!ReferenceEquals(scope.Scheduler, this))
@@ -238,8 +235,7 @@ public sealed class CoroutineScheduler {
 	}
 
 	/// <summary>
-	/// Creates a coroutine bound to the specified scope and schedules it to
-	/// be started on the next tick.
+	/// Creates a coroutine bound to the specified scope and schedules it to be started on the next tick.
 	/// </summary>
 	/// <param name="routine">The root iterator to run.</param>
 	/// <param name="scope">The lifetime scope to bind to. Must belong to this scheduler.</param>

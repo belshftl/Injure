@@ -20,11 +20,11 @@ internal sealed class FlowResult {
 
 	public static FlowResult NoContinue() => new();
 
-	public static FlowResult Merge(FlowResult left, FlowResult right, Location location) {
+	public static FlowResult Merge(FlowResult left, FlowResult right, Location location, FlowMergeKind kind) {
 		FlowState? continueState = null;
 
 		if (left.ContinueState is not null && right.ContinueState is not null)
-			continueState = FlowState.MergeWorst(left.ContinueState, right.ContinueState, location);
+			continueState = FlowState.MergeWorst(left.ContinueState, right.ContinueState, location, kind);
 		else if (left.ContinueState is not null)
 			continueState = left.ContinueState.Clone();
 		else if (right.ContinueState is not null)
