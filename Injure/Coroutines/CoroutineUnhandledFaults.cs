@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-using System;
-
 using Injure.Internals.Analyzers.Attributes;
+using Injure.ModKit.Abstractions;
 
 namespace Injure.Coroutines;
 
@@ -17,7 +16,7 @@ public readonly partial struct CoroUnhandledFaultMode {
 }
 
 public sealed class CoroutineUnhandledFaultInfo {
-	public required Exception Exception { get; init; }
+	public required ExceptionSnapshot Exception { get; init; }
 	public required CoroutineInfo Info { get; init; }
 	public required CoroutineTrace Trace { get; init; }
 }

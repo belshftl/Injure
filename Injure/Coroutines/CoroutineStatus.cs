@@ -21,6 +21,8 @@ public readonly partial struct CoroCancellationReason {
 		ManualStop = 1,
 		ScopeCancelled,
 		FaultPropagation,
+		OwnerRemoved,
+		SchedulerDisposed,
 	}
 }
 
