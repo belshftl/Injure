@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
+using Injure.ModKit.Abstractions;
+
 namespace Injure.Coroutines;
 
 /// <summary>
@@ -16,7 +18,7 @@ namespace Injure.Coroutines;
 /// When in the middle of a coroutine step, control operations (cancel/pause/resume) are
 /// deferred to be applied at safe points instead of interrupting execution on the spot.
 /// </remarks>
-public sealed class CoroutineScheduler {
+public sealed class CoroutineScheduler : IDisposable {
 	// ==========================================================================
 	// internal types
 	private sealed class CoroutineStackFrame(IEnumerator enumerator, string debugName, string sourceFile = "", int sourceLine = 0, string sourceMember = "") : IDisposable {
@@ -183,7 +185,7 @@ public sealed class CoroutineScheduler {
 	/// Primarily used to report unhandled coroutine faults. Only used when the
 	/// selected <see cref="UnhandledFaultMode"/> includes logging.
 	/// </remarks>
-	public Action<string> DiagnosticLogSink { get; set; } = static msg => Console.Error.WriteLine(msg);
+	public Action<string> DiagnosticLogSink { get; set; } = Console.Error.WriteLine;
 
 	/// <summary>
 	/// Invoked for each unhandled coroutine fault after the faulted coroutine has
@@ -325,9 +327,13 @@ public sealed class CoroutineScheduler {
 	/// request was accepted; otherwise, <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
+	/// <para>
 	/// When in the middle of a coroutine step, cancellation is deferred to be
 	/// applied at a safe point instead of interrupting execution immediately.
+	/// </para>
+	/// <para>
 	/// <see cref="CoroCancellationReason.ManualStop"/> is recorded as the cancellation reason.
+	/// </para>
 	/// </remarks>
 	public bool TryCancel(CoroutineHandle handle) => TryCancel(handle, CoroCancellationReason.ManualStop);
 
@@ -505,6 +511,66 @@ public sealed class CoroutineScheduler {
 		return false;
 	}
 
+	/// <summary>
+	/// Cancels every active/pending coroutine and clears state such as pending activations and unhandled faults.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="CoroCancellationReason.SchedulerDisposed"/> is used as the cancellation reason.
+	/// </remarks>
+	public void Dispose() {
+		foreach (int slotidx in pendingActivation)
+			if (slots[slotidx].Instance is CoroutineInstance inst)
+				instCancel(inst, CoroCancellationReason.SchedulerDisposed);
+		pendingActivation.Clear();
+
+		int[] active = activeSlots.ToArray();
+		foreach (int slotidx in active)
+			if (slots[slotidx].Instance is CoroutineInstance inst)
+				instCancel(inst, CoroCancellationReason.SchedulerDisposed);
+
+		reapAll();
+		pendingUnhandledFaults.Clear();
+	}
+
+	/// <summary>
+	/// Requests cancellation of <b>every</b> live coroutine whose scope owner ID matches
+	/// the specified owner ID.
+	/// This will certainly cause a lot of chaos and breakage if used on a live owner, so use with care.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The intended usecase is the owner being gone but not having properly stopped its coroutines.
+	/// </para>
+	/// <para>
+	/// <see cref="CoroCancellationReason.OwnerRemoved"/> is recorded as the cancellation reason.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID.
+	/// </exception>
+	/// <exception cref="AggregateException">
+	/// Thrown if cancelling one or more coroutines throws, containing all of the caught exceptions.
+	/// </exception>
+	public int DangerousCancelAllFrom(string ownerID) {
+		ModMetadataValidation.ValidateOwnerIDOrThrow(ownerID);
+		List<Exception> failures = new();
+		int cancelled = 0;
+		foreach (int slotidx in activeSlots) {
+			CoroutineInstance? inst = slots[slotidx].Instance;
+			if (inst?.Scope?.OwnerID == ownerID) {
+				try {
+					if (TryCancel(inst.Handle, CoroCancellationReason.OwnerRemoved))
+						cancelled++;
+				} catch (Exception ex) {
+					failures.Add(ex);
+				}
+			}
+		}
+		if (failures.Count > 0)
+			throw new AggregateException("cancelling one or more coroutines from this owner failed", failures);
+		return cancelled;
+	}
+
 	// ==========================================================================
 	// internal api
 	internal bool TryRetainHandle(CoroutineHandle handle) {
@@ -564,16 +630,16 @@ public sealed class CoroutineScheduler {
 			name = inst.StackPeek().DebugName;
 		return new CoroutineInfo {
 			Handle = inst.Handle,
-			Name = name ?? "<no name info available>",
-			Owner = inst.Options?.Owner,
-			Scope = inst.Scope,
+			Name = name,
+			OwnerID = inst.Scope?.OwnerID,
+			ScopeName = inst.Scope?.Name,
 			Status = inst.Status,
 			LastPhase = inst.LastPhase,
 			StartTick = inst.StartTick,
 			TerminalTick = inst.TerminalTick,
 			StackDepth = inst.StackDepth,
 			CurrentWaitDebugDescription = desc,
-			Fault = inst.Fault,
+			Fault = inst.Fault is not null ? ExceptionSnapshot.FromException(inst.Fault) : null,
 			CancellationReason = inst.CancellationReason,
 		};
 	}
@@ -807,7 +873,7 @@ public sealed class CoroutineScheduler {
 		inst.TransitionToFaulted(this, ex, tick);
 		if (slots[inst.Handle.Slot].RetainCount == 0) { // TODO: better policy for what counts as "unhandled"
 			pendingUnhandledFaults.Add(new CoroutineUnhandledFaultInfo {
-				Exception = ex,
+				Exception = ExceptionSnapshot.FromException(ex),
 				Info = makeInfo(inst),
 				Trace = inst.PreservedTerminalTrace,
 			});

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 
 using Injure.Coroutines;
 using Injure.Input;
+using Injure.ModKit.Abstractions;
 using Injure.Timing;
 
 namespace Injure.Layers;
@@ -20,7 +21,7 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	public LayerRuntime() {
 		Time = new LayerTimeDomain();
 		Coroutines = new CoroutineScheduler();
-		CoroutineScope = CoroutineScope.CreateRoot(Coroutines, "Layer");
+		CoroutineScope = CoroutineScope.CreateRoot(Coroutines, "Layer", EngineInfo.OwnerID); // TODO think about what owner ID this should use
 		toUpdate = new List<IMonoTickReceiver>();
 	}
 
@@ -57,5 +58,6 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 
 	public void Dispose() {
 		CoroutineScope.Cancel();
+		Coroutines.Dispose();
 	}
 }
