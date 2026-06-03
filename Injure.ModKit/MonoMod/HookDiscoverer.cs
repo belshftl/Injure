@@ -29,6 +29,7 @@ internal static class HookDiscoverer<TGameApi> {
 			mod.LoadHooks.Add(new HookDeclaration(
 				mod.Staged.Manifest.OwnerID,
 				createOrder(mod.Staged.Manifest.OwnerID, attr.OrderDomain, attr.LocalPriority, patchMethod, n++, "load-hook"),
+				detourIDFor(mod.Staged.Manifest.OwnerID, patchMethod),
 				target.Method,
 				patchMethod
 			));
@@ -43,6 +44,7 @@ internal static class HookDiscoverer<TGameApi> {
 			mod.LoadHooks.Add(new ILHookDeclaration(
 				mod.Staged.Manifest.OwnerID,
 				createOrder(mod.Staged.Manifest.OwnerID, attr.OrderDomain, attr.LocalPriority, patchMethod, n++, "load-il-hook"),
+				detourIDFor(mod.Staged.Manifest.OwnerID, patchMethod),
 				target.Method,
 				patchMethod
 			));
@@ -57,6 +59,7 @@ internal static class HookDiscoverer<TGameApi> {
 			mod.LoadHooks.Add(new HookDeclaration(
 				mod.Staged.Manifest.OwnerID,
 				createOrder(mod.Staged.Manifest.OwnerID, attr.OrderDomain, attr.LocalPriority, patchMethod, n++, "load-method-hook"),
+				detourIDFor(mod.Staged.Manifest.OwnerID, patchMethod),
 				target,
 				patchMethod
 			));
@@ -71,6 +74,7 @@ internal static class HookDiscoverer<TGameApi> {
 			mod.LoadHooks.Add(new ILHookDeclaration(
 				mod.Staged.Manifest.OwnerID,
 				createOrder(mod.Staged.Manifest.OwnerID, attr.OrderDomain, attr.LocalPriority, patchMethod, n++, "load-method-il-hook"),
+				detourIDFor(mod.Staged.Manifest.OwnerID, patchMethod),
 				target,
 				patchMethod
 			));
@@ -90,22 +94,26 @@ internal static class HookDiscoverer<TGameApi> {
 		throw new AmbiguousMatchException($"method '{type.FullName}.{name}' is overloaded; specify ParameterTypes");
 	}
 
-	private static HookOrder createOrder(string ownerId, string? localDomain, int localPriority, MethodInfo patchMethod, int ordinal, string prefix) {
-		string domain = string.IsNullOrWhiteSpace(localDomain) ? ownerId : ownerId + "::" + localDomain;
-		string localId = prefix + ":" + patchMethod.DeclaringType?.FullName + "." + patchMethod.Name + "#" + ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
-		return new HookOrder(domain, localId, localPriority);
+	private static HookOrder createOrder(string ownerID, string? localDomain, int localPriority, MethodInfo patchMethod, int ordinal, string prefix) {
+		if (patchMethod.DeclaringType?.FullName is null)
+			throw new InvalidOperationException("expected patch method to have a declaring type with a fully-qualified name");
+		string domain = string.IsNullOrWhiteSpace(localDomain) ? ownerID : ownerID + "::" + localDomain;
+		string localID = prefix + ":" + patchMethod.DeclaringType.FullName + "." + patchMethod.Name + "#" + ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		return new HookOrder(domain, localID, localPriority);
+	}
+
+	private static string detourIDFor(string ownerID, MethodInfo patchMethod) {
+		if (patchMethod.DeclaringType?.FullName is null)
+			throw new InvalidOperationException("expected patch method to have a declaring type with a fully-qualified name");
+		return $"{ownerID}::{patchMethod.DeclaringType.FullName}.{patchMethod.Name}";
 	}
 
 	private static Type[] getTypesStrict(Assembly assembly, string ownerId) {
 		try {
 			return assembly.GetTypes();
 		} catch (ReflectionTypeLoadException ex) {
-			string details = string.Join(
-				Environment.NewLine,
-				ex.LoaderExceptions.Where(e => e is not null).Select(e => "  - " + e!.Message)
-			);
+			string details = string.Join(Environment.NewLine, ex.LoaderExceptions.Where(e => e is not null).Select(e => "  - " + e!.Message));
 			throw new InvalidOperationException($"could not inspect all hook types for mod '{ownerId}':\n{details}", ex);
 		}
 	}
-
 }

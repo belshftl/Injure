@@ -10,6 +10,7 @@ internal sealed class KnownSymbols(Compilation comp) {
 	public INamedTypeSymbol? Hook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Hook);
 	public INamedTypeSymbol? ILHook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILHook);
 	public INamedTypeSymbol? NativeHook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.NativeHook);
+	public INamedTypeSymbol? DetourConfig { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.DetourConfig);
 	public FrozenSet<IMethodSymbol> EmitDelegateMethods { get; } =
 		comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILCursor)
 			?.GetMembers()

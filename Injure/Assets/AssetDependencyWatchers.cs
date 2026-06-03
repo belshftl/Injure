@@ -15,7 +15,6 @@ public sealed class FileAssetDependencyWatcher : IAssetDependencyWatcher<FileAss
 	public event Action<FileAssetDependency>? Changed;
 
 	public FileAssetDependencyWatcher(FileHotReloadMonitorOptions? options = null) {
-		ArgumentNullException.ThrowIfNull(monitor);
 		monitor = new FileHotReloadMonitor(options);
 		monitor.StablePathChanged += onStablePathChanged;
 	}

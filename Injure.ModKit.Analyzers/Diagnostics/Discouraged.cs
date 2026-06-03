@@ -45,7 +45,7 @@ internal static class Discouraged {
 	public static readonly DiagnosticDescriptor LifecycleContextLambdaCapture = new(
 		id: "IJM0204",
 		title: "Lifecycle context captured by lambda",
-		messageFormat: "Lifecycle context objects become invalid after the call returns so this lambda capture will most likely not work how you think it will",
+		messageFormat: "Lifecycle context objects become invalid after the call returns, so this lambda capture will most likely not work how you think it will",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
@@ -84,6 +84,24 @@ internal static class Discouraged {
 		messageFormat: "Prefer a plain static method over a static lambda for EmitDelegate, as static lambdas usually emit worse IL; what could be a plain call instruction becomes a capture of a delegate field on a compiler-generated class, and the callsite has to do weird castclass magic",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Info,
+		isEnabledByDefault: true
+	);
+
+	public static readonly DiagnosticDescriptor ManualHookWithDetourConfig = new(
+		id: "IJM0209",
+		title: "Prefer built-in hook APIs",
+		messageFormat: "Prefer built-in hook APIs instead of manually created hooks, as they provide better ergonomics, reload safety, and can have better interop conveniences for authors of other mods",
+		category: "Discouraged",
+		defaultSeverity: DiagnosticSeverity.Info,
+		isEnabledByDefault: true
+	);
+
+	public static readonly DiagnosticDescriptor ManualHookWithoutDetourConfig = new(
+		id: "IJM0210",
+		title: "Prefer built-in hook APIs, or at least use a DetourConfig",
+		messageFormat: "Prefer built-in hook APIs instead of manually created hooks, but if you must manually create a hook, it must have a detour ID (i.e be constructed with a non-null DetourConfig)",
+		category: "Discouraged",
+		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
 	);
 #pragma warning restore RS2008 // enable analyzer release tracking
