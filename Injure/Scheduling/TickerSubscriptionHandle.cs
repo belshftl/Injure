@@ -3,6 +3,7 @@
 using System.Threading;
 
 using Injure.ModKit.Abstractions;
+using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.Scheduling;
 
@@ -18,6 +19,7 @@ public sealed class TickerSubscriptionHandle : IReloadTeardown {
 		this.subscription = subscription;
 	}
 
+	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
 	public bool Remove() {
 		if (Interlocked.Exchange(ref removed, 1) != 0)
 			return false;

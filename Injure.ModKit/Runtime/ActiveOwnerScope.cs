@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Injure.ModKit.Abstractions;
-using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.ModKit.Runtime;
 
@@ -142,7 +141,6 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		this.maxParallelism = Math.Max(1, maxParallelism);
 	}
 
-	[SatisfiesAndReturns(nameof(teardown))]
 	public T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown {
 		ArgumentNullException.ThrowIfNull(teardown);
 		lock (@lock) {
@@ -153,28 +151,24 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		}
 	}
 
-	[SatisfiesAndReturns(nameof(disposable))]
 	public T AddDisposable<T>(T disposable) where T : notnull, IDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: false);
 		return disposable;
 	}
 
-	[SatisfiesAndReturns(nameof(disposable))]
 	public T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: false);
 		return disposable;
 	}
 
-	[SatisfiesAndReturns(nameof(disposable))]
 	public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: true);
 		return disposable;
 	}
 
-	[SatisfiesAndReturns(nameof(disposable))]
 	public T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		add(new OwnedDisposable(disposable), ordered: true);
@@ -375,10 +369,10 @@ internal sealed class ActiveOwnerScopeView<L> : IActiveOwnerScope<L> where L : s
 	public BoundedCts<L> CreateCts() => core.CreateCts<L>();
 	public BoundedCts<L> CreateLinkedCts(CancellationToken cancellationToken) =>
 		core.CreateLinkedCts<L>(cancellationToken);
-	[SatisfiesAndReturns(nameof(teardown))] public T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown => core.AddTeardown(teardown);
-	[SatisfiesAndReturns(nameof(disposable))] public T AddDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddDisposable(disposable);
-	[SatisfiesAndReturns(nameof(disposable))] public T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddAsyncDisposable(disposable);
-	[SatisfiesAndReturns(nameof(disposable))] public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddOrderedDisposable(disposable);
-	[SatisfiesAndReturns(nameof(disposable))] public T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddOrderedAsyncDisposable(disposable);
+	public T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown => core.AddTeardown(teardown);
+	public T AddDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddDisposable(disposable);
+	public T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddAsyncDisposable(disposable);
+	public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddOrderedDisposable(disposable);
+	public T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddOrderedAsyncDisposable(disposable);
 	public void TrackWeak(object item, string category, string description = "") => core.TrackWeak(item, category, description);
 }

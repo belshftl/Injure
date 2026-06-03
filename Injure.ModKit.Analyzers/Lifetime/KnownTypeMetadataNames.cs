@@ -27,12 +27,11 @@ internal static class KnownTypeMetadataNames {
 	public const string AssemblyLoadContext = "System.Runtime.Loader.AssemblyLoadContext";
 	public const string Process = "System.Diagnostics.Process";
 
-	public const string AssetStoreRegistration = "Injure.Assets.AssetStoreRegistration";
-	public const string TickerHandle = "Injure.Scheduling.TickerHandle";
-	public const string TickerSubscriptionHandle = "Injure.Scheduling.TickerSubscriptionHandle";
-	public const string IReloadTeardown = "Injure.Assets.IReloadTeardown";
-
 	public const string BoundedCt = "Injure.ModKit.Abstractions.BoundedCt`1";
-	public const string IActiveOwnerScope = "Injure.ModKit.Abstractions.IActiveOwnerScope";
-	public const string SatisfiesAndReturnsAttribute = "Injure.ModKit.Abstractions.CodeAnalysis.SatisfiesAndReturnsAttribute";
+
+	public const string DoesNotCreateObligationAttribute = "Injure.ModKit.Abstractions.CodeAnalysis.DoesNotCreateObligationAttribute";
+	public const string ObligationAttribute = "Injure.ModKit.Abstractions.CodeAnalysis.ObligationAttribute";
+	public const string SatisfiesAndReturnsObligationAttribute = "Injure.ModKit.Abstractions.CodeAnalysis.SatisfiesAndReturnsObligationAttribute";
+	public const string SatisfiesObjectObligationAttribute = "Injure.ModKit.Abstractions.CodeAnalysis.SatisfiesObjectObligationAttribute";
+	public const string SatisfiesObligationAttribute = "Injure.ModKit.Abstractions.CodeAnalysis.SatisfiesObligationAttribute";
 }

@@ -22,14 +22,14 @@ internal sealed class LifetimeObligation {
 		ObligationSatisfactionLevel requiredSatisfaction,
 		ObligationSatisfactionLevel initialSatisfaction,
 		ILocalSymbol? local,
-		string displayName,
+		string typeName,
 		Location originLocation
 	) {
 		ID = id;
 		Kind = kind;
 		RequiredSatisfaction = requiredSatisfaction;
 		Local = local;
-		DisplayName = displayName;
+		TypeName = typeName;
 		OriginLocation = originLocation;
 		observedAnySatisfaction = initialSatisfaction != ObligationSatisfactionLevel.None;
 		bestObservedSatisfaction = initialSatisfaction;
@@ -49,7 +49,7 @@ internal sealed class LifetimeObligation {
 		LifetimeObligationKind kind,
 		ObligationSatisfactionLevel requiredSatisfaction,
 		ILocalSymbol? local,
-		string displayName,
+		string typeName,
 		Location originLocation,
 		bool observedAnySatisfaction,
 		ObligationSatisfactionLevel bestObservedSatisfaction,
@@ -64,7 +64,7 @@ internal sealed class LifetimeObligation {
 		Kind = kind;
 		RequiredSatisfaction = requiredSatisfaction;
 		Local = local;
-		DisplayName = displayName;
+		TypeName = typeName;
 		OriginLocation = originLocation;
 		this.observedAnySatisfaction = observedAnySatisfaction;
 		this.bestObservedSatisfaction = bestObservedSatisfaction;
@@ -80,7 +80,7 @@ internal sealed class LifetimeObligation {
 	public LifetimeObligationKind Kind { get; }
 	public ObligationSatisfactionLevel RequiredSatisfaction { get; }
 	public ILocalSymbol? Local { get; }
-	public string DisplayName { get; }
+	public string TypeName { get; }
 	public Location OriginLocation { get; }
 	public ObligationState State => state;
 	public bool ObservedAnySatisfaction => observedAnySatisfaction;
@@ -168,7 +168,7 @@ internal sealed class LifetimeObligation {
 		Kind,
 		RequiredSatisfaction,
 		Local,
-		DisplayName,
+		TypeName,
 		OriginLocation,
 		observedAnySatisfaction,
 		bestObservedSatisfaction,

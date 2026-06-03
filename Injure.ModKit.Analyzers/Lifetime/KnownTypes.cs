@@ -29,12 +29,11 @@ internal sealed class KnownTypes(Compilation comp) {
 	public INamedTypeSymbol? AssemblyLoadContext { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssemblyLoadContext);
 	public INamedTypeSymbol? Process { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Process);
 
-	public INamedTypeSymbol? AssetStoreRegistration { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.AssetStoreRegistration);
-	public INamedTypeSymbol? TickerHandle { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.TickerHandle);
-	public INamedTypeSymbol? TickerSubscriptionHandle { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.TickerSubscriptionHandle);
-	public INamedTypeSymbol? IReloadTeardown { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IReloadTeardown);
-
 	public INamedTypeSymbol? BoundedCt { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.BoundedCt);
-	public INamedTypeSymbol? IActiveOwnerScope { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IActiveOwnerScope);
-	public INamedTypeSymbol? SatisfiesAndReturnsAttribute { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.SatisfiesAndReturnsAttribute);
+
+	public INamedTypeSymbol? DoesNotCreateObligationAttribute { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.DoesNotCreateObligationAttribute);
+	public INamedTypeSymbol? ObligationAttribute { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ObligationAttribute);
+	public INamedTypeSymbol? SatisfiesAndReturnsObligationAttribute { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.SatisfiesAndReturnsObligationAttribute);
+	public INamedTypeSymbol? SatisfiesObjectObligationAttribute { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.SatisfiesObjectObligationAttribute);
+	public INamedTypeSymbol? SatisfiesObligationAttribute { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.SatisfiesObligationAttribute);
 }

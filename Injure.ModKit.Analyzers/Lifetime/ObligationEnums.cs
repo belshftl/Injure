@@ -16,10 +16,7 @@ internal enum LifetimeObligationKind {
 	Process,
 	StartedTask,
 	ThreadPoolWorkItem,
-	AssetStoreRegistration,
-	Ticker,
-	TickerSubscription,
-	IReloadTeardown,
+	Attributed,
 }
 
 internal enum ObligationState {
@@ -29,6 +26,7 @@ internal enum ObligationState {
 	Satisfied,
 }
 
+// mirrors Injure.ModKit.Abstractions.CodeAnalysis.ObligationSatisfactionLevel
 internal enum ObligationSatisfactionLevel {
 	None = 0,
 	Generation = 1,

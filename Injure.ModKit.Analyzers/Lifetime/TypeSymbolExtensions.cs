@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Lifetime;
 
 internal static class TypeSymbolExtensions {
-	extension(ITypeSymbol? type) {
+	extension([NotNullWhen(true)] ITypeSymbol? type) {
 		public bool IsOrDerivesFrom(INamedTypeSymbol? candidateBase) {
 			if (type is null || candidateBase is null)
 				return false;

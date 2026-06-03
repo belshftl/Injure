@@ -21,6 +21,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 	private readonly List<ObligationTransitionEvent> events = new();
 	private readonly List<AsyncTokenWarning> asyncTokenWarnings = new();
 	private readonly HashSet<int> reportedExceptionLeaks = new();
+	private HashSet<SyntaxNode> processedObligationCreationSyntax = new(ReferenceEqualityComparer<SyntaxNode>.Instance);
 	private readonly Dictionary<ILabelSymbol, List<PendingGoto>> pendingGotosByTarget = new(SymbolEqualityComparer.Default);
 	private int nextObligationID;
 	private LabelPositionMap? labelPositions;
@@ -52,21 +53,21 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		};
 	}
 
-	private FlowResult analyzeStatement(IOperation operation, FlowState state) {
+	private FlowResult analyzeStatement(IOperation op, FlowState state) {
 		if (bailoutLocation is not null)
 			return FlowResult.Continue(state);
-		return operation switch {
+		return op switch {
 			IBlockOperation block => analyzeBlock(block, state),
 			IConditionalOperation conditional => analyzeConditional(conditional, state),
 			ILoopOperation loop => analyzeLoop(loop, state),
 			IReturnOperation @return => analyzeReturn(@return, state),
 			IThrowOperation @throw => analyzeThrow(@throw, state),
 			IUsingOperation @using => analyzeUsing(@using, state),
-			IUsingDeclarationOperation usingDeclaration => analyzeUsingDeclaration(usingDeclaration, state),
+			IUsingDeclarationOperation usingDecl => analyzeUsingDeclaration(usingDecl, state),
 			ITryOperation @try => analyzeTry(@try, state),
 			IBranchOperation branch => analyzeBranch(branch, state),
 			ILabeledOperation labeled => analyzeLabeled(labeled, state),
-			_ => analyzeSimpleStatement(operation, state),
+			_ => analyzeSimpleStatement(op, state),
 		};
 	}
 
@@ -74,12 +75,12 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		FlowState? current = state;
 		FlowResult aggregate = FlowResult.Continue(state.Clone());
 		aggregate.Exits.Clear();
-		foreach (IOperation statement in block.Operations) {
-			if (statement is ILabeledOperation labeled)
+		foreach (IOperation stmt in block.Operations) {
+			if (stmt is ILabeledOperation labeled)
 				current = mergePendingGotosInto(labeled.Label, current, labeled.Syntax.GetLocation());
 			if (current is null)
 				continue;
-			FlowResult stmtResult = analyzeStatement(statement, current);
+			FlowResult stmtResult = analyzeStatement(stmt, current);
 			registerGotoExits(stmtResult.Exits);
 			addNonGotoExits(aggregate.Exits, stmtResult.Exits);
 			current = stmtResult.ContinueState;
@@ -91,42 +92,42 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		return result;
 	}
 
-	private FlowResult analyzeSimpleStatement(IOperation operation, FlowState state) {
-		FlowResult result = maybeThrow(operation, state, operation.Syntax.GetLocation());
+	private FlowResult analyzeSimpleStatement(IOperation op, FlowState state) {
+		FlowResult result = maybeThrow(op, state, op.Syntax.GetLocation());
 		if (result.ContinueState is not null)
-			processEffects(operation, result.ContinueState);
+			processEffects(op, result.ContinueState);
 		return result;
 	}
 
-	private FlowResult analyzeConditional(IConditionalOperation operation, FlowState state) {
-		FlowResult cond = maybeThrow(operation.Condition, state, operation.Condition.Syntax.GetLocation());
+	private FlowResult analyzeConditional(IConditionalOperation op, FlowState state) {
+		FlowResult cond = maybeThrow(op.Condition, state, op.Condition.Syntax.GetLocation());
 		if (cond.ContinueState is null)
 			return cond;
-		FlowResult whenTrue = analyzeStatement(operation.WhenTrue, cond.ContinueState.Clone());
-		FlowResult whenFalse = operation.WhenFalse is not null
-			? analyzeStatement(operation.WhenFalse, cond.ContinueState.Clone())
+		FlowResult whenTrue = analyzeStatement(op.WhenTrue, cond.ContinueState.Clone());
+		FlowResult whenFalse = op.WhenFalse is not null
+			? analyzeStatement(op.WhenFalse, cond.ContinueState.Clone())
 			: FlowResult.Continue(cond.ContinueState.Clone());
-		FlowResult result = FlowResult.Merge(whenTrue, whenFalse, operation.Syntax.GetLocation(), FlowMergeKind.Conditional);
+		FlowResult result = FlowResult.Merge(whenTrue, whenFalse, op.Syntax.GetLocation(), FlowMergeKind.Conditional);
 		result.Exits.AddRange(cond.Exits);
 		return result;
 	}
 
-	private FlowResult analyzeLoop(ILoopOperation operation, FlowState state) {
+	private FlowResult analyzeLoop(ILoopOperation op, FlowState state) {
 		// for now approximate do as one iteration and every other loop as either zero or one iterations
-		if (operation is IWhileLoopOperation { ConditionIsTop: false }) {
-			FlowResult body = analyzeStatement(operation.Body, state.Clone());
-			return oneLoopIter(body, operation.Syntax.GetLocation());
+		if (op is IWhileLoopOperation { ConditionIsTop: false }) {
+			FlowResult body = analyzeStatement(op.Body, state.Clone());
+			return oneLoopIter(body, op.Syntax.GetLocation());
 		}
 
-		FlowResult header = maybeThrow(operation, state.Clone(), operation.Syntax.GetLocation());
+		FlowResult header = maybeThrow(op, state.Clone(), op.Syntax.GetLocation());
 		if (header.ContinueState is null)
 			return header;
 
 		FlowState zeroState = header.ContinueState.Clone();
-		FlowResult one = analyzeStatement(operation.Body, header.ContinueState.Clone());
-		FlowResult finishedOne = oneLoopIter(one, operation.Syntax.GetLocation());
+		FlowResult one = analyzeStatement(op.Body, header.ContinueState.Clone());
+		FlowResult finishedOne = oneLoopIter(one, op.Syntax.GetLocation());
 		FlowResult zero = FlowResult.Continue(zeroState);
-		FlowResult result = FlowResult.Merge(zero, finishedOne, operation.Syntax.GetLocation(), FlowMergeKind.LoopIteration);
+		FlowResult result = FlowResult.Merge(zero, finishedOne, op.Syntax.GetLocation(), FlowMergeKind.LoopIteration);
 		result.Exits.AddRange(header.Exits);
 		return result;
 	}
@@ -150,16 +151,14 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		return result;
 	}
 
-	private FlowResult analyzeReturn(IReturnOperation operation, FlowState state) {
-		FlowResult result = operation.ReturnedValue is not null
-			? maybeThrow(operation.ReturnedValue, state, operation.ReturnedValue.Syntax.GetLocation())
-			: FlowResult.Continue(state);
+	private FlowResult analyzeReturn(IReturnOperation op, FlowState state) {
+		FlowResult result = op.ReturnedValue is not null ? maybeThrow(op.ReturnedValue, state, op.ReturnedValue.Syntax.GetLocation()) : FlowResult.Continue(state);
 
 		if (result.ContinueState is not null) {
 			result.Exits.Add(new ControlFlowExit {
 				Kind = ControlExitKind.Return,
 				State = result.ContinueState.Clone(),
-				Location = operation.Syntax.GetLocation(),
+				Location = op.Syntax.GetLocation(),
 				Cause = ObligationTransitionCause.Return,
 			});
 		}
@@ -169,19 +168,17 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		return final;
 	}
 
-	private FlowResult analyzeThrow(IThrowOperation operation, FlowState state) {
-		FlowResult result = operation.Exception is not null
-			? maybeThrow(operation.Exception, state, operation.Exception.Syntax.GetLocation())
-			: FlowResult.Continue(state);
+	private FlowResult analyzeThrow(IThrowOperation op, FlowState state) {
+		FlowResult result = op.Exception is not null ? maybeThrow(op.Exception, state, op.Exception.Syntax.GetLocation()) : FlowResult.Continue(state);
 
 		if (result.ContinueState is not null) {
 			result.Exits.Add(new ControlFlowExit {
 				Kind = ControlExitKind.Throw,
 				State = result.ContinueState.Clone(),
-				Location = operation.Syntax.GetLocation(),
+				Location = op.Syntax.GetLocation(),
 				Cause = ObligationTransitionCause.Throw,
-				ExceptionType = operation.Exception?.Type,
-				ExceptionTypeUnknown = operation.Exception?.Type is null,
+				ExceptionType = op.Exception?.Type,
+				ExceptionTypeUnknown = op.Exception?.Type is null,
 			});
 		}
 
@@ -190,27 +187,23 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		return final;
 	}
 
-	private FlowResult analyzeTry(ITryOperation operation, FlowState state) {
-		FlowResult result = operation.Catches.Length == 0
-			? analyzeStatement(operation.Body, state.Clone())
-			: analyzeTryCatchNoFinally(operation, state);
-
-		if (operation.Finally is not null)
-			result = applyFinally(result, operation.Finally, operation.Syntax.GetLocation());
-
+	private FlowResult analyzeTry(ITryOperation op, FlowState state) {
+		FlowResult result = op.Catches.Length == 0 ? analyzeStatement(op.Body, state.Clone()) : analyzeTryCatchNoFinally(op, state);
+		if (op.Finally is not null)
+			result = applyFinally(result, op.Finally, op.Syntax.GetLocation());
 		return result;
 	}
 
-	private FlowResult analyzeTryCatchNoFinally(ITryOperation operation, FlowState state) {
-		FlowResult tryResult = analyzeStatement(operation.Body, state.Clone());
+	private FlowResult analyzeTryCatchNoFinally(ITryOperation op, FlowState state) {
+		FlowResult tryResult = analyzeStatement(op.Body, state.Clone());
 		FlowResult result = FlowResult.NoContinue();
 
 		if (tryResult.ContinueState is not null)
-			result = FlowResult.Merge(result, FlowResult.Continue(tryResult.ContinueState.Clone()), operation.Syntax.GetLocation(), FlowMergeKind.TryCatch);
+			result = FlowResult.Merge(result, FlowResult.Continue(tryResult.ContinueState.Clone()), op.Syntax.GetLocation(), FlowMergeKind.TryCatch);
 
 		foreach (ControlFlowExit exit in tryResult.Exits) {
 			if (exit.Kind == ControlExitKind.Throw) {
-				result = routeThrowThroughCatches(operation, exit, result);
+				result = routeThrowThroughCatches(op, exit, result);
 				continue;
 			}
 			result.Exits.Add(exit.Clone());
@@ -219,9 +212,9 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		return result;
 	}
 
-	private FlowResult routeThrowThroughCatches(ITryOperation operation, ControlFlowExit throwExit, FlowResult result) {
+	private FlowResult routeThrowThroughCatches(ITryOperation op, ControlFlowExit throwExit, FlowResult result) {
 		bool certainlyCaught = false;
-		foreach (ICatchClauseOperation catchClause in operation.Catches) {
+		foreach (ICatchClauseOperation catchClause in op.Catches) {
 			CatchMatch match = classifyCatch(throwExit, catchClause);
 			if (match == CatchMatch.None)
 				continue;
@@ -294,51 +287,51 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		return false;
 	}
 
-	private FlowResult analyzeUsing(IUsingOperation operation, FlowState state) {
-		FlowResult resourceResult = operation.Resources is not null
-			? maybeThrow(operation.Resources, state.Clone(), operation.Resources.Syntax.GetLocation())
+	private FlowResult analyzeUsing(IUsingOperation op, FlowState state) {
+		FlowResult resourceResult = op.Resources is not null
+			? maybeThrow(op.Resources, state.Clone(), op.Resources.Syntax.GetLocation())
 			: FlowResult.Continue(state.Clone());
 
-		if (resourceResult.ContinueState is not null && operation.Resources is not null)
-			processEffects(operation.Resources, resourceResult.ContinueState);
+		if (resourceResult.ContinueState is not null && op.Resources is not null)
+			processEffects(op.Resources, resourceResult.ContinueState);
 
 		List<ILocalSymbol> usingLocals = new();
-		if (operation.Resources is not null)
-			collectUsingLocals(operation.Resources, usingLocals);
+		if (op.Resources is not null)
+			collectUsingLocals(op.Resources, usingLocals);
 
-		FlowResult result = operation.Body is not null && resourceResult.ContinueState is not null
-			? analyzeStatement(operation.Body, resourceResult.ContinueState.Clone())
+		FlowResult result = op.Body is not null && resourceResult.ContinueState is not null
+			? analyzeStatement(op.Body, resourceResult.ContinueState.Clone())
 			: resourceResult;
 
 		if (result.ContinueState is not null)
-			satisfyUsingLocals(result.ContinueState, usingLocals, operation.Syntax.GetLocation());
+			satisfyUsingLocals(result.ContinueState, usingLocals, op.Syntax.GetLocation());
 
 		for (int i = 0; i < result.Exits.Count; i++) {
 			ControlFlowExit exit = result.Exits[i];
-			satisfyUsingLocals(exit.State, usingLocals, operation.Syntax.GetLocation());
+			satisfyUsingLocals(exit.State, usingLocals, op.Syntax.GetLocation());
 		}
 
 		return result;
 	}
 
-	private FlowResult analyzeUsingDeclaration(IUsingDeclarationOperation operation, FlowState state) {
-		IVariableDeclarationGroupOperation declaration = operation.DeclarationGroup;
-		FlowResult result = maybeThrow(declaration, state.Clone(), declaration.Syntax.GetLocation());
+	private FlowResult analyzeUsingDeclaration(IUsingDeclarationOperation op, FlowState state) {
+		IVariableDeclarationGroupOperation decl = op.DeclarationGroup;
+		FlowResult result = maybeThrow(decl, state.Clone(), decl.Syntax.GetLocation());
 
 		if (result.ContinueState is null)
 			return result;
 
-		processEffects(declaration, result.ContinueState);
+		processEffects(decl, result.ContinueState);
 
 		List<ILocalSymbol> usingLocals = new();
-		collectUsingLocals(declaration, usingLocals);
-		satisfyUsingLocals(result.ContinueState, usingLocals, operation.Syntax.GetLocation());
+		collectUsingLocals(decl, usingLocals);
+		satisfyUsingLocals(result.ContinueState, usingLocals, op.Syntax.GetLocation());
 
 		return result;
 	}
 
-	private FlowResult analyzeBranch(IBranchOperation operation, FlowState state) {
-		ControlExitKind? kind = operation.BranchKind switch {
+	private FlowResult analyzeBranch(IBranchOperation op, FlowState state) {
+		ControlExitKind? kind = op.BranchKind switch {
 			BranchKind.GoTo => ControlExitKind.Goto,
 			BranchKind.Break => ControlExitKind.Break,
 			BranchKind.Continue => ControlExitKind.Continue,
@@ -346,36 +339,36 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		};
 
 		if (kind is null) {
-			bail(operation.Syntax.GetLocation(), "unsupported branch operation");
+			bail(op.Syntax.GetLocation(), "unsupported branch operation");
 			return FlowResult.Continue(state);
 		}
 
-		if (kind == ControlExitKind.Goto && operation.Target is null) {
-			bail(operation.Syntax.GetLocation(), "goto without a normal label target isn't supported yet");
+		if (kind == ControlExitKind.Goto && op.Target is null) {
+			bail(op.Syntax.GetLocation(), "goto without a normal label target isn't supported yet");
 			return FlowResult.Continue(state);
 		}
 
 		return FlowResult.Stop(new ControlFlowExit {
 			Kind = kind.Value,
 			State = state.Clone(),
-			Location = operation.Syntax.GetLocation(),
-			Target = operation.Target,
+			Location = op.Syntax.GetLocation(),
+			Target = op.Target,
 			Cause = kind == ControlExitKind.Goto ? ObligationTransitionCause.UnsupportedControlFlow : ObligationTransitionCause.UnsupportedBranch,
 		});
 	}
 
-	private FlowResult analyzeLabeled(ILabeledOperation operation, FlowState state) {
-		FlowState curr = mergePendingGotosInto(operation.Label, state, operation.Syntax.GetLocation()) ?? state;
-		if (operation.Operation is null)
+	private FlowResult analyzeLabeled(ILabeledOperation op, FlowState state) {
+		FlowState curr = mergePendingGotosInto(op.Label, state, op.Syntax.GetLocation()) ?? state;
+		if (op.Operation is null)
 			return FlowResult.Continue(curr);
-		return analyzeStatement(operation.Operation, curr);
+		return analyzeStatement(op.Operation, curr);
 	}
 
-	private FlowResult maybeThrow(IOperation operation, FlowState state, Location location) {
+	private FlowResult maybeThrow(IOperation op, FlowState state, Location location) {
 		FlowResult result = FlowResult.Continue(state);
-		if (!MayThrowClassifier.MayThrow(operation))
+		if (!MayThrowClassifier.MayThrow(op))
 			return result;
-		if (isKnownCleanupInvocation(operation, state))
+		if (isKnownCleanupInvocation(op, state))
 			return result;
 		result.Exits.Add(new ControlFlowExit {
 			Kind = ControlExitKind.Throw,
@@ -387,15 +380,15 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		return result;
 	}
 
-	private bool isKnownCleanupInvocation(IOperation operation, FlowState state) {
-		if (operation is IExpressionStatementOperation expression)
-			operation = expression.Operation;
-		if (operation is not IInvocationOperation invocation)
+	private bool isKnownCleanupInvocation(IOperation op, FlowState state) {
+		if (op is IExpressionStatementOperation expr)
+			op = expr.Operation;
+		if (op is not IInvocationOperation inv)
 			return false;
 		foreach (LifetimeObligation obl in state.Obligations) {
-			if (rules.TryGetSatisfaction(invocation, obl) is not null)
+			if (rules.TryGetSatisfaction(inv, obl) is not null)
 				return true;
-			if (rules.TryGetTransfer(invocation, obl) is not null)
+			if (rules.TryGetTransfer(inv, obl) is not null)
 				return true;
 		}
 		return false;
@@ -476,34 +469,40 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		}
 	}
 
-	private void processEffects(IOperation operation, FlowState state) {
-		switch (operation) {
-		case IExpressionStatementOperation expressionStatement:
-			processExpressionStatement(expressionStatement, state);
-			return;
-		case IVariableDeclarationGroupOperation declarationGroup:
-			processNestedEffects(declarationGroup, state);
-			return;
-		default:
-			processNestedEffects(operation, state);
-			return;
+	private void processEffects(IOperation op, FlowState state) {
+		HashSet<SyntaxNode> prevProcessedObligationCreationSyntax = processedObligationCreationSyntax;
+		processedObligationCreationSyntax = new HashSet<SyntaxNode>(ReferenceEqualityComparer<SyntaxNode>.Instance);
+		try {
+			switch (op) {
+			case IExpressionStatementOperation exprStmt:
+				processExpressionStatement(exprStmt, state);
+				return;
+			case IVariableDeclarationGroupOperation declGroup:
+				processNestedEffects(declGroup, state);
+				return;
+			default:
+				processNestedEffects(op, state);
+				return;
+			}
+		} finally {
+			processedObligationCreationSyntax = prevProcessedObligationCreationSyntax;
 		}
 	}
 
-	private void processExpressionStatement(IExpressionStatementOperation statement, FlowState state) {
-		IOperation expression = statement.Operation;
-		if (tryUnwrapObjectCreation(expression, out IObjectCreationOperation creation)) {
-			processCreation(creation, local: null, state, reportDiscardedValue: true);
-			processNestedEffectsSkipRoot(expression, state);
-		} else if (tryUnwrapInvocation(expression, out IInvocationOperation invocation)) {
-			processReturnInvocationCreation(invocation, local: null, state, reportDiscardedValue: true);
-			processInvocation(invocation, state);
-			processNestedEffectsSkipRoot(expression, state);
-		} else if (expression is ISimpleAssignmentOperation assignment) {
+	private void processExpressionStatement(IExpressionStatementOperation stmt, FlowState state) {
+		IOperation expr = stmt.Operation;
+		if (tryUnwrapObjectCreation(expr, out IObjectCreationOperation creat)) {
+			processCreation(creat, local: null, state, reportDiscardedValue: true);
+			processNestedEffectsSkipRoot(expr, state);
+		} else if (tryUnwrapInvocation(expr, out IInvocationOperation inv)) {
+			processReturnInvocationCreation(inv, local: null, state, reportDiscardedValue: true);
+			processInvocation(inv, state);
+			processNestedEffectsSkipRoot(expr, state);
+		} else if (expr is ISimpleAssignmentOperation assignment) {
 			processAssignment(assignment, state, allowDiscardCreation: true);
 			processNestedEffectsSkipRoot(assignment, state);
 		} else {
-			processNestedEffects(expression, state);
+			processNestedEffects(expr, state);
 		}
 	}
 
@@ -519,14 +518,14 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 
 	private void processNestedEffect(IOperation current, FlowState state) {
 		switch (current) {
-		case IVariableDeclaratorOperation declarator:
-			processVariableDeclarator(declarator, state);
+		case IVariableDeclaratorOperation decl:
+			processVariableDeclarator(decl, state);
 			break;
-		case ISimpleAssignmentOperation assignment:
-			processAssignment(assignment, state, allowDiscardCreation: false);
+		case ISimpleAssignmentOperation asg:
+			processAssignment(asg, state, allowDiscardCreation: false);
 			break;
-		case IInvocationOperation invocation:
-			processInvocation(invocation, state);
+		case IInvocationOperation inv:
+			processInvocation(inv, state);
 			break;
 		}
 	}
@@ -541,37 +540,42 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 				yield return nested;
 	}
 
-	private void processVariableDeclarator(IVariableDeclaratorOperation declarator, FlowState state) {
-		if (declarator.Initializer is null)
+	private void processVariableDeclarator(IVariableDeclaratorOperation declr, FlowState state) {
+		if (declr.Initializer is null)
 			return;
-		tokenProvenance.ObserveAssignment(declarator.Symbol, declarator.Initializer.Value);
-		if (tryUnwrapObjectCreation(declarator.Initializer.Value, out IObjectCreationOperation creation))
-			processCreation(creation, declarator.Symbol, state, reportDiscardedValue: false);
-		else if (tryUnwrapInvocation(declarator.Initializer.Value, out IInvocationOperation invocation))
-			processReturnInvocationCreation(invocation, declarator.Symbol, state, reportDiscardedValue: false);
+		tokenProvenance.ObserveAssignment(declr.Symbol, declr.Initializer.Value);
+		if (tryUnwrapObjectCreation(declr.Initializer.Value, out IObjectCreationOperation creat)) {
+			processCreation(creat, declr.Symbol, state, reportDiscardedValue: false);
+		} else if (tryUnwrapInvocation(declr.Initializer.Value, out IInvocationOperation inv)) {
+			if (tryProcessReturnedSatisfiedAssignment(inv, declr.Symbol, state))
+				return;
+			processReturnInvocationCreation(inv, declr.Symbol, state, reportDiscardedValue: false);
+		}
 	}
 
 	private void processAssignment(ISimpleAssignmentOperation assignment, FlowState state, bool allowDiscardCreation) {
 		if (LifetimeRuleSet.TryGetLocalReference(assignment.Target, out ILocalSymbol? targetLocal))
 			tokenProvenance.ObserveAssignment(targetLocal, assignment.Value);
 
-		if (tryUnwrapObjectCreation(assignment.Value, out IObjectCreationOperation creation)) {
+		if (tryUnwrapObjectCreation(assignment.Value, out IObjectCreationOperation creat)) {
 			if (LifetimeRuleSet.TryGetLocalReference(assignment.Target, out ILocalSymbol? local)) {
-				processCreation(creation, local, state, reportDiscardedValue: false);
+				processCreation(creat, local, state, reportDiscardedValue: false);
 				return;
 			}
 			if (allowDiscardCreation && assignment.Target is IDiscardOperation) {
-				processCreation(creation, local: null, state, reportDiscardedValue: true);
+				processCreation(creat, local: null, state, reportDiscardedValue: true);
 				return;
 			}
 		}
-		if (tryUnwrapInvocation(assignment.Value, out IInvocationOperation invocation)) {
+		if (tryUnwrapInvocation(assignment.Value, out IInvocationOperation inv)) {
 			if (LifetimeRuleSet.TryGetLocalReference(assignment.Target, out ILocalSymbol? local)) {
-				processReturnInvocationCreation(invocation, local, state, reportDiscardedValue: false);
+				if (tryProcessReturnedSatisfiedAssignment(inv, local, state))
+					return;
+				processReturnInvocationCreation(inv, local, state, reportDiscardedValue: false);
 				return;
 			}
 			if (allowDiscardCreation && assignment.Target is IDiscardOperation) {
-				processReturnInvocationCreation(invocation, local: null, state, reportDiscardedValue: true);
+				processReturnInvocationCreation(inv, local: null, state, reportDiscardedValue: true);
 				return;
 			}
 		}
@@ -582,72 +586,80 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		}
 	}
 
-	private void processInvocation(IInvocationOperation invocation, FlowState state) {
-		processInlineTransferCreations(invocation, state);
+	private void processInvocation(IInvocationOperation inv, FlowState state) {
+		processInlineTransferCreations(inv, state);
 
-		ObligationCreation? sideEffCreation = rules.TryCreateFromSideEffectInvocation(invocation);
+		ObligationCreation? sideEffCreation = rules.TryCreateFromSideEffectInvocation(inv);
 		if (sideEffCreation is ObligationCreation created) {
-			LifetimeObligation taskObligation = new(nextObligationID++, created.Kind, created.RequiredSatisfaction, created.InitialSatisfaction, null, created.DisplayName, invocation.Syntax.GetLocation());
-			state.Add(taskObligation);
-			if (created.InitialSatisfaction == ObligationSatisfactionLevel.None && taskObligation.TryLeak(invocation.Syntax.GetLocation()))
-				events.Add(ObligationTransitionEvent.From(taskObligation, ObligationState.Leaked, ObligationTransitionCause.DiscardedValue, invocation.Syntax.GetLocation()));
+			LifetimeObligation taskObl = new(nextObligationID++, created.Kind, created.RequiredSatisfaction, created.InitialSatisfaction, null, created.TypeName, inv.Syntax.GetLocation());
+			state.Add(taskObl);
+			if (created.InitialSatisfaction == ObligationSatisfactionLevel.None && taskObl.TryLeak(inv.Syntax.GetLocation()))
+				events.Add(ObligationTransitionEvent.From(taskObl, ObligationState.Leaked, ObligationTransitionCause.DiscardedValue, inv.Syntax.GetLocation()));
 		}
 
 		foreach (LifetimeObligation obl in state.Obligations) {
 			if (obl.Local is null)
 				continue;
-			ObligationSatisfaction? satisfaction = rules.TryGetSatisfaction(invocation, obl);
-			if (satisfaction is not null) {
-				obl.TrySatisfy(satisfaction.Value.Level, invocation.Syntax.GetLocation());
+			ObligationSatisfaction? sat = rules.TryGetSatisfaction(inv, obl);
+			if (sat is not null) {
+				obl.TrySatisfy(sat.Value.Level, inv.Syntax.GetLocation());
 				continue;
 			}
-			ObligationSatisfaction? transfer = rules.TryGetTransfer(invocation, obl);
+			ObligationSatisfaction? transfer = rules.TryGetTransfer(inv, obl);
 			if (transfer is not null)
-				obl.TrySatisfy(transfer.Value.Level, invocation.Syntax.GetLocation());
+				obl.TrySatisfy(transfer.Value.Level, inv.Syntax.GetLocation());
 		}
 
-		for (int i = 0; i < invocation.Arguments.Length; i++) {
-			IArgumentOperation arg = invocation.Arguments[i];
+		for (int i = 0; i < inv.Arguments.Length; i++) {
+			IArgumentOperation arg = inv.Arguments[i];
 			if (!LifetimeRuleSet.TryGetLocalReference(arg.Value, out ILocalSymbol? local))
 				continue;
 			if (!state.TryGetByLocal(local, out LifetimeObligation obl))
 				continue;
-			obl.PassedToCalls.Add(new PassedToCallFact(invocation.TargetMethod, i, arg.Parameter?.RefKind ?? RefKind.None, arg.Syntax.GetLocation()));
+			obl.PassedToCalls.Add(new PassedToCallFact(inv.TargetMethod, i, arg.Parameter?.RefKind ?? RefKind.None, arg.Syntax.GetLocation()));
 		}
 
-		checkAsyncCancellationToken(invocation);
+		checkAsyncCancellationToken(inv);
 	}
 
-	private void processInlineTransferCreations(IInvocationOperation invocation, FlowState state) {
-		ReturnedSatisfiedObligation? returned = rules.TryGetReturnedSatisfiedObligation(invocation);
+	private void processInlineTransferCreations(IInvocationOperation inv, FlowState state) {
+		foreach (ParameterSatisfaction sat in rules.GetParameterSatisfactions(inv)) {
+			foreach (IArgumentOperation arg in inv.Arguments) {
+				if (arg.Parameter?.Ordinal != sat.ParameterOrdinal)
+					continue;
+				processInlineTransferValue(arg.Value, state, inv.Syntax.GetLocation(), sat.Level);
+			}
+		}
+
+		ReturnedSatisfiedObligation? returned = rules.TryGetReturnedSatisfiedObligation(inv);
 		if (returned is null)
 			return;
-		foreach (IArgumentOperation arg in invocation.Arguments) {
+		foreach (IArgumentOperation arg in inv.Arguments) {
 			if (arg.Parameter?.Ordinal != returned.Value.ParameterOrdinal)
 				continue;
-			processInlineTransferValue(arg.Value, state, invocation.Syntax.GetLocation(), returned.Value.Level);
+			processInlineTransferValue(arg.Value, state, inv.Syntax.GetLocation(), returned.Value.Level);
 		}
 	}
 
-	private void processInlineTransferValue(IOperation operation, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
-		operation = unwrapConversion(operation);
+	private void processInlineTransferValue(IOperation op, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
+		op = unwrapConversion(op);
 
-		if (LifetimeRuleSet.TryGetLocalReference(operation, out ILocalSymbol? local) && state.TryGetByLocal(local, out LifetimeObligation localObligation)) {
+		if (LifetimeRuleSet.TryGetLocalReference(op, out ILocalSymbol? local) && state.TryGetByLocal(local, out LifetimeObligation localObligation)) {
 			localObligation.TrySatisfy(level, transferLocation);
 			return;
 		}
 
-		switch (operation) {
-		case IObjectCreationOperation creation:
-			processTransferredCreation(creation, state, transferLocation, level);
+		switch (op) {
+		case IObjectCreationOperation creat:
+			processTransferredCreation(creat, state, transferLocation, level);
 			break;
-		case IInvocationOperation invocation:
-			processTransferredReturnInvocationCreation(invocation, state, transferLocation, level);
+		case IInvocationOperation inv:
+			processTransferredReturnInvocationCreation(inv, state, transferLocation, level);
 			break;
-		case IConditionalOperation conditional:
-			processInlineTransferValue(conditional.WhenTrue, state, transferLocation, level);
-			if (conditional.WhenFalse is not null)
-				processInlineTransferValue(conditional.WhenFalse, state, transferLocation, level);
+		case IConditionalOperation cond:
+			processInlineTransferValue(cond.WhenTrue, state, transferLocation, level);
+			if (cond.WhenFalse is not null)
+				processInlineTransferValue(cond.WhenFalse, state, transferLocation, level);
 			break;
 		case ICoalesceOperation coalesce:
 			processInlineTransferValue(coalesce.Value, state, transferLocation, level);
@@ -660,91 +672,153 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		}
 	}
 
-	private void processTransferredCreation(IObjectCreationOperation creation, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
-		ObligationCreation? classified = rules.TryCreateFromObjectCreation(creation);
-		if (classified is null)
+	private void processTransferredCreation(IObjectCreationOperation creat, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
+		ObligationCreation? classified = rules.TryCreateFromObjectCreation(creat);
+		if (classified is null || !markObligationCreationProcessed(creat.Syntax))
 			return;
 
 		ObligationCreation c = classified.Value;
-		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, null, c.DisplayName, creation.Syntax.GetLocation());
+		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, null, c.TypeName, creat.Syntax.GetLocation());
 		state.Add(obl);
 		obl.TrySatisfy(level, transferLocation);
 	}
 
-	private void processTransferredReturnInvocationCreation(IInvocationOperation invocation, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
-		if (rules.TryGetReturnedSatisfiedObligation(invocation) is not null) {
-			processInlineTransferCreations(invocation, state);
+	private void processTransferredReturnInvocationCreation(IInvocationOperation inv, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
+		if (rules.TryGetReturnedSatisfiedObligation(inv) is not null) {
+			processInlineTransferCreations(inv, state);
 			return;
 		}
 
-		ObligationCreation? classified = rules.TryCreateFromReturnInvocationCreation(invocation);
-		if (classified is null)
+		ObligationCreation? classified = rules.TryCreateFromReturnInvocationCreation(inv);
+		if (classified is null || !markObligationCreationProcessed(inv.Syntax))
 			return;
 
 		ObligationCreation c = classified.Value;
-		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, null, c.DisplayName, invocation.Syntax.GetLocation());
+		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, null, c.TypeName, inv.Syntax.GetLocation());
 		state.Add(obl);
 		obl.TrySatisfy(level, transferLocation);
 	}
 
-	private void processCreation(IObjectCreationOperation creation, ILocalSymbol? local, FlowState state, bool reportDiscardedValue) {
-		ObligationCreation? classified = rules.TryCreateFromObjectCreation(creation);
-		if (classified is null)
+	private void processCreation(IObjectCreationOperation creat, ILocalSymbol? local, FlowState state, bool reportDiscardedValue) {
+		ObligationCreation? classified = rules.TryCreateFromObjectCreation(creat);
+		if (classified is null || !markObligationCreationProcessed(creat.Syntax))
 			return;
 
 		ObligationCreation c = classified.Value;
-		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, local, local?.Name ?? c.DisplayName, creation.Syntax.GetLocation());
+		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, local, c.TypeName, creat.Syntax.GetLocation());
 		state.Add(obl);
 
-		if (local is null && reportDiscardedValue && obl.TryLeak(creation.Syntax.GetLocation()))
-			events.Add(ObligationTransitionEvent.From(obl, ObligationState.Leaked, ObligationTransitionCause.DiscardedValue, creation.Syntax.GetLocation()));
+		if (local is null && reportDiscardedValue && obl.TryLeak(creat.Syntax.GetLocation()))
+			events.Add(ObligationTransitionEvent.From(obl, ObligationState.Leaked, ObligationTransitionCause.DiscardedValue, creat.Syntax.GetLocation()));
 	}
 
-	private void processReturnInvocationCreation(IInvocationOperation invocation, ILocalSymbol? local, FlowState state, bool reportDiscardedValue) {
-		if (rules.TryGetReturnedSatisfiedObligation(invocation) is not null)
+	private void processReturnInvocationCreation(IInvocationOperation inv, ILocalSymbol? local, FlowState state, bool reportDiscardedValue) {
+		if (rules.TryGetReturnedSatisfiedObligation(inv) is not null)
 			return;
-		ObligationCreation? classified = rules.TryCreateFromReturnInvocationCreation(invocation);
-		if (classified is null)
+		ObligationCreation? classified = rules.TryCreateFromReturnInvocationCreation(inv);
+		if (classified is null || !markObligationCreationProcessed(inv.Syntax))
 			return;
 
 		ObligationCreation c = classified.Value;
-		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, local, local?.Name ?? c.DisplayName, invocation.Syntax.GetLocation());
+		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, local, c.TypeName, inv.Syntax.GetLocation());
 		state.Add(obl);
 
-		if (local is null && reportDiscardedValue && obl.TryLeak(invocation.Syntax.GetLocation()))
-			events.Add(ObligationTransitionEvent.From(obl, ObligationState.Leaked, ObligationTransitionCause.DiscardedValue, invocation.Syntax.GetLocation()));
+		if (local is null && reportDiscardedValue && obl.TryLeak(inv.Syntax.GetLocation()))
+			events.Add(ObligationTransitionEvent.From(obl, ObligationState.Leaked, ObligationTransitionCause.DiscardedValue, inv.Syntax.GetLocation()));
 	}
 
-	private static IOperation unwrapConversion(IOperation operation) {
-		while (operation is IConversionOperation conversion)
-			operation = conversion.Operand;
-		return operation;
-	}
+	private bool tryProcessReturnedSatisfiedAssignment(IInvocationOperation inv, ILocalSymbol local, FlowState state) {
+		ReturnedSatisfiedObligation? returned = rules.TryGetReturnedSatisfiedObligation(inv);
+		if (returned is null)
+			return false;
 
-	private static bool tryUnwrapObjectCreation(IOperation operation, out IObjectCreationOperation creation) {
-		operation = unwrapConversion(operation);
-		if (operation is IObjectCreationOperation cr) {
-			creation = cr;
+		foreach (IArgumentOperation arg in inv.Arguments) {
+			if (arg.Parameter?.Ordinal != returned.Value.ParameterOrdinal)
+				continue;
+			processReturnedSatisfiedAssignmentValue(arg.Value, local, state, inv.Syntax.GetLocation(), returned.Value.Level);
 			return true;
 		}
-		creation = null!;
+
+		return true;
+	}
+
+	private void processReturnedSatisfiedAssignmentValue(IOperation op, ILocalSymbol local, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
+		op = unwrapConversion(op);
+
+		if (LifetimeRuleSet.TryGetLocalReference(op, out ILocalSymbol? argumentLocal) && state.TryGetByLocal(argumentLocal, out LifetimeObligation localObligation)) {
+			localObligation.TrySatisfy(level, transferLocation);
+			return;
+		}
+
+		if (op is IObjectCreationOperation creat) {
+			processReturnedSatisfiedCreation(creat, local, state, transferLocation, level);
+			return;
+		}
+
+		if (op is IInvocationOperation inv) {
+			if (rules.TryGetReturnedSatisfiedObligation(inv) is not null) {
+				tryProcessReturnedSatisfiedAssignment(inv, local, state);
+				return;
+			}
+			processReturnedSatisfiedReturnInvocationCreation(inv, local, state, transferLocation, level);
+		}
+	}
+
+	private void processReturnedSatisfiedCreation(IObjectCreationOperation creat, ILocalSymbol local, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
+		ObligationCreation? classified = rules.TryCreateFromObjectCreation(creat);
+		if (classified is null || !markObligationCreationProcessed(creat.Syntax))
+			return;
+
+		ObligationCreation c = classified.Value;
+		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, local, c.TypeName, creat.Syntax.GetLocation());
+		state.Add(obl);
+		obl.TrySatisfy(level, transferLocation);
+	}
+
+	private void processReturnedSatisfiedReturnInvocationCreation(IInvocationOperation inv, ILocalSymbol local, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
+		ObligationCreation? classified = rules.TryCreateFromReturnInvocationCreation(inv);
+		if (classified is null || !markObligationCreationProcessed(inv.Syntax))
+			return;
+
+		ObligationCreation c = classified.Value;
+		LifetimeObligation obl = new(nextObligationID++, c.Kind, c.RequiredSatisfaction, c.InitialSatisfaction, local, c.TypeName, inv.Syntax.GetLocation());
+		state.Add(obl);
+		obl.TrySatisfy(level, transferLocation);
+	}
+
+	private bool markObligationCreationProcessed(SyntaxNode syntax) =>
+		processedObligationCreationSyntax.Add(syntax);
+
+	private static IOperation unwrapConversion(IOperation op) {
+		while (op is IConversionOperation conv)
+			op = conv.Operand;
+		return op;
+	}
+
+	private static bool tryUnwrapObjectCreation(IOperation op, out IObjectCreationOperation creat) {
+		op = unwrapConversion(op);
+		if (op is IObjectCreationOperation cr) {
+			creat = cr;
+			return true;
+		}
+		creat = null!;
 		return false;
 	}
 
-	private static bool tryUnwrapInvocation(IOperation operation, out IInvocationOperation invocation) {
-		operation = unwrapConversion(operation);
-		if (operation is IInvocationOperation inv) {
-			invocation = inv;
+	private static bool tryUnwrapInvocation(IOperation op, out IInvocationOperation inv) {
+		op = unwrapConversion(op);
+		if (op is IInvocationOperation i) {
+			inv = i;
 			return true;
 		}
-		invocation = null!;
+		inv = null!;
 		return false;
 	}
 
-	private static void collectUsingLocals(IOperation operation, List<ILocalSymbol> locals) {
-		foreach (IOperation current in enumerateUsingResourceOperations(operation))
-			if (current is IVariableDeclaratorOperation declarator)
-				locals.Add(declarator.Symbol);
+	private static void collectUsingLocals(IOperation op, List<ILocalSymbol> locals) {
+		foreach (IOperation current in enumerateUsingResourceOperations(op))
+			if (current is IVariableDeclaratorOperation declr)
+				locals.Add(declr.Symbol);
 	}
 
 	private static IEnumerable<IOperation> enumerateUsingResourceOperations(IOperation root) {
@@ -754,13 +828,13 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 				yield return nested;
 	}
 
-	private void checkAsyncCancellationToken(IInvocationOperation invocation) {
-		if (!isAsyncLike(invocation.TargetMethod))
+	private void checkAsyncCancellationToken(IInvocationOperation inv) {
+		if (!isAsyncLike(inv.TargetMethod))
 			return;
 
 		bool foundTokenParam = false;
 		bool hasBoundedToken = false;
-		foreach (IParameterSymbol param in invocation.TargetMethod.Parameters) {
+		foreach (IParameterSymbol param in inv.TargetMethod.Parameters) {
 			if (!isCancellationToken(param.Type))
 				continue;
 			foundTokenParam = true;
@@ -769,7 +843,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		if (!foundTokenParam)
 			return;
 
-		foreach (IArgumentOperation arg in invocation.Arguments) {
+		foreach (IArgumentOperation arg in inv.Arguments) {
 			if (arg.Parameter is null || !isCancellationToken(arg.Parameter.Type))
 				continue;
 			if (tokenProvenance.IsBoundedToken(arg.Value)) {
@@ -778,7 +852,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 			}
 		}
 		if (!hasBoundedToken)
-			asyncTokenWarnings.Add(new AsyncTokenWarning(invocation.TargetMethod, invocation.Syntax.GetLocation()));
+			asyncTokenWarnings.Add(new AsyncTokenWarning(inv.TargetMethod, inv.Syntax.GetLocation()));
 	}
 
 	private static void satisfyUsingLocals(FlowState state, List<ILocalSymbol> locals, Location location) {
