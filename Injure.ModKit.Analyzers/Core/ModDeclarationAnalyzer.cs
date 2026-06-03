@@ -33,9 +33,9 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 			KnownTypes known = new(ctx.Compilation);
 			Model model = Model.Create(ctx.Compilation, known);
 			if (hasSyntaxTreeDiagnostics(known, model))
-				ctx.RegisterSyntaxTreeAction(treeCtx => analyzeSyntaxTree(treeCtx, ctx.Compilation, known, model));
+				ctx.RegisterSyntaxTreeAction(c => analyzeSyntaxTree(c, ctx.Compilation, known, model));
 			if (hasNamedTypeDiagnostics(model))
-				ctx.RegisterSymbolAction(symbolCtx => analyzeNamedType(symbolCtx, known, model), SymbolKind.NamedType);
+				ctx.RegisterSymbolAction(c => analyzeNamedType(c, known, model), SymbolKind.NamedType);
 		});
 	}
 
