@@ -11,13 +11,20 @@ public interface IActiveOwnerScope {
 	string OwnerID { get; }
 	ReloadGeneration Generation { get; }
 
-	[SatisfiesAndReturns(nameof(teardown))] T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown;
+	[SatisfiesAndReturnsObligation(nameof(teardown), ObligationSatisfactionLevel.Generation)]
+	T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown;
 
-	[SatisfiesAndReturns(nameof(disposable))] T AddDisposable<T>(T disposable) where T : notnull, IDisposable;
-	[SatisfiesAndReturns(nameof(disposable))] T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable;
+	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
+	T AddDisposable<T>(T disposable) where T : notnull, IDisposable;
 
-	[SatisfiesAndReturns(nameof(disposable))] T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable;
-	[SatisfiesAndReturns(nameof(disposable))] T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable;
+	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
+	T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable;
+
+	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
+	T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable;
+
+	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
+	T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable;
 
 	void TrackWeak(object item, string category, string description = "");
 }

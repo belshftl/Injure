@@ -3,6 +3,7 @@
 using System;
 using System.Threading;
 using Injure.ModKit.Abstractions;
+using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.Scheduling;
 
@@ -20,6 +21,7 @@ public sealed class TickerHandle : IReloadTeardown {
 		Generation = generation;
 	}
 
+	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
 	public bool Remove() {
 		if (Interlocked.Exchange(ref removed, 1) != 0)
 			return false;

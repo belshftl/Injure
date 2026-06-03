@@ -2,8 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 using Injure.ModKit.Abstractions;
+using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.Coroutines;
 
@@ -13,12 +15,13 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 	private readonly HashSet<CoroutineHandle> members = new();
 	private readonly List<CoroutineScope> children = new();
 	private CoroCancellationReason? cancellationReason = null;
+	private int cancelled = 0;
 
 	public CoroutineScheduler Scheduler => scheduler;
 	public CoroutineScope? Parent => parent;
 	public string Name { get; }
 	public string OwnerID { get; }
-	public bool Cancelled => cancellationReason is not null;
+	public bool Cancelled => Volatile.Read(ref cancelled) != 0;
 
 	private CoroutineScope(CoroutineScheduler scheduler, CoroutineScope? parent, string name, string ownerID) {
 		ArgumentNullException.ThrowIfNull(scheduler);
@@ -42,7 +45,7 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 		: throw new InvalidOperationException("cannot create a child from a cancelled scope");
 
 	internal void Cancel(CoroCancellationReason reason) {
-		if (Cancelled)
+		if (Interlocked.Exchange(ref cancelled, 1) != 0)
 			return;
 		cancellationReason = reason;
 		CoroutineScope[] childrenSnap = children.Count > 0 ? new CoroutineScope[children.Count] : Array.Empty<CoroutineScope>();
@@ -56,7 +59,10 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 			scheduler.TryCancel(membersSnap[i], reason);
 		parent?.children.Remove(this);
 	}
+
+	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
 	public void Cancel() => Cancel(CoroCancellationReason.ScopeCancelled);
+
 	public bool TryGetCancellationReason(out CoroCancellationReason reason) {
 		if (cancellationReason is CoroCancellationReason r) {
 			reason = r;
@@ -70,5 +76,7 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 	internal void Unregister(CoroutineHandle handle) => members.Remove(handle);
 
 	public void Teardown(in ReloadTeardownContext ctx) => Cancel();
+
+	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
 	public void Dispose() => Cancel();
 }

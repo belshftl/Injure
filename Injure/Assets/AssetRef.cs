@@ -267,76 +267,76 @@ public readonly ref struct AssetLease<T> where T : class {
 /// Helpers for concurrent bulk operations on <see cref="AssetRef{T}"/>s.
 /// </summary>
 public static class AssetRefExtensions {
-	/// <summary>
-	/// Ensures that a current live version exists for all of the assets.
-	/// </summary>
-	/// <param name="assetRefs">Assets to warm.</param>
-	/// <param name="maxConcurrency">Maximum number of concurrent warm operations.</param>
-	/// <param name="ct">Cancellation token.</param>
-	/// <remarks>
-	/// After successful completion, <see cref="AssetRef{T}.TryPassiveBorrow(out AssetLease{T})"/>
-	/// is guaranteed to succeed for all of the assets.
-	/// </remarks>
-	public static async Task WarmAllAsync(this IEnumerable<IUntypedAssetRef> assetRefs, int maxConcurrency = 8, CancellationToken ct = default) {
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
-		using SemaphoreSlim sem = new(maxConcurrency, maxConcurrency);
-		await Task.WhenAll(assetRefs.Select(async assetRef => {
-			await sem.WaitAsync(ct).ConfigureAwait(false);
-			try {
-				await assetRef.WarmAsync(ct).ConfigureAwait(false);
-			} finally {
-				sem.Release();
-			}
-		})).ConfigureAwait(false);
+	extension(IEnumerable<IUntypedAssetRef> assetRefs) {
+		/// <summary>
+		/// Ensures that a current live version exists for all of the assets.
+		/// </summary>
+		/// <param name="maxConcurrency">Maximum number of concurrent warm operations.</param>
+		/// <param name="ct">Cancellation token.</param>
+		/// <remarks>
+		/// After successful completion, <see cref="AssetRef{T}.TryPassiveBorrow(out AssetLease{T})"/>
+		/// is guaranteed to succeed for all of the assets unless one is later evicted by <see cref="AssetRef{T}.Evict()"/>,
+		/// in which case a warm is necessary again for that particular asset.
+		/// </remarks>
+		public async Task WarmAllAsync(int maxConcurrency = 8, CancellationToken ct = default) {
+			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
+			using SemaphoreSlim sem = new(maxConcurrency, maxConcurrency);
+			await Task.WhenAll(assetRefs.Select(async assetRef => {
+				await sem.WaitAsync(ct).ConfigureAwait(false);
+				try {
+					await assetRef.WarmAsync(ct).ConfigureAwait(false);
+				} finally {
+					sem.Release();
+				}
+			})).ConfigureAwait(false);
+		}
+
+		/// <summary>
+		/// Prepares a replacement version to later be applied by <see cref="AssetStore.ApplyQueuedReloads()"/>
+		/// for all of the assets.
+		/// </summary>
+		/// <param name="maxConcurrency">Maximum number of concurrent queue-reload operations.</param>
+		/// <param name="ct">Cancellation token.</param>
+		/// <remarks>
+		/// If an asset is currently unloaded, behaves like <see cref="AssetRef{T}.WarmAsync(CancellationToken)"/>
+		/// for that asset.
+		/// </remarks>
+		public async Task QueueReloadAllAsync(int maxConcurrency = 8, CancellationToken ct = default) {
+			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
+			using SemaphoreSlim sem = new(maxConcurrency, maxConcurrency);
+			await Task.WhenAll(assetRefs.Select(async assetRef => {
+				await sem.WaitAsync(ct).ConfigureAwait(false);
+				try {
+					await assetRef.QueueReloadAsync(ct).ConfigureAwait(false);
+				} finally {
+					sem.Release();
+				}
+			})).ConfigureAwait(false);
+		}
+
+		/// <summary>
+		/// Synchronous blocking wrapper over <see cref="WarmAllAsync(IEnumerable{IUntypedAssetRef}, int, CancellationToken)"/>.
+		/// </summary>
+		/// <param name="maxConcurrency">Maximum number of concurrent warm operations.</param>
+		/// <param name="ct">Cancellation token.</param>
+		/// <remarks>
+		/// After successful completion, <see cref="AssetRef{T}.TryPassiveBorrow(out AssetLease{T})"/>
+		/// is guaranteed to succeed for all of the assets unless one is later evicted by <see cref="AssetRef{T}.Evict()"/>,
+		/// in which case a warm is necessary again for that particular asset.
+		/// </remarks>
+		public void WarmAll(int maxConcurrency = 8, CancellationToken ct = default) =>
+			assetRefs.WarmAllAsync(maxConcurrency, ct).GetAwaiter().GetResult();
+
+		/// <summary>
+		/// Synchronous blocking wrapper over <see cref="QueueReloadAllAsync(IEnumerable{IUntypedAssetRef}, int, CancellationToken)"/>.
+		/// </summary>
+		/// <param name="maxConcurrency">Maximum number of concurrent queue-reload operations.</param>
+		/// <param name="ct">Cancellation token.</param>
+		/// <remarks>
+		/// If an asset is currently unloaded, behaves like <see cref="AssetRef{T}.WarmAsync(CancellationToken)"/>
+		/// for that asset.
+		/// </remarks>
+		public void QueueReloadAll(int maxConcurrency = 8, CancellationToken ct = default) =>
+			assetRefs.QueueReloadAllAsync(maxConcurrency, ct).GetAwaiter().GetResult();
 	}
-
-	/// <summary>
-	/// Prepares a replacement version to later be applied by <see cref="AssetStore.ApplyQueuedReloads()"/>
-	/// for all of the assets.
-	/// </summary>
-	/// <param name="assetRefs">Assets to queue a reload for.</param>
-	/// <param name="maxConcurrency">Maximum number of concurrent queue-reload operations.</param>
-	/// <param name="ct">Cancellation token.</param>
-	/// <remarks>
-	/// If an asset is currently unloaded, behaves like <see cref="AssetRef{T}.WarmAsync(CancellationToken)"/>
-	/// for that asset.
-	/// </remarks>
-	public static async Task QueueReloadAllAsync(this IEnumerable<IUntypedAssetRef> assetRefs, int maxConcurrency = 8, CancellationToken ct = default) {
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
-		using SemaphoreSlim sem = new(maxConcurrency, maxConcurrency);
-		await Task.WhenAll(assetRefs.Select(async assetRef => {
-			await sem.WaitAsync(ct).ConfigureAwait(false);
-			try {
-				await assetRef.QueueReloadAsync(ct).ConfigureAwait(false);
-			} finally {
-				sem.Release();
-			}
-		})).ConfigureAwait(false);
-	}
-
-	/// <summary>
-	/// Synchronous blocking wrapper over <see cref="WarmAllAsync(IEnumerable{IUntypedAssetRef}, int, CancellationToken)"/>.
-	/// </summary>
-	/// <param name="assetRefs">Assets to warm.</param>
-	/// <param name="maxConcurrency">Maximum number of concurrent warm operations.</param>
-	/// <param name="ct">Cancellation token.</param>
-	/// <remarks>
-	/// After successful completion, <see cref="AssetRef{T}.TryPassiveBorrow(out AssetLease{T})"/>
-	/// is guaranteed to succeed for all of the assets.
-	/// </remarks>
-	public static void WarmAll(this IEnumerable<IUntypedAssetRef> assetRefs, int maxConcurrency = 8, CancellationToken ct = default) =>
-		assetRefs.WarmAllAsync(maxConcurrency, ct).GetAwaiter().GetResult();
-
-	/// <summary>
-	/// Synchronous blocking wrapper over <see cref="QueueReloadAllAsync(IEnumerable{IUntypedAssetRef}, int, CancellationToken)"/>.
-	/// </summary>
-	/// <param name="assetRefs">Assets to queue a reload for.</param>
-	/// <param name="maxConcurrency">Maximum number of concurrent queue-reload operations.</param>
-	/// <param name="ct">Cancellation token.</param>
-	/// <remarks>
-	/// If an asset is currently unloaded, behaves like <see cref="AssetRef{T}.WarmAsync(CancellationToken)"/>
-	/// for that asset.
-	/// </remarks>
-	public static void QueueReloadAll(this IEnumerable<IUntypedAssetRef> assetRefs, int maxConcurrency = 8, CancellationToken ct = default) =>
-		assetRefs.QueueReloadAllAsync(maxConcurrency, ct).GetAwaiter().GetResult();
 }

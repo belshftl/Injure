@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 
 using Injure.DataStructures;
 using Injure.ModKit.Abstractions;
+using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.Assets;
 
@@ -46,6 +47,7 @@ public sealed class AssetStoreRegistration : IReloadTeardown {
 	/// <summary>
 	/// Removes the registration. No-op if it has already been removed.
 	/// </summary>
+	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
 	public void Remove() {
 		if (Interlocked.Exchange(ref removed, 1) != 0)
 			return;

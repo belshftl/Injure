@@ -3,6 +3,7 @@
 using System;
 
 using Injure.Internals.Analyzers.Attributes;
+using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.ModKit.Abstractions;
 
@@ -36,6 +37,7 @@ public readonly record struct ReloadTeardownContext(
 /// needs to be cleared for reloadable mods.
 /// </para>
 /// </remarks>
+[Obligation]
 public interface IReloadTeardown {
 	/// <summary>
 	/// Tears down object-defined previously established state.
@@ -45,5 +47,6 @@ public interface IReloadTeardown {
 	/// Implementations must be idempotent, not depend on ordering relative to other
 	/// <see cref="Teardown(in ReloadTeardownContext)"/> calls, and may run on any arbitrary thread.
 	/// </remarks>
+	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
 	void Teardown(in ReloadTeardownContext ctx);
 }
