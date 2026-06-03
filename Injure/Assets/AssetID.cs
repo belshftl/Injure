@@ -18,7 +18,7 @@ public readonly struct AssetID : IEquatable<AssetID>, ISpanParsable<AssetID> {
 	public string Namespace { get; }
 
 	/// <summary>
-	/// Slash-separated path portion of the asset ID.
+	/// Forward-slash-separated path portion of the asset ID.
 	/// </summary>
 	public string Path { get; }
 

@@ -20,7 +20,9 @@ public sealed class HookAnalyzer : DiagnosticAnalyzer {
 		Diagnostics.Discouraged.NonStaticHookMethod,
 		Diagnostics.Discouraged.HookStaticLambda,
 		Diagnostics.Discouraged.NonStaticEmitDelegateMethod,
-		Diagnostics.Discouraged.EmitDelegateStaticLambda
+		Diagnostics.Discouraged.EmitDelegateStaticLambda,
+		Diagnostics.Discouraged.ManualHookWithDetourConfig,
+		Diagnostics.Discouraged.ManualHookWithoutDetourConfig
 	);
 
 	public override void Initialize(AnalysisContext context) {
@@ -38,9 +40,13 @@ public sealed class HookAnalyzer : DiagnosticAnalyzer {
 		if (!creat.Type.IsHook(known))
 			return;
 		IArgumentOperation? delegateArg = findDelegateArgument(creat.Arguments);
-		if (delegateArg is null)
-			return;
-		report(ctx, delegateArg, Diagnostics.Discouraged.NonStaticHookMethod, Diagnostics.Discouraged.HookStaticLambda);
+		if (delegateArg is not null)
+			maybeReportDelegateArg(ctx, delegateArg, Diagnostics.Discouraged.NonStaticHookMethod, Diagnostics.Discouraged.HookStaticLambda);
+		IArgumentOperation? detourConfigArg = findDetourConfigArgument(creat.Arguments, known);
+		if (detourConfigArg is null || isMaybeNull(detourConfigArg.Value))
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Discouraged.ManualHookWithoutDetourConfig, creat.Syntax.GetLocation()));
+		else
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Discouraged.ManualHookWithDetourConfig, creat.Syntax.GetLocation()));
 	}
 
 	private static void analyzeInvocation(OperationAnalysisContext ctx, KnownSymbols known) {
@@ -48,9 +54,8 @@ public sealed class HookAnalyzer : DiagnosticAnalyzer {
 		if (!known.EmitDelegateMethods.Contains(inv.TargetMethod.OriginalDefinition, SymbolEqualityComparer.Default))
 			return;
 		IArgumentOperation? delegateArg = findDelegateArgument(inv.Arguments);
-		if (delegateArg is null)
-			return;
-		report(ctx, delegateArg, Diagnostics.Discouraged.NonStaticEmitDelegateMethod, Diagnostics.Discouraged.EmitDelegateStaticLambda);
+		if (delegateArg is not null)
+			maybeReportDelegateArg(ctx, delegateArg, Diagnostics.Discouraged.NonStaticEmitDelegateMethod, Diagnostics.Discouraged.EmitDelegateStaticLambda);
 	}
 
 	private static IArgumentOperation? findDelegateArgument(ImmutableArray<IArgumentOperation> args) {
@@ -60,7 +65,18 @@ public sealed class HookAnalyzer : DiagnosticAnalyzer {
 		return null;
 	}
 
-	private static void report(OperationAnalysisContext ctx, IArgumentOperation arg, DiagnosticDescriptor nonStaticDd, DiagnosticDescriptor staticLambdaDd) {
+	private static IArgumentOperation? findDetourConfigArgument(ImmutableArray<IArgumentOperation> args, KnownSymbols known) {
+		foreach (IArgumentOperation arg in args) {
+			IParameterSymbol? param = arg.Parameter;
+			if (param is null)
+				continue;
+			if (SymbolEqualityComparer.Default.Equals(param.Type, known.DetourConfig))
+				return arg;
+		}
+		return null;
+	}
+
+	private static void maybeReportDelegateArg(OperationAnalysisContext ctx, IArgumentOperation arg, DiagnosticDescriptor nonStaticDd, DiagnosticDescriptor staticLambdaDd) {
 		switch (classifyDelegateExpression(arg.Value)) {
 		case DelegateTargetKind.PlainStaticMethodGroup:
 			return;
@@ -85,5 +101,30 @@ public sealed class HookAnalyzer : DiagnosticAnalyzer {
 		if (op.Type?.TypeKind == TypeKind.Delegate)
 			return DelegateTargetKind.NonStaticOrUnknown;
 		return DelegateTargetKind.NonStaticOrUnknown;
+	}
+
+	private static bool isMaybeNull(IOperation value) {
+		while (value is IConversionOperation conv)
+			value = conv.Operand;
+		if (value.ConstantValue is { HasValue: true, Value: null })
+			return true;
+		if (value is IDefaultValueOperation)
+			return true;
+		if (value is ILocalReferenceOperation localRef) {
+			NullableFlowState? nullable = localRef.SemanticModel?.GetTypeInfo(localRef.Syntax).Nullability.FlowState;
+			if (nullable == NullableFlowState.MaybeNull)
+				return true;
+		}
+		if (value is IParameterReferenceOperation paramRef) {
+			NullableFlowState? nullable = paramRef.SemanticModel?.GetTypeInfo(paramRef.Syntax).Nullability.FlowState;
+			if (nullable == NullableFlowState.MaybeNull)
+				return true;
+		}
+		if (value.SemanticModel is not null) {
+			NullableFlowState? nullable = value.SemanticModel.GetTypeInfo(value.Syntax).Nullability.FlowState;
+			if (nullable == NullableFlowState.MaybeNull)
+				return true;
+		}
+		return false;
 	}
 }

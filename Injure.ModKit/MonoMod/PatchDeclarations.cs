@@ -15,15 +15,16 @@ internal readonly record struct HookOrder(
 	int LocalPriority
 );
 
-internal abstract class PatchDeclaration(string ownerID, HookOrder order) : IStrongRefDroppable {
+internal abstract class PatchDeclaration(string ownerID, HookOrder order, string detourID) : IStrongRefDroppable {
 	public string OwnerID { get; } = ownerID;
 	public HookOrder Order { get; } = order;
+	public string DetourID { get; } = detourID;
 
 	public abstract void Commit(IActiveOwnerScope scope);
 	public abstract void DropStrongReferences();
 }
 
-internal sealed class HookDeclaration(string ownerID, HookOrder order, MethodBase target, MethodInfo replacement) : PatchDeclaration(ownerID, order) {
+internal sealed class HookDeclaration(string ownerID, HookOrder order, string detourID, MethodBase target, MethodInfo replacement) : PatchDeclaration(ownerID, order, detourID) {
 	private MethodBase? target = target;
 	private MethodInfo? replacement = replacement;
 
@@ -33,7 +34,7 @@ internal sealed class HookDeclaration(string ownerID, HookOrder order, MethodBas
 			throw new InvalidOperationException("target/replacement method strong refs have already been dropped");
 		Hook? h = null;
 		try {
-			h = new Hook(target, replacement);
+			h = new Hook(target, replacement, new DetourConfig(DetourID));
 			scope.AddDisposable(new ClearableDisposable<Hook>(h));
 			h = null;
 		} finally {
@@ -47,7 +48,7 @@ internal sealed class HookDeclaration(string ownerID, HookOrder order, MethodBas
 	}
 }
 
-internal sealed class ILHookDeclaration(string ownerID, HookOrder order, MethodBase target, MethodInfo manipulator) : PatchDeclaration(ownerID, order) {
+internal sealed class ILHookDeclaration(string ownerID, HookOrder order, string detourID, MethodBase target, MethodInfo manipulator) : PatchDeclaration(ownerID, order, detourID) {
 	private MethodBase? target = target;
 	private MethodInfo? manipulator = manipulator;
 
@@ -59,7 +60,7 @@ internal sealed class ILHookDeclaration(string ownerID, HookOrder order, MethodB
 		ILHook? h = null;
 		try {
 			m = (ILContext.Manipulator)Delegate.CreateDelegate(typeof(ILContext.Manipulator), manipulator);
-			h = new ILHook(target, m);
+			h = new ILHook(target, m, new DetourConfig(DetourID));
 			scope.AddDisposable(new ClearableDisposable<ILHook>(h));
 			h = null;
 		} finally {
