@@ -5,13 +5,13 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace Injure.ModKit.Analyzers.Core;
+namespace Injure.ModKit.Analyzers.Discouraged;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class StaticEventAnalyzer : DiagnosticAnalyzer {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
-		Diagnostics.Core.StaticEventInNonReloadableMod,
-		Diagnostics.Core.StaticEventInReloadableMod
+		Diagnostics.Discouraged.StaticEventInNonReloadableMod,
+		Diagnostics.Discouraged.StaticEventInReloadableMod
 	);
 
 	public override void Initialize(AnalysisContext context) {
@@ -32,8 +32,8 @@ public sealed class StaticEventAnalyzer : DiagnosticAnalyzer {
 		if (loc is null || loc == Location.None)
 			return;
 		if (nonreloadable)
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.StaticEventInNonReloadableMod, loc));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Discouraged.StaticEventInNonReloadableMod, loc));
 		else
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.StaticEventInReloadableMod, loc));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Discouraged.StaticEventInReloadableMod, loc));
 	}
 }
