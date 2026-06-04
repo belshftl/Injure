@@ -3,6 +3,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using MonoMod.RuntimeDetour;
 
 using Injure.ModKit.Abstractions.MonoMod;
 using Injure.ModKit.Runtime;
@@ -28,8 +29,8 @@ internal static class HookDiscoverer<TGameApi> {
 			HookMethodValidator.ValidateGeneratedHookMethod(patchMethod, target);
 			mod.LoadHooks.Add(new HookDeclaration(
 				mod.Staged.Manifest.OwnerID,
-				createOrder(mod.Staged.Manifest.OwnerID, attr.OrderDomain, attr.LocalPriority, patchMethod, n++, "load-hook"),
-				detourIDFor(mod.Staged.Manifest.OwnerID, patchMethod),
+				createOrder(mod.Staged.Manifest.OwnerID, attr, patchMethod, n++, "load-hook"),
+				detourConfigFor(mod.Staged.Manifest.OwnerID, patchMethod, attr),
 				target.Method,
 				patchMethod
 			));
@@ -43,8 +44,8 @@ internal static class HookDiscoverer<TGameApi> {
 			HookMethodValidator.ValidateGeneratedILHookMethod(patchMethod, target);
 			mod.LoadHooks.Add(new ILHookDeclaration(
 				mod.Staged.Manifest.OwnerID,
-				createOrder(mod.Staged.Manifest.OwnerID, attr.OrderDomain, attr.LocalPriority, patchMethod, n++, "load-il-hook"),
-				detourIDFor(mod.Staged.Manifest.OwnerID, patchMethod),
+				createOrder(mod.Staged.Manifest.OwnerID, attr, patchMethod, n++, "load-il-hook"),
+				detourConfigFor(mod.Staged.Manifest.OwnerID, patchMethod, attr),
 				target.Method,
 				patchMethod
 			));
@@ -58,8 +59,8 @@ internal static class HookDiscoverer<TGameApi> {
 			HookMethodValidator.ValidateDirectHookMethod(patchMethod, target);
 			mod.LoadHooks.Add(new HookDeclaration(
 				mod.Staged.Manifest.OwnerID,
-				createOrder(mod.Staged.Manifest.OwnerID, attr.OrderDomain, attr.LocalPriority, patchMethod, n++, "load-method-hook"),
-				detourIDFor(mod.Staged.Manifest.OwnerID, patchMethod),
+				createOrder(mod.Staged.Manifest.OwnerID, attr, patchMethod, n++, "load-method-hook"),
+				detourConfigFor(mod.Staged.Manifest.OwnerID, patchMethod, attr),
 				target,
 				patchMethod
 			));
@@ -73,8 +74,8 @@ internal static class HookDiscoverer<TGameApi> {
 			HookMethodValidator.ValidateDirectILHookMethod(patchMethod, target);
 			mod.LoadHooks.Add(new ILHookDeclaration(
 				mod.Staged.Manifest.OwnerID,
-				createOrder(mod.Staged.Manifest.OwnerID, attr.OrderDomain, attr.LocalPriority, patchMethod, n++, "load-method-il-hook"),
-				detourIDFor(mod.Staged.Manifest.OwnerID, patchMethod),
+				createOrder(mod.Staged.Manifest.OwnerID, attr, patchMethod, n++, "load-method-il-hook"),
+				detourConfigFor(mod.Staged.Manifest.OwnerID, patchMethod, attr),
 				target,
 				patchMethod
 			));
@@ -94,15 +95,22 @@ internal static class HookDiscoverer<TGameApi> {
 		throw new AmbiguousMatchException($"method '{type.FullName}.{name}' is overloaded; specify ParameterTypes");
 	}
 
-	private static HookOrder createOrder(string ownerID, string? localDomain, int localPriority, MethodInfo patchMethod, int ordinal, string prefix) {
+	private static HookOrder createOrder(string ownerID, IHookAttribute attr, MethodInfo patchMethod, int ordinal, string prefix) {
 		if (patchMethod.DeclaringType?.FullName is null)
 			throw new InvalidOperationException("expected patch method to have a declaring type with a fully-qualified name");
-		string domain = string.IsNullOrWhiteSpace(localDomain) ? ownerID : ownerID + "::" + localDomain;
+		string domain = string.IsNullOrWhiteSpace(attr.OrderDomain) ? ownerID : ownerID + "::" + attr.OrderDomain;
 		string localID = prefix + ":" + patchMethod.DeclaringType.FullName + "." + patchMethod.Name + "#" + ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
-		return new HookOrder(domain, localID, localPriority);
+		return new HookOrder(domain, localID, attr.LocalPriority);
 	}
 
-	private static string detourIDFor(string ownerID, MethodInfo patchMethod) {
+	private static DetourConfig detourConfigFor(string ownerID, MethodInfo patchMethod, IHookAttribute attr) => new(
+		id: attr.DetourIDOverride ?? autoDetourIDFor(ownerID, patchMethod),
+		priority: attr.DetourPriority,
+		before: attr.DetourBefore,
+		after: attr.DetourAfter
+	);
+
+	private static string autoDetourIDFor(string ownerID, MethodInfo patchMethod) {
 		if (patchMethod.DeclaringType?.FullName is null)
 			throw new InvalidOperationException("expected patch method to have a declaring type with a fully-qualified name");
 		return $"{ownerID}::{patchMethod.DeclaringType.FullName}.{patchMethod.Name}";

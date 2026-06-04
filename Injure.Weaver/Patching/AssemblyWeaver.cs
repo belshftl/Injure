@@ -27,45 +27,51 @@ public static class AssemblyWeaver {
 		if (!string.IsNullOrEmpty(outDir))
 			Directory.CreateDirectory(outDir);
 
-		DotnetAssemblyResolver resolver = new(options.InputPath);
-		resolver.AddSearchDirectory(inDir);
-		resolver.AddSearchDirectory(outDir);
+		int ret;
+		string? tmpFilePath = null;
+		using (DotnetAssemblyResolver resolver = new(options.InputPath)) {
+			resolver.AddSearchDirectory(inDir);
+			resolver.AddSearchDirectory(outDir);
 
-		ReaderParameters readerParameters = new() {
-			AssemblyResolver = resolver,
-			ReadingMode = ReadingMode.Deferred,
-			ReadSymbols = false,
-		};
+			ReaderParameters readerParameters = new() {
+				AssemblyResolver = resolver,
+				ReadingMode = ReadingMode.Deferred,
+				ReadSymbols = false,
+			};
 
-		using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(options.InputPath, readerParameters);
-		ModuleDefinition module = assembly.MainModule;
-		InjureReferences ij = InjureReferenceResolver.Resolve(module);
-		AssemblyAnalysis analysis = AssemblyAnalyzer.Analyze(module);
+			using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(options.InputPath, readerParameters);
+			ModuleDefinition module = assembly.MainModule;
+			InjureReferences ij = InjureReferenceResolver.Resolve(module);
+			AssemblyAnalysis analysis = AssemblyAnalyzer.Analyze(module);
 
-		PublicizeAnnotations.Annotate(module, ij, in analysis);
-		Publicizer.Publicize(module, in analysis);
+			PublicizeAnnotations.Annotate(module, ij, in analysis);
+			Publicizer.Publicize(module, in analysis);
 
-		string assemblyName = TypeNameUtil.SanitizeIdentifier(assembly.Name.Name);
-		string hooksRoot = options.HooksRoot ?? assemblyName + ".Hooks";
-		string rawHooksRoot = options.RawHooksRoot ?? assemblyName + ".RawHooks";
+			string assemblyName = TypeNameUtil.SanitizeIdentifier(assembly.Name.Name);
+			string hooksRoot = options.HooksRoot ?? assemblyName + ".Hooks";
+			string rawHooksRoot = options.RawHooksRoot ?? assemblyName + ".RawHooks";
 
-		List<HookCandidate> candidates = HookDiscoverer.Discover(module, options.OwnerID);
-		Dictionary<HookCandidate, TypeDefinition> delegateTypes = HookEmitter.Emit(module, candidates, hooksRoot, rawHooksRoot);
+			List<HookCandidate> candidates = HookDiscoverer.Discover(module, options.OwnerID);
+			Dictionary<HookCandidate, TypeDefinition> delegateTypes = HookEmitter.Emit(module, candidates, hooksRoot, rawHooksRoot);
 
-		StoreEmitter.Emit(module, ij, candidates, delegateTypes, assemblyName);
+			StoreEmitter.Emit(module, ij, candidates, delegateTypes, assemblyName);
 
-		WriterParameters writerParameters = new() {
-			WriteSymbols = false,
-		};
-		if (Path.GetFullPath(options.InputPath) == Path.GetFullPath(options.OutputPath)) {
-			string tmp = options.OutputPath + ".injure-modkit-tmp";
-			assembly.Write(tmp, writerParameters);
-			File.Copy(tmp, options.OutputPath, overwrite: true);
-			File.Delete(tmp);
-		} else {
-			assembly.Write(options.OutputPath, writerParameters);
+			WriterParameters writerParameters = new() {
+				WriteSymbols = false,
+			};
+			if (Path.GetFullPath(options.InputPath) == Path.GetFullPath(options.OutputPath)) {
+				tmpFilePath = options.OutputPath + ".injure-modkit-tmp";
+				assembly.Write(tmpFilePath, writerParameters);
+			} else {
+				assembly.Write(options.OutputPath, writerParameters);
+			}
+			ret = candidates.Count;
+		}
+		if (tmpFilePath is not null) {
+			File.Copy(tmpFilePath, options.OutputPath, overwrite: true);
+			File.Delete(tmpFilePath);
 		}
 
-		return candidates.Count;
+		return ret;
 	}
 }
