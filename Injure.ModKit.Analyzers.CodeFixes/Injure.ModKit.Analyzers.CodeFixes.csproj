@@ -5,7 +5,6 @@
 		<Nullable>enable</Nullable>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<DevelopmentDependency>true</DevelopmentDependency>
-		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
 		<PackageId>Injure.ModKit.Analyzers.CodeFixes</PackageId>
 		<Version>0.1.0-alpha.0</Version>
