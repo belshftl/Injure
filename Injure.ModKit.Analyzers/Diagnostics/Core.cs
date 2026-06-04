@@ -137,7 +137,7 @@ internal static class Core {
 		title: "Lifetime identity type parameter can be constrained to struct",
 		messageFormat: "Add 'struct' to the IModLifetimeIdentity constraint for type parameter '{0}'",
 		category: "Core",
-		defaultSeverity: DiagnosticSeverity.Hidden,
+		defaultSeverity: DiagnosticSeverity.Info,
 		isEnabledByDefault: true
 	);
 #pragma warning restore RS2008 // enable analyzer release tracking

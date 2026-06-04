@@ -3,15 +3,14 @@
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<LangVersion>14.0</LangVersion>
 		<Nullable>enable</Nullable>
-		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<DevelopmentDependency>true</DevelopmentDependency>
-		<NoPackageAnalysis>true</NoPackageAnalysis>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
-		<PackageId>Injure.ModKit.Analyzers</PackageId>
+		<PackageId>Injure.ModKit.Analyzers.CodeFixes</PackageId>
 		<Version>0.1.0-alpha.0</Version>
 		<Authors>AtBelshftl</Authors>
-		<Description>analyzer for mods from the game framework/engine colloquially known as Injure</Description>
+		<Description>analyzer codefixes for mods from the game framework/engine colloquially known as Injure</Description>
 		<Copyright>Copyright (c) 2026 belshftl</Copyright>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<RepositoryUrl>https://github.com/belshftl/Injure</RepositoryUrl>
@@ -19,11 +18,15 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="../Injure.ModKit.Analyzers/Injure.ModKit.Analyzers.csproj" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<!-- referencing newer versions of Microsoft.CodeAnalysis.* seems to break codefixes -->
+		<PackageReference Include="System.Composition" Version="10.0.0" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
-		<PackageReference Include="PolySharp" Version="1.15.0" PrivateAssets="all" />
-		<InternalsVisibleTo Include="Injure.ModKit.Analyzers.CodeFixes" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" PrivateAssets="all" />
 	</ItemGroup>
 
 	<ItemGroup>

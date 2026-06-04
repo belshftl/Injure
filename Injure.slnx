@@ -4,6 +4,7 @@
 	<Project Path="Injure.Internals.Tests/Injure.Internals.Tests.csproj" />
 	<Project Path="Injure.ModKit/Injure.ModKit.csproj" />
 	<Project Path="Injure.ModKit.Analyzers/Injure.ModKit.Analyzers.csproj" />
+	<Project Path="Injure.ModKit.Analyzers.CodeFixes/Injure.ModKit.Analyzers.CodeFixes.csproj" />
 	<Project Path="Injure.ModKit.Mods/Injure.ModKit.Mods.csproj" />
 	<Project Path="Injure.Native/Injure.Native.csproj" />
 	<Project Path="Injure.Weaver/Injure.Weaver.csproj" />
