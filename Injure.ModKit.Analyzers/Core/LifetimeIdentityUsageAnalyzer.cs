@@ -42,7 +42,7 @@ public sealed class LifetimeIdentityAnalyzer : DiagnosticAnalyzer {
 	private static void analyzeTypeParameterConstraintClause(SyntaxNodeAnalysisContext ctx, KnownTypes known) {
 		var clause = (TypeParameterConstraintClauseSyntax)ctx.Node;
 		ITypeParameterSymbol? tp = findConstrainedTypeParameter(ctx.SemanticModel, clause, ctx.CancellationToken);
-		if (tp is null || !(tp.HasValueTypeConstraint || tp.HasUnmanagedTypeConstraint) || !tp.ConstraintTypes.Any(t => isLifetimeIdentityInterface(known, t)))
+		if (tp is null || tp.HasValueTypeConstraint || tp.HasUnmanagedTypeConstraint || !tp.ConstraintTypes.Any(t => isLifetimeIdentityInterface(known, t)))
 			return;
 		ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.MissingStructLifetimeConstraint, clause.Name.GetLocation(), tp.Name));
 	}
