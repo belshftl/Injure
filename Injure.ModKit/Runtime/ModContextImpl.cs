@@ -96,6 +96,7 @@ internal sealed class ModLinkContextImpl<TGameApi, L>(
 
 internal sealed class ModActivateContextImpl<TGameApi, L>(
 	GameServices gameServices,
+	UntypedBoundedScope activationScope,
 	string ownerID,
 	Semver version,
 	TGameApi api,
@@ -106,9 +107,14 @@ internal sealed class ModActivateContextImpl<TGameApi, L>(
 		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModActivateContext<,>), Generation);
 		private set;
 	} = gameServices;
+	public IBoundedScope<L> ActivationScope {
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModActivateContext<,>), Generation);
+		private set;
+	} = activationScope.AsTyped<L>();
 
 	public override void OnDropStrongReferences() {
 		GameServices = null!;
+		ActivationScope = null!;
 	}
 }
 

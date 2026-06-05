@@ -491,11 +491,11 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				await unloadAllCodeGenerationsAsync(ct).ConfigureAwait(false);
 			if (shutdownHasOwnerScopes(startingPhase)) {
 				foreach (LoadedCodeMod<TGameApi> mod in activeCode.Values) {
-					await invalidateScopeAsync(mod.Scope, ReloadTeardownReason.Shutdown, ct).ConfigureAwait(false);
+					await invalidateScopesAsync(mod, ReloadTeardownReason.Shutdown, ct).ConfigureAwait(false);
 					pendingUnloads.Add(detachForUnload(mod));
 				}
 				foreach (LoadedContentMod mod in activeContent.Values)
-					await invalidateScopeAsync(mod.Scope, ReloadTeardownReason.Shutdown, ct).ConfigureAwait(false);
+					await mod.Scope.InvalidateAsync(ReloadTeardownReason.Shutdown, ct).ConfigureAwait(false);
 			}
 
 			clearRuntimeStateAfterShutdown();
@@ -524,7 +524,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			List<PendingAlcUnload> pendingUnloads = new();
 			foreach (LoadedCodeMod<TGameApi> mod in activeCode.Values) {
 				try {
-					await invalidateScopeAsync(mod.Scope, ReloadTeardownReason.Abort, CancellationToken.None).ConfigureAwait(false);
+					await invalidateScopesAsync(mod, ReloadTeardownReason.Abort, CancellationToken.None).ConfigureAwait(false);
 				} catch (Exception ex) {
 					diagnostics.Warning($"abort: error invalidating scope for '{mod.Staged.Manifest.OwnerID}', moving on: {ex}");
 				}
@@ -537,7 +537,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 			foreach (LoadedContentMod mod in activeContent.Values) {
 				try {
-					await invalidateScopeAsync(mod.Scope, ReloadTeardownReason.Abort, CancellationToken.None).ConfigureAwait(false);
+					await mod.Scope.InvalidateAsync(ReloadTeardownReason.Abort, CancellationToken.None).ConfigureAwait(false);
 				} catch (Exception ex) {
 					diagnostics.Warning($"abort: error invalidating content scope for '{mod.Staged.Manifest.OwnerID}', moving on: {ex}");
 				}
@@ -998,7 +998,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		}
 		foreach (LoadedContentMod mod in preparedContent.Values) {
 			try {
-				await destroyPreparedContentGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
+				await mod.Scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 			} catch (Exception cleanupEx) when (!ExceptionPolicy.IsInternalState(cleanupEx)) {
 				cleanupErrs.Add(ExceptionSnapshot.FromException(cleanupEx));
 			}
@@ -1093,7 +1093,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values)
 				unload(detachForUnload(mod), diagnostics);
 			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
-				await destroyPreparedContentGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
+				await mod.Scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 			throw reloadErr.ToException();
 		}
 
@@ -1105,7 +1105,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 				preparedUnloads.Add(detachForUnload(mod));
 			}
 			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
-				await destroyPreparedContentGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
+				await mod.Scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
 			rollbackErrs.Add(ExceptionSnapshot.FromException(ex));
 		}
@@ -1191,7 +1191,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
 			try {
 				if (scope is not null)
-					block(invalidateScopeAsync(scope, ReloadTeardownReason.FailureRollback, CancellationToken.None));
+					block(scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, CancellationToken.None));
 				foreach (Assembly asm in alc.Assemblies)
 					AssemblyScrubber.ScrubStaticReferenceFields(asm);
 				alc.Unload();
@@ -1225,10 +1225,19 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	private async ValueTask activateOneAsync(LoadedCodeMod<TGameApi> mod, GameServices gameServices, CancellationToken ct) {
+		if (mod.ActivationScope is not null)
+			throw new InternalStateException("wasn't expecting this LoadedCodeMod to already have an ActivationScope");
+		UntypedBoundedScope activationScope = new(mod.Staged.Generation, maxScopeTeardownParallelism);
+		mod.ActivationScope = activationScope;
 		object ctx = createActivateContext(mod, createApi(mod), diagnosticsSink, gameServices);
 		try {
 			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.ActivateAsync), ctx, ct).ConfigureAwait(false);
 			mod.Active = true;
+		} catch {
+			mod.Active = false;
+			mod.ActivationScope = null;
+			await activationScope.InvalidateAsync(ReloadTeardownReason.Deactivate, CancellationToken.None).ConfigureAwait(false);
+			throw;
 		} finally {
 			(ctx as IStrongRefDroppable)?.DropStrongReferences();
 			ctx = null!;
@@ -1236,8 +1245,17 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	private static async ValueTask deactivateOneAsync(LoadedCodeMod<TGameApi> mod, CancellationToken ct) {
-		await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.DeactivateAsync), null, ct).ConfigureAwait(false);
-		mod.Active = false;
+		UntypedBoundedScope? activationScope = mod.ActivationScope;
+		try {
+			if (mod.Active)
+				await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.DeactivateAsync), null, ct).ConfigureAwait(false);
+		} finally {
+			mod.Active = false;
+			mod.ActivationScope = null;
+			if (activationScope is not null)
+				await activationScope.InvalidateAsync(ReloadTeardownReason.Deactivate, CancellationToken.None).ConfigureAwait(false);
+			activationScope = null;
+		}
 	}
 
 	private async ValueTask deactivateSetAsync(HashSet<string> set, ResolvedModGraph graph, bool reverse, CancellationToken ct) {
@@ -1273,9 +1291,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		foreach (string id in set) {
 			ReloadTeardownReason reason = plan.DisableSet.Contains(id) ? ReloadTeardownReason.Disable : ReloadTeardownReason.Reload;
 			if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? mod))
-				await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
+				await invalidateScopesAsync(mod, reason, ct).ConfigureAwait(false);
 			if (activeContent.TryGetValue(id, out LoadedContentMod? content))
-				await invalidateScopeAsync(content.Scope, reason, ct).ConfigureAwait(false);
+				await content.Scope.InvalidateAsync(reason, ct).ConfigureAwait(false);
 		}
 	}
 
@@ -1321,13 +1339,8 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		try {
 			await unloadCodeGenerationAsync(mod, ct).ConfigureAwait(false);
 		} finally {
-			await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
+			await invalidateScopesAsync(mod, reason, ct).ConfigureAwait(false);
 		}
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static async ValueTask destroyPreparedContentGenerationAsync(LoadedContentMod mod, ReloadTeardownReason reason, CancellationToken ct) {
-		await invalidateScopeAsync(mod.Scope, reason, ct).ConfigureAwait(false);
 	}
 
 	private void validateReloadCapabilities(IReadOnlySet<string> reloadSet, ReloadRequestKind request) {
@@ -1434,10 +1447,12 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		await expectValueTask(result, mi.Name).ConfigureAwait(false);
 	}
 
-	private static ValueTask invalidateScopeAsync(IUntypedBoundedScope scope, ReloadTeardownReason reason, CancellationToken ct) {
-		if (scope is not UntypedBoundedScope sc)
-			throw new InternalStateException($"'{scope.GetType().FullName}' isn't an UntypedBoundedScope so we can't invalidate it");
-		return sc.InvalidateAsync(reason, ct);
+	private static async ValueTask invalidateScopesAsync(LoadedCodeMod<TGameApi> mod, ReloadTeardownReason reason, CancellationToken ct) {
+		if (mod.ActivationScope is not null) {
+			await mod.ActivationScope.InvalidateAsync(reason, ct);
+			mod.ActivationScope = null;
+		}
+		await mod.Scope.InvalidateAsync(reason, ct);
 	}
 
 	private static object? invokeModMethod(MethodInfo mi, object target, object?[] args) {
@@ -1507,6 +1522,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	) => Activator.CreateInstance(
 		typeof(ModActivateContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
 		gameServices,
+		mod.ActivationScope ?? throw new InternalStateException("expected this LoadedCodeMod to have an ActivationScope"),
 		mod.Staged.Manifest.OwnerID,
 		mod.Staged.Manifest.Version,
 		api,
