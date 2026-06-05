@@ -82,7 +82,12 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 		set;
 	}
 	public required UntypedBoundedScope Scope {
-		get => field ?? throw new InternalStateException("mod active owner scope strong ref has already been dropped");
+		get => field ?? throw new InternalStateException("mod owner scope strong ref has already been dropped");
+		set;
+	}
+	private bool activationScopeDropped = false;
+	public UntypedBoundedScope? ActivationScope {
+		get => !activationScopeDropped ? field : throw new InternalStateException("mod activation scope strong ref has already been dropped");
 		set;
 	}
 	private GenerationPatchSet? loadHooksBacking;
@@ -100,6 +105,8 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 		ReloadEntrypoint = null;
 		LifetimeIdentityType = null!;
 		Scope = null!;
+		activationScopeDropped = true;
+		ActivationScope = null!;
 		loadHooksBacking?.DropStrongReferences();
 		loadHooksBacking = null;
 	}

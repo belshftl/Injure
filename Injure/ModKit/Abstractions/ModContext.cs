@@ -46,6 +46,7 @@ public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> whe
 
 public interface IModActivateContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	GameServices GameServices { get; }
+	IBoundedScope<L> ActivationScope { get; }
 }
 
 public interface IModReloadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
