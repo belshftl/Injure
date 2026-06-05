@@ -7,7 +7,7 @@ using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.ModKit.Abstractions;
 
-public interface IActiveOwnerScope {
+public interface IUntypedBoundedScope {
 	string OwnerID { get; }
 	ReloadGeneration Generation { get; }
 
@@ -29,7 +29,7 @@ public interface IActiveOwnerScope {
 	void TrackWeak(object item, string category, string description = "");
 }
 
-public interface IActiveOwnerScope<L> : IActiveOwnerScope where L : struct, IModLifetimeIdentity {
+public interface IBoundedScope<L> : IUntypedBoundedScope where L : struct, IModLifetimeIdentity {
 	BoundedCt<L> Stopping { get; }
 
 	BoundedCts<L> CreateCts();

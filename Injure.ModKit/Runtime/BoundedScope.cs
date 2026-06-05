@@ -17,7 +17,7 @@ internal readonly record struct ReloadWeakReferenceSnapshot(
 	string TargetTypeName
 );
 
-internal readonly record struct ActiveOwnerScopeFailure(
+internal readonly record struct BoundedScopeFailure(
 	ReloadGeneration Generation,
 	int Index,
 	string Operation,
@@ -26,21 +26,21 @@ internal readonly record struct ActiveOwnerScopeFailure(
 	string Message,
 	string Details
 ) {
-	public static ActiveOwnerScopeFailure FromException(ReloadGeneration generation, int index, string operation, string itemTypeName, Exception ex) =>
+	public static BoundedScopeFailure FromException(ReloadGeneration generation, int index, string operation, string itemTypeName, Exception ex) =>
 		new(generation, index, operation, itemTypeName, ex.GetType().FullName ?? ex.GetType().Name, ex.Message, ex.ToString());
 }
 
-internal sealed class ActiveOwnerScopeException(
+internal sealed class BoundedScopeException(
 	ReloadGeneration generation,
 	ReloadTeardownReason reason,
-	IReadOnlyList<ActiveOwnerScopeFailure> failures
+	IReadOnlyList<BoundedScopeFailure> failures
 ) : Exception($"active owner scope invalidation failed for '{generation}' with {failures.Count} failure(s)") {
 	public ReloadGeneration Generation { get; } = generation;
 	public ReloadTeardownReason Reason { get; } = reason;
-	public IReadOnlyList<ActiveOwnerScopeFailure> Failures { get; } = failures;
+	public IReadOnlyList<BoundedScopeFailure> Failures { get; } = failures;
 }
 
-internal sealed class ActiveOwnerScope : IActiveOwnerScope {
+internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 	private readonly record struct TrackedWeakReference(WeakReference Reference, string Category, string Description);
 
 	private struct OwnedDisposable {
@@ -97,32 +97,32 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 	public CancellationToken RawStopping {
 		get {
 			if (IsInvalidated)
-				throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
+				throw new InvalidOperationException("this BoundedScope has already been invalidated");
 			return stoppingCts.Token;
 		}
 	}
 
-	public ActiveOwnerScopeView<L> AsTyped<L>() where L : struct, IModLifetimeIdentity {
+	public BoundedScopeView<L> AsTyped<L>() where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
-			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
-		return new ActiveOwnerScopeView<L>(this);
+			throw new InvalidOperationException("this BoundedScope has already been invalidated");
+		return new BoundedScopeView<L>(this);
 	}
 
 	public BoundedCt<L> CreateStoppingCt<L>() where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
-			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
+			throw new InvalidOperationException("this BoundedScope has already been invalidated");
 		return new BoundedCt<L>(Generation, stoppingCts.Token);
 	}
 
 	public BoundedCts<L> CreateCts<L>() where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
-			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
+			throw new InvalidOperationException("this BoundedScope has already been invalidated");
 		return CreateLinkedCts<L>(CancellationToken.None);
 	}
 
 	public BoundedCts<L> CreateLinkedCts<L>(CancellationToken ct) where L : struct, IModLifetimeIdentity {
 		if (IsInvalidated)
-			throw new InvalidOperationException("this ActiveOwnerScope has already been invalidated");
+			throw new InvalidOperationException("this BoundedScope has already been invalidated");
 		CancellationTokenSource linked = ct.CanBeCanceled
 			? CancellationTokenSource.CreateLinkedTokenSource(stoppingCts.Token, ct)
 			: CancellationTokenSource.CreateLinkedTokenSource(stoppingCts.Token);
@@ -136,7 +136,7 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		}
 	}
 
-	internal ActiveOwnerScope(ReloadGeneration generation, int maxParallelism) {
+	internal UntypedBoundedScope(ReloadGeneration generation, int maxParallelism) {
 		Generation = generation;
 		this.maxParallelism = Math.Max(1, maxParallelism);
 	}
@@ -230,12 +230,12 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 			weakRefs = null;
 		}
 
-		List<ActiveOwnerScopeFailure>? failures = null;
+		List<BoundedScopeFailure>? failures = null;
 		try {
 			try {
 				stoppingCts.Cancel();
 			} catch (Exception ex) {
-				(failures ??= new()).Add(ActiveOwnerScopeFailure.FromException(Generation, index: -1, operation: "cancel generation stopping token", itemTypeName: "CancellationTokenSource", ex));
+				(failures ??= new()).Add(BoundedScopeFailure.FromException(Generation, index: -1, operation: "cancel generation stopping token", itemTypeName: "CancellationTokenSource", ex));
 			}
 
 			await teardownAsync(tear, reason, maxParallelism, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
@@ -249,10 +249,10 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		}
 
 		if (failures is { Count: > 0 })
-			throw new ActiveOwnerScopeException(Generation, reason, failures);
+			throw new BoundedScopeException(Generation, reason, failures);
 	}
 
-	private async ValueTask teardownAsync(IReloadTeardown[] items, ReloadTeardownReason reason, int maxWorkerCount, Action<ActiveOwnerScopeFailure> addFailure) {
+	private async ValueTask teardownAsync(IReloadTeardown[] items, ReloadTeardownReason reason, int maxWorkerCount, Action<BoundedScopeFailure> addFailure) {
 		if (items.Length == 0)
 			return;
 
@@ -274,7 +274,7 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 					try {
 						items[i].Teardown(in ctx);
 					} catch (Exception ex) {
-						ActiveOwnerScopeFailure failure = ActiveOwnerScopeFailure.FromException(Generation, i, "tear down IReloadTeardown item", typeName, ex);
+						BoundedScopeFailure failure = BoundedScopeFailure.FromException(Generation, i, "tear down IReloadTeardown item", typeName, ex);
 						lock (failureLock)
 							addFailure(failure);
 					} finally {
@@ -286,7 +286,7 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		await Task.WhenAll(workers).ConfigureAwait(false);
 	}
 
-	private async ValueTask disposeParallelAsync(OwnedDisposable[] items, int maxWorkerCount, Action<ActiveOwnerScopeFailure> addFailure) {
+	private async ValueTask disposeParallelAsync(OwnedDisposable[] items, int maxWorkerCount, Action<BoundedScopeFailure> addFailure) {
 		if (items.Length == 0)
 			return;
 
@@ -304,7 +304,7 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 					try {
 						await items[i].DisposeAsync().ConfigureAwait(false);
 					} catch (Exception ex) {
-						ActiveOwnerScopeFailure failure = ActiveOwnerScopeFailure.FromException(Generation, i, "dispose unordered IDisposable item", typeName, ex);
+						BoundedScopeFailure failure = BoundedScopeFailure.FromException(Generation, i, "dispose unordered IDisposable item", typeName, ex);
 						lock (failureLock)
 							addFailure(failure);
 					} finally {
@@ -316,13 +316,13 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 		await Task.WhenAll(workers).ConfigureAwait(false);
 	}
 
-	private async ValueTask disposeOrderedAsync(OwnedDisposable[] items, Action<ActiveOwnerScopeFailure> addFailure) {
+	private async ValueTask disposeOrderedAsync(OwnedDisposable[] items, Action<BoundedScopeFailure> addFailure) {
 		for (int i = items.Length - 1; i >= 0; i--) {
 			string typeName = items[i].TypeName;
 			try {
 				await items[i].DisposeAsync().ConfigureAwait(false);
 			} catch (Exception ex) {
-				addFailure(ActiveOwnerScopeFailure.FromException(Generation, i, "dispose ordered IDisposable item", typeName, ex));
+				addFailure(BoundedScopeFailure.FromException(Generation, i, "dispose ordered IDisposable item", typeName, ex));
 			} finally {
 				items[i] = default;
 			}
@@ -354,18 +354,17 @@ internal sealed class ActiveOwnerScope : IActiveOwnerScope {
 	}
 }
 
-internal sealed class ActiveOwnerScopeView<L> : IActiveOwnerScope<L> where L : struct, IModLifetimeIdentity {
-	private readonly ActiveOwnerScope core;
-	private readonly BoundedCt<L> stoppingBacking;
+internal sealed class BoundedScopeView<L> : IBoundedScope<L> where L : struct, IModLifetimeIdentity {
+	private readonly UntypedBoundedScope core;
 
-	internal ActiveOwnerScopeView(ActiveOwnerScope core) {
+	internal BoundedScopeView(UntypedBoundedScope core) {
 		this.core = core;
-		stoppingBacking = core.CreateStoppingCt<L>();
+		Stopping = core.CreateStoppingCt<L>();
 	}
 
 	public string OwnerID => core.OwnerID;
 	public ReloadGeneration Generation => core.Generation;
-	public BoundedCt<L> Stopping => stoppingBacking;
+	public BoundedCt<L> Stopping { get; }
 	public BoundedCts<L> CreateCts() => core.CreateCts<L>();
 	public BoundedCts<L> CreateLinkedCts(CancellationToken cancellationToken) =>
 		core.CreateLinkedCts<L>(cancellationToken);

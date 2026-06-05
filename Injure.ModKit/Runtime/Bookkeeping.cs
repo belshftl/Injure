@@ -48,7 +48,7 @@ internal readonly record struct StagedMod(ModSource Source, ModManifest Manifest
 
 internal sealed class LoadedContentMod : IStrongRefDroppable {
 	public required StagedMod Staged { get; init; }
-	public required ActiveOwnerScope Scope {
+	public required UntypedBoundedScope Scope {
 		get => field ?? throw new InternalStateException("mod active owner scope strong ref has already been dropped");
 		set;
 	}
@@ -81,7 +81,7 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 		get => field ?? throw new InternalStateException("mod lifetime identity type strong ref has already been dropped");
 		set;
 	}
-	public required ActiveOwnerScope Scope {
+	public required UntypedBoundedScope Scope {
 		get => field ?? throw new InternalStateException("mod active owner scope strong ref has already been dropped");
 		set;
 	}

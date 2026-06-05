@@ -21,6 +21,11 @@ public readonly struct TestModL : IModLifetimeIdentity {
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
 	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModL> ctx, BoundedCt<TestModL> ct) {
+		/*
+		ctx.LoadHooks.DeclareILHook(TestGame.RawHooks.GameplayLayer.GetSomeColor, IL_GameplayLayer_GetSomeColor, new ModHookConfig {
+			DetourID = "jdoe.test-mod::SomeHook",
+		});
+		*/
 		ctx.Diagnostics.Info("loaded!");
 		ctx.Api.MarkLoaded(ctx.OwnerID);
 		return ValueTask.CompletedTask;
