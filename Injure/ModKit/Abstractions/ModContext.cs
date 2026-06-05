@@ -29,6 +29,7 @@ public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIden
 	IOwnerDiagnostics Diagnostics { get; }
 	IBoundedScope<L> Scope { get; }
 	ReloadGeneration Generation { get; }
+	DiagnosticsSinkRegistry DiagnosticsSinkRegistry { get; }
 }
 
 public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {

@@ -42,7 +42,7 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public int MaxScopeTeardownParallelism { get; init; } = 8;
 }
 
-public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
+public sealed class ModRuntime<TGameApi> {
 	// ==========================================================================
 	// bookkeeping
 	private readonly struct ContentLifetimeIdentity : IModLifetimeIdentity {}
@@ -133,16 +133,16 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 
 	// ==========================================================================
 	// state
-	private readonly string gameOwnerID = options.GameOwnerID ?? throw new ArgumentNullException(nameof(options), "GameOwnerID cannot be null");
-	private readonly string modDir = options.ModDirectory ?? throw new ArgumentNullException(nameof(options), "ModDirectory cannot be null");
-	private readonly string cacheDir = options.CacheDirectory ?? throw new ArgumentNullException(nameof(options), "CacheDirectory cannot be null");
-	private readonly Func<ModApiFactoryContext, TGameApi> apiFactory = options.ApiFactory ?? throw new ArgumentNullException(nameof(options), "ApiFactory cannot be null");
-	private readonly IReadOnlyList<string> sharedAssemblies = options.SharedAssemblies ?? throw new ArgumentNullException(nameof(options), "SharedAssemblies cannot be null");
-	private readonly IDiagnosticsSink diagnosticsSink = options.DiagnosticsSink ?? throw new ArgumentNullException(nameof(options), "DiagnosticsSink cannot be null");
-	private readonly TimeSpan unloadGracePeriod = options.UnloadGracePeriod;
-	private readonly int maxParallelDomains = Math.Max(1, options.MaxParallelCodeLoads);
-	private readonly int maxScopeTeardownParallelism = Math.Max(1, options.MaxScopeTeardownParallelism);
-	private readonly SemaphoreSlim codeLoadSem = new(Math.Max(1, options.MaxParallelCodeLoads), Math.Max(1, options.MaxParallelCodeLoads));
+	private readonly string gameOwnerID;
+	private readonly string modDir;
+	private readonly string cacheDir;
+	private readonly Func<ModApiFactoryContext, TGameApi> apiFactory;
+	private readonly IReadOnlyList<string> sharedAssemblies;
+	private readonly DiagnosticsSinkRegistry diagnosticsSinkRegistry;
+	private readonly TimeSpan unloadGracePeriod;
+	private readonly int maxParallelDomains;
+	private readonly int maxScopeTeardownParallelism;
+	private readonly SemaphoreSlim codeLoadSem;
 	private readonly SemaphoreSlim writeLock = new(1, 1);
 
 	private RuntimePhase phase = RuntimePhase.Empty;
@@ -160,12 +160,29 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private readonly List<PendingOp> pendingOps = new();
 	private ulong nextOpSeq = 0;
 
-	private readonly OwnerDiagnostics diagnostics = new(EngineInfo.OwnerID, options.DiagnosticsSink, null);
+	private readonly OwnerDiagnostics diagnostics;
 
 	// ==========================================================================
 	// public properties
 	public RuntimePhase CurrentPhase => phase;
-	public IOwnerDiagnostics GameDiagnostics { get; } = new OwnerDiagnostics(options.GameOwnerID, options.DiagnosticsSink, null);
+	public IOwnerDiagnostics GameDiagnostics { get; }
+
+	public ModRuntime(ModRuntimeOptions<TGameApi> options) {
+		gameOwnerID = options.GameOwnerID ?? throw new ArgumentNullException(nameof(options), "GameOwnerID cannot be null");
+		modDir = options.ModDirectory ?? throw new ArgumentNullException(nameof(options), "ModDirectory cannot be null");
+		cacheDir = options.CacheDirectory ?? throw new ArgumentNullException(nameof(options), "CacheDirectory cannot be null");
+		apiFactory = options.ApiFactory ?? throw new ArgumentNullException(nameof(options), "ApiFactory cannot be null");
+		sharedAssemblies = options.SharedAssemblies ?? throw new ArgumentNullException(nameof(options), "SharedAssemblies cannot be null");
+		if (options.DiagnosticsSink is null)
+			throw new ArgumentNullException(nameof(options), "DiagnosticsSink cannot be null");
+		diagnosticsSinkRegistry = new DiagnosticsSinkRegistry([options.DiagnosticsSink]);
+		unloadGracePeriod = options.UnloadGracePeriod;
+		maxParallelDomains = Math.Max(1, options.MaxParallelCodeLoads);
+		maxScopeTeardownParallelism = Math.Max(1, options.MaxScopeTeardownParallelism);
+		codeLoadSem = new SemaphoreSlim(maxParallelDomains, maxParallelDomains);
+		diagnostics = new OwnerDiagnostics(EngineInfo.OwnerID, diagnosticsSinkRegistry, null);
+		GameDiagnostics = new OwnerDiagnostics(gameOwnerID, diagnosticsSinkRegistry, null);
+	}
 
 	// ==========================================================================
 	// convenience api
@@ -1022,7 +1039,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live) {
 				foreach (string id in plan.ReloadSet) {
 					if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? old) && old.ReloadEntrypoint is not null) {
-						object ctx = createReloadContext(old, createApi(old), diagnosticsSink, reloadSetSnapshot, gameServices);
+						object ctx = createReloadContext(old, createApi(old), diagnosticsSinkRegistry, reloadSetSnapshot, gameServices);
 						try {
 							capturedState.Add(id, await invokeSaveStateAsync(old, ctx, ct).ConfigureAwait(false));
 						} finally {
@@ -1050,7 +1067,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live) {
 				foreach (KeyValuePair<string, ModLiveStateBlob> kvp in capturedState) {
 					if (transaction.PreparedCode.TryGetValue(kvp.Key, out LoadedCodeMod<TGameApi>? next) && next.ReloadEntrypoint is not null) {
-						object ctx = createReloadContext(next, createApi(next), diagnosticsSink, reloadSetSnapshot, gameServices);
+						object ctx = createReloadContext(next, createApi(next), diagnosticsSinkRegistry, reloadSetSnapshot, gameServices);
 						try {
 							await invokeRestoreStateAsync(next, ctx, kvp.Value, ct).ConfigureAwait(false);
 						} finally {
@@ -1203,7 +1220,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	}
 
 	private async ValueTask runLoadAsync(LoadedCodeMod<TGameApi> mod, CancellationToken ct) {
-		object ctx = createLoadContext(mod, createApi(mod), diagnosticsSink, hookTargetResolver);
+		object ctx = createLoadContext(mod, createApi(mod), diagnosticsSinkRegistry, hookTargetResolver);
 		try {
 			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.LoadAsync), ctx, ct).ConfigureAwait(false);
 		} finally {
@@ -1215,7 +1232,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private async ValueTask runLinkAsync(LoadedCodeMod<TGameApi> mod, IReadOnlyDictionary<string, LoadedDependencyInfo> owners, IReadOnlyDictionary<string, LoadedCodeDependencyInfo> codeOwners, CancellationToken ct) {
 		IReadOnlyDictionary<string, LoadedDependencyInfo> dependencies = buildDeclaredDependencyInfo(mod.Staged.Manifest, owners);
 		IReadOnlyDictionary<string, LoadedCodeDependencyInfo> codeDependencies = buildDeclaredDependencyInfo(mod.Staged.Manifest, codeOwners);
-		object ctx = createLinkContext(mod, createApi(mod), diagnosticsSink, dependencies, codeDependencies);
+		object ctx = createLinkContext(mod, createApi(mod), diagnosticsSinkRegistry, dependencies, codeDependencies);
 		try {
 			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.LinkAsync), ctx, ct).ConfigureAwait(false);
 		} finally {
@@ -1229,7 +1246,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 			throw new InternalStateException("wasn't expecting this LoadedCodeMod to already have an ActivationScope");
 		UntypedBoundedScope activationScope = new(mod.Staged.Generation, maxScopeTeardownParallelism);
 		mod.ActivationScope = activationScope;
-		object ctx = createActivateContext(mod, createApi(mod), diagnosticsSink, gameServices);
+		object ctx = createActivateContext(mod, createApi(mod), diagnosticsSinkRegistry, gameServices);
 		try {
 			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.ActivateAsync), ctx, ct).ConfigureAwait(false);
 			mod.Active = true;
@@ -1485,7 +1502,7 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 	private static object createLoadContext(
 		LoadedCodeMod<TGameApi> mod,
 		TGameApi api,
-		IDiagnosticsSink diagnosticsSink,
+		DiagnosticsSinkRegistry diagnosticsSinkRegistry,
 		HookTargetResolver resolver
 	) => Activator.CreateInstance(
 		typeof(ModLoadContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
@@ -1493,14 +1510,15 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		mod.Staged.Manifest.OwnerID,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
-		mod.Scope
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSinkRegistry, mod.Staged.Generation),
+		mod.Scope,
+		diagnosticsSinkRegistry
 	)!;
 
 	private static object createLinkContext(
 		LoadedCodeMod<TGameApi> mod,
 		TGameApi api,
-		IDiagnosticsSink diagnosticsSink,
+		DiagnosticsSinkRegistry diagnosticsSinkRegistry,
 		IReadOnlyDictionary<string, LoadedDependencyInfo> dependencies,
 		IReadOnlyDictionary<string, LoadedCodeDependencyInfo> codeDependencies
 	) => Activator.CreateInstance(
@@ -1510,14 +1528,15 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		mod.Staged.Manifest.OwnerID,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
-		mod.Scope
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSinkRegistry, mod.Staged.Generation),
+		mod.Scope,
+		diagnosticsSinkRegistry
 	)!;
 
 	private static object createActivateContext(
 		LoadedCodeMod<TGameApi> mod,
 		TGameApi api,
-		IDiagnosticsSink diagnosticsSink,
+		DiagnosticsSinkRegistry diagnosticsSinkRegistry,
 		GameServices gameServices
 	) => Activator.CreateInstance(
 		typeof(ModActivateContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
@@ -1526,14 +1545,15 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		mod.Staged.Manifest.OwnerID,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
-		mod.Scope
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSinkRegistry, mod.Staged.Generation),
+		mod.Scope,
+		diagnosticsSinkRegistry
 	)!;
 
 	private static object createReloadContext(
 		LoadedCodeMod<TGameApi> mod,
 		TGameApi api,
-		IDiagnosticsSink diagnosticsSink,
+		DiagnosticsSinkRegistry diagnosticsSinkRegistry,
 		IReadOnlySet<string> reloadSet,
 		GameServices? gameServices
 	) => Activator.CreateInstance(
@@ -1543,8 +1563,9 @@ public sealed class ModRuntime<TGameApi>(ModRuntimeOptions<TGameApi> options) {
 		mod.Staged.Manifest.OwnerID,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSink, mod.Staged.Generation),
-		mod.Scope
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSinkRegistry, mod.Staged.Generation),
+		mod.Scope,
+		diagnosticsSinkRegistry
 	)!;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
