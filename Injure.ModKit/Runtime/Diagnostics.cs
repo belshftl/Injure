@@ -58,6 +58,7 @@ internal sealed class OwnerDiagnostics : IOwnerDiagnostics {
 		this.generation = generation;
 	}
 
+	public void Log(DiagnosticSeverity severity, string message) => sink.Report(new DiagnosticEvent(ownerID, severity, message, generation));
 	public void Debug(string message) => sink.Report(new DiagnosticEvent(ownerID, DiagnosticSeverity.Debug, message, generation));
 	public void Info(string message) => sink.Report(new DiagnosticEvent(ownerID, DiagnosticSeverity.Info, message, generation));
 	public void Warning(string message) => sink.Report(new DiagnosticEvent(ownerID, DiagnosticSeverity.Warning, message, generation));

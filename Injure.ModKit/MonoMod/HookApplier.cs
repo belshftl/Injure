@@ -21,7 +21,7 @@ internal static class HookApplier<TGameApi> {
 		List<PatchDeclaration> patches = new();
 		foreach (LoadedCodeMod<TGameApi> mod in mods)
 			patches.AddRange(mod.LoadHooks.Snapshot());
-		Dictionary<string, ActiveOwnerScope> scopes = mods.ToDictionary(
+		Dictionary<string, UntypedBoundedScope> scopes = mods.ToDictionary(
 			static m => m.Staged.Manifest.OwnerID,
 			static m => m.Scope,
 			StringComparer.Ordinal
@@ -34,7 +34,7 @@ internal static class HookApplier<TGameApi> {
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static async ValueTask applyAsync(
 		List<PatchDeclaration> patches,
-		IReadOnlyDictionary<string, ActiveOwnerScope> scopes,
+		IReadOnlyDictionary<string, UntypedBoundedScope> scopes,
 		int maxParallelDomains,
 		CancellationToken ct
 	) {
@@ -61,13 +61,13 @@ internal static class HookApplier<TGameApi> {
 
 	private static void applyDomainSerially(
 		List<PatchDeclaration> patches,
-		IReadOnlyDictionary<string, ActiveOwnerScope> scopes,
+		IReadOnlyDictionary<string, UntypedBoundedScope> scopes,
 		CancellationToken ct
 	) {
 		patches.Sort(compare);
 		foreach (PatchDeclaration patch in patches) {
 			ct.ThrowIfCancellationRequested();
-			if (!scopes.TryGetValue(patch.OwnerID, out ActiveOwnerScope? scope))
+			if (!scopes.TryGetValue(patch.OwnerID, out UntypedBoundedScope? scope))
 				throw new InternalStateException($"owner '{patch.OwnerID}' has no active owner scope");
 			patch.Commit(scope);
 		}

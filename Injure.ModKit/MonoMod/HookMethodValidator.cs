@@ -22,37 +22,37 @@ internal static class HookMethodValidator {
 		}
 	}
 
-	public static void ValidateGeneratedHookMethod(MethodInfo patchMethod, HookTarget target) {
-		validatePatchMethodCommon(patchMethod, "hook");
+	public static void ValidateGeneratedHookMethod(MethodInfo hookMethod, HookTarget target) {
+		validatePatchMethodCommon(hookMethod, "hook");
 
 		MethodInfo origInvoke = getDelegateInvoke(target.OrigDelegateType);
-		validateHookReplacementAgainstOrigDelegate(patchMethod, target.OrigDelegateType, origInvoke, target.ID);
+		validateHookReplacementAgainstOrigDelegate(hookMethod, target.OrigDelegateType, origInvoke, target.ID);
 	}
 
-	public static void ValidateGeneratedILHookMethod(MethodInfo patchMethod, HookTarget target) {
-		validateILHookMethod(patchMethod, target.ID);
+	public static void ValidateGeneratedILHookMethod(MethodInfo manipulatorMethod, HookTarget target) {
+		validateILHookMethod(manipulatorMethod, target.ID);
 	}
 
-	public static void ValidateDirectHookMethod(MethodInfo patchMethod, MethodBase targetMethod) {
-		validatePatchMethodCommon(patchMethod, "direct hook");
+	public static void ValidateDirectHookMethod(MethodInfo hookMethod, MethodBase targetMethod) {
+		validatePatchMethodCommon(hookMethod, "direct hook");
 
-		ParameterInfo[] patchParams = patchMethod.GetParameters();
+		ParameterInfo[] patchParams = hookMethod.GetParameters();
 		if (patchParams.Length == 0)
-			throw new HookValidationException($"direct hook method '{formatMethod(patchMethod)}' must take an orig delegate as its first parameter");
+			throw new HookValidationException($"direct hook method '{formatMethod(hookMethod)}' must take an orig delegate as its first parameter");
 
 		Type origDelegateType = patchParams[0].ParameterType;
 
 		if (!typeof(Delegate).IsAssignableFrom(origDelegateType))
-			throw new HookValidationException($"first parameter of direct hook method '{formatMethod(patchMethod)}' must be a delegate type (found '{formatType(origDelegateType)}' instead)");
+			throw new HookValidationException($"first parameter of direct hook method '{formatMethod(hookMethod)}' must be a delegate type (found '{formatType(origDelegateType)}' instead)");
 
 		MethodInfo origInvoke = getDelegateInvoke(origDelegateType);
 
 		validateOrigDelegateAgainstTarget(origDelegateType, origInvoke, targetMethod, formatMethod(targetMethod));
-		validateHookReplacementAgainstOrigDelegate(patchMethod, origDelegateType, origInvoke, formatMethod(targetMethod));
+		validateHookReplacementAgainstOrigDelegate(hookMethod, origDelegateType, origInvoke, formatMethod(targetMethod));
 	}
 
-	public static void ValidateDirectILHookMethod(MethodInfo patchMethod, MethodBase targetMethod) {
-		validateILHookMethod(patchMethod, formatMethod(targetMethod));
+	public static void ValidateDirectILHookMethod(MethodInfo manipulatorMethod, MethodBase targetMethod) {
+		validateILHookMethod(manipulatorMethod, formatMethod(targetMethod));
 	}
 
 	private static void validatePatchMethodCommon(MethodInfo method, string role) {
@@ -66,32 +66,32 @@ internal static class HookMethodValidator {
 			throw new HookValidationException($"{role} method '{formatMethod(method)}' uses a byref return; this is not supported by the validator yet, sorry");
 	}
 
-	private static void validateILHookMethod(MethodInfo method, string targetDescription) {
-		validatePatchMethodCommon(method, "IL hook");
+	private static void validateILHookMethod(MethodInfo manipulatorMethod, string targetDescription) {
+		validatePatchMethodCommon(manipulatorMethod, "IL hook");
 
-		if (method.ReturnType != typeof(void))
-			throw new HookValidationException($"IL hook method '{formatMethod(method)}' for target '{targetDescription}' must return void");
+		if (manipulatorMethod.ReturnType != typeof(void))
+			throw new HookValidationException($"IL hook method '{formatMethod(manipulatorMethod)}' for target '{targetDescription}' must return void");
 
-		ParameterInfo[] @params = method.GetParameters();
+		ParameterInfo[] @params = manipulatorMethod.GetParameters();
 		if (@params.Length != 1)
-			throw new HookValidationException($"IL hook method '{formatMethod(method)}' for target '{targetDescription}' must take exactly one parameter of type '{typeof(ILContext).FullName}'");
+			throw new HookValidationException($"IL hook method '{formatMethod(manipulatorMethod)}' for target '{targetDescription}' must take exactly one parameter of type '{typeof(ILContext).FullName}'");
 		if (@params[0].ParameterType != typeof(ILContext))
-			throw new HookValidationException($"IL hook method '{formatMethod(method)}' for target '{targetDescription}' must take in '{typeof(ILContext).FullName}' (found '{formatType(@params[0].ParameterType)}' instead)");
+			throw new HookValidationException($"IL hook method '{formatMethod(manipulatorMethod)}' for target '{targetDescription}' must take in '{typeof(ILContext).FullName}' (found '{formatType(@params[0].ParameterType)}' instead)");
 	}
 
-	private static void validateHookReplacementAgainstOrigDelegate(MethodInfo patchMethod, Type origDelegateType, MethodInfo origInvoke, string targetDescription) {
-		ParameterInfo[] patchParams = patchMethod.GetParameters();
+	private static void validateHookReplacementAgainstOrigDelegate(MethodInfo hookMethod, Type origDelegateType, MethodInfo origInvoke, string targetDescription) {
+		ParameterInfo[] patchParams = hookMethod.GetParameters();
 		ParameterInfo[] origParams = origInvoke.GetParameters();
 
 		if (patchParams.Length != origParams.Length + 1)
 			throw new HookValidationException(
-				$"hook method '{formatMethod(patchMethod)}' for target '{targetDescription}' must take {origParams.Length + 1} parameter(s), them being " +
+				$"hook method '{formatMethod(hookMethod)}' for target '{targetDescription}' must take {origParams.Length + 1} parameter(s), them being " +
 				$"the orig delegate '{formatType(origDelegateType)}' followed by the original call parameters (found {patchParams.Length} parameter(s) instead)"
 			);
 
 		if (patchParams[0].ParameterType != origDelegateType)
 			throw new HookValidationException(
-				$"parameter 0 of hook method '{formatMethod(patchMethod)}' for target '{targetDescription}' must be orig delegate type " +
+				$"parameter 0 of hook method '{formatMethod(hookMethod)}' for target '{targetDescription}' must be orig delegate type " +
 				$"'{formatType(origDelegateType)}' (found '{formatType(patchParams[0].ParameterType)}' instead)"
 			);
 
@@ -100,15 +100,15 @@ internal static class HookMethodValidator {
 			ParameterInfo actual = patchParams[i + 1];
 			if (!sameParameterType(actual, expected))
 				throw new HookValidationException(
-					$"parameter {i + 1} of hook method '{formatMethod(patchMethod)}' for target '{targetDescription}' must be " +
+					$"parameter {i + 1} of hook method '{formatMethod(hookMethod)}' for target '{targetDescription}' must be " +
 					$"'{formatParameter(expected)}' (found '{formatParameter(actual)}' instead)"
 				);
 		}
 
-		if (patchMethod.ReturnType != origInvoke.ReturnType)
+		if (hookMethod.ReturnType != origInvoke.ReturnType)
 			throw new HookValidationException(
-				$"hook method '{formatMethod(patchMethod)}' for target '{targetDescription}' must return " +
-				$"'{formatType(origInvoke.ReturnType)}' (found '{formatType(patchMethod.ReturnType)}' instead)"
+				$"hook method '{formatMethod(hookMethod)}' for target '{targetDescription}' must return " +
+				$"'{formatType(origInvoke.ReturnType)}' (found '{formatType(hookMethod.ReturnType)}' instead)"
 			);
 	}
 

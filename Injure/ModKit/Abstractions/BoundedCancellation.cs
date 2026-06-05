@@ -5,12 +5,12 @@ using System.Threading;
 
 namespace Injure.ModKit.Abstractions;
 
-public interface IBoundedCt {
+public interface IUntypedBoundedCt {
 	ReloadGeneration Generation { get; }
 	CancellationToken Token { get; }
 }
 
-public readonly struct BoundedCt<L> : IBoundedCt where L : struct, IModLifetimeIdentity {
+public readonly struct BoundedCt<L> : IUntypedBoundedCt where L : struct, IModLifetimeIdentity {
 	private readonly CancellationToken token;
 	private readonly int inited;
 

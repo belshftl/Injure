@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Reflection;
 
 using Injure.Core;
+using Injure.ModKit.Abstractions.MonoMod;
 
 namespace Injure.ModKit.Abstractions;
 
@@ -21,28 +22,33 @@ public readonly record struct LoadedCodeDependencyInfo(
 	Assembly Assembly
 );
 
-public interface IModLoadContext<out TGameApi, L> where L : struct, IModLifetimeIdentity {
+public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIdentity {
 	string OwnerID { get; }
 	Semver Version { get; }
 	TGameApi Api { get; }
 	IOwnerDiagnostics Diagnostics { get; }
-	IActiveOwnerScope<L> Scope { get; }
+	IBoundedScope<L> Scope { get; }
 	ReloadGeneration Generation { get; }
 }
 
-public interface IModLinkContext<out TGameApi, L> : IModLoadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+	IModHookDeclarations<L> LoadHooks { get; }
+}
+
+public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IReadOnlyCollection<LoadedDependencyInfo> LoadedDependencies { get; }
 	bool TryGetDependency(string ownerID, out LoadedDependencyInfo info);
 	bool TryGetCodeDependency(string ownerID, out LoadedCodeDependencyInfo info);
 	LoadedDependencyInfo RequireDependency(string ownerID);
 	LoadedCodeDependencyInfo RequireCodeDependency(string ownerID);
+	// TODO: IModHookDeclarations<L> LinkHooks { get; }
 }
 
-public interface IModActivateContext<out TGameApi, L> : IModLoadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+public interface IModActivateContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	GameServices GameServices { get; }
 }
 
-public interface IModReloadContext<out TGameApi, L> : IModLoadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+public interface IModReloadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IReadOnlySet<string> ReloadSet { get; }
 	GameServices? GameServices { get; }
 }

@@ -22,62 +22,62 @@ internal static class HookDiscoverer<TGameApi> {
 		}
 	}
 
-	private static void discoverLoadHookAttributes(LoadedCodeMod<TGameApi> mod, MethodInfo patchMethod, HookTargetResolver resolver) {
+	private static void discoverLoadHookAttributes(LoadedCodeMod<TGameApi> mod, MethodInfo hookMethod, HookTargetResolver resolver) {
 		int n = 0;
-		foreach (LoadHookAttribute attr in patchMethod.GetCustomAttributes<LoadHookAttribute>()) {
+		foreach (LoadHookAttribute attr in hookMethod.GetCustomAttributes<LoadHookAttribute>()) {
 			HookTarget target = resolver.Resolve(attr.TargetID);
-			HookMethodValidator.ValidateGeneratedHookMethod(patchMethod, target);
+			HookMethodValidator.ValidateGeneratedHookMethod(hookMethod, target);
 			mod.LoadHooks.Add(new HookDeclaration(
 				mod.Staged.Manifest.OwnerID,
-				createOrder(mod.Staged.Manifest.OwnerID, attr, patchMethod, n++, "load-hook"),
-				detourConfigFor(mod.Staged.Manifest.OwnerID, patchMethod, attr),
+				CreateOrder(mod.Staged.Manifest.OwnerID, attr, hookMethod, n++, "attr-load-hook"),
+				detourConfigFor(mod.Staged.Manifest.OwnerID, hookMethod, attr),
 				target.Method,
-				patchMethod
+				hookMethod
 			));
 		}
 	}
 
-	private static void discoverLoadILHookAttributes(LoadedCodeMod<TGameApi> mod, MethodInfo patchMethod, HookTargetResolver resolver) {
+	private static void discoverLoadILHookAttributes(LoadedCodeMod<TGameApi> mod, MethodInfo manipulatorMethod, HookTargetResolver resolver) {
 		int n = 0;
-		foreach (LoadILHookAttribute attr in patchMethod.GetCustomAttributes<LoadILHookAttribute>()) {
+		foreach (LoadILHookAttribute attr in manipulatorMethod.GetCustomAttributes<LoadILHookAttribute>()) {
 			HookTarget target = resolver.Resolve(attr.TargetID);
-			HookMethodValidator.ValidateGeneratedILHookMethod(patchMethod, target);
+			HookMethodValidator.ValidateGeneratedILHookMethod(manipulatorMethod, target);
 			mod.LoadHooks.Add(new ILHookDeclaration(
 				mod.Staged.Manifest.OwnerID,
-				createOrder(mod.Staged.Manifest.OwnerID, attr, patchMethod, n++, "load-il-hook"),
-				detourConfigFor(mod.Staged.Manifest.OwnerID, patchMethod, attr),
+				CreateOrder(mod.Staged.Manifest.OwnerID, attr, manipulatorMethod, n++, "attr-load-il-hook"),
+				detourConfigFor(mod.Staged.Manifest.OwnerID, manipulatorMethod, attr),
 				target.Method,
-				patchMethod
+				manipulatorMethod
 			));
 		}
 	}
 
-	private static void discoverLoadMethodHookAttributes(LoadedCodeMod<TGameApi> mod, MethodInfo patchMethod) {
+	private static void discoverLoadMethodHookAttributes(LoadedCodeMod<TGameApi> mod, MethodInfo hookMethod) {
 		int n = 0;
-		foreach (LoadMethodHookAttribute attr in patchMethod.GetCustomAttributes<LoadMethodHookAttribute>()) {
+		foreach (LoadMethodHookAttribute attr in hookMethod.GetCustomAttributes<LoadMethodHookAttribute>()) {
 			MethodBase target = resolveMethod(attr.TargetType, attr.MethodName, attr.BindingFlags, attr.ParameterTypes);
-			HookMethodValidator.ValidateDirectHookMethod(patchMethod, target);
+			HookMethodValidator.ValidateDirectHookMethod(hookMethod, target);
 			mod.LoadHooks.Add(new HookDeclaration(
 				mod.Staged.Manifest.OwnerID,
-				createOrder(mod.Staged.Manifest.OwnerID, attr, patchMethod, n++, "load-method-hook"),
-				detourConfigFor(mod.Staged.Manifest.OwnerID, patchMethod, attr),
+				CreateOrder(mod.Staged.Manifest.OwnerID, attr, hookMethod, n++, "attr-load-method-hook"),
+				detourConfigFor(mod.Staged.Manifest.OwnerID, hookMethod, attr),
 				target,
-				patchMethod
+				hookMethod
 			));
 		}
 	}
 
-	private static void discoverLoadMethodILHookAttributes(LoadedCodeMod<TGameApi> mod, MethodInfo patchMethod) {
+	private static void discoverLoadMethodILHookAttributes(LoadedCodeMod<TGameApi> mod, MethodInfo manipulatorMethod) {
 		int n = 0;
-		foreach (LoadMethodILHookAttribute attr in patchMethod.GetCustomAttributes<LoadMethodILHookAttribute>()) {
+		foreach (LoadMethodILHookAttribute attr in manipulatorMethod.GetCustomAttributes<LoadMethodILHookAttribute>()) {
 			MethodBase target = resolveMethod(attr.TargetType, attr.MethodName, attr.BindingFlags, attr.ParameterTypes);
-			HookMethodValidator.ValidateDirectILHookMethod(patchMethod, target);
+			HookMethodValidator.ValidateDirectILHookMethod(manipulatorMethod, target);
 			mod.LoadHooks.Add(new ILHookDeclaration(
 				mod.Staged.Manifest.OwnerID,
-				createOrder(mod.Staged.Manifest.OwnerID, attr, patchMethod, n++, "load-method-il-hook"),
-				detourConfigFor(mod.Staged.Manifest.OwnerID, patchMethod, attr),
+				CreateOrder(mod.Staged.Manifest.OwnerID, attr, manipulatorMethod, n++, "attr-load-method-il-hook"),
+				detourConfigFor(mod.Staged.Manifest.OwnerID, manipulatorMethod, attr),
 				target,
-				patchMethod
+				manipulatorMethod
 			));
 		}
 	}
@@ -95,13 +95,16 @@ internal static class HookDiscoverer<TGameApi> {
 		throw new AmbiguousMatchException($"method '{type.FullName}.{name}' is overloaded; specify ParameterTypes");
 	}
 
-	private static HookOrder createOrder(string ownerID, IHookAttribute attr, MethodInfo patchMethod, int ordinal, string prefix) {
+	public static HookOrder CreateOrder(string ownerID, string? orderDomain, int localPriority, MethodInfo patchMethod, int ordinal, string prefix) {
 		if (patchMethod.DeclaringType?.FullName is null)
 			throw new InvalidOperationException("expected patch method to have a declaring type with a fully-qualified name");
-		string domain = string.IsNullOrWhiteSpace(attr.OrderDomain) ? ownerID : ownerID + "::" + attr.OrderDomain;
+		string domain = string.IsNullOrWhiteSpace(orderDomain) ? ownerID : ownerID + "::" + orderDomain;
 		string localID = prefix + ":" + patchMethod.DeclaringType.FullName + "." + patchMethod.Name + "#" + ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
-		return new HookOrder(domain, localID, attr.LocalPriority);
+		return new HookOrder(domain, localID, localPriority);
 	}
+
+	public static HookOrder CreateOrder(string ownerID, IHookAttribute attr, MethodInfo patchMethod, int ordinal, string prefix) =>
+		CreateOrder(ownerID, attr.OrderDomain, attr.LocalPriority, patchMethod, ordinal, prefix);
 
 	private static DetourConfig detourConfigFor(string ownerID, MethodInfo patchMethod, IHookAttribute attr) => new(
 		id: attr.DetourIDOverride ?? autoDetourIDFor(ownerID, patchMethod),

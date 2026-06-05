@@ -20,7 +20,7 @@ internal abstract class PatchDeclaration(string ownerID, HookOrder order, Detour
 	public HookOrder Order { get; } = order;
 	public DetourConfig DetourConfig { get; } = detourConfig;
 
-	public abstract void Commit(IActiveOwnerScope scope);
+	public abstract void Commit(IUntypedBoundedScope scope);
 	public abstract void DropStrongReferences();
 }
 
@@ -28,7 +28,7 @@ internal sealed class HookDeclaration(string ownerID, HookOrder order, DetourCon
 	private MethodBase? target = target;
 	private MethodInfo? replacement = replacement;
 
-	public override void Commit(IActiveOwnerScope scope) {
+	public override void Commit(IUntypedBoundedScope scope) {
 		ArgumentNullException.ThrowIfNull(scope);
 		if (target is null || replacement is null)
 			throw new InvalidOperationException("target/replacement method strong refs have already been dropped");
@@ -52,7 +52,7 @@ internal sealed class ILHookDeclaration(string ownerID, HookOrder order, DetourC
 	private MethodBase? target = target;
 	private MethodInfo? manipulator = manipulator;
 
-	public override void Commit(IActiveOwnerScope scope) {
+	public override void Commit(IUntypedBoundedScope scope) {
 		ArgumentNullException.ThrowIfNull(scope);
 		if (target is null || manipulator is null)
 			throw new InvalidOperationException("target/manipulator method strong refs have already been dropped");
