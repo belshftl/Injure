@@ -16,7 +16,8 @@ internal abstract class ModContextImpl<TGameApi, L>(
 	Semver version,
 	TGameApi api,
 	IOwnerDiagnostics diagnostics,
-	UntypedBoundedScope scope
+	UntypedBoundedScope scope,
+	DiagnosticsSinkRegistry diagnosticsSinkRegistry
 ) : IStrongRefDroppable, IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	protected readonly ReloadGeneration Generation = scope.Generation;
 	private bool gameApiDropped = false;
@@ -36,6 +37,10 @@ internal abstract class ModContextImpl<TGameApi, L>(
 		private set;
 	} = scope.AsTyped<L>();
 	ReloadGeneration IModContext<TGameApi, L>.Generation => Generation;
+	public DiagnosticsSinkRegistry DiagnosticsSinkRegistry {
+		get => field ?? throw new ModLifecycleContextExpiredException(typeName, Generation);
+		private set;
+	} = diagnosticsSinkRegistry;
 
 	public abstract void OnDropStrongReferences();
 
@@ -45,6 +50,7 @@ internal abstract class ModContextImpl<TGameApi, L>(
 		Api = default!;
 		Diagnostics = null!;
 		Scope = null!;
+		DiagnosticsSinkRegistry = null!;
 	}
 }
 
@@ -54,8 +60,9 @@ internal sealed class ModLoadContextImpl<TGameApi, L>(
 	Semver version,
 	TGameApi api,
 	IOwnerDiagnostics diagnostics,
-	UntypedBoundedScope scope
-) : ModContextImpl<TGameApi, L>(nameof(IModLoadContext<,>), ownerID, version, api, diagnostics, scope), IModLoadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+	UntypedBoundedScope scope,
+	DiagnosticsSinkRegistry diagnosticsSinkRegistry
+) : ModContextImpl<TGameApi, L>(nameof(IModLoadContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLoadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	private ModHookDeclarations<TGameApi, L>? loadHooks = loadHooks;
 	public IModHookDeclarations<L> LoadHooks => loadHooks ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
 
@@ -72,8 +79,9 @@ internal sealed class ModLinkContextImpl<TGameApi, L>(
 	Semver version,
 	TGameApi api,
 	IOwnerDiagnostics diagnostics,
-	UntypedBoundedScope scope
-) : ModContextImpl<TGameApi, L>(nameof(IModLinkContext<,>), ownerID, version, api, diagnostics, scope), IModLinkContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+	UntypedBoundedScope scope,
+	DiagnosticsSinkRegistry diagnosticsSinkRegistry
+) : ModContextImpl<TGameApi, L>(nameof(IModLinkContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLinkContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	private IReadOnlyDictionary<string, LoadedDependencyInfo>? loaded = loaded;
 	private IReadOnlyDictionary<string, LoadedCodeDependencyInfo>? loadedCode = loadedCode;
 
@@ -101,8 +109,9 @@ internal sealed class ModActivateContextImpl<TGameApi, L>(
 	Semver version,
 	TGameApi api,
 	IOwnerDiagnostics diagnostics,
-	UntypedBoundedScope scope
-) : ModContextImpl<TGameApi, L>(nameof(IModActivateContext<,>), ownerID, version, api, diagnostics, scope), IModActivateContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+	UntypedBoundedScope scope,
+	DiagnosticsSinkRegistry diagnosticsSinkRegistry
+) : ModContextImpl<TGameApi, L>(nameof(IModActivateContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModActivateContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	public GameServices GameServices {
 		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModActivateContext<,>), Generation);
 		private set;
@@ -125,8 +134,9 @@ internal sealed class ModReloadContextImpl<TGameApi, L>(
 	Semver version,
 	TGameApi api,
 	IOwnerDiagnostics diagnostics,
-	UntypedBoundedScope scope
-) : ModContextImpl<TGameApi, L>(nameof(IModReloadContext<,>), ownerID, version, api, diagnostics, scope), IModReloadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+	UntypedBoundedScope scope,
+	DiagnosticsSinkRegistry diagnosticsSinkRegistry
+) : ModContextImpl<TGameApi, L>(nameof(IModReloadContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModReloadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	private bool gameServicesDropped = false;
 	private GameServices? gameServices = gameServices;
 

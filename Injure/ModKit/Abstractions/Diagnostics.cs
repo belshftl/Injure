@@ -31,38 +31,57 @@ public interface IDiagnosticsSink {
 	void Report(in DiagnosticEvent d);
 }
 
-public sealed class CompositeDiagnosticsSink(params IDiagnosticsSink[] sinks) : IDiagnosticsSink {
-	private readonly IDiagnosticsSink[] sinks = sinks ?? throw new ArgumentNullException(nameof(sinks));
-
-	public void Report(in DiagnosticEvent d) {
-		foreach (IDiagnosticsSink sink in sinks)
-			sink.Report(in d);
+public static class DiagnosticsSinkExtensions {
+	extension(IEnumerable<IDiagnosticsSink> sinks) {
+		public void ReportAll(in DiagnosticEvent d) {
+			List<Exception>? exceptions = null;
+			foreach (IDiagnosticsSink sink in sinks) {
+				try {
+					sink.Report(in d);
+				} catch (Exception ex) {
+					(exceptions ??= new List<Exception>()).Add(ex);
+				}
+			}
+			if (exceptions is not null)
+				throw new AggregateException(exceptions);
+		}
 	}
 }
 
-public sealed class DiagnosticsSinkRegistration : IDisposable, IReloadTeardown {
-	private DiagnosticsSinkHub? hub;
-	private IDiagnosticsSink? sink;
+public sealed class CompositeDiagnosticsSink(params IDiagnosticsSink[] sinks) : IDiagnosticsSink {
+	private readonly IDiagnosticsSink[] sinks = sinks ?? throw new ArgumentNullException(nameof(sinks));
+	public void Report(in DiagnosticEvent d) => sinks.ReportAll(in d);
+}
 
-	internal DiagnosticsSinkRegistration(DiagnosticsSinkHub hub, IDiagnosticsSink sink) {
-		this.hub = hub;
+public sealed class DiagnosticsSinkRegistration : IReloadTeardown {
+	private DiagnosticsSinkRegistry? registry;
+	private IDiagnosticsSink? sink;
+	private int disposed = 0;
+
+	internal DiagnosticsSinkRegistration(DiagnosticsSinkRegistry registry, IDiagnosticsSink sink) {
+		this.registry = registry;
 		this.sink = sink;
 	}
 
 	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
-	public void Dispose() {
-		DiagnosticsSinkHub? h = Interlocked.Exchange(ref hub, null);
-		IDiagnosticsSink? s = Interlocked.Exchange(ref sink, null);
-		if (h is not null && s is not null)
-			h.Remove(s);
+	public void Remove() {
+		if (Interlocked.Exchange(ref disposed, 1) != 0)
+			return;
+		if (registry is not null && sink is not null)
+			registry.Remove(sink);
+		registry = null;
+		sink = null;
 	}
 
-	public void Teardown(in ReloadTeardownContext ctx) => Dispose();
+	public void Teardown(in ReloadTeardownContext ctx) => Remove();
 }
 
-public sealed class DiagnosticsSinkHub(IEnumerable<IDiagnosticsSink> initial) : IDiagnosticsSink {
+public sealed class DiagnosticsSinkRegistry(IEnumerable<IDiagnosticsSink> initial) : IDiagnosticsSink {
 	private readonly Lock registryLock = new();
 	private IDiagnosticsSink[] sinks = initial.ToArray();
+
+	public IReadOnlyList<IDiagnosticsSink> Sinks => Volatile.Read(ref sinks);
+	void IDiagnosticsSink.Report(in DiagnosticEvent d) => Sinks.ReportAll(in d);
 
 	public DiagnosticsSinkRegistration Add(IDiagnosticsSink sink) {
 		ArgumentNullException.ThrowIfNull(sink);
@@ -74,17 +93,6 @@ public sealed class DiagnosticsSinkHub(IEnumerable<IDiagnosticsSink> initial) : 
 			Volatile.Write(ref sinks, @new);
 		}
 		return new DiagnosticsSinkRegistration(this, sink);
-	}
-
-	public void Report(in DiagnosticEvent d) {
-		IDiagnosticsSink[] snapshot = Volatile.Read(ref sinks);
-		foreach (IDiagnosticsSink sink in snapshot) {
-			try {
-				sink.Report(in d);
-			} catch {
-				// TODO maybe report to a fallback sink
-			}
-		}
 	}
 
 	internal void Remove(IDiagnosticsSink sink) {
