@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -14,6 +15,7 @@ using System.Threading.Tasks;
 
 using Injure.Core;
 using Injure.ModKit.Abstractions;
+using Injure.ModKit.Abstractions.ManifestReader;
 using Injure.ModKit.Loader;
 using Injure.ModKit.MonoMod;
 
@@ -238,9 +240,15 @@ public sealed class ModRuntime<TGameApi> {
 			}
 			foreach (string manifestPath in enumerateManifests(modDir)) {
 				ct.ThrowIfCancellationRequested();
-				ModManifest manifest = await ManifestReader.ReadAsync(manifestPath, ct).ConfigureAwait(false);
-				string root = Path.GetDirectoryName(manifestPath)!;
-				result.Add(new DiscoveredMod(new ModSource(root, manifestPath), manifest));
+				string manifestText = await File.ReadAllTextAsync(manifestPath, ct).ConfigureAwait(false);
+				SourceText manifestSource = new(manifestPath, manifestText);
+				try {
+					ModManifest manifest = ManifestReader.Parse(manifestSource);
+					string root = Path.GetDirectoryName(manifestPath) ?? throw new InternalStateException("was expecting enumerateManifests yielded path to have a dirname");
+					result.Add(new DiscoveredMod(new ModSource(root, manifestPath), manifest));
+				} catch (ManifestReadException ex) {
+					diagnostics.Error("error parsing mod manifest:\n" + manifestSource.FormatDiagnostic(ex) + "\nskipping this mod");
+				}
 			}
 			discovered = result;
 			enabledOwners.Clear();
@@ -923,8 +931,14 @@ public sealed class ModRuntime<TGameApi> {
 		foreach (string id in prepareSet) {
 			if (!candidateDiscovered.TryGetValue(id, out DiscoveredMod old))
 				throw new ModLoadException(id, $"unknown mod '{id}'");
-			ModManifest manifest = await ManifestReader.ReadAsync(old.Source.ManifestPath, ct).ConfigureAwait(false);
-			candidateDiscovered[id] = new DiscoveredMod(old.Source, manifest);
+			string manifestText = await File.ReadAllTextAsync(old.Source.ManifestPath, ct).ConfigureAwait(false);
+			SourceText manifestSource = new(old.Source.ManifestPath, manifestText);
+			try {
+				ModManifest manifest = ManifestReader.Parse(manifestSource);
+				candidateDiscovered[id] = new DiscoveredMod(old.Source, manifest);
+			} catch (ManifestReadException ex) {
+				throw new ModLoadException(id, "error parsing mod manifest while preparing a mod transaction:\n" + manifestSource.FormatDiagnostic(ex));
+			}
 		}
 
 		ResolvedModGraph candidateGraph = ModRelationshipResolver.Resolve(
@@ -1190,7 +1204,7 @@ public sealed class ModRuntime<TGameApi> {
 			Type entryType = ModTypeDiscovery.FindEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.MainAssemblyPath);
 			object entrypoint = Activator.CreateInstance(entryType)!;
 			object? reloadEntrypoint = null;
-			if (manifest.CodeHotReload == ModCodeHotReloadLevel.Live) {
+			if (manifest.LiveReloadable) {
 				Type reloadEntrypointType = ModTypeDiscovery.FindReloadEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.MainAssemblyPath);
 				reloadEntrypoint = Activator.CreateInstance(reloadEntrypointType)!;
 			}
@@ -1365,8 +1379,8 @@ public sealed class ModRuntime<TGameApi> {
 			ModManifest manifest = activeGraph.Mods[id].Manifest;
 			if (manifest is not CodeModManifest code)
 				continue;
-			if (!canSatisfyReload(code.CodeHotReload, request))
-				throw new ModLoadException(id, $"code-hot-reload '{code.CodeHotReload}' cannot satisfy reload request '{request}'");
+			if (!canSatisfyReload(code.Reloadability, request))
+				throw new ModLoadException(id, $"mod reloadability '{code.Reloadability}' cannot satisfy reload request '{request}'");
 		}
 	}
 
@@ -1375,15 +1389,15 @@ public sealed class ModRuntime<TGameApi> {
 			ModManifest manifest = candidateGraph.Mods[id].Manifest;
 			if (manifest is not CodeModManifest code)
 				continue;
-			if (!canSatisfyReload(code.CodeHotReload, request))
-				throw new ModLoadException(id, $"new code-hot-reload '{code.CodeHotReload}' cannot satisfy reload request '{request}'");
+			if (!canSatisfyReload(code.Reloadability, request))
+				throw new ModLoadException(id, $"new mod reloadability '{code.Reloadability}' cannot satisfy reload request '{request}'");
 		}
 	}
 
-	private static bool canSatisfyReload(ModCodeHotReloadLevel level, ReloadRequestKind request) => request.Tag switch {
-		ReloadRequestKind.Case.SafeBoundary => level.Tag is ModCodeHotReloadLevel.Case.SafeBoundary or ModCodeHotReloadLevel.Case.Live,
-		ReloadRequestKind.Case.Live => level == ModCodeHotReloadLevel.Live,
-		_ => false,
+	private static bool canSatisfyReload(ModReloadability rx, ReloadRequestKind request) => request.Tag switch {
+		ReloadRequestKind.Case.SafeBoundary => rx.Tag is ModReloadability.Case.SafeBoundary or ModReloadability.Case.Live,
+		ReloadRequestKind.Case.Live => rx == ModReloadability.Live,
+		_ => throw new UnreachableException(),
 	};
 
 	private static bool isEligibleAtBoundary(in PendingOp op, ReloadBoundaryKind boundary) => op.Kind switch {
@@ -1396,7 +1410,7 @@ public sealed class ModRuntime<TGameApi> {
 	private static bool boundaryAllows(ReloadBoundaryKind boundary, ReloadRequestKind request) => request.Tag switch {
 		ReloadRequestKind.Case.SafeBoundary => boundary is ReloadBoundaryKind.Safe or ReloadBoundaryKind.Live,
 		ReloadRequestKind.Case.Live => boundary == ReloadBoundaryKind.Live,
-		_ => false,
+		_ => throw new UnreachableException(),
 	};
 
 	private static void validateModAssemblyAttribute(CodeModManifest manifest, Assembly assembly) {
@@ -1406,8 +1420,8 @@ public sealed class ModRuntime<TGameApi> {
 			throw new ModLoadException(manifest.OwnerID, $"assembly attribute OwnerID '{attribute.OwnerID}' is invalid: {err}");
 		if (attribute.OwnerID != manifest.OwnerID)
 			throw new ModLoadException(manifest.OwnerID, $"manifest id '{manifest.OwnerID}' does not match assembly attribute OwnerID '{attribute.OwnerID}'");
-		if (attribute.HotReloadLevel != (ModAssemblyHotReloadLevel)manifest.CodeHotReload)
-			throw new ModLoadException(manifest.OwnerID, $"manifest code-hot-reload '{manifest.CodeHotReload}' does not match assembly attribute HotReloadLevel '{attribute.HotReloadLevel}'");
+		if (attribute.HotReloadLevel != (ModAssemblyHotReloadLevel)manifest.Reloadability)
+			throw new ModLoadException(manifest.OwnerID, $"manifest reloadability '{manifest.Reloadability}' does not match assembly attribute HotReloadLevel '{attribute.HotReloadLevel}'");
 	}
 
 	private static readonly MethodInfo createLinkedCancellationSourceMethod = getCreateLinkedCancellationSourceMethod();

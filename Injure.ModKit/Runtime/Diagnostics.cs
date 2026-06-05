@@ -35,7 +35,7 @@ public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput) 
 			DiagnosticSeverity.Case.Debug => (DebugColor, "[DEBUG]"),
 			DiagnosticSeverity.Case.Info => (InfoColor, "[INFO]"),
 			DiagnosticSeverity.Case.Warning => (WarningColor, "[WARN]"),
-			DiagnosticSeverity.Case.Error => (ErrorColor, "[ERROR] "),
+			DiagnosticSeverity.Case.Error => (ErrorColor, "[ERROR]"),
 			_ => throw new UnreachableException(),
 		};
 		lock (outputLock) {
