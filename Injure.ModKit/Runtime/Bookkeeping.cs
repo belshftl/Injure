@@ -5,33 +5,11 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Reflection;
 
-using Injure.Internals.Analyzers.Attributes;
 using Injure.ModKit.Abstractions;
 using Injure.ModKit.Loader;
 using Injure.ModKit.MonoMod;
 
 namespace Injure.ModKit.Runtime;
-
-[ClosedEnum(DefaultIsInvalid = true)]
-public readonly partial struct RuntimePhase {
-	public enum Case {
-		Empty = 1,
-		Discovered,
-		Resolved,
-		Staged,
-		CodeLoaded,
-		HooksDiscovered,
-		Loaded,
-		LoadHooksApplied,
-		Linked,
-		//LinkHooksApplied,
-		GameAttached,
-		Active,
-		Shutdown,
-		Faulted,
-		Aborted,
-	}
-}
 
 internal readonly record struct ModSource(string RootDirectory, string ManifestPath);
 internal readonly record struct DiscoveredMod(ModSource Source, ModManifest Manifest);

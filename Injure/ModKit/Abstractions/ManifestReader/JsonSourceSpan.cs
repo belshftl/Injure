@@ -48,26 +48,25 @@ public sealed class SourceText(string sourceName, string text) {
 	public string FormatDiagnostic(ManifestReadException ex) => FormatDiagnostic(ex.JsonNodePath, ex.Message, ex.Span);
 
 	public string FormatDiagnostic(string jsonNodePath, string message, JsonSourceSpan span) {
+		int lineNo = span.Start.Line + 1;
 		int lineIdx = Math.Clamp(span.Start.Line, 0, lineStarts.Length - 1);
 		int lineStart = lineStarts[lineIdx];
 		int lineEnd = getLineEnd(lineIdx);
 		string line = text[lineStart..lineEnd];
 
 		int startCol = Math.Max(1, span.Start.Offset - lineStart + 1);
-		int endCol = span.End.Line == span.Start.Line
-			? Math.Max(startCol + 1, span.End.Offset - lineStart + 1)
-			: line.Length + 1;
+		int endCol = span.End.Line == span.Start.Line ? Math.Max(startCol + 1, span.End.Offset - lineStart + 1) : line.Length + 1;
 
 		string expLine = expandTabs(line, out int[] colToVisual);
 		int visualStart = mapCol(colToVisual, startCol);
 		int visualEnd = mapCol(colToVisual, endCol);
 		int visualLen = Math.Max(1, visualEnd - visualStart);
 
-		string gutter = span.Start.Line.ToString(System.Globalization.CultureInfo.InvariantCulture).PadLeft(4);
+		string gutter = lineNo.ToString(System.Globalization.CultureInfo.InvariantCulture).PadLeft(4);
 
 		StringBuilder sb = new();
 		sb.Append(makePathPrettier(sourceName))
-			.Append(':').Append(span.Start.Line)
+			.Append(':').Append(lineNo)
 			.Append(':').Append(span.Start.Column)
 			.Append(": error: ")
 			.Append(jsonNodePath)

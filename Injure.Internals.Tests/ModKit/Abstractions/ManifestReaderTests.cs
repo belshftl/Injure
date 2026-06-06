@@ -474,12 +474,12 @@ public sealed class ManifestReaderTests {
 [
 	{
 		"id": "libwebp",
-		"path": "runtimes/linux-x64/native/libwebp.so",
+		"path": "native/linux-x64/libwebp.so",
 		"rid": "linux-x64"
 	},
 	{
 		"id": "libwebp",
-		"path": "runtimes/win-x64/native/webp.dll",
+		"path": "native/win-x64/webp.dll",
 		"rid": "win-x64"
 	}
 ]
@@ -489,12 +489,12 @@ public sealed class ManifestReaderTests {
 			manifest.NativeLibraries,
 			lib => {
 				Assert.Equal("libwebp", lib.ID);
-				Assert.Equal("runtimes/linux-x64/native/libwebp.so", lib.Path);
+				Assert.Equal("native/linux-x64/libwebp.so", lib.Path);
 				Assert.Equal("linux-x64", lib.RuntimeIdentifier);
 			},
 			lib => {
 				Assert.Equal("libwebp", lib.ID);
-				Assert.Equal("runtimes/win-x64/native/webp.dll", lib.Path);
+				Assert.Equal("native/win-x64/webp.dll", lib.Path);
 				Assert.Equal("win-x64", lib.RuntimeIdentifier);
 			}
 		);
