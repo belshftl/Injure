@@ -56,18 +56,19 @@ public sealed class FileHotReloadMonitor : IDisposable {
 	public event Action<string>? StablePathChanged;
 
 	public FileHotReloadMonitor(FileHotReloadMonitorOptions? options = null) {
+		if (options is not null) {
+			if (options.DebounceDelay < TimeSpan.Zero)
+				throw new ArgumentOutOfRangeException(nameof(options), options.DebounceDelay, "debounce delay must not be negative");
+			if (options.StabilitySampleInterval <= TimeSpan.Zero)
+				throw new ArgumentOutOfRangeException(nameof(options), options.StabilitySampleInterval, "stability sample interval must be positive");
+			if (options.RequiredStableSamples <= 0)
+				throw new ArgumentOutOfRangeException(nameof(options), options.RequiredStableSamples, "required stable sample count must be positive");
+			if (options.ReadBufferSize <= 0)
+				throw new ArgumentOutOfRangeException(nameof(options), options.ReadBufferSize, "read buffer size must be positive");
+			if (options.WatcherInternalBufferSize < 4096)
+				throw new ArgumentOutOfRangeException(nameof(options), options.WatcherInternalBufferSize, "watcher internal buffer size must be at least 4096 bytes");
+		}
 		this.options = options ?? new FileHotReloadMonitorOptions();
-
-		if (this.options.DebounceDelay < TimeSpan.Zero)
-			throw new ArgumentOutOfRangeException(nameof(options), "debounce delay must not be negative");
-		if (this.options.StabilitySampleInterval <= TimeSpan.Zero)
-			throw new ArgumentOutOfRangeException(nameof(options), "stability sample interval must be positive");
-		if (this.options.RequiredStableSamples <= 0)
-			throw new ArgumentOutOfRangeException(nameof(options), "required stable sample count must be positive");
-		if (this.options.ReadBufferSize <= 0)
-			throw new ArgumentOutOfRangeException(nameof(options), "read buffer size must be positive");
-		if (this.options.WatcherInternalBufferSize < 4096)
-			throw new ArgumentOutOfRangeException(nameof(options), "watcher internal buffer size must be at least 4096 bytes");
 
 		pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
@@ -98,7 +99,7 @@ public sealed class FileHotReloadMonitor : IDisposable {
 
 	public void UnwatchFile(string path) {
 		ArgumentException.ThrowIfNullOrWhiteSpace(path);
-		ObjectDisposedException.ThrowIf(disposed, this);
+		ObjectDisposedException.ThrowIf(disposed, this); // TODO: decide if this should throw or no-op
 		string fullPath = Path.GetFullPath(path);
 		lock (@lock) {
 			if (disposed)
@@ -251,8 +252,9 @@ public sealed class FileHotReloadMonitor : IDisposable {
 				StablePathChanged?.Invoke(fullPath);
 		} catch (OperationCanceledException) {
 		} finally {
-			if (!disposed && filesByPath.TryGetValue(fullPath, out WatchedFile? f) && f.Generation == generation && ReferenceEquals(f.ProbeCts, cts))
-				f.ProbeCts = null;
+			lock (@lock)
+				if (!disposed && filesByPath.TryGetValue(fullPath, out WatchedFile? f) && f.Generation == generation && ReferenceEquals(f.ProbeCts, cts))
+					f.ProbeCts = null;
 			cts.Dispose();
 		}
 	}

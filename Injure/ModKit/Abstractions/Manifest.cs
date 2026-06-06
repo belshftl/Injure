@@ -74,14 +74,16 @@ public abstract record ModManifest {
 	public required IReadOnlyList<ModRelationshipManifest> Relationships { get; init; }
 	public required ModAssetsManifest Assets { get; init; }
 	public required IReadOnlyList<ModNativeLibraryManifest> NativeLibraries { get; init; }
+
+	public abstract ModReloadability Reloadability { get; }
 }
 
 public sealed record CodeModManifest : ModManifest {
 	public required string EntryAssembly { get; init; }
 	public required bool LiveReloadable { get; init; }
-	public ModReloadability Reloadability => Reloadable ? (LiveReloadable ? ModReloadability.Live : ModReloadability.SafeBoundary) : ModReloadability.None;
+	public override ModReloadability Reloadability => Reloadable ? (LiveReloadable ? ModReloadability.Live : ModReloadability.SafeBoundary) : ModReloadability.None;
 }
 
 public sealed record ContentModManifest : ModManifest {
-	public ModReloadability Reloadability => Reloadable ? ModReloadability.SafeBoundary : ModReloadability.None;
+	public override ModReloadability Reloadability => Reloadable ? ModReloadability.Live : ModReloadability.None;
 }

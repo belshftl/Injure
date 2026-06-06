@@ -7,7 +7,8 @@ namespace Injure.ModKit.Runtime;
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct ReloadRequestKind {
 	public enum Case {
-		SafeBoundary = 1,
+		Any = 1,
+		SafeBoundary,
 		Live,
 	}
 }

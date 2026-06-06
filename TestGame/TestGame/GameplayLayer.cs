@@ -58,7 +58,7 @@ public sealed class GameplayLayer : Layer {
 			throw new NotImplementedException();
 		*/
 		if (ctx.Actions.Buttons[Actions.ReloadTestMod].Pressed)
-			Game.Mods.RequestReload("jdoe.test-mod", Injure.ModKit.Runtime.ReloadRequestKind.Live);
+			Game.Mods.RequestReload("jdoe.test-mod");
 		if (ctx.Actions.Buttons[Actions.DisableTestMod].Pressed)
 			Game.Mods.RequestDisable("jdoe.test-mod", Injure.ModKit.Runtime.DisableRequestKind.DisableDependentsAndReloadOptionalDependents);
 		if (ctx.Actions.Buttons[Actions.EnableTestMod].Pressed)

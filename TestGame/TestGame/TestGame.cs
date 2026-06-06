@@ -42,6 +42,10 @@ public sealed class Game : IGame {
 		get => field ?? throw new InvalidOperationException("mod runtime not initialized yet");
 		private set;
 	}
+	public static ModFileWatcher ModWatcher {
+		get => field ?? throw new InvalidOperationException("mod file watcher not initialized yet");
+		private set;
+	}
 	public static IOwnerDiagnostics Diagnostics => Mods.GameDiagnostics;
 
 	public const string TestFontFilename = "Aileron-Regular.otf";
@@ -70,6 +74,16 @@ public sealed class Game : IGame {
 			],
 		});
 		await Mods.StartAsync(CancellationToken.None);
+
+		ModWatcher = new();
+		ModWatcher.Changed += static ev => {
+			if (!ev.Reloadable) {
+				Diagnostics.Info($"mod '{ev.OwnerID}' changed but isn't reloadable; restart the game to apply changes");
+				return;
+			}
+			Mods.RequestReload(ev.OwnerID);
+		};
+		ModWatcher.RebuildFrom(Mods.GetWatchSpecs());
 
 		Runner.Run(g, new GameConfig(
 			Service: new ServiceConfig(Assets: true, Text: true),
@@ -101,6 +115,7 @@ public sealed class Game : IGame {
 	}
 
 	public void Shutdown() {
+		ModWatcher.Dispose();
 		Mods.ShutdownOrAbortBlocking();
 		GameServices = null!;
 	}
