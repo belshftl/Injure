@@ -3,12 +3,19 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Injure.ModKit.Abstractions.ManifestReader;
 
-public static class LocatedJsonParser {
+internal static partial class JsonExceptionMessageSuffixRegex {
+	[GeneratedRegex(@" LineNumber: [0-9]+ \| BytePositionInLine: [0-9]+\.$", RegexOptions.CultureInvariant)]
+	public static partial Regex Re();
+}
+
+public static partial class LocatedJsonParser {
 	public static JNode Parse(string sourceName, string text) => Parse(new SourceText(sourceName, text));
 
 	public static JNode Parse(SourceText source) {
@@ -41,7 +48,7 @@ public static class LocatedJsonParser {
 			return root;
 		} catch (JsonException ex) {
 			JsonSourceLocation loc = source.GetLocationFromByteOffset(reader.TokenStartIndex, utf8, byteToCharOffset);
-			throw new ManifestReadException("$", JsonSourceSpan.Point(loc), ex.Message);
+			throw new ManifestReadException("$", JsonSourceSpan.Point(loc), $"JSON parse error: {formatJsonException(ex)}");
 		}
 	}
 
@@ -200,6 +207,20 @@ public static class LocatedJsonParser {
 		for (int i = Math.Min(byteOffset, map.Length - 1); i < map.Length; i++)
 			map[i] = text.Length;
 		return map;
+	}
+
+	private static string formatJsonException(JsonException ex) {
+		// this fucking sucks but it seems to work well enough from my testing
+		string msg = ex.InnerException?.Message ?? ex.Message;
+		int badLiteralMsgIdx = msg.IndexOf("is an invalid JSON literal", StringComparison.Ordinal);
+		if (badLiteralMsgIdx >= 0) {
+			string? firstLine = msg.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+			if (firstLine is not null)
+				msg = (firstLine[^1] == ',' ? firstLine[..^1] + '\'' : firstLine) + ' ' + msg[badLiteralMsgIdx..];
+		}
+		msg = msg.Replace("\r", "\\r", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal);
+		msg = JsonExceptionMessageSuffixRegex.Re().Replace(msg, "");
+		return msg;
 	}
 
 	private static ManifestReadException err(string path, JsonSourceSpan span, string message) => new(path, span, message);
