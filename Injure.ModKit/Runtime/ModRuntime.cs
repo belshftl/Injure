@@ -44,6 +44,13 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public int MaxScopeTeardownParallelism { get; init; } = 8;
 }
 
+public readonly record struct ModWatchSpec(
+	string OwnerID,
+	bool Reloadable,
+	string ManifestPath,
+	string? EntryAssemblyPath
+);
+
 public sealed class ModRuntime<TGameApi> {
 	// ==========================================================================
 	// bookkeeping
@@ -52,7 +59,9 @@ public sealed class ModRuntime<TGameApi> {
 	private readonly record struct ActiveDependent(string OwnerID, bool IsHard);
 
 	private sealed class BoundaryPlan {
+		public required ReloadBoundaryKind Boundary { get; init; }
 		public required ReloadRequestKind ReloadKind { get; init; }
+		public required bool HasExplicitLiveRequest { get; init; }
 		public required HashSet<string> CandidateEnabledOwners { get; init; }
 		public required HashSet<string> DisableSet { get; init; }
 		public required HashSet<string> EnableSet { get; init; }
@@ -126,6 +135,11 @@ public sealed class ModRuntime<TGameApi> {
 	private enum ReloadBoundaryKind {
 		Safe,
 		Live,
+	}
+
+	private enum BoundaryPlanReadiness {
+		Ready,
+		WaitForStrongerBoundary,
 	}
 
 	// ==========================================================================
@@ -259,9 +273,9 @@ public sealed class ModRuntime<TGameApi> {
 				if (items.Length == 1) {
 					ref readonly DiscoveredMod mod = ref items[0];
 					if (mod.Manifest.OwnerID == EngineInfo.OwnerID)
-						diagnostics.Warning($"mod manifest '{mod.Source.ManifestPath}' claims to have owner ID '{EngineInfo.OwnerID}', which is reserved for the engine; skipping it");
+						diagnostics.Error($"mod manifest '{mod.Source.ManifestPath}' claims to have owner ID '{EngineInfo.OwnerID}', which is reserved for the engine; skipping it");
 					else if (mod.Manifest.OwnerID == gameOwnerID)
-						diagnostics.Warning($"mod manifest '{mod.Source.ManifestPath}' claims to have owner ID '{gameOwnerID}', which is already used by the game; skipping it");
+						diagnostics.Error($"mod manifest '{mod.Source.ManifestPath}' claims to have owner ID '{gameOwnerID}', which is already used by the game; skipping it");
 					else
 						enabledOwners.Add(mod.Manifest.OwnerID);
 				} else {
@@ -269,7 +283,7 @@ public sealed class ModRuntime<TGameApi> {
 					foreach (DiscoveredMod mod in items)
 						sb.Append("\t- ").AppendLine(mod.Source.ManifestPath);
 					sb.AppendLine("skipping all of them");
-					diagnostics.Warning(sb.ToString());
+					diagnostics.Error(sb.ToString());
 				}
 			}
 			phase = RuntimePhase.Discovered;
@@ -466,6 +480,8 @@ public sealed class ModRuntime<TGameApi> {
 
 	// ==========================================================================
 	// mod management
+	public void RequestReload(string ownerID) => RequestReload(ownerID, ReloadRequestKind.Any);
+
 	public void RequestReload(string ownerID, ReloadRequestKind kind) {
 		requirePhase(RuntimePhase.Active, nameof(RequestReload));
 		lock (opLock)
@@ -488,6 +504,14 @@ public sealed class ModRuntime<TGameApi> {
 	public void AtLiveBoundaryBlocking(CancellationToken ct = default) => block(processBoundaryAsync(ReloadBoundaryKind.Live, ct));
 	public ValueTask AtSafeBoundaryAsync(CancellationToken ct = default) => processBoundaryAsync(ReloadBoundaryKind.Safe, ct);
 	public ValueTask AtLiveBoundaryAsync(CancellationToken ct = default) => processBoundaryAsync(ReloadBoundaryKind.Live, ct);
+
+	public ModWatchSpec[] GetWatchSpecs() =>
+		discovered.Select(static mod => new ModWatchSpec(
+			mod.Manifest.OwnerID,
+			mod.Manifest.Reloadable,
+			mod.Source.ManifestPath,
+			mod.Manifest is CodeModManifest code ? Path.Combine(mod.Source.RootDirectory, code.EntryAssembly) : null
+		)).ToArray();
 
 	// ==========================================================================
 	// termination
@@ -654,37 +678,57 @@ public sealed class ModRuntime<TGameApi> {
 		task.AsTask().GetAwaiter().GetResult();
 	}
 
-	private PendingOp[] takePendingBatch(ReloadBoundaryKind boundary) {
+	private PendingOp[] peekPendingBatch(ReloadBoundaryKind boundary) {
 		lock (opLock) {
 			List<PendingOp> batch = new();
-			for (int i = pendingOps.Count - 1; i >= 0; i--) {
-				PendingOp op = pendingOps[i];
+			foreach (PendingOp op in pendingOps) {
 				if (!isEligibleAtBoundary(op, boundary))
 					continue;
 				batch.Add(op);
-				pendingOps.RemoveAt(i);
 			}
 			batch.Sort(static (a, b) => a.Seq.CompareTo(b.Seq));
 			return batch.Count == 0 ? Array.Empty<PendingOp>() : batch.ToArray();
 		}
 	}
 
+	private void removePendingBatch(PendingOp[] batch) {
+		if (batch.Length == 0)
+			return;
+
+		HashSet<ulong> seqs = new(batch.Select(static op => op.Seq));
+		lock (opLock)
+			for (int i = pendingOps.Count - 1; i >= 0; i--)
+				if (seqs.Contains(pendingOps[i].Seq))
+					pendingOps.RemoveAt(i);
+	}
+
 	private async ValueTask processBoundaryAsync(ReloadBoundaryKind boundary, CancellationToken ct) {
 		await writeLock.WaitAsync(ct).ConfigureAwait(false);
 		try {
 			for (;;) {
-				PendingOp[] batch = takePendingBatch(boundary);
+				PendingOp[] batch = peekPendingBatch(boundary);
 				if (batch.Length == 0)
 					return;
 
-				BoundaryPlan plan = createBoundaryPlan(batch);
-				if (plan.IsNoOp)
+				BoundaryPlan plan = createBoundaryPlan(batch, boundary);
+				if (plan.IsNoOp) {
+					removePendingBatch(batch);
 					continue;
+				}
 
-				Transaction transaction = await prepareTransactionAsync(plan, ct).ConfigureAwait(false);
+				BoundaryPlanReadiness readiness = validateReloadCapabilitiesAtBoundary(activeGraph, plan.ReloadSet, boundary, plan.HasExplicitLiveRequest, oldManifest: true);
+				if (readiness == BoundaryPlanReadiness.WaitForStrongerBoundary)
+					return;
+
+				Transaction? transaction = await prepareTransactionAsync(plan, ct).ConfigureAwait(false);
+				if (transaction is null)
+					return;
+
+				removePendingBatch(batch);
+
 				ModOperationResult r = await commitTransactionAsync(transaction, ct).ConfigureAwait(false);
 				transaction.DropContainersOnly();
-				transaction = null!;
+				transaction = null;
 				if (unloadGracePeriod > TimeSpan.Zero)
 					await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
 				foreach (PendingAlcUnload pending in r.PendingUnloads)
@@ -700,11 +744,12 @@ public sealed class ModRuntime<TGameApi> {
 		}
 	}
 
-	private BoundaryPlan createBoundaryPlan(PendingOp[] batch) {
+	private BoundaryPlan createBoundaryPlan(PendingOp[] batch, ReloadBoundaryKind boundary) {
 		HashSet<string> candidateEnabled = new(enabledOwners, StringComparer.Ordinal);
 		HashSet<string> reloadRoots = new(StringComparer.Ordinal);
 		bool hasStructuralOps = false;
-		ReloadRequestKind reloadKind = ReloadRequestKind.SafeBoundary;
+		bool hasExplicitLiveRequest = false;
+		ReloadRequestKind reloadKind = boundary == ReloadBoundaryKind.Live ? ReloadRequestKind.Live : ReloadRequestKind.SafeBoundary;
 
 		foreach (PendingOp op in batch) {
 			switch (op.Kind) {
@@ -713,7 +758,7 @@ public sealed class ModRuntime<TGameApi> {
 					break;
 				reloadRoots.Add(op.OwnerID);
 				if (op.ReloadKind == ReloadRequestKind.Live)
-					reloadKind = ReloadRequestKind.Live;
+					hasExplicitLiveRequest = true;
 				break;
 			case OpKind.Disable:
 				hasStructuralOps = true;
@@ -741,9 +786,10 @@ public sealed class ModRuntime<TGameApi> {
 		reloadRoots.ExceptWith(enableSet);
 
 		HashSet<string> reloadSet = computeFilteredReloadClosure(reloadRoots, candidateEnabled, enableSet, disableSet);
-		validateReloadCapabilities(reloadSet, reloadKind);
 		return new BoundaryPlan {
+			Boundary = boundary,
 			ReloadKind = reloadKind,
+			HasExplicitLiveRequest = hasExplicitLiveRequest,
 			CandidateEnabledOwners = candidateEnabled,
 			DisableSet = disableSet,
 			EnableSet = enableSet,
@@ -923,7 +969,7 @@ public sealed class ModRuntime<TGameApi> {
 		return result;
 	}
 
-	private async ValueTask<Transaction> prepareTransactionAsync(BoundaryPlan plan, CancellationToken ct) {
+	private async ValueTask<Transaction?> prepareTransactionAsync(BoundaryPlan plan, CancellationToken ct) {
 		HashSet<string> prepareSet = plan.PrepareSet;
 		HashSet<string> oldTouchedSet = plan.OldTouchedSet;
 
@@ -944,7 +990,9 @@ public sealed class ModRuntime<TGameApi> {
 		ResolvedModGraph candidateGraph = ModRelationshipResolver.Resolve(
 			candidateDiscovered.Values.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Manifest.OwnerID)).ToArray()
 		);
-		validateCandidateReloadCapabilities(candidateGraph, plan.ReloadSet, plan.ReloadKind);
+		BoundaryPlanReadiness candidateReadiness = validateReloadCapabilitiesAtBoundary(candidateGraph, plan.ReloadSet, plan.Boundary, plan.HasExplicitLiveRequest, oldManifest: false);
+		if (candidateReadiness == BoundaryPlanReadiness.WaitForStrongerBoundary)
+			return null;
 
 		List<StagedMod> replacementStaged = new();
 		foreach (ResolvedMod resolved in candidateGraph.ModsInDeterministicOrder) {
@@ -1374,42 +1422,38 @@ public sealed class ModRuntime<TGameApi> {
 		}
 	}
 
-	private void validateReloadCapabilities(IReadOnlySet<string> reloadSet, ReloadRequestKind request) {
+	private static BoundaryPlanReadiness validateReloadCapabilitiesAtBoundary(
+		ResolvedModGraph graph,
+		IReadOnlySet<string> reloadSet,
+		ReloadBoundaryKind boundary,
+		bool hasExplicitLiveRequest,
+		bool oldManifest
+	) {
 		foreach (string id in reloadSet) {
-			ModManifest manifest = activeGraph.Mods[id].Manifest;
-			if (manifest is not CodeModManifest code)
-				continue;
-			if (!canSatisfyReload(code.Reloadability, request))
-				throw new ModLoadException(id, $"mod reloadability '{code.Reloadability}' cannot satisfy reload request '{request}'");
-		}
-	}
+			ModManifest manifest = graph.Mods[id].Manifest;
+			if (manifest.Reloadability == ModReloadability.None)
+				throw new ModLoadException(id, $"{(oldManifest ? "mod" : "new mod")} '{id}' is not reloadable");
 
-	private static void validateCandidateReloadCapabilities(ResolvedModGraph candidateGraph, IReadOnlySet<string> reloadSet, ReloadRequestKind request) {
-		foreach (string id in reloadSet) {
-			ModManifest manifest = candidateGraph.Mods[id].Manifest;
-			if (manifest is not CodeModManifest code)
-				continue;
-			if (!canSatisfyReload(code.Reloadability, request))
-				throw new ModLoadException(id, $"new mod reloadability '{code.Reloadability}' cannot satisfy reload request '{request}'");
+			if (boundary == ReloadBoundaryKind.Live && manifest.Reloadability != ModReloadability.Live) {
+				if (hasExplicitLiveRequest)
+					throw new ModLoadException(id, $"{(oldManifest ? "mod" : "new mod")} '{id}' is not live-reloadable");
+				return BoundaryPlanReadiness.WaitForStrongerBoundary;
+			}
 		}
+		return BoundaryPlanReadiness.Ready;
 	}
-
-	private static bool canSatisfyReload(ModReloadability rx, ReloadRequestKind request) => request.Tag switch {
-		ReloadRequestKind.Case.SafeBoundary => rx.Tag is ModReloadability.Case.SafeBoundary or ModReloadability.Case.Live,
-		ReloadRequestKind.Case.Live => rx == ModReloadability.Live,
-		_ => throw new UnreachableException(),
-	};
 
 	private static bool isEligibleAtBoundary(in PendingOp op, ReloadBoundaryKind boundary) => op.Kind switch {
-		OpKind.Reload => op.ReloadKind is ReloadRequestKind request && boundaryAllows(boundary, request),
-		OpKind.Disable => boundaryAllows(boundary, ReloadRequestKind.SafeBoundary),
-		OpKind.Enable => boundaryAllows(boundary, ReloadRequestKind.SafeBoundary),
+		OpKind.Reload => op.ReloadKind is ReloadRequestKind request && requestCanRunAtBoundary(request, boundary),
+		OpKind.Disable => boundary == ReloadBoundaryKind.Safe,
+		OpKind.Enable => boundary == ReloadBoundaryKind.Safe,
 		_ => false,
 	};
 
-	private static bool boundaryAllows(ReloadBoundaryKind boundary, ReloadRequestKind request) => request.Tag switch {
-		ReloadRequestKind.Case.SafeBoundary => boundary is ReloadBoundaryKind.Safe or ReloadBoundaryKind.Live,
-		ReloadRequestKind.Case.Live => boundary == ReloadBoundaryKind.Live,
+	private static bool requestCanRunAtBoundary(ReloadRequestKind request, ReloadBoundaryKind boundary) => request.Tag switch {
+		ReloadRequestKind.Case.Any => true,
+		ReloadRequestKind.Case.SafeBoundary => boundary == ReloadBoundaryKind.Safe,
+		ReloadRequestKind.Case.Live => boundary is ReloadBoundaryKind.Live or ReloadBoundaryKind.Safe,
 		_ => throw new UnreachableException(),
 	};
 
