@@ -25,6 +25,8 @@ internal sealed class TestApi : ITestGameModApi {
 
 public sealed class Game : IGame {
 	public const string OwnerID = "TestGame";
+	static string IGame.OwnerID => OwnerID;
+
 	public static readonly string AssetsDirectory = Path.Combine(AppContext.BaseDirectory, "Assets");
 
 	public static GameServices GameServices {
@@ -121,6 +123,7 @@ public sealed class Game : IGame {
 	}
 
 	public void BetweenSchedulerTicks() {
-		Mods.AtLiveBoundaryBlocking(); // TODO: figure out where this should properly be called because it's Not here
+		//Mods.AtSafeBoundaryBlocking(); // TODO: figure out where this should properly be called because it's Not here
+		Mods.AtLiveBoundaryBlocking();
 	}
 }

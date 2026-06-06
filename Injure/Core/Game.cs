@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-using System;
-
 using Injure.Graphics;
 using Injure.Internals.Analyzers.Attributes;
 
@@ -44,6 +42,8 @@ public readonly partial struct HostEvent {
 }
 
 public interface IGame {
+	static abstract string OwnerID { get; }
+
 	void Init(GameServices sv);
 	void Render(Canvas cv);
 	void Shutdown();
