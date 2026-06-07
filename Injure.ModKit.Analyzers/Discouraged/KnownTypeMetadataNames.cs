@@ -8,6 +8,8 @@ internal static class KnownTypeMetadataNames {
 	public const string NativeHook = "MonoMod.RuntimeDetour.NativeHook";
 	public const string DetourConfig = "MonoMod.RuntimeDetour.DetourConfig";
 	public const string ILCursor = "MonoMod.Cil.ILCursor";
+	public const string ILContext = "MonoMod.Cil.ILContext";
+	public const string Instruction = "Mono.Cecil.Cil.Instruction";
 
 	public const string IModLoadContext = "Injure.ModKit.Abstractions.IModLoadContext`2";
 	public const string IModLinkContext = "Injure.ModKit.Abstractions.IModLinkContext`2";

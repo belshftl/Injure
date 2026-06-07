@@ -104,5 +104,23 @@ internal static class Discouraged {
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
 	);
+
+	public static readonly DiagnosticDescriptor DestructiveILEdit = new(
+		id: "IJM0211",
+		title: "Avoid destructive IL edits",
+		messageFormat: "Removing or modifying instructions commonly breaks IL hooks of other mods, which causes seemingly random crashes for players; prefer exclusively adding new instructions. For example, to patch out some code segment, skip it with an unconditional branch instead of deleting it.",
+		category: "Discouraged",
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true
+	);
+
+	public static readonly DiagnosticDescriptor PreferRequireGoto = new(
+		id: "IJM0212",
+		title: "Use RequireGoto{Next,Prev} instead of plain Goto{Next,Prev}",
+		messageFormat: "Use ILCursor.RequireGoto{Next,Prev} from Injure.ModKit.Mods instead of plain Goto{Next,Prev} as they provide much better exceptions/messages on match failure; eventually, you're gonna have to debug using someone's crash log and will thank yourself for switching",
+		category: "Discouraged",
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true
+	);
 #pragma warning restore RS2008 // enable analyzer release tracking
 }
