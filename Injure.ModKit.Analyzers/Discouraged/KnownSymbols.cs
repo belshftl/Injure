@@ -6,21 +6,60 @@ using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Discouraged;
 
-internal sealed class KnownSymbols(Compilation comp) {
-	public INamedTypeSymbol? Hook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Hook);
-	public INamedTypeSymbol? ILHook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILHook);
-	public INamedTypeSymbol? NativeHook { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.NativeHook);
-	public INamedTypeSymbol? DetourConfig { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.DetourConfig);
-	public ImmutableHashSet<IMethodSymbol> EmitDelegateMethods { get; } =
-		comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILCursor)
+internal sealed class KnownSymbols {
+	public INamedTypeSymbol? Hook { get; }
+	public INamedTypeSymbol? ILHook { get; }
+	public INamedTypeSymbol? NativeHook { get; }
+	public INamedTypeSymbol? DetourConfig { get; }
+	public INamedTypeSymbol? ILCursor { get; }
+	public INamedTypeSymbol? ILContext { get; }
+	public INamedTypeSymbol? Instruction { get; }
+	public ImmutableHashSet<IMethodSymbol> EmitDelegateMethods { get; }
+	public ImmutableHashSet<IMethodSymbol> RemoveInstructionMethods { get; }
+	public ImmutableHashSet<IMethodSymbol> GotoMethods { get; }
+	public ImmutableHashSet<ISymbol> InstructionMembers { get; }
+
+	public INamedTypeSymbol? IModLoadContext { get; }
+	public INamedTypeSymbol? IModLinkContext { get; }
+	public INamedTypeSymbol? IModActivateContext { get; }
+	public INamedTypeSymbol? IModReloadContext { get; }
+
+	public KnownSymbols(Compilation comp) {
+		Hook = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Hook);
+		ILHook = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILHook);
+		NativeHook = comp.GetTypeByMetadataName(KnownTypeMetadataNames.NativeHook);
+		DetourConfig = comp.GetTypeByMetadataName(KnownTypeMetadataNames.DetourConfig);
+		ILCursor = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILCursor);
+		ILContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILContext);
+		Instruction = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Instruction);
+
+		EmitDelegateMethods = ILCursor
 			?.GetMembers()
 			.OfType<IMethodSymbol>()
 			.Where(static m => m.Name == "EmitDelegate")
 			.Select(static m => m.OriginalDefinition)
 			.ToImmutableHashSet<IMethodSymbol>(SymbolEqualityComparer.Default) ?? ImmutableHashSet<IMethodSymbol>.Empty;
+		RemoveInstructionMethods = ILCursor
+			?.GetMembers()
+			.OfType<IMethodSymbol>()
+			.Where(static m => m.Name is "Remove" or "RemoveRange")
+			.Select(static m => m.OriginalDefinition)
+			.ToImmutableHashSet<IMethodSymbol>(SymbolEqualityComparer.Default) ?? ImmutableHashSet<IMethodSymbol>.Empty;
+		GotoMethods = ILCursor
+			?.GetMembers()
+			.OfType<IMethodSymbol>()
+			.Where(static m => m.Name is "GotoNext" or "GotoPrev")
+			.Select(static m => m.OriginalDefinition)
+			.ToImmutableHashSet<IMethodSymbol>(SymbolEqualityComparer.Default) ?? ImmutableHashSet<IMethodSymbol>.Empty;
+		InstructionMembers = Instruction
+			?.GetMembers()
+			.Where(static m => m.Name is "OpCode" or "Operand")
+			.Select(static m => m.OriginalDefinition)
+			.ToImmutableHashSet(SymbolEqualityComparer.Default) ?? ImmutableHashSet<ISymbol>.Empty;
 
-	public INamedTypeSymbol? IModLoadContext { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModLoadContext);
-	public INamedTypeSymbol? IModLinkContext { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModLinkContext);
-	public INamedTypeSymbol? IModActivateContext { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModActivateContext);
-	public INamedTypeSymbol? IModReloadContext { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModReloadContext);
+		IModLoadContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModLoadContext);
+		IModLinkContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModLinkContext);
+		IModActivateContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModActivateContext);
+		IModReloadContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModReloadContext);
+	}
 }
