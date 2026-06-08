@@ -62,7 +62,8 @@ internal sealed class ModLoadContextImpl<TGameApi, L>(
 	IOwnerDiagnostics diagnostics,
 	UntypedBoundedScope scope,
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
-) : ModContextImpl<TGameApi, L>(nameof(IModLoadContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLoadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+) : ModContextImpl<TGameApi, L>(nameof(IModLoadContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLoadContext<TGameApi, L>
+	where L : struct, IModLifetimeIdentity {
 	private ModHookDeclarations<TGameApi, L>? loadHooks = loadHooks;
 	public IModHookDeclarations<L> LoadHooks => loadHooks ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
 
@@ -81,7 +82,8 @@ internal sealed class ModLinkContextImpl<TGameApi, L>(
 	IOwnerDiagnostics diagnostics,
 	UntypedBoundedScope scope,
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
-) : ModContextImpl<TGameApi, L>(nameof(IModLinkContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLinkContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+) : ModContextImpl<TGameApi, L>(nameof(IModLinkContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLinkContext<TGameApi, L>
+	where L : struct, IModLifetimeIdentity {
 	private IReadOnlyDictionary<string, LoadedDependencyInfo>? loaded = loaded;
 	private IReadOnlyDictionary<string, LoadedCodeDependencyInfo>? loadedCode = loadedCode;
 
@@ -92,9 +94,11 @@ internal sealed class ModLinkContextImpl<TGameApi, L>(
 	public bool TryGetCodeDependency(string ownerID, out LoadedCodeDependencyInfo info) =>
 		loadedCode is not null ? loadedCode.TryGetValue(ownerID, out info) : throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), Generation);
 	public LoadedDependencyInfo RequireDependency(string ownerID) => TryGetDependency(ownerID, out LoadedDependencyInfo info)
-		? info : throw new ModLoadException(OwnerID, $"declared dependency '{ownerID}' is not loaded");
+		? info
+		: throw new ModLoadException(OwnerID, $"declared dependency '{ownerID}' is not loaded");
 	public LoadedCodeDependencyInfo RequireCodeDependency(string ownerID) => TryGetCodeDependency(ownerID, out LoadedCodeDependencyInfo info)
-		? info : throw new ModLoadException(OwnerID, $"declared code dependency '{ownerID}' is not loaded");
+		? info
+		: throw new ModLoadException(OwnerID, $"declared code dependency '{ownerID}' is not loaded");
 
 	public override void OnDropStrongReferences() {
 		loaded = null;
@@ -111,7 +115,8 @@ internal sealed class ModActivateContextImpl<TGameApi, L>(
 	IOwnerDiagnostics diagnostics,
 	UntypedBoundedScope scope,
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
-) : ModContextImpl<TGameApi, L>(nameof(IModActivateContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModActivateContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+) : ModContextImpl<TGameApi, L>(nameof(IModActivateContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModActivateContext<TGameApi, L>
+	where L : struct, IModLifetimeIdentity {
 	public GameServices GameServices {
 		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModActivateContext<,>), Generation);
 		private set;
@@ -136,7 +141,8 @@ internal sealed class ModReloadContextImpl<TGameApi, L>(
 	IOwnerDiagnostics diagnostics,
 	UntypedBoundedScope scope,
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
-) : ModContextImpl<TGameApi, L>(nameof(IModReloadContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModReloadContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
+) : ModContextImpl<TGameApi, L>(nameof(IModReloadContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModReloadContext<TGameApi, L>
+	where L : struct, IModLifetimeIdentity {
 	private bool gameServicesDropped = false;
 	private GameServices? gameServices = gameServices;
 

@@ -13,7 +13,7 @@ public readonly struct CoroutineHandle(int slot, int generation) : IEquatable<Co
 
 	public bool Equals(CoroutineHandle other) => Slot == other.Slot && Generation == other.Generation;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CoroutineHandle other && Equals(other);
-	public override int GetHashCode() => unchecked((Slot * 397) ^ Generation);
+	public override int GetHashCode() => unchecked(Slot * 397 ^ Generation);
 	public static bool operator ==(CoroutineHandle left, CoroutineHandle right) => left.Equals(right);
 	public static bool operator !=(CoroutineHandle left, CoroutineHandle right) => !left.Equals(right);
 }

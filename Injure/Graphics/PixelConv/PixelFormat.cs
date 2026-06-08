@@ -159,11 +159,27 @@ internal enum PixelByteOrder : byte {
 }
 
 internal readonly struct PixelFormatDesc(
-	PixelFormatFamily family, PixelNumericKind numericKind, PixelByteOrder byteOrder, byte bytesPerPixel,
-	bool hasR, bool hasG, bool hasB, bool hasA,
-	byte rBits, byte gBits, byte bBits, byte aBits,
-	byte rShift, byte gShift, byte bShift, byte aShift,
-	sbyte rIndex, sbyte gIndex, sbyte bIndex, sbyte aIndex) {
+	PixelFormatFamily family,
+	PixelNumericKind numericKind,
+	PixelByteOrder byteOrder,
+	byte bytesPerPixel,
+	bool hasR,
+	bool hasG,
+	bool hasB,
+	bool hasA,
+	byte rBits,
+	byte gBits,
+	byte bBits,
+	byte aBits,
+	byte rShift,
+	byte gShift,
+	byte bShift,
+	byte aShift,
+	sbyte rIndex,
+	sbyte gIndex,
+	sbyte bIndex,
+	sbyte aIndex
+) {
 	public readonly PixelFormatFamily Family = family;
 	public readonly PixelNumericKind NumericKind = numericKind;
 	public readonly PixelByteOrder ByteOrder = byteOrder;

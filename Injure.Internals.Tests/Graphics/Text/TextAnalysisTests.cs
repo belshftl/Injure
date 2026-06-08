@@ -1,6 +1,7 @@
 ﻿// SPDX-License-Identifier: MIT
 
 using Injure.Graphics.Text;
+
 using static Injure.Internals.Tests.Graphics.Text.Util;
 
 namespace Injure.Internals.Tests.Graphics.Text;

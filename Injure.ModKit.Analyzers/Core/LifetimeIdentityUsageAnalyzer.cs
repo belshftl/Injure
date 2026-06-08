@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -23,20 +24,21 @@ public sealed class LifetimeIdentityAnalyzer : DiagnosticAnalyzer {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(static ctx => {
-			KnownTypes known = new(ctx.Compilation);
-			ctx.RegisterSyntaxNodeAction(c => analyzeTypeParameterConstraintClause(c, known), SyntaxKind.TypeParameterConstraintClause);
-			ctx.RegisterSyntaxNodeAction(c => analyzeVariableDeclaration(c, known), SyntaxKind.VariableDeclaration);
-			ctx.RegisterSyntaxNodeAction(c => analyzeParameter(c, known), SyntaxKind.Parameter);
-			ctx.RegisterSyntaxNodeAction(c => analyzeProperty(c, known), SyntaxKind.PropertyDeclaration);
-			ctx.RegisterSyntaxNodeAction(c => analyzeIndexer(c, known), SyntaxKind.IndexerDeclaration);
-			ctx.RegisterSyntaxNodeAction(c => analyzeMethod(c, known), SyntaxKind.MethodDeclaration);
-			ctx.RegisterSyntaxNodeAction(c => analyzeDelegate(c, known), SyntaxKind.DelegateDeclaration);
-			ctx.RegisterSyntaxNodeAction(c => analyzeLocalFunction(c, known), SyntaxKind.LocalFunctionStatement);
-			ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.CastExpression);
-			ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.AsExpression);
-			ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.IsExpression);
-			ctx.RegisterSyntaxNodeAction(c => analyzeTypeof(c, known), SyntaxKind.TypeOfExpression);
-		});
+				KnownTypes known = new(ctx.Compilation);
+				ctx.RegisterSyntaxNodeAction(c => analyzeTypeParameterConstraintClause(c, known), SyntaxKind.TypeParameterConstraintClause);
+				ctx.RegisterSyntaxNodeAction(c => analyzeVariableDeclaration(c, known), SyntaxKind.VariableDeclaration);
+				ctx.RegisterSyntaxNodeAction(c => analyzeParameter(c, known), SyntaxKind.Parameter);
+				ctx.RegisterSyntaxNodeAction(c => analyzeProperty(c, known), SyntaxKind.PropertyDeclaration);
+				ctx.RegisterSyntaxNodeAction(c => analyzeIndexer(c, known), SyntaxKind.IndexerDeclaration);
+				ctx.RegisterSyntaxNodeAction(c => analyzeMethod(c, known), SyntaxKind.MethodDeclaration);
+				ctx.RegisterSyntaxNodeAction(c => analyzeDelegate(c, known), SyntaxKind.DelegateDeclaration);
+				ctx.RegisterSyntaxNodeAction(c => analyzeLocalFunction(c, known), SyntaxKind.LocalFunctionStatement);
+				ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.CastExpression);
+				ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.AsExpression);
+				ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.IsExpression);
+				ctx.RegisterSyntaxNodeAction(c => analyzeTypeof(c, known), SyntaxKind.TypeOfExpression);
+			}
+		);
 	}
 
 	private static void analyzeTypeParameterConstraintClause(SyntaxNodeAnalysisContext ctx, KnownTypes known) {

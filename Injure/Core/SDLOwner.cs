@@ -2,17 +2,19 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+
 using Hexa.NET.SDL3;
 
 using Injure.Timing;
+
 using static Injure.Core.SDLException;
 
 namespace Injure.Core;
 
 public static unsafe class SDLOwner {
-	public static SDLWindow *Window { get; private set; }
-	public static void *AppleMetalView { get; private set; } = null;
-	public static void *AppleMetalLayer { get; private set; } = null;
+	public static SDLWindow* Window { get; private set; }
+	public static void* AppleMetalView { get; private set; } = null;
+	public static void* AppleMetalLayer { get; private set; } = null;
 
 	public static SDLSurfaceHost? SurfaceHost { get; private set; }
 
@@ -54,7 +56,7 @@ public static unsafe class SDLOwner {
 		SurfaceHost = new SDLSurfaceHost(Window, AppleMetalLayer);
 		inited = true;
 	}
-	
+
 	public static void ShutdownSDL() {
 		if (inited) {
 			SurfaceHost = null;

@@ -11,14 +11,16 @@ public readonly record struct ButtonActionState(bool Down, bool PreviousDown) {
 	public bool Pressed => Down && !PreviousDown;
 	public bool Released => !Down && PreviousDown;
 }
+
 public readonly record struct StateAxisActionState(float Value, float PreviousValue) {
 	public float StepDelta => Value - PreviousValue;
 }
+
 public readonly record struct StateAxis2DActionState(Vector2 Value, Vector2 PreviousValue) {
 	public Vector2 StepDelta => Value - PreviousValue;
 }
-public readonly record struct ImpulseAxisActionState(float Amount);
 
+public readonly record struct ImpulseAxisActionState(float Amount);
 public readonly record struct ButtonActionStateEntry(ActionID Action, ButtonActionState State);
 public readonly record struct StateAxisActionStateEntry(ActionID Action, StateAxisActionState State);
 public readonly record struct StateAxis2DActionStateEntry(ActionID Action, StateAxis2DActionState State);
@@ -43,8 +45,12 @@ public sealed class ActionStateSnapshot {
 		ReadOnlySpan<StateAxis2DActionStateEntry> stateAxes2D,
 		ReadOnlySpan<ImpulseAxisActionStateEntry> impulseAxes
 	) {
-		static ImmutableDictionary<ActionID, TValue> copy<TEntry, TValue>(ReadOnlySpan<TEntry> entries, Func<TEntry, ActionID> getAction,
-			Func<TEntry, TValue> getValue, string paramName) {
+		static ImmutableDictionary<ActionID, TValue> copy<TEntry, TValue>(
+			ReadOnlySpan<TEntry> entries,
+			Func<TEntry, ActionID> getAction,
+			Func<TEntry, TValue> getValue,
+			string paramName
+		) {
 			Dictionary<ActionID, TValue> ret = new(entries.Length);
 			foreach (TEntry entry in entries) {
 				ActionID action = getAction(entry);
@@ -92,6 +98,7 @@ public readonly ref struct ButtonActionStateView {
 	}
 	public ButtonActionState this[ActionID action] => States.TryGetValue(action, out ButtonActionState state) ? state : default;
 }
+
 public readonly ref struct StateAxisActionStateView {
 	internal readonly IReadOnlyDictionary<ActionID, StateAxisActionState> States;
 	internal StateAxisActionStateView(IReadOnlyDictionary<ActionID, StateAxisActionState> states) {
@@ -99,6 +106,7 @@ public readonly ref struct StateAxisActionStateView {
 	}
 	public StateAxisActionState this[ActionID action] => States.TryGetValue(action, out StateAxisActionState state) ? state : default;
 }
+
 public readonly ref struct StateAxis2DActionStateView {
 	internal readonly IReadOnlyDictionary<ActionID, StateAxis2DActionState> States;
 	internal StateAxis2DActionStateView(IReadOnlyDictionary<ActionID, StateAxis2DActionState> states) {
@@ -106,6 +114,7 @@ public readonly ref struct StateAxis2DActionStateView {
 	}
 	public StateAxis2DActionState this[ActionID action] => States.TryGetValue(action, out StateAxis2DActionState state) ? state : default;
 }
+
 public readonly ref struct ImpulseAxisActionStateView {
 	internal readonly IReadOnlyDictionary<ActionID, ImpulseAxisActionState> States;
 	internal ImpulseAxisActionStateView(IReadOnlyDictionary<ActionID, ImpulseAxisActionState> states) {

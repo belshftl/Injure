@@ -449,7 +449,7 @@ public sealed class RingBuffer<T> : IReadOnlyList<T> {
 	public T[] ToArray() {
 		if (count == 0)
 			return Array.Empty<T>();
-		T[] arr = new T[count];
+		var arr = new T[count];
 		CopyTo(arr);
 		return arr;
 	}

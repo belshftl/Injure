@@ -159,12 +159,11 @@ public static class ManifestReader {
 	}
 
 	private static GameCompatibilityManifest readGame(JsonObjectReader? game) {
-		if (game is null) {
+		if (game is null)
 			return new GameCompatibilityManifest {
 				TargetVersion = null,
 				TargetBuildMvid = null,
 			};
-		}
 
 		game.RejectUnknownProperties(
 			"target-version",
@@ -226,23 +225,24 @@ public static class ManifestReader {
 			if (!seenExact.Add((ownerID, kind)))
 				throw err(rel.RequiredNode("id"), $"duplicate relationship '{JsonObjectReader.ToKebab(kind.ToString())}' for owner '{ownerID}'");
 
-			result.Add(new ModRelationshipManifest {
-				OwnerID = ownerID,
-				Kind = kind,
-				Version = version,
-				Description = description,
-			});
+			result.Add(
+				new ModRelationshipManifest {
+					OwnerID = ownerID,
+					Kind = kind,
+					Version = version,
+					Description = description,
+				}
+			);
 		}
 		return result;
 	}
 
 	private static ModAssetsManifest readAssets(JsonObjectReader? assets) {
-		if (assets is null) {
+		if (assets is null)
 			return new ModAssetsManifest {
 				ManagementKind = ModAssetManagementKind.None,
 				Root = null,
 			};
-		}
 
 		assets.RejectUnknownProperties(
 			"management",
@@ -252,7 +252,7 @@ public static class ManifestReader {
 		ModAssetManagementKind managementKind = ModAssetManagementKind.Enum.FromTag(assets.RequiredEnum<ModAssetManagementKind.Case>("management"));
 		string? root = assets.OptionalString("root");
 
-		if ((managementKind.Tag is ModAssetManagementKind.Case.Tracked or ModAssetManagementKind.Case.Manual) && string.IsNullOrWhiteSpace(root))
+		if (managementKind.Tag is ModAssetManagementKind.Case.Tracked or ModAssetManagementKind.Case.Manual && string.IsNullOrWhiteSpace(root))
 			throw err(assets.RequiredNode("management"), "assets.root is required when assets.management is tracked or manual");
 		if (managementKind == ModAssetManagementKind.None && root is not null)
 			throw err(assets.RequiredNode("root"), "assets.root must be absent when assets.management is none");
@@ -292,11 +292,13 @@ public static class ManifestReader {
 			if (!seen.Add((id, rid)))
 				throw err(lib.RequiredNode("id"), $"duplicate native library '{id}' for runtime identifier '{rid}'");
 
-			result.Add(new ModNativeLibraryManifest {
-				ID = id,
-				Path = path,
-				RuntimeIdentifier = rid,
-			});
+			result.Add(
+				new ModNativeLibraryManifest {
+					ID = id,
+					Path = path,
+					RuntimeIdentifier = rid,
+				}
+			);
 		}
 		return result;
 	}

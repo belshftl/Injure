@@ -40,8 +40,11 @@ public sealed class ActionMapSnapshot {
 		StateAxis2DMergePolicy = stateAxis2DMergePolicy;
 	}
 
-	private static ImmutableArray<TBinding> validate<TBinding, TSource>(ReadOnlySpan<TBinding> bindings,
-		Func<TBinding, (ActionID, TSource)> getData, string kind) {
+	private static ImmutableArray<TBinding> validate<TBinding, TSource>(
+		ReadOnlySpan<TBinding> bindings,
+		Func<TBinding, (ActionID, TSource)> getData,
+		string kind
+	) {
 		HashSet<(ActionID, TSource)> seen = new();
 		foreach (TBinding b in bindings)
 			if (!seen.Add(getData(b)))
@@ -136,16 +139,14 @@ public sealed class ActionMapBuilder {
 		impulseAxisBindings.Clear();
 	}
 
-	public ActionMapSnapshot ToSnapshot() {
-		return new ActionMapSnapshot(
-			CollectionsMarshal.AsSpan(buttonBindings),
-			CollectionsMarshal.AsSpan(stateAxisBindings),
-			CollectionsMarshal.AsSpan(stateAxis2DBindings),
-			CollectionsMarshal.AsSpan(impulseAxisBindings),
-			StateAxisMergePolicy,
-			StateAxis2DMergePolicy
-		);
-	}
+	public ActionMapSnapshot ToSnapshot() => new(
+		CollectionsMarshal.AsSpan(buttonBindings),
+		CollectionsMarshal.AsSpan(stateAxisBindings),
+		CollectionsMarshal.AsSpan(stateAxis2DBindings),
+		CollectionsMarshal.AsSpan(impulseAxisBindings),
+		StateAxisMergePolicy,
+		StateAxis2DMergePolicy
+	);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void ensureValid(ActionID action) {

@@ -6,7 +6,7 @@ using static Injure.Graphics.PixelConv.ConverterCore;
 
 namespace Injure.Graphics.PixelConv;
 
-using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte *, byte *, nuint, void>;
+using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte*, byte*, nuint, void>;
 
 public static unsafe class PixelConverter {
 	public static PixelConversionPlan CreatePlan(PixelFormat srcFmt, PixelFormat dstFmt, PixelConvertOptions opts = default) {
@@ -35,15 +35,26 @@ public static unsafe class PixelConverter {
 	}
 
 	public static void Convert(
-		ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		Span<byte> dst, int dstStride, PixelFormat dstFmt,
-		int width, int height,
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		Span<byte> dst,
+		int dstStride,
+		PixelFormat dstFmt,
+		int width,
+		int height,
 		PixelConvertOptions opts = default
 	) => CreatePlan(srcFmt, dstFmt, opts).Convert(src, srcStride, dst, dstStride, width, height);
 
 	public static byte[] Convert(
-		ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, out int dstStride, int width, int height, PixelConvertOptions opts = default
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		out int dstStride,
+		int width,
+		int height,
+		PixelConvertOptions opts = default
 	) {
 		PixelConversionPlan plan = CreatePlan(srcFmt, dstFmt, opts);
 		dstStride = width * plan.DestinationBytesPerPixel;

@@ -41,7 +41,8 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 	}
 
 	public static CoroutineScope CreateRoot(CoroutineScheduler scheduler, string name, string ownerID) => new(scheduler, null, name, ownerID);
-	public CoroutineScope CreateChild(string name, string ownerID) => !Cancelled ? new CoroutineScope(scheduler, this, name, ownerID)
+	public CoroutineScope CreateChild(string name, string ownerID) => !Cancelled
+		? new CoroutineScope(scheduler, this, name, ownerID)
 		: throw new InvalidOperationException("cannot create a child from a cancelled scope");
 
 	internal void Cancel(CoroCancellationReason reason) {
@@ -51,7 +52,7 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 		CoroutineScope[] childrenSnap = children.Count > 0 ? new CoroutineScope[children.Count] : Array.Empty<CoroutineScope>();
 		if (childrenSnap.Length > 0)
 			children.CopyTo(childrenSnap);
-		CoroutineHandle[] membersSnap = new CoroutineHandle[members.Count];
+		var membersSnap = new CoroutineHandle[members.Count];
 		members.CopyTo(membersSnap);
 		for (int i = 0; i < childrenSnap.Length; i++)
 			childrenSnap[i].Cancel(reason);

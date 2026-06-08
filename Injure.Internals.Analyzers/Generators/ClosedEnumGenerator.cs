@@ -6,6 +6,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -19,7 +20,14 @@ namespace Injure.Internals.Analyzers.Generators;
 public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 	// ==========================================================================
 	// internal types
-	private sealed class TargetInfo(INamedTypeSymbol symbol, string accessibility, string? ns, bool defaultIsInvalid, ImmutableArray<CaseInfo> cases, ImmutableArray<MirrorInfo> mirrors) {
+	private sealed class TargetInfo(
+		INamedTypeSymbol symbol,
+		string accessibility,
+		string? ns,
+		bool defaultIsInvalid,
+		ImmutableArray<CaseInfo> cases,
+		ImmutableArray<MirrorInfo> mirrors
+	) {
 		public INamedTypeSymbol Symbol { get; } = symbol;
 		public string Accessibility { get; } = accessibility;
 		public string? Namespace { get; } = ns;
@@ -41,30 +49,34 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 	// IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context) {
 		context.RegisterPostInitializationOutput(static (IncrementalGeneratorPostInitializationContext ctx) => {
-			ctx.AddEmbeddedAttributeDefinition();
-			ctx.AddSource(AttributeSources.ClosedEnumAttributeFilename, SourceText.From(AttributeSources.ClosedEnumAttribute, Encoding.UTF8));
-			ctx.AddSource(AttributeSources.ClosedEnumMirrorAttributeFilename, SourceText.From(AttributeSources.ClosedEnumMirrorAttribute, Encoding.UTF8));
-		});
+				ctx.AddEmbeddedAttributeDefinition();
+				ctx.AddSource(AttributeSources.ClosedEnumAttributeFilename, SourceText.From(AttributeSources.ClosedEnumAttribute, Encoding.UTF8));
+				ctx.AddSource(AttributeSources.ClosedEnumMirrorAttributeFilename, SourceText.From(AttributeSources.ClosedEnumMirrorAttribute, Encoding.UTF8));
+			}
+		);
 		IncrementalValuesProvider<TargetInfo?> targets = context.SyntaxProvider.ForAttributeWithMetadataName(
 			AttributeSources.ClosedEnumAttributeMetadataName,
 			predicate: static (SyntaxNode node, CancellationToken _) => node is StructDeclarationSyntax,
 			transform: check
 		);
-		context.RegisterSourceOutput(targets.Collect(), static (SourceProductionContext ctx, ImmutableArray<TargetInfo?> infos) => {
-			HashSet<INamedTypeSymbol> seen = new(SymbolEqualityComparer.Default);
-			foreach (TargetInfo? info in infos) {
-				if (info is null || !seen.Add(info.Symbol))
-					continue;
-				ctx.AddSource(getHintName(info), SourceText.From(emit(info), Encoding.UTF8));
+		context.RegisterSourceOutput(
+			targets.Collect(),
+			static (SourceProductionContext ctx, ImmutableArray<TargetInfo?> infos) => {
+				HashSet<INamedTypeSymbol> seen = new(SymbolEqualityComparer.Default);
+				foreach (TargetInfo? info in infos) {
+					if (info is null || !seen.Add(info.Symbol))
+						continue;
+					ctx.AddSource(getHintName(info), SourceText.From(emit(info), Encoding.UTF8));
+				}
 			}
-		});
+		);
 	}
 
 	private static string getHintName(TargetInfo info) =>
 		(info.Namespace is not null ? info.Namespace + "." + info.Symbol.Name : info.Symbol.Name) + Constants.ClosedEnumGeneratedSourceSuffix;
 
 	private static TargetInfo? check(GeneratorAttributeSyntaxContext ctx, CancellationToken ct) {
-		INamedTypeSymbol sym = (INamedTypeSymbol)ctx.TargetSymbol;
+		var sym = (INamedTypeSymbol)ctx.TargetSymbol;
 		if (sym.TypeKind != TypeKind.Struct || !Util.Partial(sym, ct) || !sym.IsReadOnly || sym.IsRecord ||
 			sym.IsRefLikeType || sym.ContainingType is not null || sym.TypeParameters.Length != 0)
 			return null;
@@ -151,7 +163,8 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 			sb.Append("namespace ").Append(info.Namespace).AppendLine(" {");
 
 		sb.Append('\t').AppendLine(@"[global::System.CodeDom.Compiler.GeneratedCodeAttribute(""Injure.Internals.Analyzers.ClosedEnumGenerator"", ""0.1.0-alpha"")]");
-		sb.Append('\t').Append(info.Accessibility).Append(" readonly partial struct ").Append(targetType).Append(" : global::System.IEquatable<").Append(targetType).AppendLine("> {");
+		sb.Append('\t').Append(info.Accessibility).Append(" readonly partial struct ").Append(targetType).Append(" : global::System.IEquatable<").Append(targetType)
+			.AppendLine("> {");
 		sb.Append("\t\tprivate readonly Case ").Append(Constants.ClosedEnumBackingFieldName).AppendLine(";");
 
 		sb.Append("\t\tprivate ").Append(targetType).AppendLine("(Case tag) {");
@@ -182,15 +195,19 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		sb.AppendLine("\t\t\tget {");
 		if (info.DefaultIsInvalid) {
 			sb.Append("\t\t\t\tif (").Append(Constants.ClosedEnumBackingFieldName).AppendLine(" == (Case)0)");
-			sb.Append("\t\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("default(" + info.Symbol.Name + ") is not a valid " + info.Symbol.Name + " value", true)).AppendLine(");");
+			sb.Append("\t\t\t\t\tthrow new global::System.InvalidOperationException(")
+				.Append(SymbolDisplay.FormatLiteral("default(" + info.Symbol.Name + ") is not a valid " + info.Symbol.Name + " value", true)).AppendLine(");");
 		}
 		sb.Append("\t\t\t\tif (!").Append(Constants.ClosedEnumIsDefinedMethodName).Append('(').Append(Constants.ClosedEnumBackingFieldName).AppendLine("))");
-		sb.Append("\t\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("Invalid " + info.Symbol.Name + " value: ", true)).Append(" + ").Append(Constants.ClosedEnumBackingFieldName).AppendLine(".ToString());");
+		sb.Append("\t\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("Invalid " + info.Symbol.Name + " value: ", true)).Append(" + ")
+			.Append(Constants.ClosedEnumBackingFieldName).AppendLine(".ToString());");
 		sb.Append("\t\t\t\treturn ").Append(Constants.ClosedEnumBackingFieldName).AppendLine(";");
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t}");
 
-		sb.Append("\t\t[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)] private static bool ").Append(Constants.ClosedEnumIsDefinedMethodName).Append("(Case tag) => tag is ");
+		sb.Append(
+			"\t\t[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)] private static bool "
+		).Append(Constants.ClosedEnumIsDefinedMethodName).Append("(Case tag) => tag is ");
 		for (int i = 0; i < info.Cases.Length; i++) {
 			if (i != 0)
 				sb.Append(" or ");
@@ -198,14 +215,18 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		}
 		sb.AppendLine(";");
 
-		sb.Append("\t\tpublic bool Equals(").Append(targetType).Append(" other) => ").Append(Constants.ClosedEnumBackingFieldName).Append(" == other.").Append(Constants.ClosedEnumBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic bool Equals(").Append(targetType).Append(" other) => ").Append(Constants.ClosedEnumBackingFieldName).Append(" == other.")
+			.Append(Constants.ClosedEnumBackingFieldName).AppendLine(";");
 		sb.Append("\t\tpublic override bool Equals(object? obj) => obj is ").Append(targetType).AppendLine(" other && Equals(other);");
 		sb.Append("\t\tpublic override int GetHashCode() => ").Append(Constants.ClosedEnumBackingFieldName).AppendLine(".GetHashCode();");
-		sb.Append("\t\tpublic static bool operator ==(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.ClosedEnumBackingFieldName).Append(" == right.").Append(Constants.ClosedEnumBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static bool operator !=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.ClosedEnumBackingFieldName).Append(" != right.").Append(Constants.ClosedEnumBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator ==(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.ClosedEnumBackingFieldName).Append(" == right.").Append(Constants.ClosedEnumBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator !=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.ClosedEnumBackingFieldName).Append(" != right.").Append(Constants.ClosedEnumBackingFieldName).AppendLine(";");
 
 		foreach (MirrorInfo mirror in info.Mirrors)
-			sb.Append("\t\tpublic static explicit operator ").Append(mirror.TypeName).Append('(').Append(targetType).Append(" value) => (").Append(mirror.TypeName).AppendLine(")value.Tag;");
+			sb.Append("\t\tpublic static explicit operator ").Append(mirror.TypeName).Append('(').Append(targetType).Append(" value) => (").Append(mirror.TypeName)
+				.AppendLine(")value.Tag;");
 
 		sb.AppendLine("\t\t/// <summary>");
 		sb.AppendLine("\t\t/// Returns the declared case name for this value.");
@@ -260,7 +281,8 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		sb.AppendLine("\t\t\t}");
 
 		foreach (MirrorInfo mirror in info.Mirrors) {
-			sb.Append("\t\t\tpublic static bool TryFromMirror(").Append(mirror.TypeName).Append(" mirror, out ").Append(targetType).AppendLine(" val) => TryFromTag((Case)mirror, out val);");
+			sb.Append("\t\t\tpublic static bool TryFromMirror(").Append(mirror.TypeName).Append(" mirror, out ").Append(targetType)
+				.AppendLine(" val) => TryFromTag((Case)mirror, out val);");
 			sb.Append("\t\t\tpublic static ").Append(targetType).Append(" FromMirror(").Append(mirror.TypeName).AppendLine(" mirror) {");
 			sb.Append("\t\t\t\tif (TryFromTag((Case)mirror, out ").Append(targetType).AppendLine(" val))");
 			sb.AppendLine("\t\t\t\t\treturn val;");
@@ -278,5 +300,7 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 	};
 
 	private static string escapeIdentifier(string name) => SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ||
-		SyntaxFacts.GetContextualKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
+		SyntaxFacts.GetContextualKeywordKind(name) != SyntaxKind.None
+			? "@" + name
+			: name;
 }

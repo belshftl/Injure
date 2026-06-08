@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO.Hashing;
 using System.Linq;
 using System.Threading;
+
 using HarfBuzzSharp;
 
 using Injure.Assets;
@@ -37,18 +38,23 @@ public sealed class FontFallbackChain {
 		Span<byte> buf = stackalloc byte[estimated];
 		foreach (FontSpec fnt in allFonts) {
 			int i = 0;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)fnt.SourceKind); i += 4;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)fnt.FaceIndex)); i += 4;
+			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)fnt.SourceKind);
+			i += 4;
+			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)fnt.FaceIndex));
+			i += 4;
 			switch (fnt.SourceKind) {
 			case FontSourceKind.Direct:
-				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Direct.ID); i += 8;
+				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Direct.ID);
+				i += 8;
 				break;
 			case FontSourceKind.Asset:
 				ulong ver = 0;
 				if (fnt.Asset.TryPassiveBorrow(out AssetLease<Font> lease))
 					ver = lease.Version;
-				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Asset.SlotID); i += 8;
-				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], ver); i += 8;
+				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Asset.SlotID);
+				i += 8;
+				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], ver);
+				i += 8;
 				break;
 			default:
 				throw new UnreachableException();
@@ -85,14 +91,21 @@ internal sealed class ResolvedFontFallbackChain {
 		foreach (IResolvedFont fnt in allFonts) {
 			FontCacheToken t = fnt.GetCacheToken();
 			int i = 0;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.SourceKind); i += 4;
-			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.Key.ID); i += 8;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)t.Key.FaceIndex)); i += 4;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)t.Key.Options.PixelSize)); i += 4;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.Options.RasterMode.Tag); i += 4;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.Options.Hinting.Tag); i += 4;
+			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.SourceKind);
+			i += 4;
+			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.Key.ID);
+			i += 8;
+			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)t.Key.FaceIndex));
+			i += 4;
+			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)t.Key.Options.PixelSize));
+			i += 4;
+			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.Options.RasterMode.Tag);
+			i += 4;
+			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.Options.Hinting.Tag);
+			i += 4;
 			buf[i++] = t.Key.Options.UseEmbeddedBitmaps ? (byte)1 : (byte)0;
-			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.Version); i += 8;
+			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.Version);
+			i += 8;
 			h.Append(buf);
 		}
 		return h.GetCurrentHashAsUInt64();
@@ -206,7 +219,7 @@ internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache
 			}
 		}
 		spans.Add((currStart, currLimit, currFontIdx));
-		ResolvedItem[] resolved = new ResolvedItem[spans.Count];
+		var resolved = new ResolvedItem[spans.Count];
 		for (int i = 0; i < spans.Count; i++) {
 			(int start, int limit, int fontIndex) = spans[i];
 			TextItem mergedItem = item with {
@@ -239,12 +252,11 @@ internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache
 			SourceStart = parentItem.SourceStart + grapheme.Start,
 			Text = parentItem.Text.Substring(grapheme.Start, grapheme.Length),
 		};
-		for (int i = 0; i < fonts.AllFonts.Length; i++) {
+		for (int i = 0; i < fonts.AllFonts.Length; i++)
 			if (noNotdefs(shapeCache.GetOrCreate(fonts.AllFonts[i], graphemeItem))) {
 				probeCache.Set(key, i);
 				return i;
 			}
-		}
 		probeCache.Set(key, 0);
 		return 0;
 	}
@@ -256,4 +268,3 @@ internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache
 		return true;
 	}
 }
-

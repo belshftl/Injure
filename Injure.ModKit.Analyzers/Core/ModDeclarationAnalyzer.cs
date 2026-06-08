@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Linq;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
@@ -30,13 +31,14 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(static ctx => {
-			KnownTypes known = new(ctx.Compilation);
-			Model model = Model.Create(ctx.Compilation, known);
-			if (hasSyntaxTreeDiagnostics(known, model))
-				ctx.RegisterSyntaxTreeAction(c => analyzeSyntaxTree(c, ctx.Compilation, known, model));
-			if (hasNamedTypeDiagnostics(model))
-				ctx.RegisterSymbolAction(c => analyzeNamedType(c, known, model), SymbolKind.NamedType);
-		});
+				KnownTypes known = new(ctx.Compilation);
+				var model = Model.Create(ctx.Compilation, known);
+				if (hasSyntaxTreeDiagnostics(known, model))
+					ctx.RegisterSyntaxTreeAction(c => analyzeSyntaxTree(c, ctx.Compilation, known, model));
+				if (hasNamedTypeDiagnostics(model))
+					ctx.RegisterSymbolAction(c => analyzeNamedType(c, known, model), SymbolKind.NamedType);
+			}
+		);
 	}
 
 	private static bool hasSyntaxTreeDiagnostics(KnownTypes known, Model model) {
@@ -48,7 +50,8 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 			return true;
 		if (known.ModEntrypointAttribute is null || model.LifetimeIdentity is null || model.EntrypointCandidates.Length == 0)
 			return true;
-		if (known.ModReloadEntrypointAttribute is not null && model.LifetimeIdentity is not null && model.Entrypoint is not null && (model.ModAssembly?.IsLive ?? false) && model.ReloadEntrypointCandidates.Length == 0)
+		if (known.ModReloadEntrypointAttribute is not null && model.LifetimeIdentity is not null && model.Entrypoint is not null && (model.ModAssembly?.IsLive ?? false) &&
+			model.ReloadEntrypointCandidates.Length == 0)
 			return true;
 		return false;
 	}
@@ -64,7 +67,7 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 	}
 
 	private static void analyzeNamedType(SymbolAnalysisContext ctx, KnownTypes known, Model model) {
-		INamedTypeSymbol type = (INamedTypeSymbol)ctx.Symbol;
+		var type = (INamedTypeSymbol)ctx.Symbol;
 		analyzeLifetimeIdentity(ctx, known, model, type);
 		analyzeEntrypoint(ctx, known, model, type);
 		analyzeReloadEntrypoint(ctx, known, model, type);
@@ -74,10 +77,13 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 		if (known.ModAssemblyAttribute is null || model.ModAssemblyAttributes.Length == 0)
 			if (isStableReportingTree(compilation, ctx.Tree))
 				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.MissingModAssemblyAttribute, getStableTreeLocation(ctx.Tree)));
-		if (model.ModAssemblyAttributes.Length == 1 && model.ModAssembly is not null && !Model.IsEnumValueNamed(known.ModAssemblyHotReloadLevel, model.ModAssembly.HotReloadRawValue)) {
+		if (model.ModAssemblyAttributes.Length == 1 && model.ModAssembly is not null &&
+			!Model.IsEnumValueNamed(known.ModAssemblyHotReloadLevel, model.ModAssembly.HotReloadRawValue)) {
 			Location location = model.ModAssembly.Location;
 			if (shouldReportOnTree(compilation, ctx.Tree, location))
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadHotReloadLevel, getTreeDiagnosticLocation(ctx.Tree, location), model.ModAssembly.HotReloadRawValue));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(Diagnostics.Core.BadHotReloadLevel, getTreeDiagnosticLocation(ctx.Tree, location), model.ModAssembly.HotReloadRawValue)
+				);
 		}
 	}
 
@@ -152,7 +158,9 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 			candidate.TypeKind != TypeKind.Class || candidate.IsGenericType || !candidate.IsSealed || candidate.IsAbstract ||
 			iface is null || !SymbolEqualityComparer.Default.Equals(iface.TypeArguments[1], lifetimeType)
 		)
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadEntrypointTarget, SymbolHelpers.GetBestLocation(candidate), candidate.ToDisplayString(), lifetimeType.ToDisplayString()));
+			ctx.ReportDiagnostic(
+				Diagnostic.Create(Diagnostics.Core.BadEntrypointTarget, SymbolHelpers.GetBestLocation(candidate), candidate.ToDisplayString(), lifetimeType.ToDisplayString())
+			);
 	}
 
 	private static void validateReloadEntrypointCandidate(
@@ -168,7 +176,15 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 			iface is null || !SymbolEqualityComparer.Default.Equals(iface.TypeArguments[1], lifetimeType) ||
 			!SymbolEqualityComparer.Default.Equals(iface.TypeArguments[0], gameApiType)
 		)
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadReloadEntrypointTarget, SymbolHelpers.GetBestLocation(candidate), candidate.ToDisplayString(), gameApiType.ToDisplayString(), lifetimeType.ToDisplayString()));
+			ctx.ReportDiagnostic(
+				Diagnostic.Create(
+					Diagnostics.Core.BadReloadEntrypointTarget,
+					SymbolHelpers.GetBestLocation(candidate),
+					candidate.ToDisplayString(),
+					gameApiType.ToDisplayString(),
+					lifetimeType.ToDisplayString()
+				)
+			);
 	}
 
 	private static INamedTypeSymbol? findClosedInterface(INamedTypeSymbol type, INamedTypeSymbol? openInterface) {

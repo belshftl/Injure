@@ -20,7 +20,7 @@ public static class Extensions {
 	}
 
 	public static TCast[] CastDepsToArray<TCast>(this ReadOnlySpan<IAssetDependency> span) where TCast : IAssetDependency {
-		TCast[] arr = new TCast[span.Length];
+		var arr = new TCast[span.Length];
 		for (int i = 0; i < span.Length; i++)
 			arr[i] = (TCast)span[i];
 		return arr;
@@ -46,8 +46,8 @@ public sealed record TestDependency(string Name) : IAssetDependency {
 }
 
 public sealed class TestDependencyWatcher : IAssetDependencyWatcher<TestDependency> {
-	public HashSet<TestDependency> Watched { get; } = new HashSet<TestDependency>();
-	public List<string> Log { get; } = new List<string>();
+	public HashSet<TestDependency> Watched { get; } = new();
+	public List<string> Log { get; } = new();
 	public bool Disposed { get; private set; } = false;
 
 	public event Action<TestDependency>? Changed;
@@ -210,6 +210,7 @@ public sealed class TestCreator(Func<AssetCreateInfo, CancellationToken, Task>? 
 }
 
 public readonly record struct Step(string Val, bool Handled, params TestDependency[] Dependencies);
+
 public sealed class SteppingCreator(params Step[] steps) : IAssetCreator<TestAsset> {
 	private sealed class Prepped(string val) : AssetPreparedData {
 		public string Val { get; } = val;
@@ -268,7 +269,7 @@ public sealed class BlockingOnNthPrepare(int n) {
 	private int count;
 
 	public int N { get; } = n;
-	public TaskCheckpoint Checkpoint { get; } = new TaskCheckpoint();
+	public TaskCheckpoint Checkpoint { get; } = new();
 
 	public Task OnPrepareAsync(AssetCreateInfo info, CancellationToken ct) {
 		if (Interlocked.Increment(ref count) == N)
@@ -352,10 +353,12 @@ public sealed class ControllableCreator(Func<AssetCreateInfo, CancellationToken,
 
 		byte[] data = OverrideValue is null ? d.Stream.ReadAll() : Encoding.UTF8.GetBytes(OverrideValue);
 
-		return AssetPrepareResult<TrackingPreparedData>.Success(new TrackingPreparedData(
-			data,
-			() => Interlocked.Increment(ref preparedDisposeCalls)
-		));
+		return AssetPrepareResult<TrackingPreparedData>.Success(
+			new TrackingPreparedData(
+				data,
+				() => Interlocked.Increment(ref preparedDisposeCalls)
+			)
+		);
 	}
 
 	public TestAsset Finalize(AssetFinalizeInfo<TrackingPreparedData> info) {

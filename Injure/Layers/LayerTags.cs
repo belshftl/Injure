@@ -38,23 +38,21 @@ public readonly struct LayerTagSet {
 		for (int i = 0; i < arr.Length; i++) {
 			LayerTag tag = arr[i];
 			bool seen = false;
-			for (int j = 0; j < count; j++) {
+			for (int j = 0; j < count; j++)
 				if (arr[j] == tag) {
 					seen = true;
 					break;
 				}
-			}
 			if (!seen)
 				arr[count++] = tag;
 		}
 
-		if (count == 0) {
+		if (count == 0)
 			items = null;
-		} else if (count == arr.Length) {
+		else if (count == arr.Length)
 			items = arr;
-		} else {
+		else
 			items = arr[..count];
-		}
 	}
 
 	public int Count => items?.Length ?? 0;
@@ -132,6 +130,9 @@ public sealed class LayerTagRegistry {
 			throw new ArgumentException(kind + " must start with an ASCII letter or ASCII digit", paramName);
 		foreach (char c in s)
 			if (!(char.IsAsciiLetterOrDigit(c) || c == '_' || c == '-' || c == '.'))
-				throw new ArgumentException($"{kind} contains invalid UTF-16 code unit U+{(ushort)c:X4} '{c}' (valid: ASCII letters, ASCII digits, '_', '-', '.')", paramName);
+				throw new ArgumentException(
+					$"{kind} contains invalid UTF-16 code unit U+{(ushort)c:X4} '{c}' (valid: ASCII letters, ASCII digits, '_', '-', '.')",
+					paramName
+				);
 	}
 }

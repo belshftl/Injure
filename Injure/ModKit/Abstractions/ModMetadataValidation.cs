@@ -28,12 +28,11 @@ public static class ModMetadataValidation {
 			err = "owner ID must start with an ASCII letter or ASCII digit";
 			return false;
 		}
-		foreach (char c in s) {
+		foreach (char c in s)
 			if (!(char.IsAsciiLetterOrDigit(c) || c == '_' || c == '-' || c == '.')) {
 				err = $"owner ID contains invalid UTF-16 code unit U+{(ushort)c:X4} '{c}' (valid: ASCII letters, ASCII digits, '_', '-', '.')";
 				return false;
 			}
-		}
 		err = null;
 		return true;
 	}
@@ -69,12 +68,11 @@ public static class ModMetadataValidation {
 			err = "local ID must start with an ASCII letter or ASCII digit";
 			return false;
 		}
-		foreach (char c in s) {
+		foreach (char c in s)
 			if (!(char.IsAsciiLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == '/' || c == '@' || c == '#' || c == '+')) {
 				err = $"local ID contains invalid UTF-16 code unit U+{(ushort)c:X4} '{c}' (valid: ASCII letters, ASCII digits, '_', '-', '.', '/', '@', '#', '+')";
 				return false;
 			}
-		}
 		err = null;
 		return true;
 	}

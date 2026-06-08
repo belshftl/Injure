@@ -2,7 +2,9 @@
 
 using System;
 using System.Globalization;
+
 using Mono.Cecil.Cil;
+
 using MonoMod.Cil;
 
 namespace Injure.ModKit.Mods.MonoMod;

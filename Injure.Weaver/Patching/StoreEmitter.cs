@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
@@ -134,10 +135,12 @@ public static class StoreEmitter {
 
 	private static void addAssemblyStoreAttribute(ModuleDefinition module, InjureReferences ij, TypeDefinition storeType) {
 		CustomAttribute attribute = new(ij.ModHookTargetStoreAttributeCtor);
-		attribute.ConstructorArguments.Add(new CustomAttributeArgument(
-			module.ImportReference(typeof(Type)),
-			storeType
-		));
+		attribute.ConstructorArguments.Add(
+			new CustomAttributeArgument(
+				module.ImportReference(typeof(Type)),
+				storeType
+			)
+		);
 		module.Assembly.CustomAttributes.Add(attribute);
 	}
 }

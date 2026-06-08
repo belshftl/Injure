@@ -60,10 +60,14 @@ public sealed class AssetStoreBasicTests {
 		AssetStore store = new();
 		store.RegisterSource(ownerID, new TestSource(new TestDependency("dep-source")), "source");
 		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterCreator(ownerID, new SteppingCreator(
-			new Step("step1", Handled: true, new TestDependency("dep-creator-1")),
-			new Step("step2", Handled: true, new TestDependency("dep-creator-2"))
-		), "creator");
+		store.RegisterCreator(
+			ownerID,
+			new SteppingCreator(
+				new Step("step1", Handled: true, new TestDependency("dep-creator-1")),
+				new Step("step2", Handled: true, new TestDependency("dep-creator-2"))
+			),
+			"creator"
+		);
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
 		AssetLease<TestAsset> lease = asset.Borrow();
@@ -105,9 +109,13 @@ public sealed class AssetStoreBasicTests {
 		AssetStore store = new();
 		store.RegisterSource(ownerID, new TestSource(), "source");
 		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterCreator(ownerID, new SteppingCreator(
-			new Step("step", Handled: true, new TestDependency("dep-duplicate"), new TestDependency("dep-duplicate"))
-		), "creator");
+		store.RegisterCreator(
+			ownerID,
+			new SteppingCreator(
+				new Step("step", Handled: true, new TestDependency("dep-duplicate"), new TestDependency("dep-duplicate"))
+			),
+			"creator"
+		);
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
 		AssetLease<TestAsset> lease = asset.Borrow();

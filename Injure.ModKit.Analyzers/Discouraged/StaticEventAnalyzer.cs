@@ -2,6 +2,9 @@
 
 using System.Collections.Immutable;
 using System.Linq;
+
+using Injure.ModKit.Analyzers.Shared;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -18,11 +21,12 @@ public sealed class StaticEventAnalyzer : DiagnosticAnalyzer {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(static ctx => {
-			if (!Shared.HotReloadModel.TryGetHotReloadLevel(ctx.Compilation, out var lv))
-				return;
-			bool nonreloadable = lv < Shared.ModAssemblyHotReloadLevelMirror.SafeBoundary;
-			ctx.RegisterSymbolAction(c => analyzeEvent(c, nonreloadable), SymbolKind.Event);
-		});
+				if (!HotReloadModel.TryGetHotReloadLevel(ctx.Compilation, out ModAssemblyHotReloadLevelMirror lv))
+					return;
+				bool nonreloadable = lv < ModAssemblyHotReloadLevelMirror.SafeBoundary;
+				ctx.RegisterSymbolAction(c => analyzeEvent(c, nonreloadable), SymbolKind.Event);
+			}
+		);
 	}
 
 	private static void analyzeEvent(SymbolAnalysisContext ctx, bool nonreloadable) {

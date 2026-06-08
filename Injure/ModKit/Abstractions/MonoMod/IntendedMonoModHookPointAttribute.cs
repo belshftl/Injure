@@ -15,7 +15,7 @@ public enum MonoModHookKinds {
 	/// <summary>
 	/// Normal hooks (also sometimes known as <c>On.</c> hooks) are explicitly supported.
 	/// </summary>
-	Hook   = 1 << 0,
+	Hook = 1 << 0,
 
 	/// <summary>
 	/// IL hooks are explicitly supported.
@@ -129,29 +129,29 @@ public enum HookPointConcurrencyHazards {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
-	Unspecified                   = 0,
+	Unspecified = 0,
 
 	/// <summary>
 	/// None of the specific concurrency hazards listed in this enum apply.
 	/// </summary>
-	NoKnownHazards                = 1 << 0,
+	NoKnownHazards = 1 << 0,
 
 	/// <summary>
 	/// The method may run while iterating over some global collection/list; hooks must be
 	/// careful modifying said collection.
 	/// </summary>
-	IteratorInvalidationRisk      = 1 << 1,
+	IteratorInvalidationRisk = 1 << 1,
 
 	/// <summary>
 	/// The method may run under a held lock/mutex.
 	/// </summary>
-	RunsUnderLock                 = 1 << 2,
+	RunsUnderLock = 1 << 2,
 
 	/// <summary>
 	/// The method may recursively call itself or re-enter the same logical operation on
 	/// the same thread.
 	/// </summary>
-	RecursiveOnSameThread         = 1 << 3,
+	RecursiveOnSameThread = 1 << 3,
 
 	/// <summary>
 	/// The method may be called reentrantly at any point before a previous invocation has completed.
@@ -161,12 +161,12 @@ public enum HookPointConcurrencyHazards {
 	/// be known / predictable and can't be easily surrounded by "prepare state" / "release locks" / etc.
 	/// code the same way a simple recursive call can be.
 	/// </remarks>
-	Reentrant                     = 1 << 4,
+	Reentrant = 1 << 4,
 
 	/// <summary>
 	/// Multiple invocations of this method may run concurrently on different threads.
 	/// </summary>
-	Concurrent                    = 1 << 5,
+	Concurrent = 1 << 5,
 
 	/// <summary>
 	/// The method must not call back into its originating subsystem; doing so may deadlock, recurse,
@@ -179,14 +179,14 @@ public enum HookPointConcurrencyHazards {
 	/// state not known to be synchronized right now may be unstable / racing and typical
 	/// guard locks/mutexes may not be held.
 	/// </summary>
-	Unsynchronized                = 1 << 7,
+	Unsynchronized = 1 << 7,
 
 	/// <summary>
 	/// The method runs in a highly restricted context; see the notes for details. Typically,
 	/// this means something like: no allocation, no locks, no blocking, no logging, no throwing,
 	/// no subsystem calls not known to be safe. May be as extreme as async-signal-safe contexts.
 	/// </summary>
-	RestrictedExecutionContext    = 1 << 8,
+	RestrictedExecutionContext = 1 << 8,
 }
 
 /// <summary>
@@ -198,78 +198,78 @@ public enum HookPointEffects {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
-	Unspecified           = 0,
+	Unspecified = 0,
 
 	/// <summary>
 	/// None of the specific responsibilities listed in this enum apply.
 	/// </summary>
-	NoKnownEffects        = 1 << 0,
+	NoKnownEffects = 1 << 0,
 
 	/// <summary>
 	/// The method is pure or a simple query method; hooks should be careful introducing
 	/// non-trivial extra work or side effects.
 	/// </summary>
-	PureOrQuery           = 1 << 1,
+	PureOrQuery = 1 << 1,
 
 	/// <summary>
 	/// The method may mutate object-local state in a way that other code depends on.
 	/// </summary>
-	LocalState            = 1 << 2,
+	LocalState = 1 << 2,
 
 	/// <summary>
 	/// The method may depend on game-defined global gameplay/world/entity state or mutate it
 	/// in a way that other code depends on.
 	/// </summary>
-	WorldState            = 1 << 3,
+	WorldState = 1 << 3,
 
 	/// <summary>
 	/// The method may perform filesystem or external I/O.
 	/// </summary>
-	IO                    = 1 << 4,
+	IO = 1 << 4,
 
 	/// <summary>
 	/// The method may perform creation/disposal of held resources, generally
 	/// activate/deactivate/manage long-lived objects, or do other lifetime-sensitive work.
 	/// Carelessly suppressing or removing logic may leave resources dangling or uninitialized.
 	/// </summary>
-	Lifetime              = 1 << 5,
+	Lifetime = 1 << 5,
 
 	/// <summary>
 	/// The method may touch render state / GPU resources and/or perform and submit draw calls.
 	/// </summary>
-	Rendering             = 1 << 6,
+	Rendering = 1 << 6,
 
 	/// <summary>
 	/// The method may touch audio state / resources or audio callback logic.
 	/// </summary>
-	Audio                 = 1 << 7,
+	Audio = 1 << 7,
 
 	/// <summary>
 	/// The method may enqueue/retime/cancel timers, tickers, coroutines, etc. that are managed through
 	/// engine APIs or otherwise touch state related to them.
 	/// </summary>
-	EngineScheduling      = 1 << 8,
+	EngineScheduling = 1 << 8,
 
 	/// <summary>
 	/// The method may enqueue/retime/cancel jobs, timers, tasks, threads, etc. that are not managed
 	/// by the engine (or even known by the engine) or otherwise touch state related to them.
 	/// </summary>
-	ExternalScheduling    = 1 << 9,
+	ExternalScheduling = 1 << 9,
 
 	/// <summary>
 	/// The method may touch network/session/replication state or perform network I/O.
 	/// </summary>
-	Networking            = 1 << 10,
+	Networking = 1 << 10,
 
 	/// <summary>
 	/// The method may touch save/load logic or durable long-term state.
 	/// </summary>
-	Persistence           = 1 << 11,
+	Persistence = 1 << 11,
 
 	/// <summary>
 	/// The method may consume/reseed RNG or otherwise affect deterministic simulation.
 	/// </summary>
-	Randomness            = 1 << 12,
+	Randomness = 1 << 12,
 
 	/// <summary>
 	/// The method may invoke user/mod/game callbacks, event handlers, delegates, virtual methods,
@@ -277,7 +277,7 @@ public enum HookPointEffects {
 	/// Hooks must treat said code as a black-box that may do anything not contractually prohibited, such as
 	/// reenter subsystems, throw, mutate global state, block, spawn threads/children, etc.
 	/// </summary>
-	CallsUserCode         = 1 << 13,
+	CallsUserCode = 1 << 13,
 
 	/// <summary>
 	/// Throwing inside or through the method may leave state partially mutated, break caller
@@ -290,7 +290,7 @@ public enum HookPointEffects {
 	/// useful (what can you even call at that point? most methods can throw); for that case, see
 	/// <see cref="FfiOrExternalState"/>.
 	/// </remarks>
-	ExceptionSensitive    = 1 << 14,
+	ExceptionSensitive = 1 << 14,
 
 	/// <summary>
 	/// The method may interface with other native/external code or touch potentially process-global external state.
@@ -305,7 +305,7 @@ public enum HookPointEffects {
 	/// unsafe interop code may typically want to couple this with <see cref="UndefinedBehaviorRisk"/>.
 	/// </para>
 	/// </remarks>
-	FfiOrExternalState    = 1 << 15,
+	FfiOrExternalState = 1 << 15,
 
 	/// <summary>
 	/// The method may cause C-style undefined behavior if misused or internally broken by a hook.

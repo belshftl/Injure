@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -64,26 +65,46 @@ public sealed class ClosedEnumAnalyzer : DiagnosticAnalyzer {
 						caseDecls.Add(enumDecl);
 						continue;
 					}
-					ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumInvalidSourceShape, member.GetLocation(),
-						$"ClosedEnum struct '{sym.Name}' must contain no members other than a nested enum named 'Case'."));
+					ctx.ReportDiagnostic(
+						Diagnostic.Create(
+							Diagnostics.ClosedEnumInvalidSourceShape,
+							member.GetLocation(),
+							$"ClosedEnum struct '{sym.Name}' must contain no members other than a nested enum named 'Case'."
+						)
+					);
 				}
 			}
 
 			if (caseDecls.Count != 1) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumInvalidSourceShape, loc,
-					$"ClosedEnum struct '{sym.Name}' must contain exactly one nested enum named 'Case'."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumInvalidSourceShape,
+						loc,
+						$"ClosedEnum struct '{sym.Name}' must contain exactly one nested enum named 'Case'."
+					)
+				);
 				return;
 			}
 
 			INamedTypeSymbol? caseSymbol = getNestedEnum(sym, "Case");
 			if (caseSymbol is null) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumInvalidSourceShape, caseDecls[0].GetLocation(),
-					$"ClosedEnum struct '{sym.Name}' must contain exactly one nested enum named 'Case'."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumInvalidSourceShape,
+						caseDecls[0].GetLocation(),
+						$"ClosedEnum struct '{sym.Name}' must contain exactly one nested enum named 'Case'."
+					)
+				);
 				return;
 			}
 			if (Util.IsFlagsEnum(caseSymbol)) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumInvalidCaseEnum, caseDecls[0].Identifier.GetLocation(),
-					"ClosedEnum Case enum must not be marked with [Flags]. Use ClosedFlags for flag sets."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumInvalidCaseEnum,
+						caseDecls[0].Identifier.GetLocation(),
+						"ClosedEnum Case enum must not be marked with [Flags]. Use ClosedFlags for flag sets."
+					)
+				);
 				return;
 			}
 
@@ -113,18 +134,35 @@ public sealed class ClosedEnumAnalyzer : DiagnosticAnalyzer {
 			if (field.IsImplicitlyDeclared || !field.HasConstantValue)
 				continue;
 			if (Constants.ClosedEnumReservedMemberNames.Contains(field.Name)) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumInvalidCaseEnum, Util.GetLocation(field, caseSymbol),
-					$"Case member name '{field.Name}' is reserved by generated ClosedEnum code."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumInvalidCaseEnum,
+						Util.GetLocation(field, caseSymbol),
+						$"Case member name '{field.Name}' is reserved by generated ClosedEnum code."
+					)
+				);
 				continue;
 			}
 			if (!Util.TryGetEnumMemberUInt64(field, out ulong v)) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumInvalidCaseEnum, Util.GetLocation(field, caseSymbol),
-					$"Case member '{field.Name}' does not have a supported constant value."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumInvalidCaseEnum,
+						Util.GetLocation(field, caseSymbol),
+						$"Case member '{field.Name}' does not have a supported constant value."
+					)
+				);
 				continue;
 			}
 			if (seenValues.TryGetValue(v, out IFieldSymbol? existing)) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumAliasNotSupported, Util.GetLocation(field, caseSymbol),
-					field.Name, existing.Name, Util.UInt64Display(v)));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumAliasNotSupported,
+						Util.GetLocation(field, caseSymbol),
+						field.Name,
+						existing.Name,
+						Util.UInt64Display(v)
+					)
+				);
 				continue;
 			}
 			seenValues.Add(v, field);
@@ -134,20 +172,34 @@ public sealed class ClosedEnumAnalyzer : DiagnosticAnalyzer {
 
 		if (defaultIsInvalid) {
 			foreach (IFieldSymbol zero in zeroFields)
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumDefaultRule, Util.GetLocation(zero, caseSymbol),
-					"Case enum must not have any members with a value of 0 when DefaultIsInvalid = true."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumDefaultRule,
+						Util.GetLocation(zero, caseSymbol),
+						"Case enum must not have any members with a value of 0 when DefaultIsInvalid = true."
+					)
+				);
 		} else {
-			if (zeroFields.Count == 0) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumDefaultRule, Util.GetPrimaryLocation(caseSymbol),
-					"Case enum must have exactly one member with a value of 0 when DefaultIsInvalid = false."));
-			} else if (zeroFields.Count > 1) {
+			if (zeroFields.Count == 0)
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumDefaultRule,
+						Util.GetPrimaryLocation(caseSymbol),
+						"Case enum must have exactly one member with a value of 0 when DefaultIsInvalid = false."
+					)
+				);
+			else if (zeroFields.Count > 1)
 				// technically unreachable but just in case
 				foreach (IFieldSymbol zero in zeroFields)
-					ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumDefaultRule, Util.GetLocation(zero, caseSymbol),
-						"Case enum must have exactly one member with a value of 0 when DefaultIsInvalid = false."));
-			} else if (checkZeroNames && !isNeutralZeroName(zeroFields[0].Name)) {
+					ctx.ReportDiagnostic(
+						Diagnostic.Create(
+							Diagnostics.ClosedEnumDefaultRule,
+							Util.GetLocation(zero, caseSymbol),
+							"Case enum must have exactly one member with a value of 0 when DefaultIsInvalid = false."
+						)
+					);
+			else if (checkZeroNames && !isNeutralZeroName(zeroFields[0].Name))
 				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumSuspiciousZeroName, Util.GetLocation(zeroFields[0], caseSymbol), zeroFields[0].Name));
-			}
 		}
 	}
 
@@ -180,8 +232,13 @@ public sealed class ClosedEnumAnalyzer : DiagnosticAnalyzer {
 				continue;
 			}
 			if (!SymbolEqualityComparer.Default.Equals(caseSymbol.EnumUnderlyingType, external.EnumUnderlyingType)) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumMirrorInvalid, loc,
-					$"ClosedEnumMirror target '{external.ToDisplayString()}' must have the same underlying type as '{caseSymbol.ToDisplayString()}'."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(
+						Diagnostics.ClosedEnumMirrorInvalid,
+						loc,
+						$"ClosedEnumMirror target '{external.ToDisplayString()}' must have the same underlying type as '{caseSymbol.ToDisplayString()}'."
+					)
+				);
 				continue;
 			}
 
@@ -194,13 +251,23 @@ public sealed class ClosedEnumAnalyzer : DiagnosticAnalyzer {
 
 			foreach (ulong v in closedVals)
 				if (!externalVals.Contains(v))
-					ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumMirrorMismatch, loc,
-						$"ClosedEnumMirror has a numeric value '{Util.UInt64Display(v)}' not present in the target enum ('{external.ToDisplayString()}')."));
+					ctx.ReportDiagnostic(
+						Diagnostic.Create(
+							Diagnostics.ClosedEnumMirrorMismatch,
+							loc,
+							$"ClosedEnumMirror has a numeric value '{Util.UInt64Display(v)}' not present in the target enum ('{external.ToDisplayString()}')."
+						)
+					);
 			if (!subset)
 				foreach (ulong v in externalVals)
 					if (!closedVals.Contains(v))
-						ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnumMirrorMismatch, loc,
-							$"ClosedEnumMirror target enum ('{external.ToDisplayString()}') has a numeric value '{Util.UInt64Display(v)}' not present in '{structSymbol.Name}.Case'; if this is intentional, consider using 'Subset = true'."));
+						ctx.ReportDiagnostic(
+							Diagnostic.Create(
+								Diagnostics.ClosedEnumMirrorMismatch,
+								loc,
+								$"ClosedEnumMirror target enum ('{external.ToDisplayString()}') has a numeric value '{Util.UInt64Display(v)}' not present in '{structSymbol.Name}.Case'; if this is intentional, consider using 'Subset = true'."
+							)
+						);
 		}
 	}
 

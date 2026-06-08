@@ -27,7 +27,7 @@ public readonly struct TickDeadline {
 		get {
 			if (!HasDeadline)
 				return MonoTick.Zero;
-			MonoTick now = MonoTick.GetCurrent();
+			var now = MonoTick.GetCurrent();
 			return now < deadlineAt ? deadlineAt - now : MonoTick.Zero;
 		}
 	}

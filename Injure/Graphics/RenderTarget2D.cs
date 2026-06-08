@@ -36,7 +36,12 @@ public sealed class RenderTarget2D : IDisposable {
 	/// <summary>
 	/// The color texture.
 	/// </summary>
-	public GPUTextureRef ColorTexture { get { chk(); return colorTexture.AsRef(); } }
+	public GPUTextureRef ColorTexture {
+		get {
+			chk();
+			return colorTexture.AsRef();
+		}
+	}
 
 	/// <summary>
 	/// View for binding the color texture as a render attachment or sampling it.
@@ -45,12 +50,22 @@ public sealed class RenderTarget2D : IDisposable {
 	/// This is the color texture's default view. Exists for convenience, and consistency
 	/// with <see cref="DepthAttachmentView"/> / <see cref="DepthSampleView"/>.
 	/// </remarks>
-	public GPUTextureViewRef ColorView { get { chk(); return colorTexture.DefaultView; } }
+	public GPUTextureViewRef ColorView {
+		get {
+			chk();
+			return colorTexture.DefaultView;
+		}
+	}
 
 	/// <summary>
 	/// The optional depth/stencil texture.
 	/// </summary>
-	public GPUTextureRef? DepthStencilTexture { get { chk(); return depthStencilTexture?.AsRef(); } }
+	public GPUTextureRef? DepthStencilTexture {
+		get {
+			chk();
+			return depthStencilTexture?.AsRef();
+		}
+	}
 
 	/// <summary>
 	/// View for binding the depth/stencil texture as a render attachment.
@@ -59,7 +74,12 @@ public sealed class RenderTarget2D : IDisposable {
 	/// For depth-only textures, this is the texture's default view.
 	/// For depth+stencil textures, this is the view with both depth and stencil.
 	/// </remarks>
-	public GPUTextureViewRef? DepthAttachmentView { get { chk(); return depthStencilTexture?.DefaultView; } }
+	public GPUTextureViewRef? DepthAttachmentView {
+		get {
+			chk();
+			return depthStencilTexture?.DefaultView;
+		}
+	}
 
 	/// <summary>
 	/// View for sampling the depth/stencil texture.
@@ -80,13 +100,23 @@ public sealed class RenderTarget2D : IDisposable {
 	/// <summary>
 	/// The color sampler, to be paired with <see cref="ColorView"/>.
 	/// </summary>
-	public GPUSampler ColorSampler { get { chk(); return colorSampler; } }
+	public GPUSampler ColorSampler {
+		get {
+			chk();
+			return colorSampler;
+		}
+	}
 
 	/// <summary>
 	/// Lazy-created standard color texture bind group for <see cref="ColorView"/>
 	/// and <see cref="ColorSampler"/>.
 	/// </summary>
-	public GPUBindGroupRef ColorBindGroup { get { chk(); return (colorBindGroup ??= device.CreateStdColorTexture2DBindGroup(ColorView, ColorSampler)).AsRef(); } }
+	public GPUBindGroupRef ColorBindGroup {
+		get {
+			chk();
+			return (colorBindGroup ??= device.CreateStdColorTexture2DBindGroup(ColorView, ColorSampler)).AsRef();
+		}
+	}
 
 	/// <summary>
 	/// Width of the render target in texels.
@@ -111,15 +141,27 @@ public sealed class RenderTarget2D : IDisposable {
 	/// <summary>
 	/// Whether the render target has a depth/stencil attachment.
 	/// </summary>
-	[MemberNotNullWhen(true, nameof(DepthStencilTexture), nameof(DepthAttachmentView), nameof(DepthSampleView),
-		nameof(DepthStencilFormat), nameof(depthStencilTexture))]
+	[MemberNotNullWhen(
+		true,
+		nameof(DepthStencilTexture),
+		nameof(DepthAttachmentView),
+		nameof(DepthSampleView),
+		nameof(DepthStencilFormat),
+		nameof(depthStencilTexture)
+	)]
 	public bool HasDepth => depthStencilTexture is not null;
 
 	/// <summary>
 	/// Whether the render target has a depth/stencil attachment with stencil.
 	/// </summary>
-	[MemberNotNullWhen(true, nameof(DepthStencilTexture), nameof(DepthAttachmentView), nameof(DepthSampleView),
-		nameof(DepthStencilFormat), nameof(depthStencilTexture))]
+	[MemberNotNullWhen(
+		true,
+		nameof(DepthStencilTexture),
+		nameof(DepthAttachmentView),
+		nameof(DepthSampleView),
+		nameof(DepthStencilFormat),
+		nameof(depthStencilTexture)
+	)]
 	public bool HasStencil => depthStencilTexture is not null && formatHasStencil(depthStencilTexture.Format);
 
 	/// <summary>
@@ -141,33 +183,41 @@ public sealed class RenderTarget2D : IDisposable {
 		GPUTextureView? depthSample = null;
 		GPUSampler? sampler = null;
 		try {
-			color = device.CreateTexture(new GPUTextureCreateParams(
-				Width: @params.Width,
-				Height: @params.Height,
-				DepthOrArrayLayers: 1,
-				MipLevelCount: 1,
-				SampleCount: 1,
-				Dimension: TextureDimension.Dimension2D,
-				Format: @params.ColorFormat,
-				Usage: TextureUsage.RenderAttachment | TextureUsage.TextureBinding
-			));
-			if (@params.DepthStencilFormat is TextureFormat fmt) {
-				depthStencil = device.CreateTexture(new GPUTextureCreateParams(
+			color = device.CreateTexture(
+				new GPUTextureCreateParams(
 					Width: @params.Width,
 					Height: @params.Height,
 					DepthOrArrayLayers: 1,
 					MipLevelCount: 1,
 					SampleCount: 1,
 					Dimension: TextureDimension.Dimension2D,
-					Format: fmt,
+					Format: @params.ColorFormat,
 					Usage: TextureUsage.RenderAttachment | TextureUsage.TextureBinding
-				));
+				)
+			);
+			if (@params.DepthStencilFormat is TextureFormat fmt) {
+				depthStencil = device.CreateTexture(
+					new GPUTextureCreateParams(
+						Width: @params.Width,
+						Height: @params.Height,
+						DepthOrArrayLayers: 1,
+						MipLevelCount: 1,
+						SampleCount: 1,
+						Dimension: TextureDimension.Dimension2D,
+						Format: fmt,
+						Usage: TextureUsage.RenderAttachment | TextureUsage.TextureBinding
+					)
+				);
 				// if the format has stencil we need a separate view for sampling
-				depthSample = formatHasStencil(fmt) ? depthStencil.CreateView(new GPUTextureViewCreateParams(
-					Format: null,
-					Dimension: null,
-					Aspect: TextureAspect.DepthOnly
-				)) : null;
+				depthSample = formatHasStencil(fmt)
+					? depthStencil.CreateView(
+						new GPUTextureViewCreateParams(
+							Format: null,
+							Dimension: null,
+							Aspect: TextureAspect.DepthOnly
+						)
+					)
+					: null;
 			}
 			sampler = device.CreateSampler(@params.ColorSampler ?? SamplerStates.NearestClamp);
 			colorTexture = color;

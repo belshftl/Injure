@@ -34,10 +34,12 @@ public sealed class UILabel : UIWidget {
 		TextStyle engineStyle = UITextStyleUtil.ToEngineStyle(Style, ctx.TextScale, maxLogicalWidth);
 		TextMeasurement m = textSystem.Measure(Style.Fonts, Text, in engineStyle);
 
-		return constraint.Clamp(new SizeF(
-			m.Width / ctx.TextScale + Padding.Horizontal,
-			m.Height / ctx.TextScale + Padding.Vertical
-		));
+		return constraint.Clamp(
+			new SizeF(
+				m.Width / ctx.TextScale + Padding.Horizontal,
+				m.Height / ctx.TextScale + Padding.Vertical
+			)
+		);
 	}
 
 	public override void Render(Canvas cv, in UIRenderContext ctx) {
@@ -48,9 +50,8 @@ public sealed class UILabel : UIWidget {
 		TextStyle engineStyle = UITextStyleUtil.ToEngineStyle(Style, ctx.TextScale, inner.Width);
 		ensure(engineStyle);
 		Vector2 targetAt = ctx.LogicalToTarget(inner.Position);
-		using (cv.PushParams(new CanvasParamsOverride(Transform: Matrix3x2.Identity))) {
+		using (cv.PushParams(new CanvasParamsOverride(Transform: Matrix3x2.Identity)))
 			live.Render(cv, targetAt);
-		}
 	}
 
 	[MemberNotNull(nameof(live))]

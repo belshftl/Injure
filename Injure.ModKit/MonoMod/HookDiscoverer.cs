@@ -3,6 +3,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+
 using MonoMod.RuntimeDetour;
 
 using Injure.ModKit.Abstractions.MonoMod;
@@ -27,13 +28,15 @@ internal static class HookDiscoverer<TGameApi> {
 		foreach (LoadHookAttribute attr in hookMethod.GetCustomAttributes<LoadHookAttribute>()) {
 			HookTarget target = resolver.Resolve(attr.TargetID);
 			HookMethodValidator.ValidateGeneratedHookMethod(hookMethod, target);
-			mod.LoadHooks.Add(new HookDeclaration(
-				mod.Staged.Manifest.OwnerID,
-				CreateOrder(mod.Staged.Manifest.OwnerID, attr, hookMethod, n++, "attr-load-hook"),
-				detourConfigFor(mod.Staged.Manifest.OwnerID, hookMethod, attr),
-				target.Method,
-				hookMethod
-			));
+			mod.LoadHooks.Add(
+				new HookDeclaration(
+					mod.Staged.Manifest.OwnerID,
+					CreateOrder(mod.Staged.Manifest.OwnerID, attr, hookMethod, n++, "attr-load-hook"),
+					detourConfigFor(mod.Staged.Manifest.OwnerID, hookMethod, attr),
+					target.Method,
+					hookMethod
+				)
+			);
 		}
 	}
 
@@ -42,13 +45,15 @@ internal static class HookDiscoverer<TGameApi> {
 		foreach (LoadILHookAttribute attr in manipulatorMethod.GetCustomAttributes<LoadILHookAttribute>()) {
 			HookTarget target = resolver.Resolve(attr.TargetID);
 			HookMethodValidator.ValidateGeneratedILHookMethod(manipulatorMethod, target);
-			mod.LoadHooks.Add(new ILHookDeclaration(
-				mod.Staged.Manifest.OwnerID,
-				CreateOrder(mod.Staged.Manifest.OwnerID, attr, manipulatorMethod, n++, "attr-load-il-hook"),
-				detourConfigFor(mod.Staged.Manifest.OwnerID, manipulatorMethod, attr),
-				target.Method,
-				manipulatorMethod
-			));
+			mod.LoadHooks.Add(
+				new ILHookDeclaration(
+					mod.Staged.Manifest.OwnerID,
+					CreateOrder(mod.Staged.Manifest.OwnerID, attr, manipulatorMethod, n++, "attr-load-il-hook"),
+					detourConfigFor(mod.Staged.Manifest.OwnerID, manipulatorMethod, attr),
+					target.Method,
+					manipulatorMethod
+				)
+			);
 		}
 	}
 
@@ -57,13 +62,15 @@ internal static class HookDiscoverer<TGameApi> {
 		foreach (LoadMethodHookAttribute attr in hookMethod.GetCustomAttributes<LoadMethodHookAttribute>()) {
 			MethodBase target = resolveMethod(attr.TargetType, attr.MethodName, attr.BindingFlags, attr.ParameterTypes);
 			HookMethodValidator.ValidateDirectHookMethod(hookMethod, target);
-			mod.LoadHooks.Add(new HookDeclaration(
-				mod.Staged.Manifest.OwnerID,
-				CreateOrder(mod.Staged.Manifest.OwnerID, attr, hookMethod, n++, "attr-load-method-hook"),
-				detourConfigFor(mod.Staged.Manifest.OwnerID, hookMethod, attr),
-				target,
-				hookMethod
-			));
+			mod.LoadHooks.Add(
+				new HookDeclaration(
+					mod.Staged.Manifest.OwnerID,
+					CreateOrder(mod.Staged.Manifest.OwnerID, attr, hookMethod, n++, "attr-load-method-hook"),
+					detourConfigFor(mod.Staged.Manifest.OwnerID, hookMethod, attr),
+					target,
+					hookMethod
+				)
+			);
 		}
 	}
 
@@ -72,13 +79,15 @@ internal static class HookDiscoverer<TGameApi> {
 		foreach (LoadMethodILHookAttribute attr in manipulatorMethod.GetCustomAttributes<LoadMethodILHookAttribute>()) {
 			MethodBase target = resolveMethod(attr.TargetType, attr.MethodName, attr.BindingFlags, attr.ParameterTypes);
 			HookMethodValidator.ValidateDirectILHookMethod(manipulatorMethod, target);
-			mod.LoadHooks.Add(new ILHookDeclaration(
-				mod.Staged.Manifest.OwnerID,
-				CreateOrder(mod.Staged.Manifest.OwnerID, attr, manipulatorMethod, n++, "attr-load-method-il-hook"),
-				detourConfigFor(mod.Staged.Manifest.OwnerID, manipulatorMethod, attr),
-				target,
-				manipulatorMethod
-			));
+			mod.LoadHooks.Add(
+				new ILHookDeclaration(
+					mod.Staged.Manifest.OwnerID,
+					CreateOrder(mod.Staged.Manifest.OwnerID, attr, manipulatorMethod, n++, "attr-load-method-il-hook"),
+					detourConfigFor(mod.Staged.Manifest.OwnerID, manipulatorMethod, attr),
+					target,
+					manipulatorMethod
+				)
+			);
 		}
 	}
 

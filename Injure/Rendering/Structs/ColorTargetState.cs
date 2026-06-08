@@ -23,7 +23,7 @@ public readonly record struct ColorTargetState(
 	/// requires passing in a scratch-buffer storage pointer. That pointer must be
 	/// kept alive together with the returned value.
 	/// </remarks>
-	public unsafe WGPUColorTargetState ToWebGPUType(WGPUBlendState *blendStorage) {
+	public unsafe WGPUColorTargetState ToWebGPUType(WGPUBlendState* blendStorage) {
 		WGPUColorTargetState ret = new() {
 			format = Format.ToWebGPUType(),
 			writeMask = WriteMask.ToWebGPUType(),

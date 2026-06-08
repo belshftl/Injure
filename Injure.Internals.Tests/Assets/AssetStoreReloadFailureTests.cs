@@ -132,7 +132,7 @@ public sealed class AssetStoreReloadFailureTests {
 		AggregateException aggregate = Assert.Throws<AggregateException>(() => store.ApplyQueuedReloadsOrThrow());
 		Assert.Single(aggregate.InnerExceptions);
 		Assert.IsType<ForeignException>(aggregate.InnerExceptions[0]);
-		ForeignException fex = (ForeignException)aggregate.InnerExceptions[0];
+		var fex = (ForeignException)aggregate.InnerExceptions[0];
 		Assert.Equal(ex.GetType().FullName, fex.OriginalFullTypeName);
 		Assert.Equal(ex.Message, fex.OriginalMessage);
 	}

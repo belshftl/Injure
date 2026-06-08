@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
@@ -124,11 +125,11 @@ public static class StateMachineDiscovery {
 
 	private static bool isAsyncMethodBuilderType(TypeReference type) =>
 		type.FullName == "System.Runtime.CompilerServices.AsyncTaskMethodBuilder" ||
-			type.FullName.StartsWith("System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1", StringComparison.Ordinal) ||
-			type.FullName == "System.Runtime.CompilerServices.AsyncVoidMethodBuilder" ||
-			type.FullName == "System.Runtime.CompilerServices.AsyncValueTaskMethodBuilder" ||
-			type.FullName.StartsWith("System.Runtime.CompilerServices.AsyncValueTaskMethodBuilder`1", StringComparison.Ordinal) ||
-			type.FullName.StartsWith("System.Runtime.CompilerServices.AsyncIteratorMethodBuilder", StringComparison.Ordinal);
+		type.FullName.StartsWith("System.Runtime.CompilerServices.AsyncTaskMethodBuilder`1", StringComparison.Ordinal) ||
+		type.FullName == "System.Runtime.CompilerServices.AsyncVoidMethodBuilder" ||
+		type.FullName == "System.Runtime.CompilerServices.AsyncValueTaskMethodBuilder" ||
+		type.FullName.StartsWith("System.Runtime.CompilerServices.AsyncValueTaskMethodBuilder`1", StringComparison.Ordinal) ||
+		type.FullName.StartsWith("System.Runtime.CompilerServices.AsyncIteratorMethodBuilder", StringComparison.Ordinal);
 
 	private static bool returnsEnumerableOrEnumerator(TypeReference type) =>
 		isEnumerableOrEnumeratorType(type) || isAsyncEnumerableOrEnumeratorType(type);
@@ -172,7 +173,7 @@ public static class StateMachineDiscovery {
 	}
 
 	private static TypeReference unwrapGenericInstance(TypeReference type) =>
-		(type is GenericInstanceType generic) ? generic.ElementType : type;
+		type is GenericInstanceType generic ? generic.ElementType : type;
 
 	private static bool isNestedInSameType(TypeDefinition candidate, TypeDefinition declaringType) {
 		TypeDefinition? current = candidate.DeclaringType;

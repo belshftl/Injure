@@ -2,6 +2,7 @@
 
 using System;
 using System.Reflection;
+
 using MonoMod.Cil;
 
 using Injure.ModKit.Abstractions;

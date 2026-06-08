@@ -26,8 +26,8 @@ public readonly struct ButtonActionEventInfo {
 	private readonly PointerButtonActionInfo pointer;
 
 	public ButtonActionEventInfoKind Kind { get; }
-	public PointerButtonActionInfo Pointer => Kind == ButtonActionEventInfoKind.Pointer ? pointer :
-		throw new InvalidOperationException("this button action doesn't come from a pointer button");
+	public PointerButtonActionInfo Pointer =>
+		Kind == ButtonActionEventInfoKind.Pointer ? pointer : throw new InvalidOperationException("this button action doesn't come from a pointer button");
 
 	private ButtonActionEventInfo(ButtonActionEventInfoKind kind, PointerButtonActionInfo pointer) {
 		Kind = kind;
@@ -65,8 +65,9 @@ public readonly struct ImpulseAxisActionEventInfo {
 	private readonly PointerImpulseAxisActionInfo pointer;
 
 	public ImpulseAxisActionEventInfoKind Kind { get; }
-	public PointerImpulseAxisActionInfo Pointer => Kind == ImpulseAxisActionEventInfoKind.Pointer ? pointer :
-		throw new InvalidOperationException("this impulse axis action doesn't come from pointer scroll");
+	public PointerImpulseAxisActionInfo Pointer => Kind == ImpulseAxisActionEventInfoKind.Pointer
+		? pointer
+		: throw new InvalidOperationException("this impulse axis action doesn't come from pointer scroll");
 
 	private ImpulseAxisActionEventInfo(ImpulseAxisActionEventInfoKind kind, PointerImpulseAxisActionInfo pointer) {
 		Kind = kind;

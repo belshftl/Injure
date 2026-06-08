@@ -6,25 +6,27 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+
 using HarfBuzzSharp;
 
 using Injure.Native;
+
 using static Injure.Graphics.Text.FriBidiBindings;
 
 namespace Injure.Graphics.Text;
 
 internal static unsafe partial class FriBidiBindings {
 	[LibraryImport("fribidi")]
-	public static partial void fribidi_get_bidi_types(uint *str, int len, uint *btypes);
+	public static partial void fribidi_get_bidi_types(uint* str, int len, uint* btypes);
 
 	[LibraryImport("fribidi")]
-	public static partial uint fribidi_get_par_direction(uint *bidiTypes, int len);
+	public static partial uint fribidi_get_par_direction(uint* bidiTypes, int len);
 
 	[LibraryImport("fribidi")]
-	public static partial sbyte fribidi_get_par_embedding_levels_ex(uint *bidiTypes, uint *bracketTypes, int len, uint *pbaseDir, sbyte *embeddingLevels);
+	public static partial sbyte fribidi_get_par_embedding_levels_ex(uint* bidiTypes, uint* bracketTypes, int len, uint* pbaseDir, sbyte* embeddingLevels);
 
 	[LibraryImport("fribidi")]
-	public static partial sbyte fribidi_reorder_line(uint flags, uint *bidiTypes, int len, int off, uint baseDir, sbyte *embeddingLevels, uint *visualStr, int *map);
+	public static partial sbyte fribidi_reorder_line(uint flags, uint* bidiTypes, int len, int off, uint baseDir, sbyte* embeddingLevels, uint* visualStr, int* map);
 
 	[LibraryImport("fribidi")]
 	public static partial uint fribidi_get_bracket(uint ch);
@@ -51,8 +53,16 @@ internal static unsafe class TextAnalysis {
 		public sbyte[] Levels { get; }
 		public uint BaseDir { get; }
 
-		private ParagraphAnalysis(string text, int scalarLength, int[] scalarStartsUtf16, uint[] scalars, uint[] bidiTypes,
-			uint[] bracketTypes, sbyte[] levels, uint baseDir)		{
+		private ParagraphAnalysis(
+			string text,
+			int scalarLength,
+			int[] scalarStartsUtf16,
+			uint[] scalars,
+			uint[] bidiTypes,
+			uint[] bracketTypes,
+			sbyte[] levels,
+			uint baseDir
+		) {
 			Text = text;
 			ScalarLength = scalarLength;
 			ScalarStartsUtf16 = scalarStartsUtf16;
@@ -108,11 +118,13 @@ internal static unsafe class TextAnalysis {
 					scalarLimit++;
 				int utf16Start = ScalarStartsUtf16[scalarStart];
 				int utf16Limit = ScalarStartsUtf16[scalarLimit];
-				dst.Add(new LogicalBidiRun(
-					Start: utf16Start,
-					Length: utf16Limit - utf16Start,
-					Direction: rtl ? Direction.RightToLeft : Direction.LeftToRight
-				));
+				dst.Add(
+					new LogicalBidiRun(
+						Start: utf16Start,
+						Length: utf16Limit - utf16Start,
+						Direction: rtl ? Direction.RightToLeft : Direction.LeftToRight
+					)
+				);
 				scalarStart = scalarLimit;
 			}
 		}
@@ -135,8 +147,16 @@ internal static unsafe class TextAnalysis {
 				fixed (uint* pBidiTypes = BidiTypes)
 				fixed (sbyte* pLevels = lineLevels)
 				fixed (int* pMap = visualToLogical) {
-					if (fribidi_reorder_line(FRIBIDI_FLAGS, pBidiTypes, lineScalarLength, lineScalarStart,
-						BaseDir, pLevels, null, pMap) == 0)
+					if (fribidi_reorder_line(
+						FRIBIDI_FLAGS,
+						pBidiTypes,
+						lineScalarLength,
+						lineScalarStart,
+						BaseDir,
+						pLevels,
+						null,
+						pMap
+					) == 0)
 						throw new InvalidOperationException("fribidi_reorder_line failed");
 				}
 
@@ -162,11 +182,13 @@ internal static unsafe class TextAnalysis {
 					}
 					int utf16Start = ScalarStartsUtf16[minLogical];
 					int utf16Limit = ScalarStartsUtf16[maxLogical + 1];
-					dst.Add(new VisualBidiRun(
-						Start: utf16Start,
-						Length: utf16Limit - utf16Start,
-						Direction: rtl ? Direction.RightToLeft : Direction.LeftToRight
-					));
+					dst.Add(
+						new VisualBidiRun(
+							Start: utf16Start,
+							Length: utf16Limit - utf16Start,
+							Direction: rtl ? Direction.RightToLeft : Direction.LeftToRight
+						)
+					);
 					visualIndex = nextVisual;
 				}
 			} finally {
@@ -203,10 +225,10 @@ internal static unsafe class TextAnalysis {
 		if (text.Length == 0)
 			return Array.Empty<GraphemeSpan>();
 		int[] starts = StringInfo.ParseCombiningCharacters(text);
-		GraphemeSpan[] spans = new GraphemeSpan[starts.Length];
+		var spans = new GraphemeSpan[starts.Length];
 		for (int i = 0; i < starts.Length; i++) {
 			int start = starts[i];
-			int limit = (i + 1 < starts.Length) ? starts[i + 1] : text.Length;
+			int limit = i + 1 < starts.Length ? starts[i + 1] : text.Length;
 			spans[i] = new GraphemeSpan(start, limit - start);
 		}
 		return spans;
@@ -233,7 +255,7 @@ internal static unsafe class TextAnalysis {
 	public static LogicalBidiRun[] GetLogicalBidiRuns(string text) {
 		if (text.Length == 0)
 			return Array.Empty<LogicalBidiRun>();
-		using ParagraphAnalysis para = ParagraphAnalysis.Create(text);
+		using var para = ParagraphAnalysis.Create(text);
 		List<LogicalBidiRun> l = new();
 		para.GetLogicalRuns(l);
 		return l.ToArray();
@@ -242,23 +264,33 @@ internal static unsafe class TextAnalysis {
 	public static VisualBidiRun[] GetVisualBidiRunsForLine(string text, int lineStart, int lineLimit) {
 		if (lineStart >= lineLimit)
 			return Array.Empty<VisualBidiRun>();
-		using ParagraphAnalysis para = ParagraphAnalysis.Create(text);
+		using var para = ParagraphAnalysis.Create(text);
 		List<VisualBidiRun> l = new();
 		para.GetVisualRunsForLine(l, lineStart, lineLimit);
 		return l.ToArray();
 	}
 
 	public static TextItem[] ItemizeByScript(ReadOnlySpan<char> text, int sourceStart, Direction direction, string? languageBCP47) {
-		static void add(List<TextItem> dst, ReadOnlySpan<char> text, int sourceStart, int runStart, int runLength,
-			Direction direction, Script? script, string? languageBCP47) {
+		static void add(
+			List<TextItem> dst,
+			ReadOnlySpan<char> text,
+			int sourceStart,
+			int runStart,
+			int runLength,
+			Direction direction,
+			Script? script,
+			string? languageBCP47
+		) {
 			if (runLength <= 0)
 				return;
-			dst.Add(new TextItem(
-				SourceStart: sourceStart + runStart,
-				Text: new string(text.Slice(runStart, runLength)),
-				Properties: new TextSegmentProperties(direction, script, languageBCP47),
-				GuessSegmentProperties: false
-			));
+			dst.Add(
+				new TextItem(
+					SourceStart: sourceStart + runStart,
+					Text: new string(text.Slice(runStart, runLength)),
+					Properties: new TextSegmentProperties(direction, script, languageBCP47),
+					GuessSegmentProperties: false
+				)
+			);
 		}
 
 		if (text.IsEmpty)
@@ -287,8 +319,16 @@ internal static unsafe class TextAnalysis {
 			index += runeLength;
 		}
 		int finalStart = Math.Max(currentRunStart, 0);
-		add(items, text, sourceStart, finalStart, text.Length - finalStart,
-			direction, currentRunStart >= 0 ? currentScript : Script.Common, languageBCP47);
+		add(
+			items,
+			text,
+			sourceStart,
+			finalStart,
+			text.Length - finalStart,
+			direction,
+			currentRunStart >= 0 ? currentScript : Script.Common,
+			languageBCP47
+		);
 		return items.ToArray();
 	}
 

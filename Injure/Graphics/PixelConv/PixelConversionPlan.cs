@@ -4,7 +4,7 @@ using System;
 
 namespace Injure.Graphics.PixelConv;
 
-using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte *, byte *, nuint, void>;
+using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte*, byte*, nuint, void>;
 
 internal enum PlanKind : byte {
 	Memcpy,
@@ -79,8 +79,17 @@ public readonly unsafe struct PixelConversionPlan {
 	/// </summary>
 	public int DestinationBytesPerPixel => DstDesc.BytesPerPixel;
 
-	internal PixelConversionPlan(PixelFormat srcFmt, PixelFormat dstFmt, PixelConvertOptions opts, PlanKind kind,
-		PlanInfo info, Kernel kernel, PixelFormatDesc srcDesc, PixelFormatDesc dstDesc, PayloadUnion payload) {
+	internal PixelConversionPlan(
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		PixelConvertOptions opts,
+		PlanKind kind,
+		PlanInfo info,
+		Kernel kernel,
+		PixelFormatDesc srcDesc,
+		PixelFormatDesc dstDesc,
+		PayloadUnion payload
+	) {
 		SourceFormat = srcFmt;
 		DestinationFormat = dstFmt;
 		Options = opts;
@@ -129,10 +138,9 @@ public readonly unsafe struct PixelConversionPlan {
 			return;
 		}
 
-		fixed (byte *pSrc = src)
-		fixed (byte *pDst = dst) {
+		fixed (byte* pSrc = src)
+		fixed (byte* pDst = dst)
 			Kernel(in this, pSrc, pDst, (nuint)pxCount);
-		}
 	}
 
 	/// <summary>
@@ -178,17 +186,16 @@ public readonly unsafe struct PixelConversionPlan {
 		if (dst.Length < dstNeed)
 			throw new ArgumentException($"destination span is too small (need at least {dstNeed} bytes, got {dst.Length})", nameof(dst));
 
-		if (Kind == PlanKind.Memcpy && srcStride == dstStride) {
+		if (Kind == PlanKind.Memcpy && srcStride == dstStride)
 			// can do one bulk copy, padding being garbage data is fine
 			src[..(srcStride * height)].CopyTo(dst);
-		} else if (srcStride == srcRowBytes && dstStride == dstRowBytes) {
+		else if (srcStride == srcRowBytes && dstStride == dstRowBytes)
 			// both are tightly packed, collapse into one call
 			ConvertRow(src, dst, checked(width * height));
-		} else {
+		else
 			// go row by row
 			for (int y = 0; y < height; y++)
 				ConvertRow(src.Slice(y * srcStride, srcRowBytes), dst.Slice(y * dstStride, dstRowBytes), width);
-		}
 	}
 
 	/// <summary>

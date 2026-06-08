@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+
 using Mono.Cecil;
 
 namespace Injure.Weaver.Patching;
@@ -34,7 +35,7 @@ public sealed class DotnetAssemblyResolver : BaseAssemblyResolver {
 		}
 	}
 
-	static IEnumerable<string> dotnetRoots() {
+	private static IEnumerable<string> dotnetRoots() {
 		string? env = Environment.GetEnvironmentVariable("DOTNET_ROOT");
 		if (!string.IsNullOrEmpty(env))
 			yield return env;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Linq;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 

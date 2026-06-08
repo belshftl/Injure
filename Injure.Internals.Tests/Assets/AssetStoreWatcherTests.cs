@@ -79,10 +79,14 @@ public sealed class AssetStoreWatcherTests {
 		TestDependencyWatcher watcher = new();
 		store.RegisterSource(ownerID, new TestSource(), "source");
 		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterCreator(ownerID, new SteppingCreator(
-			new Step("step-a", Handled: true, depA),
-			new Step("step-b", Handled: true, depB)
-		), "creator");
+		store.RegisterCreator(
+			ownerID,
+			new SteppingCreator(
+				new Step("step-a", Handled: true, depA),
+				new Step("step-b", Handled: true, depB)
+			),
+			"creator"
+		);
 		store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));

@@ -2,20 +2,19 @@
 
 using System.Linq;
 using System.Text;
+
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Core;
 
 internal static class SymbolHelpers {
 	public static bool HasAttribute(ISymbol symbol, INamedTypeSymbol? attributeType, out AttributeData attribute) {
-		if (attributeType is not null) {
-			foreach (AttributeData attr in symbol.GetAttributes()) {
+		if (attributeType is not null)
+			foreach (AttributeData attr in symbol.GetAttributes())
 				if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attributeType)) {
 					attribute = attr;
 					return true;
 				}
-			}
-		}
 		attribute = null!;
 		return false;
 	}

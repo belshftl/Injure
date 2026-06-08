@@ -107,7 +107,7 @@ public sealed class ExceptionSnapshot {
 	public ExceptionSnapshot UnwrapUnary(Func<ExceptionSnapshot, bool> shouldUnwrap) {
 		ArgumentNullException.ThrowIfNull(shouldUnwrap);
 		ExceptionSnapshot curr;
-		for (curr = this; curr.InnerExceptions.Count == 1 && shouldUnwrap(curr); curr = curr.InnerExceptions[0]);
+		for (curr = this; curr.InnerExceptions.Count == 1 && shouldUnwrap(curr); curr = curr.InnerExceptions[0]) ;
 		return curr;
 	}
 

@@ -2,6 +2,7 @@
 
 using System;
 using System.Reflection;
+
 using MonoMod.RuntimeDetour;
 
 using Injure.ModKit.Abstractions;
@@ -35,13 +36,15 @@ internal sealed class ModHookDeclarations<TGameApi, L>(
 			HookDeclarationPhase.Load => mod.LoadHooks,
 			_ => throw new InternalStateException("out of range HookDeclarationPhase enum value"),
 		};
-		set.Add(new HookDeclaration(
-			mod.Staged.Manifest.OwnerID,
-			HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, hookMethod, 0, "decl-load-hook"),
-			detourConfigFrom(in config),
-			target.Method,
-			hookMethod
-		));
+		set.Add(
+			new HookDeclaration(
+				mod.Staged.Manifest.OwnerID,
+				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, hookMethod, 0, "decl-load-hook"),
+				detourConfigFrom(in config),
+				target.Method,
+				hookMethod
+			)
+		);
 	}
 
 	public void DeclareHook(MethodBase targetMethod, MethodInfo hookMethod, in ModHookConfig config) {
@@ -52,13 +55,15 @@ internal sealed class ModHookDeclarations<TGameApi, L>(
 			HookDeclarationPhase.Load => mod.LoadHooks,
 			_ => throw new InternalStateException("out of range HookDeclarationPhase enum value"),
 		};
-		set.Add(new HookDeclaration(
-			mod.Staged.Manifest.OwnerID,
-			HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, hookMethod, 0, "decl-load-hook"),
-			detourConfigFrom(in config),
-			targetMethod,
-			hookMethod
-		));
+		set.Add(
+			new HookDeclaration(
+				mod.Staged.Manifest.OwnerID,
+				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, hookMethod, 0, "decl-load-hook"),
+				detourConfigFrom(in config),
+				targetMethod,
+				hookMethod
+			)
+		);
 	}
 
 	public void DeclareILHook(string targetID, MethodInfo manipulatorMethod, in ModHookConfig config) {
@@ -70,13 +75,15 @@ internal sealed class ModHookDeclarations<TGameApi, L>(
 			HookDeclarationPhase.Load => mod.LoadHooks,
 			_ => throw new InternalStateException("out of range HookDeclarationPhase enum value"),
 		};
-		set.Add(new ILHookDeclaration(
-			mod.Staged.Manifest.OwnerID,
-			HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, manipulatorMethod, 0, "decl-load-hook"),
-			detourConfigFrom(in config),
-			target.Method,
-			manipulatorMethod
-		));
+		set.Add(
+			new ILHookDeclaration(
+				mod.Staged.Manifest.OwnerID,
+				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, manipulatorMethod, 0, "decl-load-hook"),
+				detourConfigFrom(in config),
+				target.Method,
+				manipulatorMethod
+			)
+		);
 	}
 
 	public void DeclareILHook(MethodBase targetMethod, MethodInfo manipulatorMethod, in ModHookConfig config) {
@@ -87,13 +94,15 @@ internal sealed class ModHookDeclarations<TGameApi, L>(
 			HookDeclarationPhase.Load => mod.LoadHooks,
 			_ => throw new InternalStateException("out of range HookDeclarationPhase enum value"),
 		};
-		set.Add(new ILHookDeclaration(
-			mod.Staged.Manifest.OwnerID,
-			HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, manipulatorMethod, 0, "decl-load-hook"),
-			detourConfigFrom(in config),
-			targetMethod,
-			manipulatorMethod
-		));
+		set.Add(
+			new ILHookDeclaration(
+				mod.Staged.Manifest.OwnerID,
+				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, manipulatorMethod, 0, "decl-load-hook"),
+				detourConfigFrom(in config),
+				targetMethod,
+				manipulatorMethod
+			)
+		);
 	}
 
 	public void DropStrongReferences() {

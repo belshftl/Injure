@@ -81,7 +81,7 @@ public abstract record ModManifest {
 public sealed record CodeModManifest : ModManifest {
 	public required string EntryAssembly { get; init; }
 	public required bool LiveReloadable { get; init; }
-	public override ModReloadability Reloadability => Reloadable ? (LiveReloadable ? ModReloadability.Live : ModReloadability.SafeBoundary) : ModReloadability.None;
+	public override ModReloadability Reloadability => Reloadable ? LiveReloadable ? ModReloadability.Live : ModReloadability.SafeBoundary : ModReloadability.None;
 }
 
 public sealed record ContentModManifest : ModManifest {

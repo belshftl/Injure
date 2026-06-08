@@ -58,7 +58,9 @@ public interface IModReloadContext<out TGameApi, L> : IModContext<TGameApi, L> w
 public sealed class ModLifecycleContextExpiredException : Exception {
 	public string Kind { get; }
 	public ReloadGeneration Generation { get; }
-	internal ModLifecycleContextExpiredException(string kind, ReloadGeneration generation) : base($"{kind} object for {generation} is no longer valid past the method return; cache the values you'd like to keep around such as Api/Scope/Diagnostics, don't retain or capture the whole object") {
+	internal ModLifecycleContextExpiredException(string kind, ReloadGeneration generation) : base(
+		$"{kind} object for {generation} is no longer valid past the method return; cache the values you'd like to keep around such as Api/Scope/Diagnostics, don't retain or capture the whole object"
+	) {
 		Kind = kind;
 		Generation = generation;
 	}

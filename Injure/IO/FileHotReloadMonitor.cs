@@ -252,9 +252,10 @@ public sealed class FileHotReloadMonitor : IDisposable {
 				StablePathChanged?.Invoke(fullPath);
 		} catch (OperationCanceledException) {
 		} finally {
-			lock (@lock)
+			lock (@lock) {
 				if (!disposed && filesByPath.TryGetValue(fullPath, out WatchedFile? f) && f.Generation == generation && ReferenceEquals(f.ProbeCts, cts))
 					f.ProbeCts = null;
+			}
 			cts.Dispose();
 		}
 	}

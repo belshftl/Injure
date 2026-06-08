@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+
 using Mono.Cecil;
 
 using Injure.Weaver.Model;
@@ -39,7 +40,7 @@ public static class AssemblyWeaver {
 				ReadSymbols = false,
 			};
 
-			using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(options.InputPath, readerParameters);
+			using var assembly = AssemblyDefinition.ReadAssembly(options.InputPath, readerParameters);
 			ModuleDefinition module = assembly.MainModule;
 			InjureReferences ij = InjureReferenceResolver.Resolve(module);
 			AssemblyAnalysis analysis = AssemblyAnalyzer.Analyze(module);

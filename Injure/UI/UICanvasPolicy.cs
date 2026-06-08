@@ -44,8 +44,12 @@ public readonly record struct UICanvasPolicy(
 	public static UICanvasPolicy Fixed(float width, float height) => new(UICanvasMode.Fixed, new SizeF(width, height));
 	public static UICanvasPolicy FixedHeight(float width, float height) => new(UICanvasMode.FixedHeightExpandWidth, new SizeF(width, height));
 	public static UICanvasPolicy FixedWidth(float width, float height) => new(UICanvasMode.FixedWidthExpandHeight, new SizeF(width, height));
-	public static readonly UICanvasPolicy MatchDrawable = new(UICanvasMode.MatchDrawable, new SizeF(1f, 1f),
-		UICanvasFitMode.Stretch, UICanvasScaleMode.Fractional);
+	public static readonly UICanvasPolicy MatchDrawable = new(
+		UICanvasMode.MatchDrawable,
+		new SizeF(1f, 1f),
+		UICanvasFitMode.Stretch,
+		UICanvasScaleMode.Fractional
+	);
 }
 
 public readonly record struct UICanvasTransform(

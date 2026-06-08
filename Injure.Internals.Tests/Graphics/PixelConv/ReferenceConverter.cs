@@ -36,8 +36,14 @@ public static class ReferenceConverter {
 	}
 
 	private readonly struct Packed16Layout(
-		int rBits, int gBits, int bBits, int aBits,
-		int rShift, int gShift, int bShift, int aShift,
+		int rBits,
+		int gBits,
+		int bBits,
+		int aBits,
+		int rShift,
+		int gShift,
+		int bShift,
+		int aShift,
 		bool isBigEndian
 	) {
 		public readonly int RBits = rBits, GBits = gBits, BBits = bBits, ABits = aBits;
@@ -52,8 +58,16 @@ public static class ReferenceConverter {
 		ArgumentOutOfRangeException.ThrowIfLessThan(src.Length, height == 0 ? 0 : checked((height - 1) * srcStride + srcRowBytes));
 	}
 
-	public static byte[] Convert(ReferenceFamily family, ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, int width, int height, in PixelConvertOptions opts) {
+	public static byte[] Convert(
+		ReferenceFamily family,
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height,
+		in PixelConvertOptions opts
+	) {
 		return family switch {
 			ReferenceFamily.Copy32SetAlpha => Copy32SetAlpha(src, srcStride, srcFmt, width, height, opts.Alpha16UNorm),
 			ReferenceFamily.Copy64SetAlpha => Copy64SetAlpha(src, srcStride, srcFmt, width, height, opts.Alpha16UNorm),
@@ -68,8 +82,14 @@ public static class ReferenceConverter {
 		};
 	}
 
-	public static byte[] Copy32SetAlpha(ReadOnlySpan<byte> src, int srcStride, PixelFormat fmt,
-		int width, int height, ushort a16unorm) {
+	public static byte[] Copy32SetAlpha(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat fmt,
+		int width,
+		int height,
+		ushort a16unorm
+	) {
 		RGBA32Layout sl = rgba32LayoutFor(fmt);
 		int rowBytes = checked(width * 4);
 		validate(src, srcStride, rowBytes, width, height);
@@ -86,8 +106,14 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	public static byte[] Copy64SetAlpha(ReadOnlySpan<byte> src, int srcStride, PixelFormat fmt,
-		int width, int height, ushort a16unorm) {
+	public static byte[] Copy64SetAlpha(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat fmt,
+		int width,
+		int height,
+		ushort a16unorm
+	) {
 		RGBA64Layout sl = rgba64LayoutFor(fmt);
 		int rowBytes = checked(width * 8);
 		validate(src, srcStride, rowBytes, width, height);
@@ -103,8 +129,16 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	public static byte[] Shuffle32(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, int width, int height, ushort a16unorm, bool overrideAlpha) {
+	public static byte[] Shuffle32(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height,
+		ushort a16unorm,
+		bool overrideAlpha
+	) {
 		RGBA32Layout sl = rgba32LayoutFor(srcFmt);
 		RGBA32Layout dl = rgba32LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 4);
@@ -135,8 +169,15 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	public static byte[] Expand24To32(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, int width, int height, ushort a16unorm) {
+	public static byte[] Expand24To32(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height,
+		ushort a16unorm
+	) {
 		RGB24Layout sl = rgb24LayoutFor(srcFmt);
 		RGBA32Layout dl = rgba32LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 3);
@@ -162,8 +203,14 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	public static byte[] Contract32To24(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, int width, int height) {
+	public static byte[] Contract32To24(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height
+	) {
 		RGBA32Layout sl = rgba32LayoutFor(srcFmt);
 		RGB24Layout dl = rgb24LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 4);
@@ -187,8 +234,16 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	public static byte[] Widen32To64(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, int width, int height, ushort a16unorm, bool overrideAlpha) {
+	public static byte[] Widen32To64(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height,
+		ushort a16unorm,
+		bool overrideAlpha
+	) {
 		RGBA32Layout sl = rgba32LayoutFor(srcFmt);
 		RGBA64Layout dl = rgba64LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 4);
@@ -218,8 +273,16 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	public static byte[] Narrow64To32(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, int width, int height, ushort a16unorm, bool overrideAlpha) {
+	public static byte[] Narrow64To32(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height,
+		ushort a16unorm,
+		bool overrideAlpha
+	) {
 		RGBA64Layout sl = rgba64LayoutFor(srcFmt);
 		RGBA32Layout dl = rgba32LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 8);
@@ -249,8 +312,16 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	public static byte[] Packed16To32(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, int width, int height, ushort a16unorm, bool overrideAlpha) {
+	public static byte[] Packed16To32(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height,
+		ushort a16unorm,
+		bool overrideAlpha
+	) {
 		Packed16Layout sl = packed16LayoutFor(srcFmt);
 		RGBA32Layout dl = rgba32LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 2);
@@ -264,10 +335,10 @@ public static class ReferenceConverter {
 			Span<byte> d = dst.AsSpan(y * dstRowBytes, dstRowBytes);
 			for (int x = 0; x < width; x++) {
 				ushort packed = readU16(s, x * 2, sl.IsBigEndian);
-				byte r = scaleNTo8(((uint)packed >> sl.RShift) & bitmask(sl.RBits), sl.RBits);
-				byte g = scaleNTo8(((uint)packed >> sl.GShift) & bitmask(sl.GBits), sl.GBits);
-				byte b = scaleNTo8(((uint)packed >> sl.BShift) & bitmask(sl.BBits), sl.BBits);
-				byte a = sl.ABits == 0 ? a8 : scaleNTo8(((uint)packed >> sl.AShift) & bitmask(sl.ABits), sl.ABits);
+				byte r = scaleNTo8((uint)packed >> sl.RShift & bitmask(sl.RBits), sl.RBits);
+				byte g = scaleNTo8((uint)packed >> sl.GShift & bitmask(sl.GBits), sl.GBits);
+				byte b = scaleNTo8((uint)packed >> sl.BShift & bitmask(sl.BBits), sl.BBits);
+				byte a = sl.ABits == 0 ? a8 : scaleNTo8((uint)packed >> sl.AShift & bitmask(sl.ABits), sl.ABits);
 				if (overrideAlpha)
 					a = a8;
 				int woff = x * 4;
@@ -280,8 +351,16 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	public static byte[] Unpacked32ToPacked16(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt,
-		PixelFormat dstFmt, int width, int height, ushort a16unorm, bool overrideAlpha) {
+	public static byte[] Unpacked32ToPacked16(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height,
+		ushort a16unorm,
+		bool overrideAlpha
+	) {
 		RGBA32Layout sl = rgba32LayoutFor(srcFmt);
 		Packed16Layout dl = packed16LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 4);
@@ -315,52 +394,50 @@ public static class ReferenceConverter {
 	}
 
 	private static RGB24Layout rgb24LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.RGB24_UNorm => new(0, 1, 2),
-		PixelFormat.Case.BGR24_UNorm => new(2, 1, 0),
+		PixelFormat.Case.RGB24_UNorm => new RGB24Layout(0, 1, 2),
+		PixelFormat.Case.BGR24_UNorm => new RGB24Layout(2, 1, 0),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
 	private static RGBA32Layout rgba32LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.RGBA32_UNorm => new(0, 1, 2, 3),
-		PixelFormat.Case.BGRA32_UNorm => new(2, 1, 0, 3),
-		PixelFormat.Case.ARGB32_UNorm => new(1, 2, 3, 0),
-		PixelFormat.Case.ABGR32_UNorm => new(3, 2, 1, 0),
+		PixelFormat.Case.RGBA32_UNorm => new RGBA32Layout(0, 1, 2, 3),
+		PixelFormat.Case.BGRA32_UNorm => new RGBA32Layout(2, 1, 0, 3),
+		PixelFormat.Case.ARGB32_UNorm => new RGBA32Layout(1, 2, 3, 0),
+		PixelFormat.Case.ABGR32_UNorm => new RGBA32Layout(3, 2, 1, 0),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
 	private static RGBA64Layout rgba64LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.RGBA64_UNorm_LE => new(0, 1, 2, 3, false),
-		PixelFormat.Case.BGRA64_UNorm_LE => new(2, 1, 0, 3, false),
-		PixelFormat.Case.ARGB64_UNorm_LE => new(1, 2, 3, 0, false),
-		PixelFormat.Case.ABGR64_UNorm_LE => new(3, 2, 1, 0, false),
+		PixelFormat.Case.RGBA64_UNorm_LE => new RGBA64Layout(0, 1, 2, 3, false),
+		PixelFormat.Case.BGRA64_UNorm_LE => new RGBA64Layout(2, 1, 0, 3, false),
+		PixelFormat.Case.ARGB64_UNorm_LE => new RGBA64Layout(1, 2, 3, 0, false),
+		PixelFormat.Case.ABGR64_UNorm_LE => new RGBA64Layout(3, 2, 1, 0, false),
 
-		PixelFormat.Case.RGBA64_UNorm_BE => new(0, 1, 2, 3, true),
-		PixelFormat.Case.BGRA64_UNorm_BE => new(2, 1, 0, 3, true),
-		PixelFormat.Case.ARGB64_UNorm_BE => new(1, 2, 3, 0, true),
-		PixelFormat.Case.ABGR64_UNorm_BE => new(3, 2, 1, 0, true),
+		PixelFormat.Case.RGBA64_UNorm_BE => new RGBA64Layout(0, 1, 2, 3, true),
+		PixelFormat.Case.BGRA64_UNorm_BE => new RGBA64Layout(2, 1, 0, 3, true),
+		PixelFormat.Case.ARGB64_UNorm_BE => new RGBA64Layout(1, 2, 3, 0, true),
+		PixelFormat.Case.ABGR64_UNorm_BE => new RGBA64Layout(3, 2, 1, 0, true),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
 	private static Packed16Layout packed16LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.BGR565_UNormPack16_LE => new(5, 6, 5, 0, 11, 5, 0, 0, false),
-		PixelFormat.Case.RGBA4444_UNormPack16_LE => new(4, 4, 4, 4, 12, 8, 4, 0, false),
-		PixelFormat.Case.RGBA5551_UNormPack16_LE => new(5, 5, 5, 1, 11, 6, 1, 0, false),
+		PixelFormat.Case.BGR565_UNormPack16_LE => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, false),
+		PixelFormat.Case.RGBA4444_UNormPack16_LE => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, false),
+		PixelFormat.Case.RGBA5551_UNormPack16_LE => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, false),
 
-		PixelFormat.Case.BGR565_UNormPack16_BE => new(5, 6, 5, 0, 11, 5, 0, 0, true),
-		PixelFormat.Case.RGBA4444_UNormPack16_BE => new(4, 4, 4, 4, 12, 8, 4, 0, true),
-		PixelFormat.Case.RGBA5551_UNormPack16_BE => new(5, 5, 5, 1, 11, 6, 1, 0, true),
+		PixelFormat.Case.BGR565_UNormPack16_BE => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, true),
+		PixelFormat.Case.RGBA4444_UNormPack16_BE => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, true),
+		PixelFormat.Case.RGBA5551_UNormPack16_BE => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, true),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static ushort readU16(ReadOnlySpan<byte> src, int offset, bool bigEndian) {
-		return bigEndian ? BinaryPrimitives.ReadUInt16BigEndian(src.Slice(offset, 2)) :
-			BinaryPrimitives.ReadUInt16LittleEndian(src.Slice(offset, 2));
-	}
+	private static ushort readU16(ReadOnlySpan<byte> src, int offset, bool bigEndian) =>
+		bigEndian ? BinaryPrimitives.ReadUInt16BigEndian(src.Slice(offset, 2)) : BinaryPrimitives.ReadUInt16LittleEndian(src.Slice(offset, 2));
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void writeU16(Span<byte> dst, int offset, bool bigEndian, ushort value) {
@@ -371,7 +448,7 @@ public static class ReferenceConverter {
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static ushort widen8To16(byte b) => (ushort)((b << 8) | b);
+	private static ushort widen8To16(byte b) => (ushort)(b << 8 | b);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static byte narrow16To8(ushort s) => (byte)((s * 0xffu + 0x7fffu) / 0xffffu);

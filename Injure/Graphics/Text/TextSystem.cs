@@ -4,7 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+
 using FreeTypeSharp;
+
 using static FreeTypeSharp.FT;
 
 using Injure.Assets;
@@ -28,7 +30,10 @@ public readonly record struct TextStyle(
 	string? LanguageBCP47 = null
 ) {
 	public TextStyle(int fontSize, Color32 color, TextLayoutOptions? layoutOptions = null) : this(
-		new FontOptions(fontSize), color, layoutOptions ?? new TextLayoutOptions()) {
+		new FontOptions(fontSize),
+		color,
+		layoutOptions ?? new TextLayoutOptions()
+	) {
 	}
 };
 
@@ -50,7 +55,7 @@ public sealed class TextCacheOptions {
 public sealed unsafe class TextSystem : IDisposable {
 	private readonly record struct LoadedFaceKey(FontSourceKind SourceKind, ulong SourceID, ulong Version, int FaceIndex);
 
-	private readonly FT_LibraryRec_ *ftLibrary;
+	private readonly FT_LibraryRec_* ftLibrary;
 	private readonly Dictionary<ResolvedFontKey, IResolvedFont> fonts = new();
 	private readonly Dictionary<LoadedFaceKey, LoadedFontFace> loadedFaces = new();
 
@@ -63,10 +68,15 @@ public sealed unsafe class TextSystem : IDisposable {
 	private int opCounter = 0;
 	private bool disposed = false;
 
-	internal FT_LibraryRec_ *FtLibrary { get { ObjectDisposedException.ThrowIf(disposed, this); return ftLibrary; } }
+	internal FT_LibraryRec_* FtLibrary {
+		get {
+			ObjectDisposedException.ThrowIf(disposed, this);
+			return ftLibrary;
+		}
+	}
 
 	internal TextSystem(WebGPUDevice gpuDevice, ITextItemizer? itemizer = null, TextCacheOptions? cacheOptions = null) {
-		fixed (FT_LibraryRec_ **l = &ftLibrary)
+		fixed (FT_LibraryRec_** l = &ftLibrary)
 			FTException.Check(FT_Init_FreeType(l));
 		this.itemizer = itemizer ?? new DefaultTextItemizer();
 		this.cacheOptions = cacheOptions ?? new TextCacheOptions();
@@ -164,7 +174,7 @@ public sealed unsafe class TextSystem : IDisposable {
 
 		TextLayoutPlan plan = TextLayouter.BuildPlan(itemizer, fallbackResolver, fonts, text, in style, TextLayoutPlanMode.GlyphPlan);
 		List<TextGlyph> glyphs = new(plan.Glyphs.Length);
-		TextLine[] lines = new TextLine[plan.Lines.Length];
+		var lines = new TextLine[plan.Lines.Length];
 
 		for (int lineIndex = 0; lineIndex < plan.Lines.Length; lineIndex++) {
 			TextLine plannedLine = plan.Lines[lineIndex];
@@ -175,14 +185,16 @@ public sealed unsafe class TextSystem : IDisposable {
 					continue;
 				float x = planned.X + atlasEntry.BitmapLeft;
 				float y = planned.Y - atlasEntry.BitmapTop;
-				glyphs.Add(new TextGlyph(
-					Page: atlasEntry.Page,
-					SrcPixels: atlasEntry.SrcPixels,
-					DstPixels: new RectF(x, y, atlasEntry.Width, atlasEntry.Height),
-					Color: style.Color,
-					GlyphID: planned.GlyphID,
-					Cluster: planned.Cluster
-				));
+				glyphs.Add(
+					new TextGlyph(
+						Page: atlasEntry.Page,
+						SrcPixels: atlasEntry.SrcPixels,
+						DstPixels: new RectF(x, y, atlasEntry.Width, atlasEntry.Height),
+						Color: style.Color,
+						GlyphID: planned.GlyphID,
+						Cluster: planned.Cluster
+					)
+				);
 			}
 			lines[lineIndex] = plannedLine with {
 				GlyphStart = materializedStart,
@@ -200,8 +212,8 @@ public sealed unsafe class TextSystem : IDisposable {
 	}
 
 	public Font LoadFont(byte[] data, string? debugName = null) {
-		fixed (byte *p = data) {
-			FT_FaceRec_ *probe = null;
+		fixed (byte* p = data) {
+			FT_FaceRec_* probe = null;
 			FTException.Check(FT_New_Memory_Face(FtLibrary, p, data.Length, -1, &probe));
 			try {
 				return new Font(data, debugName, checked((int)probe->num_faces));

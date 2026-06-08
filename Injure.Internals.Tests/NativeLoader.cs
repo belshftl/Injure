@@ -20,7 +20,7 @@ public static class NativeLoader {
 		if (!File.Exists(path))
 			throw new FileNotFoundException($"'{path}' not found");
 		injurenative = NativeLibrary.Load(path);
-		NativeLibrary.SetDllImportResolver(typeof(Injure.Native.Unibreak).Assembly, dllImportResolver);
+		NativeLibrary.SetDllImportResolver(typeof(Native.Unibreak).Assembly, dllImportResolver);
 	}
 
 	private static string getRID() {
@@ -48,9 +48,11 @@ public static class NativeLoader {
 		throw new NotSupportedException("OS not supported (supported: Windows, OSX, Linux)");
 	}
 
-	private static bool matchLib(string target, string given) {
-		return Regex.IsMatch(given, @"^(?:lib)?" + Regex.Escape(target) + @"(?:\.dll|(?:-\d+(?:\.\d+)*)?\.dylib|(?:-\d+(?:\.\d+)*)?\.so(?:\.\d+)*)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-	}
+	private static bool matchLib(string target, string given) => Regex.IsMatch(
+		given,
+		@"^(?:lib)?" + Regex.Escape(target) + @"(?:\.dll|(?:-\d+(?:\.\d+)*)?\.dylib|(?:-\d+(?:\.\d+)*)?\.so(?:\.\d+)*)?$",
+		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+	);
 
 	private static IntPtr dllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath) {
 		if (matchLib("injurenative", libraryName))
@@ -64,5 +66,7 @@ public sealed class NativeFixture {
 		NativeLoader.Init();
 	}
 }
+
 [CollectionDefinition("needsnative")]
-public sealed class NeedsNativeCollection : ICollectionFixture<NativeFixture> {}
+public sealed class NeedsNativeCollection : ICollectionFixture<NativeFixture> {
+}

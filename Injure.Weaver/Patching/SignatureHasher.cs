@@ -3,6 +3,7 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
+
 using Mono.Cecil;
 
 namespace Injure.Weaver.Patching;

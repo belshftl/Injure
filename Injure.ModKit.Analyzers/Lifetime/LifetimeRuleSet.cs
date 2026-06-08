@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -382,18 +383,16 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 			declaringType = named;
 			return true;
 		}
-		for (INamedTypeSymbol? curr = named.BaseType; curr is not null; curr = curr.BaseType) {
+		for (INamedTypeSymbol? curr = named.BaseType; curr is not null; curr = curr.BaseType)
 			if (hasDirectAttribute(curr, known.ObligationAttribute)) {
 				declaringType = curr;
 				return true;
 			}
-		}
-		foreach (INamedTypeSymbol iface in named.AllInterfaces) {
+		foreach (INamedTypeSymbol iface in named.AllInterfaces)
 			if (hasDirectAttribute(iface, known.ObligationAttribute)) {
 				declaringType = iface;
 				return true;
 			}
-		}
 		return false;
 	}
 
@@ -408,14 +407,12 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 			ordinal = index;
 			return true;
 		}
-		if (value is string name) {
-			for (int i = 0; i < method.Parameters.Length; i++) {
+		if (value is string name)
+			for (int i = 0; i < method.Parameters.Length; i++)
 				if (method.Parameters[i].Name == name) {
 					ordinal = i;
 					return true;
 				}
-			}
-		}
 		return false;
 	}
 

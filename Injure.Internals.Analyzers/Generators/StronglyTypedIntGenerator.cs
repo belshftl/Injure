@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 using System.Threading;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
@@ -27,29 +28,33 @@ public sealed class StronglyTypedIntGenerator : IIncrementalGenerator {
 	// IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context) {
 		context.RegisterPostInitializationOutput(static (IncrementalGeneratorPostInitializationContext ctx) => {
-			ctx.AddEmbeddedAttributeDefinition();
-			ctx.AddSource(AttributeSources.StronglyTypedIntAttributeFilename, SourceText.From(AttributeSources.StronglyTypedIntAttribute, Encoding.UTF8));
-		});
+				ctx.AddEmbeddedAttributeDefinition();
+				ctx.AddSource(AttributeSources.StronglyTypedIntAttributeFilename, SourceText.From(AttributeSources.StronglyTypedIntAttribute, Encoding.UTF8));
+			}
+		);
 		IncrementalValuesProvider<TargetInfo?> targets = context.SyntaxProvider.ForAttributeWithMetadataName(
 			AttributeSources.StronglyTypedIntAttributeMetadataName,
 			predicate: static (SyntaxNode node, CancellationToken _) => node is StructDeclarationSyntax,
 			transform: check
 		);
-		context.RegisterSourceOutput(targets.Collect(), static (SourceProductionContext ctx, ImmutableArray<TargetInfo?> infos) => {
-			HashSet<INamedTypeSymbol> seen = new(SymbolEqualityComparer.Default);
-			foreach (TargetInfo? info in infos) {
-				if (info is null || !seen.Add(info.Symbol))
-					continue;
-				ctx.AddSource(getHintName(info), SourceText.From(emit(info), Encoding.UTF8));
+		context.RegisterSourceOutput(
+			targets.Collect(),
+			static (SourceProductionContext ctx, ImmutableArray<TargetInfo?> infos) => {
+				HashSet<INamedTypeSymbol> seen = new(SymbolEqualityComparer.Default);
+				foreach (TargetInfo? info in infos) {
+					if (info is null || !seen.Add(info.Symbol))
+						continue;
+					ctx.AddSource(getHintName(info), SourceText.From(emit(info), Encoding.UTF8));
+				}
 			}
-		});
+		);
 	}
 
 	private static string getHintName(TargetInfo info) =>
 		(info.Namespace is not null ? info.Namespace + "." + info.Symbol.Name : info.Symbol.Name) + Constants.StronglyTypedIntGeneratedSourceSuffix;
 
 	private static TargetInfo? check(GeneratorAttributeSyntaxContext ctx, CancellationToken ct) {
-		INamedTypeSymbol sym = (INamedTypeSymbol)ctx.TargetSymbol;
+		var sym = (INamedTypeSymbol)ctx.TargetSymbol;
 		if (sym.TypeKind != TypeKind.Struct || !Util.Partial(sym, ct) || !sym.IsReadOnly ||
 			sym.ContainingType is not null || sym.TypeParameters.Length != 0 || sym.IsRecord)
 			return null;
@@ -81,8 +86,8 @@ public sealed class StronglyTypedIntGenerator : IIncrementalGenerator {
 			sb.Append("namespace ").Append(info.Namespace).AppendLine(" {");
 
 		sb.Append('\t').AppendLine(@"[global::System.CodeDom.Compiler.GeneratedCodeAttribute(""Injure.Internals.Analyzers.StronglyTypedIntGenerator"", ""0.1.0-alpha"")]");
-		sb.Append('\t').Append(accessibility(info.Symbol)).Append("readonly partial struct ").Append(targetType).Append(" : global::System.IEquatable<").
-			Append(targetType).Append(">, global::System.IComparable<").Append(targetType).AppendLine(">,");
+		sb.Append('\t').Append(accessibility(info.Symbol)).Append("readonly partial struct ").Append(targetType).Append(" : global::System.IEquatable<").Append(targetType)
+			.Append(">, global::System.IComparable<").Append(targetType).AppendLine(">,");
 		sb.Append("\tglobal::System.IComparable, global::System.ISpanFormattable, global::System.IParsable<").Append(targetType).AppendLine(">,");
 		sb.Append("\tglobal::System.ISpanParsable<").Append(targetType).AppendLine("> {");
 		sb.Append("\t\tprivate readonly ").Append(backingType).Append(' ').Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
@@ -94,59 +99,100 @@ public sealed class StronglyTypedIntGenerator : IIncrementalGenerator {
 
 		sb.Append("\t\tpublic static explicit operator ").Append(targetType).Append("(").Append(backingType).AppendLine(" val) => new(val);");
 		sb.Append("\t\tpublic static explicit operator checked ").Append(targetType).Append("(").Append(backingType).AppendLine(" val) => new(checked(val));");
-		sb.Append("\t\tpublic static explicit operator ").Append(backingType).Append("(").Append(targetType).Append(" val) => val.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static explicit operator checked ").Append(backingType).Append("(").Append(targetType).Append(" val) => checked(val.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static explicit operator ").Append(backingType).Append("(").Append(targetType).Append(" val) => val.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static explicit operator checked ").Append(backingType).Append("(").Append(targetType).Append(" val) => checked(val.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
 
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator +(").Append(targetType).Append(" val) => new(+val.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator +(").Append(targetType).Append(" val) => new(+val.").Append(Constants.StronglyTypedIntBackingFieldName)
+			.AppendLine(");");
 		if (info.IsSigned) {
-			sb.Append("\t\tpublic static ").Append(targetType).Append(" operator -(").Append(targetType).Append(" val) => new(-val.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-			sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked -(").Append(targetType).Append(" val) => new(checked(-val.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine("));");
+			sb.Append("\t\tpublic static ").Append(targetType).Append(" operator -(").Append(targetType).Append(" val) => new(-val.")
+				.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+			sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked -(").Append(targetType).Append(" val) => new(checked(-val.")
+				.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine("));");
 		}
 
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ++(").Append(targetType).Append(" val) => new(val.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" + ").Append(one).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked ++(").Append(targetType).Append(" val) => new(checked(val.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" + ").Append(one).AppendLine("));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator --(").Append(targetType).Append(" val) => new(val.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" - ").Append(one).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked --(").Append(targetType).Append(" val) => new(checked(val.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" - ").Append(one).AppendLine("));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ++(").Append(targetType).Append(" val) => new(val.").Append(Constants.StronglyTypedIntBackingFieldName)
+			.Append(" + ").Append(one).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked ++(").Append(targetType).Append(" val) => new(checked(val.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" + ").Append(one).AppendLine("));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator --(").Append(targetType).Append(" val) => new(val.").Append(Constants.StronglyTypedIntBackingFieldName)
+			.Append(" - ").Append(one).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked --(").Append(targetType).Append(" val) => new(checked(val.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" - ").Append(one).AppendLine("));");
 
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator +(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" + right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked +(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(checked(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" + right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine("));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator -(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" - right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked -(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(checked(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" - right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine("));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator *(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" * right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked *(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(checked(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" * right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine("));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator /(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" / right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked /(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(checked(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" / right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine("));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator %(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" % right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator +(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" + right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked +(").Append(targetType).Append(" left, ").Append(targetType)
+			.Append(" right) => new(checked(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" + right.").Append(Constants.StronglyTypedIntBackingFieldName)
+			.AppendLine("));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator -(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" - right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked -(").Append(targetType).Append(" left, ").Append(targetType)
+			.Append(" right) => new(checked(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" - right.").Append(Constants.StronglyTypedIntBackingFieldName)
+			.AppendLine("));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator *(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" * right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked *(").Append(targetType).Append(" left, ").Append(targetType)
+			.Append(" right) => new(checked(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" * right.").Append(Constants.StronglyTypedIntBackingFieldName)
+			.AppendLine("));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator /(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" / right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator checked /(").Append(targetType).Append(" left, ").Append(targetType)
+			.Append(" right) => new(checked(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" / right.").Append(Constants.StronglyTypedIntBackingFieldName)
+			.AppendLine("));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator %(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" % right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
 
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator &(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" & right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator |(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" | right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ^(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" ^ right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ~(").Append(targetType).Append(" val) => new(~val.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator <<(").Append(targetType).Append(" val, int n) => new(val.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(" << n);");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator >>(").Append(targetType).Append(" val, int n) => new(val.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(" >> n);");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator &(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" & right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator |(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" | right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ^(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" ^ right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ~(").Append(targetType).Append(" val) => new(~val.").Append(Constants.StronglyTypedIntBackingFieldName)
+			.AppendLine(");");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator <<(").Append(targetType).Append(" val, int n) => new(val.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(" << n);");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator >>(").Append(targetType).Append(" val, int n) => new(val.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(" >> n);");
 
-		sb.Append("\t\tpublic static bool operator ==(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" == right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static bool operator !=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" != right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static bool operator <(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" < right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static bool operator >(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" > right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static bool operator <=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" <= right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static bool operator >=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.StronglyTypedIntBackingFieldName).Append(" >= right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator ==(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" == right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator !=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" != right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator <(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" < right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator >(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" > right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator <=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" <= right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator >=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).Append(" >= right.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
 
-		sb.Append("\t\tpublic bool Equals(").Append(targetType).Append(" other) => ").Append(Constants.StronglyTypedIntBackingFieldName).Append(" == other.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic bool Equals(").Append(targetType).Append(" other) => ").Append(Constants.StronglyTypedIntBackingFieldName).Append(" == other.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
 		sb.Append("\t\tpublic override bool Equals(object? obj) => obj is ").Append(targetType).AppendLine(" other && Equals(other);");
 		sb.Append("\t\tpublic override int GetHashCode() => ").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(".GetHashCode();");
 
-		sb.Append("\t\tpublic int CompareTo(").Append(targetType).Append(" other) => ").Append(Constants.StronglyTypedIntBackingFieldName).Append(".CompareTo(other.").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
+		sb.Append("\t\tpublic int CompareTo(").Append(targetType).Append(" other) => ").Append(Constants.StronglyTypedIntBackingFieldName).Append(".CompareTo(other.")
+			.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(");");
 		sb.Append("\t\tpublic int CompareTo(object? obj) => obj is ").Append(targetType).AppendLine(" other ? CompareTo(other) : 1;");
 
 		sb.Append("\t\tpublic override string ToString() => ").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(".ToString();");
-		sb.Append("\t\tpublic string ToString(string? format, IFormatProvider? provider) => ").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(".ToString(format, provider);");
-		sb.Append("\t\tpublic bool TryFormat(Span<char> dst, out int written, ReadOnlySpan<char> format, IFormatProvider? provider) => ").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(".TryFormat(dst, out written, format, provider);");
+		sb.Append("\t\tpublic string ToString(string? format, IFormatProvider? provider) => ").Append(Constants.StronglyTypedIntBackingFieldName)
+			.AppendLine(".ToString(format, provider);");
+		sb.Append("\t\tpublic bool TryFormat(Span<char> dst, out int written, ReadOnlySpan<char> format, IFormatProvider? provider) => ")
+			.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(".TryFormat(dst, out written, format, provider);");
 
 		sb.Append("\t\tpublic static ").Append(targetType).Append(" Parse(string s, IFormatProvider? provider) => new(").Append(backingType).AppendLine(".Parse(s, provider));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" Parse(ReadOnlySpan<char> span, IFormatProvider? provider) => new(").Append(backingType).AppendLine(".Parse(span, provider));");
-		sb.Append("\t\tpublic static bool TryParse(string? s, IFormatProvider? provider, out ").Append(targetType).Append(" result) { bool ok = ").Append(backingType).Append(".TryParse(s, provider, out ").Append(backingType).AppendLine(" v); result = new(v); return ok; }");
-		sb.Append("\t\tpublic static bool TryParse(ReadOnlySpan<char> span, IFormatProvider? provider, out ").Append(targetType).Append(" result) { bool ok = ").Append(backingType).Append(".TryParse(span, provider, out ").Append(backingType).AppendLine(" v); result = new(v); return ok; }");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" Parse(ReadOnlySpan<char> span, IFormatProvider? provider) => new(").Append(backingType)
+			.AppendLine(".Parse(span, provider));");
+		sb.Append("\t\tpublic static bool TryParse(string? s, IFormatProvider? provider, out ").Append(targetType).Append(" result) { bool ok = ").Append(backingType)
+			.Append(".TryParse(s, provider, out ").Append(backingType).AppendLine(" v); result = new(v); return ok; }");
+		sb.Append("\t\tpublic static bool TryParse(ReadOnlySpan<char> span, IFormatProvider? provider, out ").Append(targetType).Append(" result) { bool ok = ").Append(backingType)
+			.Append(".TryParse(span, provider, out ").Append(backingType).AppendLine(" v); result = new(v); return ok; }");
 
 		sb.AppendLine("\t}");
 		if (info.Namespace is not null)

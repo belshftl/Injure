@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Generic;
+
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Lifetime;
 
 internal sealed class FlowResult {
 	public FlowState? ContinueState { get; init; }
-	public List<ControlFlowExit> Exits { get; } = new List<ControlFlowExit>();
+	public List<ControlFlowExit> Exits { get; } = new();
 	public bool MayContinue => ContinueState is not null;
 
 	public static FlowResult Continue(FlowState state) => new() { ContinueState = state };

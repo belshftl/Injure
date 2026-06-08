@@ -10,11 +10,11 @@ namespace Injure.Graphics.PixelConv;
 public readonly partial struct ConversionFlags {
 	[Flags]
 	public enum Bits {
-		None                       = 0,
-		AllowNarrowing             = 1 << 0,
-		AllowDroppingAlpha         = 1 << 1,
+		None = 0,
+		AllowNarrowing = 1 << 0,
+		AllowDroppingAlpha = 1 << 1,
 		AllowDroppingColorChannels = 1 << 2,
-		AllowDroppingChannels      = AllowDroppingAlpha | AllowDroppingColorChannels,
+		AllowDroppingChannels = AllowDroppingAlpha | AllowDroppingColorChannels,
 	}
 }
 

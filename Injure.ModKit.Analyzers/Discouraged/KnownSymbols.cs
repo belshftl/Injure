@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Linq;
+
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Discouraged;

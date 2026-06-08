@@ -40,7 +40,9 @@ public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput) 
 		};
 		lock (outputLock) {
 			if (colorOutput)
-				output.WriteLine($"{TimestampColor}({timestamp}){resetColor} {OwnerColor}[{d.SourceOwnerID}{resetColor}{GenerationColor}@{genText}{resetColor}{OwnerColor}]{resetColor} {severityColor}{severityMarker}{resetColor} {d.Message}");
+				output.WriteLine(
+					$"{TimestampColor}({timestamp}){resetColor} {OwnerColor}[{d.SourceOwnerID}{resetColor}{GenerationColor}@{genText}{resetColor}{OwnerColor}]{resetColor} {severityColor}{severityMarker}{resetColor} {d.Message}"
+				);
 			else
 				output.WriteLine($"({timestamp}) [{d.SourceOwnerID}@{genText}] {severityMarker} {d.Message}");
 		}

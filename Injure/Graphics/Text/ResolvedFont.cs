@@ -4,8 +4,11 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+
 using FreeTypeSharp;
+
 using HarfBuzzSharp;
+
 using static FreeTypeSharp.FT;
 using static FreeTypeSharp.FT_LOAD;
 using static FreeTypeSharp.FT_Render_Mode_;
@@ -81,9 +84,7 @@ internal sealed class ResolvedDirectFont(TextSystem owner, Font source, int face
 		return state;
 	}
 
-	public FontCacheToken GetCacheToken() {
-		return new FontCacheToken(new ResolvedFontKey(FontSourceKind.Direct, source.ID, faceIndex, opts), Version);
-	}
+	public FontCacheToken GetCacheToken() => new(new ResolvedFontKey(FontSourceKind.Direct, source.ID, faceIndex, opts), Version);
 
 	public void Dispose() => state?.Dispose();
 }
@@ -136,7 +137,7 @@ internal sealed unsafe class LoadedFontFace : IDisposable {
 	public readonly Face HbFace;
 
 	public int ByteLength => data.Length;
-	public byte *DataPtr => (byte *)pinned.AddrOfPinnedObject();
+	public byte* DataPtr => (byte*)pinned.AddrOfPinnedObject();
 
 	public LoadedFontFace(Font source, int faceIndex) {
 		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
@@ -148,7 +149,10 @@ internal sealed unsafe class LoadedFontFace : IDisposable {
 		try {
 			pinned = GCHandle.Alloc(data, GCHandleType.Pinned);
 			if (faceIndex >= source.FaceCount)
-				throw new ArgumentOutOfRangeException(nameof(faceIndex), $"face index {faceIndex} is out of range for {DebugName ?? "this font"}; file contains {source.FaceCount} face(s)");
+				throw new ArgumentOutOfRangeException(
+					nameof(faceIndex),
+					$"face index {faceIndex} is out of range for {DebugName ?? "this font"}; file contains {source.FaceCount} face(s)"
+				);
 			hbBlob = new Blob(pinned.AddrOfPinnedObject(), data.Length, MemoryMode.ReadOnly);
 			hbFace = new Face(hbBlob, faceIndex);
 			this.data = data;
@@ -250,7 +254,7 @@ internal sealed unsafe class ResolvedFontState : IDisposable {
 		Options = FontBackendOptions.FromOptions(in opts);
 		this.loadedFace = loadedFace;
 
-		FT_FaceRec_ *ftFace = null;
+		FT_FaceRec_* ftFace = null;
 		try {
 			FTException.Check(FT_New_Memory_Face(owner.FtLibrary, loadedFace.DataPtr, loadedFace.ByteLength, loadedFace.FaceIndex, &ftFace));
 			FTException.Check(FT_Set_Pixel_Sizes(ftFace, 0, (uint)opts.PixelSize));
@@ -272,7 +276,7 @@ internal sealed unsafe class ResolvedFontState : IDisposable {
 			FT_Size_Metrics_ m = ftFace->size->metrics;
 			float ascent = m.ascender / 64.0f;
 			float descent = -m.descender / 64.0f;
-			float height = m.height > 0 ? m.height / 64.0f : (ascent + descent);
+			float height = m.height > 0 ? m.height / 64.0f : ascent + descent;
 			float lineGap = MathF.Max(0f, height - (ascent + descent));
 			LineMetrics = new FontLineMetrics(
 				Ascent: ascent,
@@ -302,7 +306,7 @@ internal sealed unsafe class ResolvedFontState : IDisposable {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		nint advance16_16 = 0;
 		FTException.Check(FT_Get_Advance(FtFace, glyphID, Options.LoadFlags, &advance16_16));
-		return (int)((advance16_16 + 0x200) >> 10);
+		return (int)(advance16_16 + 0x200 >> 10);
 	}
 
 	private bool hbTryGetGlyphExtents(HarfBuzzSharp.Font font, object fontData, uint glyphID, out GlyphExtents extents) {

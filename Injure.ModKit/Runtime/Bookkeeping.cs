@@ -14,6 +14,7 @@ namespace Injure.ModKit.Runtime;
 internal readonly record struct ModSource(string RootDirectory, string ManifestPath);
 internal readonly record struct DiscoveredMod(ModSource Source, ModManifest Manifest);
 internal readonly record struct ResolvedMod(ModManifest Manifest, ModSource Source);
+
 internal readonly record struct ResolvedModGraph(
 	IReadOnlyDictionary<string, ResolvedMod> Mods,
 	IReadOnlyDictionary<string, string[]> OutgoingOrderEdges,
@@ -21,6 +22,7 @@ internal readonly record struct ResolvedModGraph(
 	ModWavePlan Waves,
 	IReadOnlyList<ResolvedMod> ModsInDeterministicOrder
 );
+
 internal readonly record struct ModWavePlan(IReadOnlyList<IReadOnlyList<string>> Waves);
 internal readonly record struct StagedMod(ModSource Source, ModManifest Manifest, string StagedRoot, ReloadGeneration Generation, string? MainAssemblyPath);
 

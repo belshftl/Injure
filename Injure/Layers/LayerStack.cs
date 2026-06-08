@@ -221,7 +221,7 @@ public sealed class LayerStack : IDisposable {
 			return;
 		disposed = true;
 		clear();
-		foreach (PendingOp op in pending) {
+		foreach (PendingOp op in pending)
 			switch (op.Kind) {
 			case PendingOpKind.BeginPushTop:
 			case PendingOpKind.BeginPushBottom:
@@ -236,7 +236,6 @@ public sealed class LayerStack : IDisposable {
 					op.NewLayer.Owner = null;
 				break;
 			}
-		}
 		pending.Clear();
 	}
 
@@ -399,7 +398,7 @@ public sealed class LayerStack : IDisposable {
 				PendingOp[] batch = pending.ToArray();
 				pending.Clear();
 
-				foreach (PendingOp op in batch) {
+				foreach (PendingOp op in batch)
 					switch (op.Kind) {
 					case PendingOpKind.BeginPushTop:
 						beginWarmPush(op.Layer!, op.Ticker!, pushToTop: true);
@@ -426,7 +425,6 @@ public sealed class LayerStack : IDisposable {
 						clear();
 						break;
 					}
-				}
 			}
 		} finally {
 			applying = false;
@@ -448,13 +446,15 @@ public sealed class LayerStack : IDisposable {
 			throw;
 		}
 
-		warming.Add(new WarmingOp {
-			Kind = pushToTop ? WarmingOpKind.PushTop : WarmingOpKind.PushBottom,
-			Layer = layer,
-			Ticker = ticker,
-			Cts = cts,
-			Task = task,
-		});
+		warming.Add(
+			new WarmingOp {
+				Kind = pushToTop ? WarmingOpKind.PushTop : WarmingOpKind.PushBottom,
+				Layer = layer,
+				Ticker = ticker,
+				Cts = cts,
+				Task = task,
+			}
+		);
 	}
 
 	private void beginWarmReplace(Layer oldLayer, Layer newLayer, TickerHandle ticker) {
@@ -475,14 +475,16 @@ public sealed class LayerStack : IDisposable {
 			throw;
 		}
 
-		warming.Add(new WarmingOp {
-			Kind = WarmingOpKind.Replace,
-			OldLayer = oldLayer,
-			Layer = newLayer,
-			Ticker = ticker,
-			Cts = cts,
-			Task = task,
-		});
+		warming.Add(
+			new WarmingOp {
+				Kind = WarmingOpKind.Replace,
+				OldLayer = oldLayer,
+				Layer = newLayer,
+				Ticker = ticker,
+				Cts = cts,
+				Task = task,
+			}
+		);
 	}
 
 	private void enterWarmed(Layer layer, TickerHandle ticker, bool pushToTop) {
@@ -601,11 +603,14 @@ public sealed class LayerStack : IDisposable {
 	// ==========================================================================
 	// warm
 	private static Task runWarmAsync(Layer layer, CancellationToken ct) =>
-		Task.Run(async () => {
-			ct.ThrowIfCancellationRequested();
-			await layer.WarmAsync(ct).ConfigureAwait(false);
-			ct.ThrowIfCancellationRequested();
-		}, ct);
+		Task.Run(
+			async () => {
+				ct.ThrowIfCancellationRequested();
+				await layer.WarmAsync(ct).ConfigureAwait(false);
+				ct.ThrowIfCancellationRequested();
+			},
+			ct
+		);
 
 	private bool cancelWarmingLayer(Layer layer) {
 		for (int i = warming.Count - 1; i >= 0; i--) {
@@ -661,7 +666,7 @@ public sealed class LayerStack : IDisposable {
 			if (ReferenceEquals(op.OldLayer, layer))
 				ret = true;
 		}
-		foreach (PendingOp op in pending) {
+		foreach (PendingOp op in pending)
 			switch (op.Kind) {
 			case PendingOpKind.BeginPushTop:
 			case PendingOpKind.BeginPushBottom:
@@ -685,7 +690,6 @@ public sealed class LayerStack : IDisposable {
 				ret = false;
 				break;
 			}
-		}
 		return ret;
 	}
 

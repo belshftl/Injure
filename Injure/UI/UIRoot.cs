@@ -26,11 +26,11 @@ public sealed class UIRoot(UICanvasPolicy canvasPolicy) {
 		UIWidget? old = FocusedWidget;
 		FocusedWidget = widget;
 		if (old is IUIFocusSink oldSink) {
-			UIEventContext ctx = UIEventContext.Create(this, old);
+			var ctx = UIEventContext.Create(this, old);
 			oldSink.OnFocus(ref ctx, new UIFocusEvent(false));
 		}
 		if (widget is IUIFocusSink newSink) {
-			UIEventContext ctx = UIEventContext.Create(this, widget);
+			var ctx = UIEventContext.Create(this, widget);
 			newSink.OnFocus(ref ctx, new UIFocusEvent(true));
 		}
 	}
@@ -72,7 +72,7 @@ public sealed class UIRoot(UICanvasPolicy canvasPolicy) {
 	}
 
 	private void processControlEvents(in ControlView input) {
-		for (int i = 0; i < input.Events.Length; i++) {
+		for (int i = 0; i < input.Events.Length; i++)
 			switch (input.Events[i]) {
 			case PointerMoveControlEvent move:
 				handlePointerMove(move);
@@ -87,7 +87,6 @@ public sealed class UIRoot(UICanvasPolicy canvasPolicy) {
 				handleText(text);
 				break;
 			}
-		}
 	}
 
 	private void handlePointerMove(PointerMoveControlEvent ev) {
@@ -96,12 +95,15 @@ public sealed class UIRoot(UICanvasPolicy canvasPolicy) {
 		UIWidget? target = CapturedPointerWidget ?? HitTest(logicalPos);
 		updateHover(logicalPos);
 		if (target is IUIPointerMoveSink sink) {
-			UIEventContext ctx = UIEventContext.Create(this, target);
-			sink.OnPointerMove(ref ctx, new UIPointerMoveEvent(
-				Tick: ev.Tick,
-				Position: logicalPos,
-				Delta: logicalDelta
-			));
+			var ctx = UIEventContext.Create(this, target);
+			sink.OnPointerMove(
+				ref ctx,
+				new UIPointerMoveEvent(
+					Tick: ev.Tick,
+					Position: logicalPos,
+					Delta: logicalDelta
+				)
+			);
 		}
 	}
 
@@ -114,14 +116,17 @@ public sealed class UIRoot(UICanvasPolicy canvasPolicy) {
 		if (target.Focusable)
 			Focus(target);
 		if (target is IUIPointerButtonSink sink) {
-			UIEventContext ctx = UIEventContext.Create(this, target);
-			sink.OnPointerButton(ref ctx, new UIPointerButtonEvent(
-				Tick: ev.Tick,
-				Position: logicalPos,
-				Button: PointerButton.Left, // TODO
-				Edge: ev.Edge,
-				Clicks: p.Clicks
-			));
+			var ctx = UIEventContext.Create(this, target);
+			sink.OnPointerButton(
+				ref ctx,
+				new UIPointerButtonEvent(
+					Tick: ev.Tick,
+					Position: logicalPos,
+					Button: PointerButton.Left, // TODO
+					Edge: ev.Edge,
+					Clicks: p.Clicks
+				)
+			);
 		}
 	}
 
@@ -134,24 +139,30 @@ public sealed class UIRoot(UICanvasPolicy canvasPolicy) {
 			return;
 
 		Vector2 amount = new(0f, ev.Amount); // TODO: assumes this is a scroll-y action
-		UIEventContext ctx = UIEventContext.Create(this, target);
-		sink.OnScroll(ref ctx, new UIScrollEvent(
-			Tick: ev.Tick,
-			Position: logicalPos,
-			Amount: amount,
-			IntegerAmount: new Vector2Int(0, p.IntegerAmount)
-		));
+		var ctx = UIEventContext.Create(this, target);
+		sink.OnScroll(
+			ref ctx,
+			new UIScrollEvent(
+				Tick: ev.Tick,
+				Position: logicalPos,
+				Amount: amount,
+				IntegerAmount: new Vector2Int(0, p.IntegerAmount)
+			)
+		);
 	}
 
 	private void handleText(TextEnteredControlEvent ev) {
 		if (FocusedWidget is not IUITextInputSink sink)
 			return;
 
-		UIEventContext ctx = UIEventContext.Create(this, FocusedWidget);
-		sink.OnTextInput(ref ctx, new UITextInputEvent(
-			Tick: ev.Tick,
-			Text: ev.Text
-		));
+		var ctx = UIEventContext.Create(this, FocusedWidget);
+		sink.OnTextInput(
+			ref ctx,
+			new UITextInputEvent(
+				Tick: ev.Tick,
+				Text: ev.Text
+			)
+		);
 	}
 
 	private void updateHover(Vector2 pos) {
@@ -163,20 +174,26 @@ public sealed class UIRoot(UICanvasPolicy canvasPolicy) {
 		HoveredWidget = hit;
 
 		if (old is IUIHoverSink oldSink) {
-			UIEventContext ctx = UIEventContext.Create(this, old);
-			oldSink.OnHover(ref ctx, new UIHoverEvent(
-				Tick: MonoTick.Zero,
-				Position: pos,
-				Hovered: false
-			));
+			var ctx = UIEventContext.Create(this, old);
+			oldSink.OnHover(
+				ref ctx,
+				new UIHoverEvent(
+					Tick: MonoTick.Zero,
+					Position: pos,
+					Hovered: false
+				)
+			);
 		}
 		if (hit is IUIHoverSink newSink) {
-			UIEventContext ctx = UIEventContext.Create(this, hit);
-			newSink.OnHover(ref ctx, new UIHoverEvent(
-				Tick: MonoTick.Zero,
-				Position: pos,
-				Hovered: true
-			));
+			var ctx = UIEventContext.Create(this, hit);
+			newSink.OnHover(
+				ref ctx,
+				new UIHoverEvent(
+					Tick: MonoTick.Zero,
+					Position: pos,
+					Hovered: true
+				)
+			);
 		}
 	}
 

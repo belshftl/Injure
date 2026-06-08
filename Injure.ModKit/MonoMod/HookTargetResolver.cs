@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+
 using Injure.ModKit.Abstractions.MonoMod;
 
 namespace Injure.ModKit.MonoMod;
@@ -21,9 +22,7 @@ internal sealed class HookTargetResolver {
 			addStore(attr.StoreType);
 	}
 
-	public bool TryResolve(string id, out HookTarget target) {
-		return targets.TryGetValue(id, out target);
-	}
+	public bool TryResolve(string id, out HookTarget target) => targets.TryGetValue(id, out target);
 
 	public HookTarget Resolve(string id) {
 		if (targets.TryGetValue(id, out HookTarget target))
@@ -43,7 +42,7 @@ internal sealed class HookTargetResolver {
 		if (!typeof(IEnumerable<HookTarget>).IsAssignableFrom(enumerate.ReturnType))
 			throw new InvalidOperationException($"was expecting hook target store '{storeType.FullName}'.Enumerate() to return IEnumerable<HookTarget>");
 
-		IEnumerable<HookTarget> values = (IEnumerable<HookTarget>)enumerate.Invoke(null, null)!;
+		var values = (IEnumerable<HookTarget>)enumerate.Invoke(null, null)!;
 		foreach (HookTarget target in values) {
 			if (string.IsNullOrWhiteSpace(target.ID))
 				throw new InvalidOperationException($"hook target store '{storeType.FullName}' unexpectedly returned a target with a null/empty/whitespace id");
@@ -52,4 +51,3 @@ internal sealed class HookTargetResolver {
 		}
 	}
 }
-

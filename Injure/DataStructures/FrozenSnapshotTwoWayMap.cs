@@ -17,6 +17,7 @@ public sealed class FrozenSnapshotTwoWayMap<TLeft, TRight> : ITwoWayMap<TLeft, T
 			PairSpan,
 			SplitSpans,
 		}
+
 		private readonly ReadOnlySpan<(TLeft Left, TRight Right)> pairs;
 		private readonly ReadOnlySpan<TLeft> lefts;
 		private readonly ReadOnlySpan<TRight> rights;
@@ -83,12 +84,10 @@ public sealed class FrozenSnapshotTwoWayMap<TLeft, TRight> : ITwoWayMap<TLeft, T
 
 	// ==========================================================================
 	// private utility
-	private static Snapshot freeze(Dictionary<TLeft, TRight> ltr, Dictionary<TRight, TLeft> rtl, IEqualityComparer<TLeft>? cmpLeft, IEqualityComparer<TRight>? cmpRight) {
-		return new Snapshot(
-			ltr.Count == 0 ? FrozenDictionary<TLeft, TRight>.Empty : ltr.ToFrozenDictionary(cmpLeft),
-			rtl.Count == 0 ? FrozenDictionary<TRight, TLeft>.Empty : rtl.ToFrozenDictionary(cmpRight)
-		);
-	}
+	private static Snapshot freeze(Dictionary<TLeft, TRight> ltr, Dictionary<TRight, TLeft> rtl, IEqualityComparer<TLeft>? cmpLeft, IEqualityComparer<TRight>? cmpRight) => new(
+		ltr.Count == 0 ? FrozenDictionary<TLeft, TRight>.Empty : ltr.ToFrozenDictionary(cmpLeft),
+		rtl.Count == 0 ? FrozenDictionary<TRight, TLeft>.Empty : rtl.ToFrozenDictionary(cmpRight)
+	);
 
 	private static void add(Dictionary<TLeft, TRight> ltr, Dictionary<TRight, TLeft> rtl, TLeft left, TRight right) {
 		if (ltr.ContainsKey(left))

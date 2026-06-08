@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -73,7 +74,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 
 	private FlowResult analyzeBlock(IBlockOperation block, FlowState state) {
 		FlowState? current = state;
-		FlowResult aggregate = FlowResult.Continue(state.Clone());
+		var aggregate = FlowResult.Continue(state.Clone());
 		aggregate.Exits.Clear();
 		foreach (IOperation stmt in block.Operations) {
 			if (stmt is ILabeledOperation labeled)
@@ -107,7 +108,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		FlowResult whenFalse = op.WhenFalse is not null
 			? analyzeStatement(op.WhenFalse, cond.ContinueState.Clone())
 			: FlowResult.Continue(cond.ContinueState.Clone());
-		FlowResult result = FlowResult.Merge(whenTrue, whenFalse, op.Syntax.GetLocation(), FlowMergeKind.Conditional);
+		var result = FlowResult.Merge(whenTrue, whenFalse, op.Syntax.GetLocation(), FlowMergeKind.Conditional);
 		result.Exits.AddRange(cond.Exits);
 		return result;
 	}
@@ -126,8 +127,8 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		FlowState zeroState = header.ContinueState.Clone();
 		FlowResult one = analyzeStatement(op.Body, header.ContinueState.Clone());
 		FlowResult finishedOne = oneLoopIter(one, op.Syntax.GetLocation());
-		FlowResult zero = FlowResult.Continue(zeroState);
-		FlowResult result = FlowResult.Merge(zero, finishedOne, op.Syntax.GetLocation(), FlowMergeKind.LoopIteration);
+		var zero = FlowResult.Continue(zeroState);
+		var result = FlowResult.Merge(zero, finishedOne, op.Syntax.GetLocation(), FlowMergeKind.LoopIteration);
 		result.Exits.AddRange(header.Exits);
 		return result;
 	}
@@ -154,16 +155,17 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 	private FlowResult analyzeReturn(IReturnOperation op, FlowState state) {
 		FlowResult result = op.ReturnedValue is not null ? maybeThrow(op.ReturnedValue, state, op.ReturnedValue.Syntax.GetLocation()) : FlowResult.Continue(state);
 
-		if (result.ContinueState is not null) {
-			result.Exits.Add(new ControlFlowExit {
-				Kind = ControlExitKind.Return,
-				State = result.ContinueState.Clone(),
-				Location = op.Syntax.GetLocation(),
-				Cause = ObligationTransitionCause.Return,
-			});
-		}
+		if (result.ContinueState is not null)
+			result.Exits.Add(
+				new ControlFlowExit {
+					Kind = ControlExitKind.Return,
+					State = result.ContinueState.Clone(),
+					Location = op.Syntax.GetLocation(),
+					Cause = ObligationTransitionCause.Return,
+				}
+			);
 
-		FlowResult final = FlowResult.NoContinue();
+		var final = FlowResult.NoContinue();
 		final.Exits.AddRange(result.Exits);
 		return final;
 	}
@@ -171,18 +173,19 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 	private FlowResult analyzeThrow(IThrowOperation op, FlowState state) {
 		FlowResult result = op.Exception is not null ? maybeThrow(op.Exception, state, op.Exception.Syntax.GetLocation()) : FlowResult.Continue(state);
 
-		if (result.ContinueState is not null) {
-			result.Exits.Add(new ControlFlowExit {
-				Kind = ControlExitKind.Throw,
-				State = result.ContinueState.Clone(),
-				Location = op.Syntax.GetLocation(),
-				Cause = ObligationTransitionCause.Throw,
-				ExceptionType = op.Exception?.Type,
-				ExceptionTypeUnknown = op.Exception?.Type is null,
-			});
-		}
+		if (result.ContinueState is not null)
+			result.Exits.Add(
+				new ControlFlowExit {
+					Kind = ControlExitKind.Throw,
+					State = result.ContinueState.Clone(),
+					Location = op.Syntax.GetLocation(),
+					Cause = ObligationTransitionCause.Throw,
+					ExceptionType = op.Exception?.Type,
+					ExceptionTypeUnknown = op.Exception?.Type is null,
+				}
+			);
 
-		FlowResult final = FlowResult.NoContinue();
+		var final = FlowResult.NoContinue();
 		final.Exits.AddRange(result.Exits);
 		return final;
 	}
@@ -196,7 +199,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 
 	private FlowResult analyzeTryCatchNoFinally(ITryOperation op, FlowState state) {
 		FlowResult tryResult = analyzeStatement(op.Body, state.Clone());
-		FlowResult result = FlowResult.NoContinue();
+		var result = FlowResult.NoContinue();
 
 		if (tryResult.ContinueState is not null)
 			result = FlowResult.Merge(result, FlowResult.Continue(tryResult.ContinueState.Clone()), op.Syntax.GetLocation(), FlowMergeKind.TryCatch);
@@ -234,7 +237,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 	}
 
 	private FlowResult applyFinally(FlowResult beforeFinally, IBlockOperation finallyBlock, Location location) {
-		FlowResult result = FlowResult.NoContinue();
+		var result = FlowResult.NoContinue();
 
 		if (beforeFinally.ContinueState is not null) {
 			FlowResult afterFinally = analyzeStatement(finallyBlock, beforeFinally.ContinueState.Clone());
@@ -245,17 +248,18 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 			FlowResult afterFinally = analyzeStatement(finallyBlock, originalExit.State.Clone());
 			foreach (ControlFlowExit finallyExit in afterFinally.Exits)
 				result.Exits.Add(finallyExit.Clone());
-			if (afterFinally.ContinueState is not null) {
-				result.Exits.Add(new ControlFlowExit {
-					Kind = originalExit.Kind,
-					State = afterFinally.ContinueState.Clone(),
-					Location = originalExit.Location,
-					Target = originalExit.Target,
-					Cause = originalExit.Cause,
-					ExceptionType = originalExit.ExceptionType,
-					ExceptionTypeUnknown = originalExit.ExceptionTypeUnknown,
-				});
-			}
+			if (afterFinally.ContinueState is not null)
+				result.Exits.Add(
+					new ControlFlowExit {
+						Kind = originalExit.Kind,
+						State = afterFinally.ContinueState.Clone(),
+						Location = originalExit.Location,
+						Target = originalExit.Target,
+						Cause = originalExit.Cause,
+						ExceptionType = originalExit.ExceptionType,
+						ExceptionTypeUnknown = originalExit.ExceptionTypeUnknown,
+					}
+				);
 		}
 
 		return result;
@@ -348,13 +352,15 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 			return FlowResult.Continue(state);
 		}
 
-		return FlowResult.Stop(new ControlFlowExit {
-			Kind = kind.Value,
-			State = state.Clone(),
-			Location = op.Syntax.GetLocation(),
-			Target = op.Target,
-			Cause = kind == ControlExitKind.Goto ? ObligationTransitionCause.UnsupportedControlFlow : ObligationTransitionCause.UnsupportedBranch,
-		});
+		return FlowResult.Stop(
+			new ControlFlowExit {
+				Kind = kind.Value,
+				State = state.Clone(),
+				Location = op.Syntax.GetLocation(),
+				Target = op.Target,
+				Cause = kind == ControlExitKind.Goto ? ObligationTransitionCause.UnsupportedControlFlow : ObligationTransitionCause.UnsupportedBranch,
+			}
+		);
 	}
 
 	private FlowResult analyzeLabeled(ILabeledOperation op, FlowState state) {
@@ -365,18 +371,20 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 	}
 
 	private FlowResult maybeThrow(IOperation op, FlowState state, Location location) {
-		FlowResult result = FlowResult.Continue(state);
+		var result = FlowResult.Continue(state);
 		if (!MayThrowClassifier.MayThrow(op))
 			return result;
 		if (isKnownCleanupInvocation(op, state))
 			return result;
-		result.Exits.Add(new ControlFlowExit {
-			Kind = ControlExitKind.Throw,
-			State = state.Clone(),
-			Location = location,
-			Cause = ObligationTransitionCause.MayThrow,
-			ExceptionTypeUnknown = true,
-		});
+		result.Exits.Add(
+			new ControlFlowExit {
+				Kind = ControlExitKind.Throw,
+				State = state.Clone(),
+				Location = location,
+				Cause = ObligationTransitionCause.MayThrow,
+				ExceptionTypeUnknown = true,
+			}
+		);
 		return result;
 	}
 
@@ -422,7 +430,10 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		}
 
 		if ((labelPositions?.TryGetPosition(exit.Target, out int targetPosition) ?? false) && targetPosition <= exit.Location.SourceSpan.Start) {
-			bail(exit.Location, "backwards goto is unsupported as it can reopen satisfied obligations and make arbitrary regions execute multiple times; it's recommended to avoid backwards goto, but if you must use it then suppress this warning");
+			bail(
+				exit.Location,
+				"backwards goto is unsupported as it can reopen satisfied obligations and make arbitrary regions execute multiple times; it's recommended to avoid backwards goto, but if you must use it then suppress this warning"
+			);
 			return;
 		}
 
@@ -431,11 +442,13 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 			pendingGotosByTarget.Add(exit.Target, jumps);
 		}
 
-		jumps.Add(new PendingGoto {
-			Target = exit.Target,
-			State = exit.State.Clone(),
-			Location = exit.Location,
-		});
+		jumps.Add(
+			new PendingGoto {
+				Target = exit.Target,
+				State = exit.State.Clone(),
+				Location = exit.Location,
+			}
+		);
 	}
 
 	private void addNonGotoExits(List<ControlFlowExit> target, List<ControlFlowExit> source) {
@@ -445,7 +458,7 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 	}
 
 	private void finalizeMethodExits(List<ControlFlowExit> exits) {
-		foreach (ControlFlowExit exit in exits) {
+		foreach (ControlFlowExit exit in exits)
 			switch (exit.Kind) {
 			case ControlExitKind.Return:
 				exit.State.TransitionOpenToLeaked(exit.Location, ObligationTransitionCause.Return, events);
@@ -466,7 +479,6 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 				registerGoto(exit);
 				break;
 			}
-		}
 	}
 
 	private void processEffects(IOperation op, FlowState state) {
@@ -581,9 +593,8 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		}
 
 		if (LifetimeRuleSet.TryGetLocalReference(assignment.Value, out ILocalSymbol? escapedLocal) &&
-			state.TryGetByLocal(escapedLocal, out _)) {
+			state.TryGetByLocal(escapedLocal, out _))
 			state.TransitionOpenToLeaked(assignment.Syntax.GetLocation(), ObligationTransitionCause.Escape, events);
-		}
 	}
 
 	private void processInvocation(IInvocationOperation inv, FlowState state) {
@@ -591,7 +602,15 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 
 		ObligationCreation? sideEffCreation = rules.TryCreateFromSideEffectInvocation(inv);
 		if (sideEffCreation is ObligationCreation created) {
-			LifetimeObligation taskObl = new(nextObligationID++, created.Kind, created.RequiredSatisfaction, created.InitialSatisfaction, null, created.TypeName, inv.Syntax.GetLocation());
+			LifetimeObligation taskObl = new(
+				nextObligationID++,
+				created.Kind,
+				created.RequiredSatisfaction,
+				created.InitialSatisfaction,
+				null,
+				created.TypeName,
+				inv.Syntax.GetLocation()
+			);
 			state.Add(taskObl);
 			if (created.InitialSatisfaction == ObligationSatisfactionLevel.None && taskObl.TryLeak(inv.Syntax.GetLocation()))
 				events.Add(ObligationTransitionEvent.From(taskObl, ObligationState.Leaked, ObligationTransitionCause.DiscardedValue, inv.Syntax.GetLocation()));
@@ -775,7 +794,13 @@ internal sealed class MethodAnalyzer(KnownTypes known, LifetimeRuleSet rules, Bo
 		obl.TrySatisfy(level, transferLocation);
 	}
 
-	private void processReturnedSatisfiedReturnInvocationCreation(IInvocationOperation inv, ILocalSymbol local, FlowState state, Location transferLocation, ObligationSatisfactionLevel level) {
+	private void processReturnedSatisfiedReturnInvocationCreation(
+		IInvocationOperation inv,
+		ILocalSymbol local,
+		FlowState state,
+		Location transferLocation,
+		ObligationSatisfactionLevel level
+	) {
 		ObligationCreation? classified = rules.TryCreateFromReturnInvocationCreation(inv);
 		if (classified is null || !markObligationCreationProcessed(inv.Syntax))
 			return;

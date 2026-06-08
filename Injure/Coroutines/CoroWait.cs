@@ -31,7 +31,7 @@ public sealed class CoroSignal {
 internal sealed class CoroWaitForTicks(CoroutineTick ticks) : ICoroutineWait {
 	private readonly CoroutineTick total = ticks;
 	private CoroutineTick remaining = ticks;
-	public bool KeepWaiting(in CoroutineContext ctx) => (remaining > CoroutineTick.Zero) && (--remaining > CoroutineTick.Zero);
+	public bool KeepWaiting(in CoroutineContext ctx) => remaining > CoroutineTick.Zero && --remaining > CoroutineTick.Zero;
 	public void OnCancel(CoroCancellationReason reason) {}
 	public string GetDebugWaitDescription() => $"for {remaining} more ticks (started at {total})";
 }
@@ -81,23 +81,23 @@ internal sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFa
 		if (!ctx.Scheduler.TryGetInfo(handle, out CoroutineInfo info))
 			throw new InvalidOperationException($"failed to get info for coroutine handle {handle}");
 		switch (info.Status.Tag) {
-			case CoroutineStatus.Case.Running:
-			case CoroutineStatus.Case.Paused:
-				return true;
-			case CoroutineStatus.Case.Completed:
-				return false;
-			case CoroutineStatus.Case.Cancelled:
-				if (throwOnChildCancelled)
-					throw new CoroutineCancelledException(handle, info.CancellationReason ?? CoroCancellationReason.ManualStop);
-				return false;
-			case CoroutineStatus.Case.Faulted:
-				if (info.Fault is null)
-					throw new InternalStateException("expected Fault to be nonnull on Faulted status");
-				if (propagateFault)
-					throw new CoroutineChildFaultException(handle, info.Fault);
-				return false;
-			default:
-				throw new UnreachableException();
+		case CoroutineStatus.Case.Running:
+		case CoroutineStatus.Case.Paused:
+			return true;
+		case CoroutineStatus.Case.Completed:
+			return false;
+		case CoroutineStatus.Case.Cancelled:
+			if (throwOnChildCancelled)
+				throw new CoroutineCancelledException(handle, info.CancellationReason ?? CoroCancellationReason.ManualStop);
+			return false;
+		case CoroutineStatus.Case.Faulted:
+			if (info.Fault is null)
+				throw new InternalStateException("expected Fault to be nonnull on Faulted status");
+			if (propagateFault)
+				throw new CoroutineChildFaultException(handle, info.Fault);
+			return false;
+		default:
+			throw new UnreachableException();
 		}
 	}
 	public void OnCancel(CoroCancellationReason reason) {}

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+
 using Mono.Cecil;
 
 namespace Injure.Weaver.Patching;

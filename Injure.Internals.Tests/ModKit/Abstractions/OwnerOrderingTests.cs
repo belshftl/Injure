@@ -10,8 +10,8 @@ public sealed class OwnerOrderingTests {
 	[Fact]
 	public void LocalPriorityWorks() {
 		OwnerOrderedEntry<string>[] entries = [
-			new("third",  "owner", "b", 2),
-			new("first",  "owner", "a", 0),
+			new("third", "owner", "b", 2),
+			new("first", "owner", "a", 0),
 			new("second", "owner", "c", 1),
 		];
 		string[] result = OwnerOrderedSorter.Sort(entries);
@@ -33,7 +33,7 @@ public sealed class OwnerOrderingTests {
 	public void BeforeOwnersWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("second", "ownerA", "a"),
-			new("first",  "ownerB", "b", beforeOwners: [OwnerOrderingConstraint.Soft("ownerA")]),
+			new("first", "ownerB", "b", beforeOwners: [OwnerOrderingConstraint.Soft("ownerA")]),
 		];
 		string[] result = OwnerOrderedSorter.Sort(entries);
 		Assert.Equal(["first", "second"], result);
@@ -43,7 +43,7 @@ public sealed class OwnerOrderingTests {
 	public void AfterOwnersWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("second", "ownerA", "a", afterOwners: [OwnerOrderingConstraint.Soft("ownerB")]),
-			new("first",  "ownerB", "b"),
+			new("first", "ownerB", "b"),
 		];
 		string[] result = OwnerOrderedSorter.Sort(entries);
 		Assert.Equal(["first", "second"], result);
@@ -52,7 +52,7 @@ public sealed class OwnerOrderingTests {
 	[Fact]
 	public void UnknownOwnerReferenceIsIgnoredForSoft() {
 		OwnerOrderedEntry<string>[] entries = [
-			new("first",  "ownerA", "a", beforeOwners: [OwnerOrderingConstraint.Soft("missing")]),
+			new("first", "ownerA", "a", beforeOwners: [OwnerOrderingConstraint.Soft("missing")]),
 			new("second", "ownerB", "b"),
 		];
 		string[] result = OwnerOrderedSorter.Sort(entries);
@@ -62,7 +62,7 @@ public sealed class OwnerOrderingTests {
 	[Fact]
 	public void UnknownOwnerReferenceThrowsForHard() {
 		OwnerOrderedEntry<string>[] entries = [
-			new("first",  "ownerA", "a", beforeOwners: [OwnerOrderingConstraint.Hard("missing")]),
+			new("first", "ownerA", "a", beforeOwners: [OwnerOrderingConstraint.Hard("missing")]),
 			new("second", "ownerB", "b"),
 		];
 		Assert.Throws<OwnerOrderingException>(() => OwnerOrderedSorter.Sort(entries));
@@ -115,8 +115,8 @@ public sealed class OwnerOrderingTests {
 	public void OwnerOrderingThenLocalPriority() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("ownerA second", "ownerA", "a", 0),
-			new("ownerA first",  "ownerA", "z", -1),
-			new("ownerB first",  "ownerB", "b", 0, beforeOwners: [OwnerOrderingConstraint.Soft("ownerA")]),
+			new("ownerA first", "ownerA", "z", -1),
+			new("ownerB first", "ownerB", "b", 0, beforeOwners: [OwnerOrderingConstraint.Soft("ownerA")]),
 		];
 		string[] result = OwnerOrderedSorter.Sort(entries);
 		Assert.Equal(["ownerB first", "ownerA first", "ownerA second"], result);

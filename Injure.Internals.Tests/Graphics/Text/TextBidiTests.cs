@@ -3,6 +3,7 @@
 using HarfBuzzSharp;
 
 using Injure.Graphics.Text;
+
 using static Injure.Internals.Tests.Graphics.Text.Util;
 
 namespace Injure.Internals.Tests.Graphics.Text;
@@ -23,9 +24,10 @@ public sealed class TextBidiTests {
 	[Fact]
 	public void LogicalRunsMixedDirWorks() {
 		LogicalBidiRun[] runs = TextAnalysis.GetLogicalBidiRuns("abc אבג def");
-		AssertLogicalRuns(runs,
-			(0,                "abc ".Length, Direction.LeftToRight),
-			("abc ".Length,    "אבג".Length,  Direction.RightToLeft),
+		AssertLogicalRuns(
+			runs,
+			(0, "abc ".Length, Direction.LeftToRight),
+			("abc ".Length, "אבג".Length, Direction.RightToLeft),
 			("abc אבג".Length, " def".Length, Direction.LeftToRight)
 		);
 	}
@@ -45,9 +47,10 @@ public sealed class TextBidiTests {
 	[Fact]
 	public void VisualRunsMixedDirWorks() {
 		VisualBidiRun[] runs = TextAnalysis.GetVisualBidiRunsForLine("abc אבג def", 0, "abc אבג def".Length);
-		AssertVisualRuns(runs,
-			(0,                "abc ".Length, Direction.LeftToRight),
-			("abc ".Length,    "אבג".Length,  Direction.RightToLeft),
+		AssertVisualRuns(
+			runs,
+			(0, "abc ".Length, Direction.LeftToRight),
+			("abc ".Length, "אבג".Length, Direction.RightToLeft),
 			("abc אבג".Length, " def".Length, Direction.LeftToRight)
 		);
 	}

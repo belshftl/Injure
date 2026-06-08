@@ -29,24 +29,37 @@ public sealed class ModLiveStateBlob {
 		this.data = data;
 	}
 
-	public static ModLiveStateBlob FromBytes(Semver schemaVersion, ReadOnlySpan<byte> bytes,
-		string contentType = ModLiveStateContentTypes.ApplicationOctetStream) =>
+	public static ModLiveStateBlob FromBytes(
+		Semver schemaVersion,
+		ReadOnlySpan<byte> bytes,
+		string contentType = ModLiveStateContentTypes.ApplicationOctetStream
+	) =>
 		new(schemaVersion, contentType, bytes.ToArray());
 
-	public static ModLiveStateBlob TakeBytes(Semver schemaVersion, byte[] bytes,
-		string contentType = ModLiveStateContentTypes.ApplicationOctetStream) {
+	public static ModLiveStateBlob TakeBytes(
+		Semver schemaVersion,
+		byte[] bytes,
+		string contentType = ModLiveStateContentTypes.ApplicationOctetStream
+	) {
 		ArgumentNullException.ThrowIfNull(bytes);
 		return new ModLiveStateBlob(schemaVersion, contentType, bytes);
 	}
 
-	public static ModLiveStateBlob FromUtf8(Semver schemaVersion, string text,
-		string contentType = ModLiveStateContentTypes.TextPlainUtf8) {
+	public static ModLiveStateBlob FromUtf8(
+		Semver schemaVersion,
+		string text,
+		string contentType = ModLiveStateContentTypes.TextPlainUtf8
+	) {
 		ArgumentNullException.ThrowIfNull(text);
 		return TakeBytes(schemaVersion, strictUtf8.GetBytes(text), contentType);
 	}
 
-	public static ModLiveStateBlob FromJson<T>(Semver schemaVersion, T value,
-		JsonTypeInfo<T> jsonTypeInfo, string contentType = ModLiveStateContentTypes.ApplicationJson) {
+	public static ModLiveStateBlob FromJson<T>(
+		Semver schemaVersion,
+		T value,
+		JsonTypeInfo<T> jsonTypeInfo,
+		string contentType = ModLiveStateContentTypes.ApplicationJson
+	) {
 		ArgumentNullException.ThrowIfNull(jsonTypeInfo);
 		byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(value, jsonTypeInfo);
 		return TakeBytes(schemaVersion, bytes, contentType);

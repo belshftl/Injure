@@ -1,6 +1,7 @@
 ﻿// SPDX-License-Identifier: MIT
 
 using System;
+
 using HarfBuzzSharp;
 
 using Injure.Graphics.Text;

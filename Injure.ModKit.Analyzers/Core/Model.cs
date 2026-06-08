@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Core;
@@ -70,23 +71,23 @@ internal sealed class Model {
 
 	public static Model Create(Compilation compilation, KnownTypes known) {
 		ModAssemblyModel? modAssembly = tryReadModAssembly(compilation, known, out ImmutableArray<AttributeData> modAssemblyAttrs);
-		ImmutableArray<INamedTypeSymbol> allTypes = collectAllNamedTypes(compilation.Assembly.GlobalNamespace).ToImmutableArray();
+		var allTypes = collectAllNamedTypes(compilation.Assembly.GlobalNamespace).ToImmutableArray();
 
-		ImmutableArray<INamedTypeSymbol> lifetimeCandidates = allTypes
+		var lifetimeCandidates = allTypes
 			.Where(type => SymbolHelpers.HasAttribute(type, known.ModLifetimeIdentityMarkerAttribute, out _))
 			.ToImmutableArray();
 		LifetimeIdentityModel? lifetime = lifetimeCandidates.Length == 1
 			? tryReadLifetimeIdentity(lifetimeCandidates[0], known)
 			: null;
 
-		ImmutableArray<INamedTypeSymbol> entrypointCandidates = allTypes
+		var entrypointCandidates = allTypes
 			.Where(type => SymbolHelpers.HasAttribute(type, known.ModEntrypointAttribute, out _))
 			.ToImmutableArray();
 		EntrypointModel? entrypoint = entrypointCandidates.Length == 1 && lifetime is not null
 			? tryReadEntrypoint(entrypointCandidates[0], known.ModEntrypointAttribute, known.ModEntrypointInterface, lifetime.Type)
 			: null;
 
-		ImmutableArray<INamedTypeSymbol> reloadCandidates = allTypes
+		var reloadCandidates = allTypes
 			.Where(type => SymbolHelpers.HasAttribute(type, known.ModReloadEntrypointAttribute, out _))
 			.ToImmutableArray();
 		EntrypointModel? reload = reloadCandidates.Length == 1 && lifetime is not null

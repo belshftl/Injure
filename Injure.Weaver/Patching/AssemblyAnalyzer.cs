@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+
 using Mono.Cecil;
 
 using Injure.Weaver.Model;

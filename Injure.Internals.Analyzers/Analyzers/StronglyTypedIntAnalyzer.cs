@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -24,7 +25,7 @@ public sealed class StronglyTypedIntAnalyzer : DiagnosticAnalyzer {
 	}
 
 	private static void analyzeNamedType(SymbolAnalysisContext context) {
-		INamedTypeSymbol sym = (INamedTypeSymbol)context.Symbol;
+		var sym = (INamedTypeSymbol)context.Symbol;
 		AttributeData? attr = Util.GetAttribute(sym, AttributeSources.StronglyTypedIntAttributeMetadataName);
 		if (attr is null)
 			return;

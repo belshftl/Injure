@@ -24,10 +24,12 @@ public readonly partial struct WindowPositioning {
 
 public readonly record struct WindowSettings(
 	string Title,
-	int Width, int Height,
+	int Width,
+	int Height,
 	WindowMode Mode = default,
 	WindowPositioning Positioning = default,
-	int X = 0, int Y = 0,
+	int X = 0,
+	int Y = 0,
 	bool Visible = true,
 	bool Resizable = true,
 	bool Borderless = false,
@@ -56,6 +58,8 @@ public readonly partial struct RenderTimingMode {
 }
 
 public readonly record struct TimingSettings(
-	RenderTimingMode RenderMode, double TargetFPS,
-	double TargetLoopHz = 480.0, int MaxLoopDeadlineMissByLoopDurations = 4
+	RenderTimingMode RenderMode,
+	double TargetFPS,
+	double TargetLoopHz = 480.0,
+	int MaxLoopDeadlineMissByLoopDurations = 4
 );
