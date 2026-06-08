@@ -2,6 +2,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Discouraged;
@@ -29,21 +30,21 @@ internal static class TypeSymbolExtensions {
 			if (type is null)
 				return false;
 			return
-				(known.Hook is not null && type.IsOrDerivesFrom(known.Hook)) ||
-				(known.ILHook is not null && type.IsOrDerivesFrom(known.ILHook)) ||
-				(known.NativeHook is not null && type.IsOrDerivesFrom(known.NativeHook))
-			;
+				known.Hook is not null && type.IsOrDerivesFrom(known.Hook) ||
+				known.ILHook is not null && type.IsOrDerivesFrom(known.ILHook) ||
+				known.NativeHook is not null && type.IsOrDerivesFrom(known.NativeHook)
+				;
 		}
 
 		public bool IsLifecycleContext(KnownSymbols known) {
 			if (type is null)
 				return false;
 			return
-				(known.IModLoadContext is not null && type.IsOrImplements(known.IModLoadContext)) ||
-				(known.IModLinkContext is not null && type.IsOrImplements(known.IModLinkContext)) ||
-				(known.IModActivateContext is not null && type.IsOrImplements(known.IModActivateContext)) ||
-				(known.IModReloadContext is not null && type.IsOrImplements(known.IModReloadContext))
-			;
+				known.IModLoadContext is not null && type.IsOrImplements(known.IModLoadContext) ||
+				known.IModLinkContext is not null && type.IsOrImplements(known.IModLinkContext) ||
+				known.IModActivateContext is not null && type.IsOrImplements(known.IModActivateContext) ||
+				known.IModReloadContext is not null && type.IsOrImplements(known.IModReloadContext)
+				;
 		}
 	}
 }

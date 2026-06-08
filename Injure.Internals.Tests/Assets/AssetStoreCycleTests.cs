@@ -13,10 +13,13 @@ public sealed class AssetStoreCycleTests {
 	[Fact]
 	public void AcyclicChainSucceeds() {
 		AssetStore store = new();
-		AssetLoadingResolver resolver = new(store, new Dictionary<AssetID, AssetID> {
-			[new AssetID(ownerID, "assetA")] = new AssetID(ownerID, "assetB"),
-			[new AssetID(ownerID, "assetB")] = new AssetID(ownerID, "assetC"),
-		});
+		AssetLoadingResolver resolver = new(
+			store,
+			new Dictionary<AssetID, AssetID> {
+				[new AssetID(ownerID, "assetA")] = new(ownerID, "assetB"),
+				[new AssetID(ownerID, "assetB")] = new(ownerID, "assetC"),
+			}
+		);
 		store.RegisterSource(ownerID, new TestSource(), "source");
 		store.RegisterResolver(ownerID, resolver, "resolver");
 		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
@@ -29,9 +32,16 @@ public sealed class AssetStoreCycleTests {
 	public void SelfCycleThrows() {
 		AssetStore store = new();
 		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new AssetLoadingResolver(store, new Dictionary<AssetID, AssetID> {
-			[new AssetID(ownerID, "assetA")] = new AssetID(ownerID, "assetA"),
-		}), "resolver");
+		store.RegisterResolver(
+			ownerID,
+			new AssetLoadingResolver(
+				store,
+				new Dictionary<AssetID, AssetID> {
+					[new AssetID(ownerID, "assetA")] = new(ownerID, "assetA"),
+				}
+			),
+			"resolver"
+		);
 		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "assetA"));
@@ -42,28 +52,39 @@ public sealed class AssetStoreCycleTests {
 	[Fact]
 	public void LongerCyclesThrow() {
 		AssetStore store = new();
-		AssetLoadingResolver resolver = new(store, new Dictionary<AssetID, AssetID> {
-			[new AssetID(ownerID, "assetA")] = new AssetID(ownerID, "assetB"),
-			[new AssetID(ownerID, "assetB")] = new AssetID(ownerID, "assetA"),
-		});
+		AssetLoadingResolver resolver = new(
+			store,
+			new Dictionary<AssetID, AssetID> {
+				[new AssetID(ownerID, "assetA")] = new(ownerID, "assetB"),
+				[new AssetID(ownerID, "assetB")] = new(ownerID, "assetA"),
+			}
+		);
 		store.RegisterSource(ownerID, new TestSource(), "source");
 		store.RegisterResolver(ownerID, resolver, "resolver");
 		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "assetA"));
 		AssetLoadCycleException ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm());
-		Assert.Contains($"{nameof(TestAsset)}({ownerID}::assetA) -> {nameof(TestAsset)}({ownerID}::assetB) -> {nameof(TestAsset)}({ownerID}::assetA)", ex.Message, StringComparison.Ordinal);
+		Assert.Contains(
+			$"{nameof(TestAsset)}({ownerID}::assetA) -> {nameof(TestAsset)}({ownerID}::assetB) -> {nameof(TestAsset)}({ownerID}::assetA)",
+			ex.Message,
+			StringComparison.Ordinal
+		);
 
 		resolver.Map = new Dictionary<AssetID, AssetID> {
-			[new AssetID(ownerID, "assetA")] = new AssetID(ownerID, "assetB"),
-			[new AssetID(ownerID, "assetB")] = new AssetID(ownerID, "assetC"),
-			[new AssetID(ownerID, "assetC")] = new AssetID(ownerID, "assetD"),
-			[new AssetID(ownerID, "assetD")] = new AssetID(ownerID, "assetE"),
-			[new AssetID(ownerID, "assetE")] = new AssetID(ownerID, "assetA"),
+			[new AssetID(ownerID, "assetA")] = new(ownerID, "assetB"),
+			[new AssetID(ownerID, "assetB")] = new(ownerID, "assetC"),
+			[new AssetID(ownerID, "assetC")] = new(ownerID, "assetD"),
+			[new AssetID(ownerID, "assetD")] = new(ownerID, "assetE"),
+			[new AssetID(ownerID, "assetE")] = new(ownerID, "assetA"),
 		};
 
 		asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "assetA"));
 		ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm());
-		Assert.Contains($"{nameof(TestAsset)}({ownerID}::assetA) -> {nameof(TestAsset)}({ownerID}::assetB) -> {nameof(TestAsset)}({ownerID}::assetC) -> {nameof(TestAsset)}({ownerID}::assetD) -> {nameof(TestAsset)}({ownerID}::assetE) -> {nameof(TestAsset)}({ownerID}::assetA)", ex.Message, StringComparison.Ordinal);
+		Assert.Contains(
+			$"{nameof(TestAsset)}({ownerID}::assetA) -> {nameof(TestAsset)}({ownerID}::assetB) -> {nameof(TestAsset)}({ownerID}::assetC) -> {nameof(TestAsset)}({ownerID}::assetD) -> {nameof(TestAsset)}({ownerID}::assetE) -> {nameof(TestAsset)}({ownerID}::assetA)",
+			ex.Message,
+			StringComparison.Ordinal
+		);
 	}
 }

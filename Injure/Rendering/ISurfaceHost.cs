@@ -37,7 +37,7 @@ public unsafe interface ISurfaceHost {
 	/// Destination storage for the <see cref="WGPUSurfaceDescriptor"/> and any
 	/// chained platform-specific descriptor structs.
 	/// </param>
-	void CreateSurfaceDesc(WGPUSurfaceDescriptorContainer *container);
+	void CreateSurfaceDesc(WGPUSurfaceDescriptorContainer* container);
 
 	/// <summary>
 	/// Gets the current drawable size of the host surface in physical pixels.

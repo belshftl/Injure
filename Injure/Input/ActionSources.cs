@@ -22,12 +22,13 @@ public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
 	private readonly GamepadButton gamepadButton;
 
 	public InputButtonSourceKind Kind { get; }
-	public Key KeyValue => Kind == InputButtonSourceKind.Key ? key :
-		throw new InvalidOperationException("input button source does not contain a key");
-	public PointerButton PointerButtonValue => Kind == InputButtonSourceKind.PointerButton ? pointerButton :
-		throw new InvalidOperationException("input button source does not contain a pointer button");
-	public GamepadButton GamepadButtonValue => Kind == InputButtonSourceKind.GamepadButton ? gamepadButton :
-		throw new InvalidOperationException("input button source does not contain a gamepad button");
+	public Key KeyValue => Kind == InputButtonSourceKind.Key ? key : throw new InvalidOperationException("input button source does not contain a key");
+	public PointerButton PointerButtonValue => Kind == InputButtonSourceKind.PointerButton
+		? pointerButton
+		: throw new InvalidOperationException("input button source does not contain a pointer button");
+	public GamepadButton GamepadButtonValue => Kind == InputButtonSourceKind.GamepadButton
+		? gamepadButton
+		: throw new InvalidOperationException("input button source does not contain a gamepad button");
 
 	private InputButtonSource(InputButtonSourceKind kind, Key key, PointerButton pointerButton, GamepadButton gamepadButton) {
 		Kind = kind;
@@ -113,10 +114,11 @@ public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource> {
 	private readonly DigitalAxisSource digital;
 
 	public InputStateAxisSourceKind Kind { get; }
-	public GamepadAxis GamepadAxisValue => Kind == InputStateAxisSourceKind.GamepadAxis ? gamepadAxis :
-		throw new InvalidOperationException("input state-axis source does not contain a gamepad axis");
-	public DigitalAxisSource DigitalValue => Kind == InputStateAxisSourceKind.DigitalPair ? digital :
-		throw new InvalidOperationException("input state-axis source does not contain a digital pair");
+	public GamepadAxis GamepadAxisValue => Kind == InputStateAxisSourceKind.GamepadAxis
+		? gamepadAxis
+		: throw new InvalidOperationException("input state-axis source does not contain a gamepad axis");
+	public DigitalAxisSource DigitalValue =>
+		Kind == InputStateAxisSourceKind.DigitalPair ? digital : throw new InvalidOperationException("input state-axis source does not contain a digital pair");
 
 	private InputStateAxisSource(InputStateAxisSourceKind kind, GamepadAxis gamepadAxis, DigitalAxisSource digital) {
 		Kind = kind;
@@ -167,8 +169,14 @@ public readonly struct DigitalAxis2DSource : IEquatable<DigitalAxis2DSource> {
 		this(left, right, up, down, SOCDPolicy.Last, SOCDPolicy.Last) {
 	}
 
-	public DigitalAxis2DSource(InputButtonSource left, InputButtonSource right, InputButtonSource up, InputButtonSource down,
-		SOCDPolicy xSOCD, SOCDPolicy ySOCD) {
+	public DigitalAxis2DSource(
+		InputButtonSource left,
+		InputButtonSource right,
+		InputButtonSource up,
+		InputButtonSource down,
+		SOCDPolicy xSOCD,
+		SOCDPolicy ySOCD
+	) {
 		if (left == right)
 			throw new ArgumentException("left and right sources must be different");
 		if (up == down)
@@ -207,15 +215,19 @@ public readonly struct InputStateAxis2DSource : IEquatable<InputStateAxis2DSourc
 	private readonly StateAxis2DPairSource pair;
 
 	public InputStateAxis2DSourceKind Kind { get; }
-	public GamepadStick GamepadStickValue => Kind == InputStateAxis2DSourceKind.GamepadStick ? stick :
-		throw new InvalidOperationException("2D state-axis source does not contain a gamepad stick");
-	public DigitalAxis2DSource DigitalValue => Kind == InputStateAxis2DSourceKind.DigitalButtons ? digital :
-		throw new InvalidOperationException("2D state-axis source does not contain digital buttons");
-	public StateAxis2DPairSource PairValue => Kind == InputStateAxis2DSourceKind.Pair ? pair :
-		throw new InvalidOperationException("2D state-axis source does not contain an axis pair");
+	public GamepadStick GamepadStickValue =>
+		Kind == InputStateAxis2DSourceKind.GamepadStick ? stick : throw new InvalidOperationException("2D state-axis source does not contain a gamepad stick");
+	public DigitalAxis2DSource DigitalValue => Kind == InputStateAxis2DSourceKind.DigitalButtons
+		? digital
+		: throw new InvalidOperationException("2D state-axis source does not contain digital buttons");
+	public StateAxis2DPairSource PairValue => Kind == InputStateAxis2DSourceKind.Pair ? pair : throw new InvalidOperationException("2D state-axis source does not contain an axis pair");
 
-	private InputStateAxis2DSource(InputStateAxis2DSourceKind kind, GamepadStick stick,
-		DigitalAxis2DSource digital, StateAxis2DPairSource pair) {
+	private InputStateAxis2DSource(
+		InputStateAxis2DSourceKind kind,
+		GamepadStick stick,
+		DigitalAxis2DSource digital,
+		StateAxis2DPairSource pair
+	) {
 		Kind = kind;
 		this.stick = stick;
 		this.digital = digital;
@@ -225,11 +237,18 @@ public readonly struct InputStateAxis2DSource : IEquatable<InputStateAxis2DSourc
 	public static InputStateAxis2DSource GamepadStick(GamepadStick stick) =>
 		new(InputStateAxis2DSourceKind.GamepadStick, stick, default, default);
 	public static InputStateAxis2DSource DigitalButtons(
-		InputButtonSource left, InputButtonSource right, InputButtonSource up, InputButtonSource down
+		InputButtonSource left,
+		InputButtonSource right,
+		InputButtonSource up,
+		InputButtonSource down
 	) => DigitalButtons(left, right, up, down, SOCDPolicy.Last, SOCDPolicy.Last);
 	public static InputStateAxis2DSource DigitalButtons(
-		InputButtonSource left, InputButtonSource right, InputButtonSource up, InputButtonSource down,
-		SOCDPolicy xSOCD, SOCDPolicy ySOCD
+		InputButtonSource left,
+		InputButtonSource right,
+		InputButtonSource up,
+		InputButtonSource down,
+		SOCDPolicy xSOCD,
+		SOCDPolicy ySOCD
 	) => new(InputStateAxis2DSourceKind.DigitalButtons, default, new DigitalAxis2DSource(left, right, up, down, xSOCD, ySOCD), default);
 	public static InputStateAxis2DSource Pair(InputStateAxisSource x, InputStateAxisSource y) =>
 		new(InputStateAxis2DSourceKind.Pair, default, default, new StateAxis2DPairSource(x, y));
@@ -260,8 +279,9 @@ public readonly struct InputImpulseAxisSource : IEquatable<InputImpulseAxisSourc
 	private readonly PointerWheelAxis wheelAxis;
 
 	public InputImpulseAxisSourceKind Kind { get; }
-	public PointerWheelAxis PointerWheelAxisValue => Kind == InputImpulseAxisSourceKind.PointerWheel ? wheelAxis :
-		throw new InvalidOperationException("input impulse-axis source does not contain a pointer wheel axis");
+	public PointerWheelAxis PointerWheelAxisValue => Kind == InputImpulseAxisSourceKind.PointerWheel
+		? wheelAxis
+		: throw new InvalidOperationException("input impulse-axis source does not contain a pointer wheel axis");
 
 	private InputImpulseAxisSource(InputImpulseAxisSourceKind kind, PointerWheelAxis wheelAxis) {
 		Kind = kind;

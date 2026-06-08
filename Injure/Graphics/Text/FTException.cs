@@ -3,6 +3,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Diagnostics;
+
 using FreeTypeSharp;
 
 namespace Injure.Graphics.Text;

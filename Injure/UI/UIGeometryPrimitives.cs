@@ -42,7 +42,9 @@ public readonly record struct UIThickness {
 
 	public static readonly UIThickness Zero = default;
 
-	public UIThickness(float uniform) => Left = Top = Right = Bottom = uniform;
+	public UIThickness(float uniform) {
+		Left = Top = Right = Bottom = uniform;
+	}
 
 	public float Horizontal => Left + Right;
 	public float Vertical => Top + Bottom;
@@ -69,7 +71,7 @@ public readonly record struct UISizeConstraint {
 	public bool IsWidthBounded => !float.IsPositiveInfinity(MaxWidth);
 	public bool IsHeightBounded => !float.IsPositiveInfinity(MaxHeight);
 
-	public static readonly UISizeConstraint Unbounded = new UISizeConstraint {
+	public static readonly UISizeConstraint Unbounded = new() {
 		MaxWidth = float.PositiveInfinity,
 		MaxHeight = float.PositiveInfinity,
 	};

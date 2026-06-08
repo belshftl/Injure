@@ -35,13 +35,12 @@ public static class DiagnosticsSinkExtensions {
 	extension(IEnumerable<IDiagnosticsSink> sinks) {
 		public void ReportAll(in DiagnosticEvent d) {
 			List<Exception>? exceptions = null;
-			foreach (IDiagnosticsSink sink in sinks) {
+			foreach (IDiagnosticsSink sink in sinks)
 				try {
 					sink.Report(in d);
 				} catch (Exception ex) {
 					(exceptions ??= new List<Exception>()).Add(ex);
 				}
-			}
 			if (exceptions is not null)
 				throw new AggregateException(exceptions);
 		}
@@ -87,7 +86,7 @@ public sealed class DiagnosticsSinkRegistry(IEnumerable<IDiagnosticsSink> initia
 		ArgumentNullException.ThrowIfNull(sink);
 		lock (registryLock) {
 			IDiagnosticsSink[] old = sinks;
-			IDiagnosticsSink[] @new = new IDiagnosticsSink[old.Length + 1];
+			var @new = new IDiagnosticsSink[old.Length + 1];
 			Array.Copy(old, @new, old.Length);
 			@new[^1] = sink;
 			Volatile.Write(ref sinks, @new);
@@ -102,7 +101,7 @@ public sealed class DiagnosticsSinkRegistry(IEnumerable<IDiagnosticsSink> initia
 			if (idx < 0)
 				return;
 
-			IDiagnosticsSink[] @new = new IDiagnosticsSink[old.Length - 1];
+			var @new = new IDiagnosticsSink[old.Length - 1];
 			Array.Copy(old, 0, @new, 0, idx);
 			Array.Copy(old, idx + 1, @new, idx, old.Length - idx - 1);
 			Volatile.Write(ref sinks, @new);

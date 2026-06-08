@@ -2,6 +2,7 @@
 
 using System;
 using System.Reflection;
+
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 
@@ -24,7 +25,8 @@ internal abstract class PatchDeclaration(string ownerID, HookOrder order, Detour
 	public abstract void DropStrongReferences();
 }
 
-internal sealed class HookDeclaration(string ownerID, HookOrder order, DetourConfig detourConfig, MethodBase target, MethodInfo replacement) : PatchDeclaration(ownerID, order, detourConfig) {
+internal sealed class HookDeclaration(string ownerID, HookOrder order, DetourConfig detourConfig, MethodBase target, MethodInfo replacement)
+	: PatchDeclaration(ownerID, order, detourConfig) {
 	private MethodBase? target = target;
 	private MethodInfo? replacement = replacement;
 
@@ -48,7 +50,8 @@ internal sealed class HookDeclaration(string ownerID, HookOrder order, DetourCon
 	}
 }
 
-internal sealed class ILHookDeclaration(string ownerID, HookOrder order, DetourConfig detourConfig, MethodBase target, MethodInfo manipulator) : PatchDeclaration(ownerID, order, detourConfig) {
+internal sealed class ILHookDeclaration(string ownerID, HookOrder order, DetourConfig detourConfig, MethodBase target, MethodInfo manipulator)
+	: PatchDeclaration(ownerID, order, detourConfig) {
 	private MethodBase? target = target;
 	private MethodInfo? manipulator = manipulator;
 

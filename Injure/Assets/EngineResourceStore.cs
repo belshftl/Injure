@@ -43,7 +43,7 @@ public sealed class EngineResourceStore {
 		ArgumentNullException.ThrowIfNull(source);
 		lock (registryLock) {
 			SourceEntry[] old = sources;
-			SourceEntry[] @new = new SourceEntry[old.Length + 1];
+			var @new = new SourceEntry[old.Length + 1];
 			Array.Copy(old, @new, old.Length);
 			@new[old.Length] = new SourceEntry(source, priority);
 			Array.Sort(@new, static (a, b) => a.Priority.CompareTo(b.Priority));

@@ -53,7 +53,10 @@ public sealed class TwoWayMap<TLeft, TRight> : ITwoWayMap<TLeft, TRight> where T
 	}
 
 	private static (Dictionary<TLeft, TRight> LTR, Dictionary<TRight, TLeft> RTL) make(
-		IEnumerable<(TLeft Left, TRight Right)> pairs, IEqualityComparer<TLeft>? cmpLeft, IEqualityComparer<TRight>? cmpRight) {
+		IEnumerable<(TLeft Left, TRight Right)> pairs,
+		IEqualityComparer<TLeft>? cmpLeft,
+		IEqualityComparer<TRight>? cmpRight
+	) {
 		Dictionary<TLeft, TRight> ltr = new(cmpLeft);
 		Dictionary<TRight, TLeft> rtl = new(cmpRight);
 		foreach ((TLeft left, TRight right) in pairs)
@@ -62,7 +65,11 @@ public sealed class TwoWayMap<TLeft, TRight> : ITwoWayMap<TLeft, TRight> where T
 	}
 
 	private static (Dictionary<TLeft, TRight> LTR, Dictionary<TRight, TLeft> RTL) make(
-		TLeft[] lefts, TRight[] rights, IEqualityComparer<TLeft>? cmpLeft, IEqualityComparer<TRight>? cmpRight) {
+		TLeft[] lefts,
+		TRight[] rights,
+		IEqualityComparer<TLeft>? cmpLeft,
+		IEqualityComparer<TRight>? cmpRight
+	) {
 		if (lefts.Length != rights.Length)
 			throw new ArgumentException("passed left<->right map arrays must be of equal length");
 		Dictionary<TLeft, TRight> ltr = new(lefts.Length, cmpLeft);

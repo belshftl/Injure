@@ -38,18 +38,19 @@ public sealed class AssetStoreThreadContextTests {
 		ThreadCheckpoint second = new();
 		Exception? ex = null;
 		Thread thread = new(() => {
-			try {
-				using AssetThreadContext ctx = store.AttachCurrentThread();
-				first.Wait();
-				ctx.AtSafeBoundary();
-				second.Wait();
-				// dispose happens here from `using`
-			} catch (Exception caught) {
-				ex = caught;
-				first.ForceSet();
-				second.ForceSet();
+				try {
+					using AssetThreadContext ctx = store.AttachCurrentThread();
+					first.Wait();
+					ctx.AtSafeBoundary();
+					second.Wait();
+					// dispose happens here from `using`
+				} catch (Exception caught) {
+					ex = caught;
+					first.ForceSet();
+					second.ForceSet();
+				}
 			}
-		});
+		);
 		thread.Start();
 
 		Assert.True(first.Entered.Wait(TimeSpan.FromMilliseconds(100)));
@@ -88,15 +89,16 @@ public sealed class AssetStoreThreadContextTests {
 		ThreadCheckpoint ckp = new();
 		Exception? ex = null;
 		Thread thread = new(() => {
-			try {
-				using AssetThreadContext ctx = store.AttachCurrentThread();
-				ckp.Wait();
-				// dispose happens here from `using`
-			} catch (Exception caught) {
-				ex = caught;
-				ckp.ForceSet();
+				try {
+					using AssetThreadContext ctx = store.AttachCurrentThread();
+					ckp.Wait();
+					// dispose happens here from `using`
+				} catch (Exception caught) {
+					ex = caught;
+					ckp.ForceSet();
+				}
 			}
-		});
+		);
 		thread.Start();
 
 		Assert.True(ckp.Entered.Wait(TimeSpan.FromMilliseconds(100)));

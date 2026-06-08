@@ -108,18 +108,22 @@ public static class UIPlacementUtil {
 		in UIPlacement placement,
 		SizeF childDesired
 	) {
-		float w = constraint.IsWidthBounded ? constraint.MaxWidth : getUnboundedSurfaceAxisSize(
-			placement.WidthMode,
-			placement.Width,
-			placement.Margin.Horizontal,
-			childDesired.Width
-		);
-		float h = constraint.IsHeightBounded ? constraint.MaxHeight : getUnboundedSurfaceAxisSize(
-			placement.HeightMode,
-			placement.Height,
-			placement.Margin.Vertical,
-			childDesired.Height
-		);
+		float w = constraint.IsWidthBounded
+			? constraint.MaxWidth
+			: getUnboundedSurfaceAxisSize(
+				placement.WidthMode,
+				placement.Width,
+				placement.Margin.Horizontal,
+				childDesired.Width
+			);
+		float h = constraint.IsHeightBounded
+			? constraint.MaxHeight
+			: getUnboundedSurfaceAxisSize(
+				placement.HeightMode,
+				placement.Height,
+				placement.Margin.Vertical,
+				childDesired.Height
+			);
 		return new SizeF(w, h);
 	}
 

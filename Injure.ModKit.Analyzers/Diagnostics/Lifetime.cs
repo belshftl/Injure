@@ -27,7 +27,8 @@ internal static class Lifetime {
 	public static readonly DiagnosticDescriptor LifetimeObligationLeakedSometimes = new(
 		id: "IJM0102",
 		title: "Reload lifetime obligation leaks on some paths/branches",
-		messageFormat: "Object '{0}' with obligation '{1}' leaked here by '{2}' on some branches/paths; obligation must be satisfied by at least '{3}', best found is '{4}', worst found is '{5}'",
+		messageFormat:
+		"Object '{0}' with obligation '{1}' leaked here by '{2}' on some branches/paths; obligation must be satisfied by at least '{3}', best found is '{4}', worst found is '{5}'",
 		category: "ReloadSafety",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
@@ -36,7 +37,8 @@ internal static class Lifetime {
 	public static readonly DiagnosticDescriptor LifetimeObligationExceptionLeakedSometimes = new(
 		id: "IJM0103",
 		title: "Reload lifetime obligation may leak on exception on some paths/branches",
-		messageFormat: "Object '{0}' with obligation '{1}' may leak on some branches/paths if this statement throws; obligation must be satisfied by at least '{2}', best found is '{3}', worst found is '{4}'",
+		messageFormat:
+		"Object '{0}' with obligation '{1}' may leak on some branches/paths if this statement throws; obligation must be satisfied by at least '{2}', best found is '{3}', worst found is '{4}'",
 		category: "ReloadSafety",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true

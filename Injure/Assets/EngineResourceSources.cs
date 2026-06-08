@@ -19,12 +19,14 @@ public sealed class DirectoryEngineResourceSource(string root) : IEngineResource
 		if (!File.Exists(path))
 			return EngineResourceSourceResult.NotHandled();
 
-		return EngineResourceSourceResult.Success(new EngineResourceData(
-			openRead: () => File.OpenRead(path),
-			debugName: path,
-			suggestedExtension: Path.GetExtension(path),
-			origin: path
-		));
+		return EngineResourceSourceResult.Success(
+			new EngineResourceData(
+				openRead: () => File.OpenRead(path),
+				debugName: path,
+				suggestedExtension: Path.GetExtension(path),
+				origin: path
+			)
+		);
 	}
 }
 
@@ -48,11 +50,13 @@ public sealed class EmbeddedEngineResourceSource(Assembly assembly, HashSet<Engi
 			throw new FileNotFoundException("failed to open embedded engine resource stream", id.Path);
 		dummy.Dispose();
 
-		return EngineResourceSourceResult.Success(new EngineResourceData(
-			openRead: () => assembly.GetManifestResourceStream(id.Path) ?? throw new FileNotFoundException("failed to open embedded engine resource stream", id.Path),
-			debugName: id.Path,
-			suggestedExtension: Path.GetExtension(id.Path),
-			origin: assembly
-		));
+		return EngineResourceSourceResult.Success(
+			new EngineResourceData(
+				openRead: () => assembly.GetManifestResourceStream(id.Path) ?? throw new FileNotFoundException("failed to open embedded engine resource stream", id.Path),
+				debugName: id.Path,
+				suggestedExtension: Path.GetExtension(id.Path),
+				origin: assembly
+			)
+		);
 	}
 }

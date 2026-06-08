@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+
 using StbImageSharp;
 
 using Injure.Graphics;
@@ -34,8 +35,13 @@ public sealed class Texture2DAssetMetadata {
 	public Texture2DSamplerMode SamplerMode { get; init; } = Texture2DSamplerMode.NearestClamp;
 }
 
-public sealed class Texture2DAssetData(Stream stream, Texture2DAssetMetadata metadata,
-	string debugName, string? suggestedExtension = null, object? origin = null) : AssetData(debugName, suggestedExtension, origin) {
+public sealed class Texture2DAssetData(
+	Stream stream,
+	Texture2DAssetMetadata metadata,
+	string debugName,
+	string? suggestedExtension = null,
+	object? origin = null
+) : AssetData(debugName, suggestedExtension, origin) {
 	public readonly Stream Stream = stream;
 	public readonly Texture2DAssetMetadata Metadata = metadata;
 }
@@ -57,8 +63,15 @@ public sealed class Texture2DJsonAssetResolver : IAssetResolver {
 		}
 		ct.ThrowIfCancellationRequested();
 		Stream imgStream = await info.FetchAsync(meta.Source, ct).ConfigureAwait(false);
-		return AssetResolveResult.Success(new Texture2DAssetData(imgStream, meta,
-			meta.Source.ToString(), Path.GetExtension(meta.Source.Path), meta.Source));
+		return AssetResolveResult.Success(
+			new Texture2DAssetData(
+				imgStream,
+				meta,
+				meta.Source.ToString(),
+				Path.GetExtension(meta.Source.Path),
+				meta.Source
+			)
+		);
 	}
 
 	private static bool mightBeJson(Stream stream) {
@@ -71,7 +84,7 @@ public sealed class Texture2DJsonAssetResolver : IAssetResolver {
 					return false;
 			} while (b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n');
 			return b is (byte)'{' or (byte)'[' or (byte)'"' or (byte)'t' or (byte)'f' or (byte)'n' or (byte)'-' ||
-				(b >= (byte)'0' && b <= (byte)'9');
+				b >= (byte)'0' && b <= (byte)'9';
 		} finally {
 			stream.Position = saved;
 		}
@@ -89,8 +102,15 @@ public sealed class Texture2DImageAssetResolver : IAssetResolver {
 			return AssetResolveResult.NotHandled();
 		}
 		imgStream.Position = 0;
-		return AssetResolveResult.Success(new Texture2DAssetData(imgStream, meta,
-			info.AssetID.ToString(), Path.GetExtension(info.AssetID.Path), info.AssetID));
+		return AssetResolveResult.Success(
+			new Texture2DAssetData(
+				imgStream,
+				meta,
+				info.AssetID.ToString(),
+				Path.GetExtension(info.AssetID.Path),
+				info.AssetID
+			)
+		);
 	}
 }
 
@@ -109,7 +129,7 @@ public sealed class Texture2DAssetCreator(WebGPUDevice gpuDevice) : IAssetStaged
 		if (info.Data is not Texture2DAssetData data)
 			return AssetPrepareResult<Texture2DAssetPreparedData>.NotHandled();
 		await using Stream stream = data.Stream;
-		ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+		var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
 		if (image.Width <= 0 || image.Height <= 0)
 			throw new AssetLoadException(info.AssetID, typeof(Texture2D), "image decode returned bogus dimensions");
 		ct.ThrowIfCancellationRequested();

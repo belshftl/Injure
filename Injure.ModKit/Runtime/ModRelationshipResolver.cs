@@ -36,12 +36,11 @@ internal static class ModRelationshipResolver {
 					continue;
 				}
 
-				if (relationship.Version is Semver required && !target.Manifest.Version.CompatibleWithMinimum(required)) {
+				if (relationship.Version is Semver required && !target.Manifest.Version.CompatibleWithMinimum(required))
 					throw new ModLoadException(
 						declarer.Manifest.OwnerID,
 						$"owner '{relationship.OwnerID}' version '{target.Manifest.Version}' is not compatible with required minimum '{required}'"
 					);
-				}
 
 				reloadDependents[relationship.OwnerID].Add(declarer.Manifest.OwnerID);
 

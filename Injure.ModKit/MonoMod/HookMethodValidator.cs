@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+
 using MonoMod.Cil;
 
 using Injure.ModKit.Abstractions.MonoMod;
@@ -43,7 +44,9 @@ internal static class HookMethodValidator {
 		Type origDelegateType = patchParams[0].ParameterType;
 
 		if (!typeof(Delegate).IsAssignableFrom(origDelegateType))
-			throw new HookValidationException($"first parameter of direct hook method '{formatMethod(hookMethod)}' must be a delegate type (found '{formatType(origDelegateType)}' instead)");
+			throw new HookValidationException(
+				$"first parameter of direct hook method '{formatMethod(hookMethod)}' must be a delegate type (found '{formatType(origDelegateType)}' instead)"
+			);
 
 		MethodInfo origInvoke = getDelegateInvoke(origDelegateType);
 
@@ -74,9 +77,13 @@ internal static class HookMethodValidator {
 
 		ParameterInfo[] @params = manipulatorMethod.GetParameters();
 		if (@params.Length != 1)
-			throw new HookValidationException($"IL hook method '{formatMethod(manipulatorMethod)}' for target '{targetDescription}' must take exactly one parameter of type '{typeof(ILContext).FullName}'");
+			throw new HookValidationException(
+				$"IL hook method '{formatMethod(manipulatorMethod)}' for target '{targetDescription}' must take exactly one parameter of type '{typeof(ILContext).FullName}'"
+			);
 		if (@params[0].ParameterType != typeof(ILContext))
-			throw new HookValidationException($"IL hook method '{formatMethod(manipulatorMethod)}' for target '{targetDescription}' must take in '{typeof(ILContext).FullName}' (found '{formatType(@params[0].ParameterType)}' instead)");
+			throw new HookValidationException(
+				$"IL hook method '{formatMethod(manipulatorMethod)}' for target '{targetDescription}' must take in '{typeof(ILContext).FullName}' (found '{formatType(@params[0].ParameterType)}' instead)"
+			);
 	}
 
 	private static void validateHookReplacementAgainstOrigDelegate(MethodInfo hookMethod, Type origDelegateType, MethodInfo origInvoke, string targetDescription) {

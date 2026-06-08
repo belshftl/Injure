@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+
 using Hexa.NET.SDL3;
 
 using Injure.Timing;
@@ -169,12 +170,11 @@ internal sealed class InputSystem {
 	}
 
 	private bool tryFindGamepad(GamepadID id, out int idx) {
-		for (int i = 0; i < gamepads.Count; i++) {
+		for (int i = 0; i < gamepads.Count; i++)
 			if (gamepads[i].ID == id) {
 				idx = i;
 				return true;
 			}
-		}
 		idx = -1;
 		return false;
 	}
@@ -198,7 +198,7 @@ internal sealed class InputSystem {
 	private GamepadStateSet snapshotGamepads() {
 		if (gamepads.Count == 0)
 			return GamepadStateSet.Rest;
-		GamepadStateEntry[] arr = new GamepadStateEntry[gamepads.Count];
+		var arr = new GamepadStateEntry[gamepads.Count];
 		for (int i = 0; i < gamepads.Count; i++) {
 			MutableGamepadState g = gamepads[i];
 			arr[i] = new GamepadStateEntry(
@@ -216,10 +216,22 @@ internal sealed class InputSystem {
 		int word = idx >> 6;
 		ulong mask = 1ul << (idx & 0b111111);
 		switch (word) {
-		case 0: if (down) keys0 |= mask; else keys0 &= ~mask; break;
-		case 1: if (down) keys1 |= mask; else keys1 &= ~mask; break;
-		case 2: if (down) keys2 |= mask; else keys2 &= ~mask; break;
-		case 3: if (down) keys3 |= mask; else keys3 &= ~mask; break;
+		case 0:
+			if (down) keys0 |= mask;
+			else keys0 &= ~mask;
+			break;
+		case 1:
+			if (down) keys1 |= mask;
+			else keys1 &= ~mask;
+			break;
+		case 2:
+			if (down) keys2 |= mask;
+			else keys2 &= ~mask;
+			break;
+		case 3:
+			if (down) keys3 |= mask;
+			else keys3 &= ~mask;
+			break;
 		default: throw new UnreachableException();
 		}
 	}
@@ -229,7 +241,8 @@ internal sealed class InputSystem {
 		if ((uint)idx >= 8u)
 			return;
 		byte mask = (byte)(1u << idx);
-		if (down) pointerButtons |= mask; else pointerButtons &= (byte)~mask;
+		if (down) pointerButtons |= mask;
+		else pointerButtons &= (byte)~mask;
 	}
 
 	private static void setGamepadAxis(ref MutableGamepadState g, GamepadAxis axis, float value) {
@@ -248,7 +261,8 @@ internal sealed class InputSystem {
 		if ((uint)idx >= 32u)
 			return;
 		uint mask = 1u << idx;
-		if (down) g.Buttons |= mask; else g.Buttons &= ~mask;
+		if (down) g.Buttons |= mask;
+		else g.Buttons &= ~mask;
 	}
 
 	private void synthesizeKeyboardReleaseAll(MonoTick tick) {
@@ -272,7 +286,7 @@ internal sealed class InputSystem {
 	private void synthesizeGamepadsReleaseAll(MonoTick tick) {
 		foreach (MutableGamepadState g in gamepads) {
 			for (int bit = 0; bit < 32; bit++) {
-				if ((g.Buttons & (1u << bit)) == 0)
+				if ((g.Buttons & 1u << bit) == 0)
 					continue;
 				Push(new GamepadButtonEvent(tick, g.ID, GamepadButton.Enum.FromTag((GamepadButton.Case)bit), EdgeType.Release));
 			}
@@ -286,7 +300,7 @@ internal sealed class InputSystem {
 	}
 
 	public bool TryHandleSDLEvent(in SDLEvent ev) {
-		SDLEventType t = (SDLEventType)ev.Type;
+		var t = (SDLEventType)ev.Type;
 		if (t is SDLEventType.KeyDown or SDLEventType.KeyUp) {
 			if (ev.Key.Repeat != 0)
 				return true;
@@ -324,8 +338,14 @@ internal sealed class InputSystem {
 				return true;
 			GamepadButton btn = TranslateGamepadButton((SDLGamepadButton)ev.Gbutton.Button);
 			if (btn != GamepadButton.Unknown)
-				Push(new GamepadButtonEvent((MonoTick)ev.Gbutton.Timestamp, gamepads[idx].ID, btn,
-					ev.Gbutton.Down != 0 ? EdgeType.Press : EdgeType.Release));
+				Push(
+					new GamepadButtonEvent(
+						(MonoTick)ev.Gbutton.Timestamp,
+						gamepads[idx].ID,
+						btn,
+						ev.Gbutton.Down != 0 ? EdgeType.Press : EdgeType.Release
+					)
+				);
 			return true;
 		} else if (t == SDLEventType.MouseMotion) {
 			Push(new PointerMoveEvent((MonoTick)ev.Motion.Timestamp, ev.Motion.X, ev.Motion.Y, ev.Motion.Xrel, ev.Motion.Yrel));
@@ -333,8 +353,16 @@ internal sealed class InputSystem {
 		} else if (t is SDLEventType.MouseButtonDown or SDLEventType.MouseButtonUp) {
 			PointerButton btn = TranslatePointerButton(ev.Button.Button);
 			if (btn != PointerButton.Unknown)
-				Push(new PointerButtonEvent((MonoTick)ev.Button.Timestamp, btn,
-					ev.Button.Down != 0 ? EdgeType.Press : EdgeType.Release, ev.Button.Clicks, ev.Button.X, ev.Button.Y));
+				Push(
+					new PointerButtonEvent(
+						(MonoTick)ev.Button.Timestamp,
+						btn,
+						ev.Button.Down != 0 ? EdgeType.Press : EdgeType.Release,
+						ev.Button.Clicks,
+						ev.Button.X,
+						ev.Button.Y
+					)
+				);
 			return true;
 		} else if (t == SDLEventType.MouseWheel) {
 			float x = ev.Wheel.X;

@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Lifetime;
@@ -69,16 +70,15 @@ internal sealed class FlowState {
 
 	public static FlowState MergeWorst(FlowState left, FlowState right, Location location, FlowMergeKind kind) {
 		FlowState result = new();
-		foreach (LifetimeObligation leftObligation in left.byID.Values) {
+		foreach (LifetimeObligation leftObligation in left.byID.Values)
 			if (right.byID.TryGetValue(leftObligation.ID, out LifetimeObligation? rightObligation)) {
-				LifetimeObligation merged = LifetimeObligation.MergeWorst(leftObligation, rightObligation, location, kind);
+				var merged = LifetimeObligation.MergeWorst(leftObligation, rightObligation, location, kind);
 				result.Add(merged);
 			} else {
 				LifetimeObligation merged = leftObligation.Clone();
 				merged.AddPathDivergence(new ObligationPathDivergence(kind, location, leftObligation.ToPathState(), ObligationPathState.Absent));
 				result.Add(merged);
 			}
-		}
 
 		foreach (LifetimeObligation rightObligation in right.byID.Values) {
 			if (left.byID.ContainsKey(rightObligation.ID))

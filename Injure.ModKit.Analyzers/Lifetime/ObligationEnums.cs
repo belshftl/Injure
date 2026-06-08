@@ -66,14 +66,14 @@ internal enum FlowMergeKind {
 
 [Flags]
 internal enum ObligationPathState {
-	None                = 0,
-	Absent              = 1 << 0,
-	Open                = 1 << 1,
-	Satisfied           = 1 << 2,
-	MethodSatisfied     = 1 << 3,
+	None = 0,
+	Absent = 1 << 0,
+	Open = 1 << 1,
+	Satisfied = 1 << 2,
+	MethodSatisfied = 1 << 3,
 	GenerationSatisfied = 1 << 4,
-	Leaked              = 1 << 5,
-	ExceptionLeaked     = 1 << 6,
+	Leaked = 1 << 5,
+	ExceptionLeaked = 1 << 6,
 }
 
 internal enum ObligationLeakKind {

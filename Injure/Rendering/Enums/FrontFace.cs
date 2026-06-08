@@ -8,7 +8,7 @@ namespace Injure.Rendering;
 [ClosedEnumMirror(typeof(WebGPU.WGPUFrontFace))]
 public readonly partial struct FrontFace {
 	public enum Case {
-	Undefined = 0,
+		Undefined = 0,
 		CCW = 1,
 		CW = 2,
 	}

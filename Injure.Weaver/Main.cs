@@ -24,19 +24,22 @@ public static class MainClass {
 			values.Add(arg[2..], args[i + 1]);
 		}
 		string output = require(values, "output");
-		int emitted = AssemblyWeaver.Run(new Options {
-			InputPath = require(values, "input"),
-			OutputPath = output,
-			OwnerID = require(values, "owner-id"),
-			HooksRoot = get(values, "hooks-root"),
-			RawHooksRoot = get(values, "raw-hooks-root"),
-		});
+		int emitted = AssemblyWeaver.Run(
+			new Options {
+				InputPath = require(values, "input"),
+				OutputPath = output,
+				OwnerID = require(values, "owner-id"),
+				HooksRoot = get(values, "hooks-root"),
+				RawHooksRoot = get(values, "raw-hooks-root"),
+			}
+		);
 		Console.WriteLine($"wrote '{output}' with {emitted} hook target(s)");
 	}
 
 	[DoesNotReturn]
 	private static void usage() {
-		Console.WriteLine($"""
+		Console.WriteLine(
+			$"""
 usage: {Environment.GetCommandLineArgs()[0]} --input <dll> --output <dll> --owner-id <owner id> [options]
 process an Injure game assembly to make it more suitable for modding
 
@@ -47,7 +50,8 @@ options:
       --hooks-root <full type name>      root static class to emit intended hooks into (default: <assembly name>.Hooks)
       --raw-hooks-root <full type name>  root static class to emit raw hooks into (default: <assembly name>.RawHooks)
   -h, --help                             display this help and exit
-""");
+"""
+		);
 		Environment.Exit(2);
 		throw new UnreachableException();
 	}

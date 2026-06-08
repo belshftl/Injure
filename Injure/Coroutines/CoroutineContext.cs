@@ -11,8 +11,15 @@ public readonly struct CoroutineContext {
 	public CoroUpdatePhase Phase { get; }
 	public CoroutineTick Tick { get; }
 
-	internal CoroutineContext(CoroutineScheduler sched, CoroutineHandle handle, CoroutineScope scope,
-		double dt, double rawDt, CoroUpdatePhase phase, CoroutineTick tick) {
+	internal CoroutineContext(
+		CoroutineScheduler sched,
+		CoroutineHandle handle,
+		CoroutineScope scope,
+		double dt,
+		double rawDt,
+		CoroUpdatePhase phase,
+		CoroutineTick tick
+	) {
 		Scheduler = sched;
 		Handle = handle;
 		Scope = scope;

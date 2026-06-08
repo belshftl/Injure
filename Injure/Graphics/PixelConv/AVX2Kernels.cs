@@ -7,7 +7,7 @@ using System.Runtime.Intrinsics.X86;
 namespace Injure.Graphics.PixelConv;
 
 internal static unsafe class AVX2Kernels {
-	public static void Copy32SetAlpha(ref readonly PixelConversionPlan plan, byte *src, byte *dst, nuint pxCount) {
+	public static void Copy32SetAlpha(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Copy32SetAlphaPayload pl = ref plan.Payload.Copy32SetAlpha;
 		nuint px = pxCount & ~(nuint)0b111;
 		nuint bytes = px * 4u;
@@ -23,7 +23,7 @@ internal static unsafe class AVX2Kernels {
 			ScalarKernels.Copy32SetAlpha(in plan, src + bytes, dst + bytes, tail);
 	}
 
-	public static void Copy64SetAlpha(ref readonly PixelConversionPlan plan, byte *src, byte *dst, nuint pxCount) {
+	public static void Copy64SetAlpha(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Copy64SetAlphaPayload pl = ref plan.Payload.Copy64SetAlpha;
 		nuint px = pxCount & ~(nuint)0b11;
 		nuint bytes = px * 8u;
@@ -39,7 +39,7 @@ internal static unsafe class AVX2Kernels {
 			ScalarKernels.Copy64SetAlpha(in plan, src + bytes, dst + bytes, tail);
 	}
 
-	public static void Shuffle32(ref readonly PixelConversionPlan plan, byte *src, byte *dst, nuint pxCount) {
+	public static void Shuffle32(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Shuffle32Payload pl = ref plan.Payload.Shuffle32;
 		nuint px = pxCount & ~(nuint)0b111;
 		nuint bytes = px * 4u;
@@ -56,14 +56,14 @@ internal static unsafe class AVX2Kernels {
 			ScalarKernels.Shuffle32(in plan, src + bytes, dst + bytes, tail);
 	}
 
-	public static void Expand24To32(ref readonly PixelConversionPlan plan, byte *src, byte *dst, nuint pxCount) {
+	public static void Expand24To32(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		// 3 bytes doesn't fit nicely into an SIMD lane so this one's kind of
 		// odd-looking compared to the other ones here, do 2 16-byte loads and
 		// have the masks ignore the unneeded bytes to read 24 bytes at a time
 
 		ref readonly Expand24To32Payload pl = ref plan.Payload.Expand24To32;
-		byte *s = src;
-		byte *d = dst;
+		byte* s = src;
+		byte* d = dst;
 		nuint pixel = 0;
 		// converts 8 pixels per iter, but since the first load does 0..15 and the second does
 		// 12..27, it needs 28 bytes to not read past the end of the buffer, ceil(28/3) = 10
@@ -72,7 +72,7 @@ internal static unsafe class AVX2Kernels {
 			// hi = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, XX, XX, XX, XX]
 			Vector128<byte> lo = Unsafe.ReadUnaligned<Vector128<byte>>(s);
 			Vector128<byte> hi = Unsafe.ReadUnaligned<Vector128<byte>>(s + 12);
-			Vector256<byte> v = Vector256.Create(lo, hi);
+			var v = Vector256.Create(lo, hi);
 			v = Avx2.Shuffle(v, pl.ShufMask256);
 			v = Avx2.Or(v, pl.FillMask256);
 			Unsafe.WriteUnaligned(d, v);
@@ -83,7 +83,7 @@ internal static unsafe class AVX2Kernels {
 			ScalarKernels.Expand24To32(in plan, s, d, tail);
 	}
 
-	public static void Contract32To24(ref readonly PixelConversionPlan plan, byte *src, byte *dst, nuint pxCount) {
+	public static void Contract32To24(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Contract32To24Payload pl = ref plan.Payload.Contract32To24;
 		nuint px = pxCount & ~(nuint)0b111;
 		nuint bytes = px * 4u;

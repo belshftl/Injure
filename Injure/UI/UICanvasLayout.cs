@@ -25,10 +25,12 @@ public static class UICanvasLayout {
 		RectF logical = computeLogicalRect(policy, drawableSize);
 		RectI viewport = computeViewport(policy, logical, drawableSize);
 
-		Vector2 scale = viewport.Width == 0 || viewport.Height == 0 ? Vector2.One : new Vector2(
-			(float)viewport.Width / logical.Width,
-			(float)viewport.Height / logical.Height
-		);
+		Vector2 scale = viewport.Width == 0 || viewport.Height == 0
+			? Vector2.One
+			: new Vector2(
+				(float)viewport.Width / logical.Width,
+				(float)viewport.Height / logical.Height
+			);
 		return new UICanvasTransform(
 			LogicalRect: logical,
 			ViewportRect: viewport,
@@ -36,26 +38,19 @@ public static class UICanvasLayout {
 		);
 	}
 
-	public static Matrix3x2 CreateTransform(UICanvasTransform tx) {
-		return
-			Matrix3x2.CreateTranslation(-tx.LogicalRect.X, -tx.LogicalRect.Y) *
-			Matrix3x2.CreateScale(tx.Scale) *
-			Matrix3x2.CreateTranslation(tx.ViewportRect.X, tx.ViewportRect.Y);
-	}
+	public static Matrix3x2 CreateTransform(UICanvasTransform tx) => Matrix3x2.CreateTranslation(-tx.LogicalRect.X, -tx.LogicalRect.Y) *
+		Matrix3x2.CreateScale(tx.Scale) *
+		Matrix3x2.CreateTranslation(tx.ViewportRect.X, tx.ViewportRect.Y);
 
-	public static Vector2 ScreenToLogical(UICanvasTransform tx, Vector2 targetPos) {
-		return new Vector2(
-			tx.LogicalRect.X + (targetPos.X - tx.ViewportRect.X) / tx.Scale.X,
-			tx.LogicalRect.Y + (targetPos.Y - tx.ViewportRect.Y) / tx.Scale.Y
-		);
-	}
+	public static Vector2 ScreenToLogical(UICanvasTransform tx, Vector2 targetPos) => new(
+		tx.LogicalRect.X + (targetPos.X - tx.ViewportRect.X) / tx.Scale.X,
+		tx.LogicalRect.Y + (targetPos.Y - tx.ViewportRect.Y) / tx.Scale.Y
+	);
 
-	public static Vector2 LogicalToScreen(UICanvasTransform tx, Vector2 logicalPos) {
-		return new Vector2(
-			tx.ViewportRect.X + (logicalPos.X - tx.LogicalRect.X) * tx.Scale.X,
-			tx.ViewportRect.Y + (logicalPos.Y - tx.LogicalRect.Y) * tx.Scale.Y
-		);
-	}
+	public static Vector2 LogicalToScreen(UICanvasTransform tx, Vector2 logicalPos) => new(
+		tx.ViewportRect.X + (logicalPos.X - tx.LogicalRect.X) * tx.Scale.X,
+		tx.ViewportRect.Y + (logicalPos.Y - tx.LogicalRect.Y) * tx.Scale.Y
+	);
 
 	public static RectI LogicalToScissor(UICanvasTransform tx, RectF logicalRect) {
 		Vector2 a = LogicalToScreen(tx, logicalRect.Position);

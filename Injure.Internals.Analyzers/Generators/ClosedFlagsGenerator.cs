@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 using System.Threading;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -18,7 +19,15 @@ namespace Injure.Internals.Analyzers.Generators;
 public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 	// ==========================================================================
 	// internal types
-	private sealed class TargetInfo(INamedTypeSymbol symbol, string accessibility, string? ns, bool defaultIsInvalid, ImmutableArray<BitInfo> bits, ImmutableArray<BitInfo> atomicBits, ImmutableArray<MirrorInfo> mirrors) {
+	private sealed class TargetInfo(
+		INamedTypeSymbol symbol,
+		string accessibility,
+		string? ns,
+		bool defaultIsInvalid,
+		ImmutableArray<BitInfo> bits,
+		ImmutableArray<BitInfo> atomicBits,
+		ImmutableArray<MirrorInfo> mirrors
+	) {
 		public INamedTypeSymbol Symbol { get; } = symbol;
 		public string Accessibility { get; } = accessibility;
 		public string? Namespace { get; } = ns;
@@ -41,30 +50,34 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 	// IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context) {
 		context.RegisterPostInitializationOutput(static (IncrementalGeneratorPostInitializationContext ctx) => {
-			ctx.AddEmbeddedAttributeDefinition();
-			ctx.AddSource(AttributeSources.ClosedFlagsAttributeFilename, SourceText.From(AttributeSources.ClosedFlagsAttribute, Encoding.UTF8));
-			ctx.AddSource(AttributeSources.ClosedFlagsMirrorAttributeFilename, SourceText.From(AttributeSources.ClosedFlagsMirrorAttribute, Encoding.UTF8));
-		});
+				ctx.AddEmbeddedAttributeDefinition();
+				ctx.AddSource(AttributeSources.ClosedFlagsAttributeFilename, SourceText.From(AttributeSources.ClosedFlagsAttribute, Encoding.UTF8));
+				ctx.AddSource(AttributeSources.ClosedFlagsMirrorAttributeFilename, SourceText.From(AttributeSources.ClosedFlagsMirrorAttribute, Encoding.UTF8));
+			}
+		);
 		IncrementalValuesProvider<TargetInfo?> targets = context.SyntaxProvider.ForAttributeWithMetadataName(
 			AttributeSources.ClosedFlagsAttributeMetadataName,
 			predicate: static (SyntaxNode node, CancellationToken _) => node is StructDeclarationSyntax,
 			transform: check
 		);
-		context.RegisterSourceOutput(targets.Collect(), static (SourceProductionContext ctx, ImmutableArray<TargetInfo?> infos) => {
-			HashSet<INamedTypeSymbol> seen = new(SymbolEqualityComparer.Default);
-			foreach (TargetInfo? info in infos) {
-				if (info is null || !seen.Add(info.Symbol))
-					continue;
-				ctx.AddSource(getHintName(info), SourceText.From(emit(info), Encoding.UTF8));
+		context.RegisterSourceOutput(
+			targets.Collect(),
+			static (SourceProductionContext ctx, ImmutableArray<TargetInfo?> infos) => {
+				HashSet<INamedTypeSymbol> seen = new(SymbolEqualityComparer.Default);
+				foreach (TargetInfo? info in infos) {
+					if (info is null || !seen.Add(info.Symbol))
+						continue;
+					ctx.AddSource(getHintName(info), SourceText.From(emit(info), Encoding.UTF8));
+				}
 			}
-		});
+		);
 	}
 
 	private static string getHintName(TargetInfo info) =>
 		(info.Namespace is not null ? info.Namespace + "." + info.Symbol.Name : info.Symbol.Name) + Constants.ClosedFlagsGeneratedSourceSuffix;
 
 	private static TargetInfo? check(GeneratorAttributeSyntaxContext ctx, CancellationToken ct) {
-		INamedTypeSymbol sym = (INamedTypeSymbol)ctx.TargetSymbol;
+		var sym = (INamedTypeSymbol)ctx.TargetSymbol;
 		if (sym.TypeKind != TypeKind.Struct || !Util.Partial(sym, ct) || !sym.IsReadOnly || sym.IsRecord ||
 			sym.IsRefLikeType || sym.ContainingType is not null || sym.TypeParameters.Length != 0)
 			return null;
@@ -103,7 +116,7 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 			bits.Add(bi);
 			if (v == 0)
 				zeroCount++;
-			else if ((v & (v - 1)) == 0)
+			else if ((v & v - 1) == 0)
 				atomic.Add(bi);
 		}
 
@@ -185,7 +198,7 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		sb.AppendLine("\t\t/// all being declared values or throws.");
 		sb.AppendLine("\t\t/// </remarks>");
 		sb.Append("\t\tpublic Bits Mask => ").Append(Constants.ClosedFlagsValidateMethodName).Append('(').Append(Constants.ClosedFlagsBackingFieldName).AppendLine(");");
-		
+
 		sb.Append("\t\tpublic const Bits ").Append(Constants.ClosedFlagsAllBitsConstName).Append(" = ");
 		for (int i = 0; i < info.Bits.Length; i++) {
 			if (i != 0)
@@ -194,14 +207,20 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		}
 		sb.AppendLine(";");
 
-		sb.Append("\t\t[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)] private static bool ").Append(Constants.ClosedFlagsIsDefinedMethodName).Append("(Bits mask) => (mask & ~").Append(Constants.ClosedFlagsAllBitsConstName).AppendLine(") == 0;");
-		sb.Append("\t\t[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)] private static Bits ").Append(Constants.ClosedFlagsValidateMethodName).AppendLine("(Bits mask) {");
+		sb.Append(
+			"\t\t[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)] private static bool "
+		).Append(Constants.ClosedFlagsIsDefinedMethodName).Append("(Bits mask) => (mask & ~").Append(Constants.ClosedFlagsAllBitsConstName).AppendLine(") == 0;");
+		sb.Append(
+			"\t\t[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)] private static Bits "
+		).Append(Constants.ClosedFlagsValidateMethodName).AppendLine("(Bits mask) {");
 		if (info.DefaultIsInvalid) {
 			sb.AppendLine("\t\t\tif (mask == (Bits)0)");
-			sb.Append("\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("default(" + info.Symbol.Name + ") is not a valid " + info.Symbol.Name + " value", true)).AppendLine(");");
+			sb.Append("\t\t\t\tthrow new global::System.InvalidOperationException(")
+				.Append(SymbolDisplay.FormatLiteral("default(" + info.Symbol.Name + ") is not a valid " + info.Symbol.Name + " value", true)).AppendLine(");");
 		}
 		sb.Append("\t\t\tif (!").Append(Constants.ClosedFlagsIsDefinedMethodName).AppendLine("(mask))");
-		sb.Append("\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("Invalid " + info.Symbol.Name + " value: ", true)).AppendLine(" + mask.ToString());");
+		sb.Append("\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("Invalid " + info.Symbol.Name + " value: ", true))
+			.AppendLine(" + mask.ToString());");
 		sb.AppendLine("\t\t\treturn mask;");
 		sb.AppendLine("\t\t}");
 
@@ -209,18 +228,26 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		sb.Append("\t\tpublic bool HasAll(").Append(targetType).AppendLine(" flags) => (Mask & flags.Mask) == flags.Mask;");
 		sb.Append("\t\tpublic bool HasNone(").Append(targetType).AppendLine(" flags) => (Mask & flags.Mask) == 0;");
 
-		sb.Append("\t\tpublic bool Equals(").Append(targetType).Append(" other) => ").Append(Constants.ClosedFlagsBackingFieldName).Append(" == other.").Append(Constants.ClosedFlagsBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic bool Equals(").Append(targetType).Append(" other) => ").Append(Constants.ClosedFlagsBackingFieldName).Append(" == other.")
+			.Append(Constants.ClosedFlagsBackingFieldName).AppendLine(";");
 		sb.Append("\t\tpublic override bool Equals(object? obj) => obj is ").Append(targetType).AppendLine(" other && Equals(other);");
 		sb.Append("\t\tpublic override int GetHashCode() => ").Append(Constants.ClosedFlagsBackingFieldName).AppendLine(".GetHashCode();");
-		sb.Append("\t\tpublic static bool operator ==(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.ClosedFlagsBackingFieldName).Append(" == right.").Append(Constants.ClosedFlagsBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static bool operator !=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.").Append(Constants.ClosedFlagsBackingFieldName).Append(" != right.").Append(Constants.ClosedFlagsBackingFieldName).AppendLine(";");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator |(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(").Append(Constants.ClosedFlagsValidateMethodName).AppendLine("(left.Mask | right.Mask));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator &(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(").Append(Constants.ClosedFlagsValidateMethodName).AppendLine("(left.Mask & right.Mask));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ^(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(").Append(Constants.ClosedFlagsValidateMethodName).AppendLine("(left.Mask ^ right.Mask));");
-		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ~(").Append(targetType).Append(" val) => new(").Append(Constants.ClosedFlagsValidateMethodName).Append("((~val.Mask) & ").Append(Constants.ClosedFlagsAllBitsConstName).AppendLine("));");
+		sb.Append("\t\tpublic static bool operator ==(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.ClosedFlagsBackingFieldName).Append(" == right.").Append(Constants.ClosedFlagsBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static bool operator !=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
+			.Append(Constants.ClosedFlagsBackingFieldName).Append(" != right.").Append(Constants.ClosedFlagsBackingFieldName).AppendLine(";");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator |(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(")
+			.Append(Constants.ClosedFlagsValidateMethodName).AppendLine("(left.Mask | right.Mask));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator &(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(")
+			.Append(Constants.ClosedFlagsValidateMethodName).AppendLine("(left.Mask & right.Mask));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ^(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => new(")
+			.Append(Constants.ClosedFlagsValidateMethodName).AppendLine("(left.Mask ^ right.Mask));");
+		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ~(").Append(targetType).Append(" val) => new(").Append(Constants.ClosedFlagsValidateMethodName)
+			.Append("((~val.Mask) & ").Append(Constants.ClosedFlagsAllBitsConstName).AppendLine("));");
 
 		foreach (MirrorInfo mirror in info.Mirrors)
-			sb.Append("\t\tpublic static explicit operator ").Append(mirror.TypeName).Append('(').Append(targetType).Append(" value) => (").Append(mirror.TypeName).AppendLine(")value.Mask;");
+			sb.Append("\t\tpublic static explicit operator ").Append(mirror.TypeName).Append('(').Append(targetType).Append(" value) => (").Append(mirror.TypeName)
+				.AppendLine(")value.Mask;");
 
 		sb.AppendLine("\t\t/// <summary>");
 		sb.AppendLine("\t\t/// Returns the declared mask value for this value.");
@@ -275,7 +302,8 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		sb.AppendLine("\t\t\t}");
 
 		foreach (MirrorInfo mirror in info.Mirrors) {
-			sb.Append("\t\t\tpublic static bool TryFromMirror(").Append(mirror.TypeName).Append(" mirror, out ").Append(targetType).AppendLine(" val) => TryFromMask((Bits)mirror, out val);");
+			sb.Append("\t\t\tpublic static bool TryFromMirror(").Append(mirror.TypeName).Append(" mirror, out ").Append(targetType)
+				.AppendLine(" val) => TryFromMask((Bits)mirror, out val);");
 			sb.Append("\t\t\tpublic static ").Append(targetType).Append(" FromMirror(").Append(mirror.TypeName).AppendLine(" mirror) {");
 			sb.Append("\t\t\t\tif (TryFromMask((Bits)mirror, out ").Append(targetType).AppendLine(" val))");
 			sb.AppendLine("\t\t\t\t\treturn val;");
@@ -293,5 +321,7 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 	};
 
 	private static string escapeIdentifier(string name) => SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ||
-		SyntaxFacts.GetContextualKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
+		SyntaxFacts.GetContextualKeywordKind(name) != SyntaxKind.None
+			? "@" + name
+			: name;
 }

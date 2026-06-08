@@ -281,14 +281,17 @@ public static class AssetRefExtensions {
 		public async Task WarmAllAsync(int maxConcurrency = 8, CancellationToken ct = default) {
 			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
 			using SemaphoreSlim sem = new(maxConcurrency, maxConcurrency);
-			await Task.WhenAll(assetRefs.Select(async assetRef => {
-				await sem.WaitAsync(ct).ConfigureAwait(false);
-				try {
-					await assetRef.WarmAsync(ct).ConfigureAwait(false);
-				} finally {
-					sem.Release();
-				}
-			})).ConfigureAwait(false);
+			await Task.WhenAll(
+				assetRefs.Select(async assetRef => {
+						await sem.WaitAsync(ct).ConfigureAwait(false);
+						try {
+							await assetRef.WarmAsync(ct).ConfigureAwait(false);
+						} finally {
+							sem.Release();
+						}
+					}
+				)
+			).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -304,14 +307,17 @@ public static class AssetRefExtensions {
 		public async Task QueueReloadAllAsync(int maxConcurrency = 8, CancellationToken ct = default) {
 			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
 			using SemaphoreSlim sem = new(maxConcurrency, maxConcurrency);
-			await Task.WhenAll(assetRefs.Select(async assetRef => {
-				await sem.WaitAsync(ct).ConfigureAwait(false);
-				try {
-					await assetRef.QueueReloadAsync(ct).ConfigureAwait(false);
-				} finally {
-					sem.Release();
-				}
-			})).ConfigureAwait(false);
+			await Task.WhenAll(
+				assetRefs.Select(async assetRef => {
+						await sem.WaitAsync(ct).ConfigureAwait(false);
+						try {
+							await assetRef.QueueReloadAsync(ct).ConfigureAwait(false);
+						} finally {
+							sem.Release();
+						}
+					}
+				)
+			).ConfigureAwait(false);
 		}
 
 		/// <summary>

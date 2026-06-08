@@ -175,9 +175,13 @@ public sealed class ManifestReaderTests {
 
 	[Fact]
 	public void RejectsUnknownRootProperty() {
-		ManifestReadException ex = parseError(validContentManifest(extra: @",
+		ManifestReadException ex = parseError(
+			validContentManifest(
+				extra: @",
 	""typo"": true
-"));
+"
+			)
+		);
 		Assert.Equal("$.typo", ex.JsonNodePath);
 		Assert.Contains("unknown property", ex.Message);
 	}
@@ -267,9 +271,13 @@ public sealed class ManifestReaderTests {
 
 	[Fact]
 	public void RejectsEntryAssemblyOnContentMods() {
-		ManifestReadException ex = parseError(validContentManifest(extra: @",
+		ManifestReadException ex = parseError(
+			validContentManifest(
+				extra: @",
 	""entry-assembly"": ""Mod.dll""
-"));
+"
+			)
+		);
 		Assert.Equal("$.entry-assembly", ex.JsonNodePath);
 		Assert.Contains("only valid for code mods", ex.Message);
 	}
@@ -337,12 +345,14 @@ public sealed class ManifestReaderTests {
 	[InlineData("tracked", "assets")]
 	[InlineData("manual", "content/assets")]
 	public void ParsesAssetRootWhenRequired(string management, string root) {
-		string json = validContentManifest(assets: $$"""
+		string json = validContentManifest(
+			assets: $$"""
 {
 	"management": "{{management}}",
 	"root": "{{root}}"
 }
-""");
+"""
+		);
 		ContentModManifest manifest = Assert.IsType<ContentModManifest>(parse(json));
 		Assert.Equal(root, manifest.Assets.Root);
 	}
@@ -351,11 +361,13 @@ public sealed class ManifestReaderTests {
 	[InlineData("tracked")]
 	[InlineData("manual")]
 	public void RejectsMissingAssetRootWhenRequired(string management) {
-		string json = validContentManifest(assets: $$"""
+		string json = validContentManifest(
+			assets: $$"""
 {
 	"management": "{{management}}"
 }
-""");
+"""
+		);
 		ManifestReadException ex = parseError(json);
 		Assert.Equal("$.assets.management", ex.JsonNodePath);
 		Assert.Contains("assets.root is required", ex.Message);
@@ -363,12 +375,14 @@ public sealed class ManifestReaderTests {
 
 	[Fact]
 	public void RejectsAssetRootWhenManagementIsNone() {
-		string json = validContentManifest(assets: """
+		string json = validContentManifest(
+			assets: """
 {
 	"management": "none",
 	"root": "assets"
 }
-""");
+"""
+		);
 		ManifestReadException ex = parseError(json);
 		Assert.Equal("$.assets.root", ex.JsonNodePath);
 		Assert.Contains("must be absent", ex.Message);
@@ -376,12 +390,14 @@ public sealed class ManifestReaderTests {
 
 	[Fact]
 	public void RejectsInvalidAssetRootPath() {
-		string json = validContentManifest(assets: """
+		string json = validContentManifest(
+			assets: """
 {
 	"management": "tracked",
 	"root": "assets/../invalid"
 }
-""");
+"""
+		);
 		ManifestReadException ex = parseError(json);
 		Assert.Equal("$.assets.root", ex.JsonNodePath);
 		Assert.Contains("..", ex.Message);
@@ -576,8 +592,8 @@ public sealed class ManifestReaderTests {
 	[Fact]
 	public void ParsesGameCompatibility() {
 		string json = validContentManifest(extra: "", assets: """{ "management": "none" }""").Replace(
-@"""game"": {}",
-"""
+			@"""game"": {}",
+			"""
 	"game": {
 		"target-version": "5.6.7",
 		"target-build-mvid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"

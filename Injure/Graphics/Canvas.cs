@@ -142,23 +142,26 @@ public readonly struct CanvasOutputState : IEquatable<CanvasOutputState> {
 	public required ColorWriteMask WriteMask { get; init; }
 
 	private static bool eq(BlendState? left, BlendState? right) {
-		if (left is BlendState a && right is BlendState b) {
+		if (left is BlendState a && right is BlendState b)
 			return a.Alpha.Operation == b.Alpha.Operation &&
 				a.Alpha.SrcFactor == b.Alpha.SrcFactor &&
 				a.Alpha.DstFactor == b.Alpha.DstFactor &&
 				a.Color.Operation == b.Color.Operation &&
 				a.Color.SrcFactor == b.Color.SrcFactor &&
 				a.Color.DstFactor == b.Color.DstFactor;
-		} else {
-			return (left is null) == (right is null);
-		}
+		else
+			return left is null == right is null;
 	}
 	private static int hash(BlendState? blendState) {
 		if (blendState is not BlendState s)
 			return 0;
 		return HashCode.Combine(
-			(int)s.Alpha.Operation.Tag, (int)s.Alpha.SrcFactor.Tag, (int)s.Alpha.DstFactor.Tag,
-			(int)s.Color.Operation.Tag, (int)s.Color.SrcFactor.Tag, (int)s.Color.DstFactor.Tag
+			(int)s.Alpha.Operation.Tag,
+			(int)s.Alpha.SrcFactor.Tag,
+			(int)s.Alpha.DstFactor.Tag,
+			(int)s.Color.Operation.Tag,
+			(int)s.Color.SrcFactor.Tag,
+			(int)s.Color.DstFactor.Tag
 		);
 	}
 
@@ -371,8 +374,13 @@ public sealed class CanvasSharedResources(WebGPUDevice device, EngineResourceSto
 		ObjectDisposedException.ThrowIf(disposed, this);
 
 		if (!primState.TryGetValue(key, out PrimitiveBatchSharedState? r)) {
-			r = new PrimitiveBatchSharedState(device, engineResources,
-				key.BlendState, key.ColorWriteMask, key.ColorTargetFormat);
+			r = new PrimitiveBatchSharedState(
+				device,
+				engineResources,
+				key.BlendState,
+				key.ColorWriteMask,
+				key.ColorTargetFormat
+			);
 			primState.Add(key, r);
 		}
 		return r;
@@ -385,8 +393,14 @@ public sealed class CanvasSharedResources(WebGPUDevice device, EngineResourceSto
 		ObjectDisposedException.ThrowIf(disposed, this);
 
 		if (!texState.TryGetValue(key, out TexturedBatchSharedState? r)) {
-			r = new TexturedBatchSharedState(device, engineResources,
-				key.BlendState, key.ColorWriteMask, key.TextureInterpretation, key.ColorTargetFormat);
+			r = new TexturedBatchSharedState(
+				device,
+				engineResources,
+				key.BlendState,
+				key.ColorWriteMask,
+				key.TextureInterpretation,
+				key.ColorTargetFormat
+			);
 			texState.Add(key, r);
 		}
 		return r;
@@ -447,7 +461,9 @@ public sealed class Canvas : IDisposable {
 		}
 	}
 
-	private sealed class Dummy : IDisposable { public void Dispose() {} }
+	private sealed class Dummy : IDisposable {
+		public void Dispose() {}
+	}
 
 	// ==========================================================================
 	// internal objects / properties
@@ -470,7 +486,7 @@ public sealed class Canvas : IDisposable {
 			return t.IsPrimary ? frame.PrimaryView.Format : t.RenderTarget.ColorFormat;
 		}
 	}
-	
+
 	// ==========================================================================
 	// public properties and ctor
 
@@ -787,13 +803,9 @@ public sealed class Canvas : IDisposable {
 		return new RectF(srcPixels.X * invW, srcPixels.Y * invH, srcPixels.Width * invW, srcPixels.Height * invH);
 	}
 
-	private static RectF texdst(in ResolvedTextureSource tex, Vector2 topLeft) {
-		return new RectF(topLeft.X, topLeft.Y, (float)tex.Width, (float)tex.Height);
-	}
+	private static RectF texdst(in ResolvedTextureSource tex, Vector2 topLeft) => new(topLeft.X, topLeft.Y, (float)tex.Width, (float)tex.Height);
 
-	private static RectF texdst(Vector2 topLeft, RectF srcPixels) {
-		return new RectF(topLeft.X, topLeft.Y, srcPixels.Width, srcPixels.Height);
-	}
+	private static RectF texdst(Vector2 topLeft, RectF srcPixels) => new(topLeft.X, topLeft.Y, srcPixels.Width, srcPixels.Height);
 
 	private void checkSelfDraw(in ResolvedTextureSource tex) {
 		if (CurrentParams.Target.IsPrimary)
@@ -1075,18 +1087,16 @@ public sealed class Canvas : IDisposable {
 		transition(in old, in @new, returning: true);
 	}
 
-	private static CanvasParams merge(in CanvasParams curr, in CanvasParamsOverride ov) {
-		return new CanvasParams(
-			Transform: ov.Transform ?? curr.Transform,
-			Target: ov.Target ?? curr.Target,
-			ColorAttachmentOps: ov.ColorAttachmentOps ?? curr.ColorAttachmentOps,
-			Scissor: mergeScissor(curr.Scissor, ov.Scissor),
-			OutputState: ov.OutputState ?? curr.OutputState,
-			Material: ov.Material ?? curr.Material,
-			SubmitMode: ov.SubmitMode ?? curr.SubmitMode
-		);
-	}
-	
+	private static CanvasParams merge(in CanvasParams curr, in CanvasParamsOverride ov) => new(
+		Transform: ov.Transform ?? curr.Transform,
+		Target: ov.Target ?? curr.Target,
+		ColorAttachmentOps: ov.ColorAttachmentOps ?? curr.ColorAttachmentOps,
+		Scissor: mergeScissor(curr.Scissor, ov.Scissor),
+		OutputState: ov.OutputState ?? curr.OutputState,
+		Material: ov.Material ?? curr.Material,
+		SubmitMode: ov.SubmitMode ?? curr.SubmitMode
+	);
+
 	private void transition(in CanvasParams from, in CanvasParams to, bool returning) {
 		bool newtarget = from.Target != to.Target;
 		bool newattops = from.ColorAttachmentOps != to.ColorAttachmentOps;
@@ -1105,7 +1115,7 @@ public sealed class Canvas : IDisposable {
 		if (affectspass) {
 			flush(from.SubmitMode);
 			closePass();
-			openPass(newtarget && returning ? (to with { ColorAttachmentOps = ColorAttachmentOps.Load }) : to);
+			openPass(newtarget && returning ? to with { ColorAttachmentOps = ColorAttachmentOps.Load } : to);
 		} else if (affectsbatch || newscissor) {
 			flush(from.SubmitMode);
 			if (newscissor)
@@ -1174,9 +1184,7 @@ public sealed class Canvas : IDisposable {
 			throw new InternalStateException("tried to open a render pass but there's already an active one");
 
 		// see above on indirection
-		pass = p.Target.IsPrimary ?
-			frame.BeginPrimaryPass(p.ColorAttachmentOps) :
-			frame.BeginColorPass(p.Target.RenderTarget.ColorView, p.ColorAttachmentOps);
+		pass = p.Target.IsPrimary ? frame.BeginPrimaryPass(p.ColorAttachmentOps) : frame.BeginColorPass(p.Target.RenderTarget.ColorView, p.ColorAttachmentOps);
 		applyScissor(pass, in p);
 	}
 
@@ -1193,11 +1201,18 @@ public sealed class Canvas : IDisposable {
 	private PrimitiveBatch createPrimBatch() {
 		if (pass is null)
 			throw new InternalStateException("tried to create a PrimitiveBatch but there's no active render pass");
-		return new PrimitiveBatch(device, globals, frame, pass,
-			shared.GetPrimitiveBatchSharedState(new CanvasSharedResources.PrimBatchKey(
-				CurrentParams.OutputState.Blend, CurrentParams.OutputState.WriteMask,
-				currentColorFormat
-			)),
+		return new PrimitiveBatch(
+			device,
+			globals,
+			frame,
+			pass,
+			shared.GetPrimitiveBatchSharedState(
+				new CanvasSharedResources.PrimBatchKey(
+					CurrentParams.OutputState.Blend,
+					CurrentParams.OutputState.WriteMask,
+					currentColorFormat
+				)
+			),
 			new PrimitiveBatchParams(Transform: CurrentParams.Transform)
 		);
 	}
@@ -1224,12 +1239,21 @@ public sealed class Canvas : IDisposable {
 	private TexturedBatch createTexBatch() {
 		if (pass is null)
 			throw new InternalStateException("tried to create a TexturedBatch but there's no active render pass");
-		return new TexturedBatch(device, globals, frame, pass,
-			shared.GetTexturedBatchSharedState(new CanvasSharedResources.TexBatchKey(
-				CurrentParams.OutputState.Blend, CurrentParams.OutputState.WriteMask,
-				CurrentParams.Material.TextureInterpretation, currentColorFormat
-			)),
-			new TexturedBatchParams(Transform: CurrentParams.Transform, SdfParams: CurrentParams.Material.SdfParams));
+		return new TexturedBatch(
+			device,
+			globals,
+			frame,
+			pass,
+			shared.GetTexturedBatchSharedState(
+				new CanvasSharedResources.TexBatchKey(
+					CurrentParams.OutputState.Blend,
+					CurrentParams.OutputState.WriteMask,
+					CurrentParams.Material.TextureInterpretation,
+					currentColorFormat
+				)
+			),
+			new TexturedBatchParams(Transform: CurrentParams.Transform, SdfParams: CurrentParams.Material.SdfParams)
+		);
 	}
 
 	[MemberNotNull(nameof(texbatch))]

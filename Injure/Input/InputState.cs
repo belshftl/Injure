@@ -50,10 +50,10 @@ public readonly struct KeyboardState {
 		int word = idx >> 6;
 		int bit = idx & 0b111111;
 		return word switch {
-			0 => (keys0 & (1ul << bit)) != 0,
-			1 => (keys1 & (1ul << bit)) != 0,
-			2 => (keys2 & (1ul << bit)) != 0,
-			3 => (keys3 & (1ul << bit)) != 0,
+			0 => (keys0 & 1ul << bit) != 0,
+			1 => (keys1 & 1ul << bit) != 0,
+			2 => (keys2 & 1ul << bit) != 0,
+			3 => (keys3 & 1ul << bit) != 0,
 			_ => throw new UnreachableException(), // if 0 <= x <= 255 then x >> 6 can't be above 3
 		};
 	}
@@ -76,8 +76,15 @@ public readonly struct GamepadState {
 
 	public static readonly GamepadState Rest = default;
 
-	public GamepadState(ReadOnlySpan<GamepadButton> down, float leftX, float leftY, float rightX, float rightY,
-		float leftTrigger, float rightTrigger) {
+	public GamepadState(
+		ReadOnlySpan<GamepadButton> down,
+		float leftX,
+		float leftY,
+		float rightX,
+		float rightY,
+		float leftTrigger,
+		float rightTrigger
+	) {
 		static void checkStick(float v, string paramName) {
 			if (v < -1f || v > 1f)
 				throw new ArgumentOutOfRangeException(paramName, "stick axis values must be within [-1, +1]");
@@ -87,8 +94,10 @@ public readonly struct GamepadState {
 				throw new ArgumentOutOfRangeException(paramName, "trigger axis values must be within [0, +1]");
 		}
 
-		checkStick(leftX, nameof(leftX));   checkStick(leftY, nameof(leftY));
-		checkStick(rightX, nameof(rightX)); checkStick(rightY, nameof(rightY));
+		checkStick(leftX, nameof(leftX));
+		checkStick(leftY, nameof(leftY));
+		checkStick(rightX, nameof(rightX));
+		checkStick(rightY, nameof(rightY));
 		checkTrigger(leftTrigger, nameof(leftTrigger));
 		checkTrigger(rightTrigger, nameof(rightTrigger));
 
@@ -120,7 +129,7 @@ public readonly struct GamepadState {
 		int idx = (int)button.Tag;
 		if ((uint)idx >= 32u)
 			return false;
-		return (buttons & (1u << idx)) != 0;
+		return (buttons & 1u << idx) != 0;
 	}
 
 	public float GetAxis(GamepadAxis axis) {
@@ -161,12 +170,11 @@ public readonly struct GamepadStateSet : IReadOnlyList<GamepadStateEntry> {
 	public bool Contains(GamepadID gamepadID) => TryGetState(gamepadID, out _);
 
 	public bool TryGetState(GamepadID gamepadID, out GamepadState state) {
-		foreach (GamepadStateEntry ent in entries) {
+		foreach (GamepadStateEntry ent in entries)
 			if (ent.ID == gamepadID) {
 				state = ent.State;
 				return true;
 			}
-		}
 		state = GamepadState.Rest;
 		return false;
 	}
@@ -216,6 +224,6 @@ public readonly struct PointerState {
 		int idx = (int)button.Tag;
 		if ((uint)idx >= 8u)
 			return false;
-		return (buttons & (1u << idx)) != 0;
+		return (buttons & 1u << idx) != 0;
 	}
 }

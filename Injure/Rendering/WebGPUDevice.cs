@@ -8,7 +8,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+
 using WebGPU;
+
 using static WebGPU.WebGPU;
 
 using static Injure.Rendering.WebGPUException;
@@ -82,7 +84,12 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// ]);
 	/// </code>
 	/// </remarks>
-	public GPUBindGroupLayoutRef StdGlobalsUniformLayout { get { chk(); return field; } }
+	public GPUBindGroupLayoutRef StdGlobalsUniformLayout {
+		get {
+			chk();
+			return field;
+		}
+	}
 
 	/// <summary>
 	/// Standard bind group layout for a 2D color texture + sampler, describing a
@@ -112,7 +119,12 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// ]);
 	/// </code>
 	/// </remarks>
-	public GPUBindGroupLayoutRef StdColorTexture2DLayout { get { chk(); return field; } }
+	public GPUBindGroupLayoutRef StdColorTexture2DLayout {
+		get {
+			chk();
+			return field;
+		}
+	}
 
 	/// <summary>
 	/// Standard bind group layout for a 2D depth texture + filtering sampler, describing a
@@ -142,7 +154,12 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// ]);
 	/// </code>
 	/// </remarks>
-	public GPUBindGroupLayoutRef StdFilteringDepthTexture2DLayout { get { chk(); return field; } }
+	public GPUBindGroupLayoutRef StdFilteringDepthTexture2DLayout {
+		get {
+			chk();
+			return field;
+		}
+	}
 
 	/// <summary>
 	/// Standard bind group layout for a 2D depth texture + comparison sampler, describing a
@@ -172,7 +189,12 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// ]);
 	/// </code>
 	/// </remarks>
-	public GPUBindGroupLayoutRef StdComparisonDepthTexture2DLayout { get { chk(); return field; } }
+	public GPUBindGroupLayoutRef StdComparisonDepthTexture2DLayout {
+		get {
+			chk();
+			return field;
+		}
+	}
 
 	/// <summary>
 	/// Creates a <see cref="WebGPUDevice"/>.
@@ -180,94 +202,108 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// <param name="compatibleSurface"><c>compatibleSurface</c> to pass to adapter creation.</param>
 	/// <param name="powerPreference"><c>powerPreference</c> to pass to adapter creation.</param>
 	/// <param name="backendType"><c>backendType</c> to pass to adapter creation.</param>
-	public WebGPUDevice(WGPUSurface compatibleSurface = default,
+	public WebGPUDevice(
+		WGPUSurface compatibleSurface = default,
 		WGPUPowerPreference powerPreference = WGPUPowerPreference.HighPerformance,
-		WGPUBackendType backendType = WGPUBackendType.Undefined) {
+		WGPUBackendType backendType = WGPUBackendType.Undefined
+	) {
 		WGPUInstanceDescriptor instDesc = default;
 		Instance = Check(wgpuCreateInstance(&instDesc));
 		Adapter = requestAdapterBlocking(Instance, compatibleSurface, powerPreference, backendType);
 		Device = requestDeviceBlocking(this, Adapter, out deviceLostCallbackStateHandle);
 		Queue = Check(wgpuDeviceGetQueue(Device));
 
-		globalsUniformBindGroupLayout = CreateBindGroupLayout([
-			new GPUBindGroupLayoutEntry(
-				Binding: 0,
-				Visibility: ShaderStage.Vertex,
-				Layout: new GPUBufferBindingLayout(
-					Type: BufferBindingType.Uniform,
-					MinBindingSize: (ulong)sizeof(GlobalsUniform)
-				)
-			),
-		]);
+		globalsUniformBindGroupLayout = CreateBindGroupLayout(
+			[
+				new GPUBindGroupLayoutEntry(
+					Binding: 0,
+					Visibility: ShaderStage.Vertex,
+					Layout: new GPUBufferBindingLayout(
+						Type: BufferBindingType.Uniform,
+						MinBindingSize: (ulong)sizeof(GlobalsUniform)
+					)
+				),
+			]
+		);
 		StdGlobalsUniformLayout = globalsUniformBindGroupLayout.AsRef();
 
-		colorTex2DBindGroupLayout = CreateBindGroupLayout([
-			new GPUBindGroupLayoutEntry(
-				Binding: 0,
-				Visibility: ShaderStage.Fragment,
-				Layout: new GPUTextureBindingLayout(
-					SampleType: TextureSampleType.Float,
-					ViewDimension: TextureViewDimension.Dimension2D,
-					Multisampled: false
-				)
-			),
-			new GPUBindGroupLayoutEntry(
-				Binding: 1,
-				Visibility: ShaderStage.Fragment,
-				Layout: new GPUSamplerBindingLayout(
-					Type: SamplerBindingType.Filtering
-				)
-			),
-		]);
+		colorTex2DBindGroupLayout = CreateBindGroupLayout(
+			[
+				new GPUBindGroupLayoutEntry(
+					Binding: 0,
+					Visibility: ShaderStage.Fragment,
+					Layout: new GPUTextureBindingLayout(
+						SampleType: TextureSampleType.Float,
+						ViewDimension: TextureViewDimension.Dimension2D,
+						Multisampled: false
+					)
+				),
+				new GPUBindGroupLayoutEntry(
+					Binding: 1,
+					Visibility: ShaderStage.Fragment,
+					Layout: new GPUSamplerBindingLayout(
+						Type: SamplerBindingType.Filtering
+					)
+				),
+			]
+		);
 		StdColorTexture2DLayout = colorTex2DBindGroupLayout.AsRef();
 
-		filteringDepthTex2DBindGroupLayout = CreateBindGroupLayout([
-			new GPUBindGroupLayoutEntry(
-				Binding: 0,
-				Visibility: ShaderStage.Fragment,
-				Layout: new GPUTextureBindingLayout(
-					SampleType: TextureSampleType.Depth,
-					ViewDimension: TextureViewDimension.Dimension2D,
-					Multisampled: false
-				)
-			),
-			new GPUBindGroupLayoutEntry(
-				Binding: 1,
-				Visibility: ShaderStage.Fragment,
-				Layout: new GPUSamplerBindingLayout(
-					Type: SamplerBindingType.Filtering
-				)
-			),
-		]);
+		filteringDepthTex2DBindGroupLayout = CreateBindGroupLayout(
+			[
+				new GPUBindGroupLayoutEntry(
+					Binding: 0,
+					Visibility: ShaderStage.Fragment,
+					Layout: new GPUTextureBindingLayout(
+						SampleType: TextureSampleType.Depth,
+						ViewDimension: TextureViewDimension.Dimension2D,
+						Multisampled: false
+					)
+				),
+				new GPUBindGroupLayoutEntry(
+					Binding: 1,
+					Visibility: ShaderStage.Fragment,
+					Layout: new GPUSamplerBindingLayout(
+						Type: SamplerBindingType.Filtering
+					)
+				),
+			]
+		);
 		StdFilteringDepthTexture2DLayout = filteringDepthTex2DBindGroupLayout.AsRef();
 
-		comparisonDepthTex2DBindGroupLayout = CreateBindGroupLayout([
-			new GPUBindGroupLayoutEntry(
-				Binding: 0,
-				Visibility: ShaderStage.Fragment,
-				Layout: new GPUTextureBindingLayout(
-					SampleType: TextureSampleType.Depth,
-					ViewDimension: TextureViewDimension.Dimension2D,
-					Multisampled: false
-				)
-			),
-			new GPUBindGroupLayoutEntry(
-				Binding: 1,
-				Visibility: ShaderStage.Fragment,
-				Layout: new GPUSamplerBindingLayout(
-					Type: SamplerBindingType.Comparison
-				)
-			),
-		]);
+		comparisonDepthTex2DBindGroupLayout = CreateBindGroupLayout(
+			[
+				new GPUBindGroupLayoutEntry(
+					Binding: 0,
+					Visibility: ShaderStage.Fragment,
+					Layout: new GPUTextureBindingLayout(
+						SampleType: TextureSampleType.Depth,
+						ViewDimension: TextureViewDimension.Dimension2D,
+						Multisampled: false
+					)
+				),
+				new GPUBindGroupLayoutEntry(
+					Binding: 1,
+					Visibility: ShaderStage.Fragment,
+					Layout: new GPUSamplerBindingLayout(
+						Type: SamplerBindingType.Comparison
+					)
+				),
+			]
+		);
 		StdComparisonDepthTexture2DLayout = comparisonDepthTex2DBindGroupLayout.AsRef();
 	}
 
 	// ==========================================================================
 	// resource acquisition
-	private static WGPUAdapter requestAdapterBlocking(WGPUInstance instance, WGPUSurface compatibleSurface,
-		WGPUPowerPreference powerPreference, WGPUBackendType backendType) {
+	private static WGPUAdapter requestAdapterBlocking(
+		WGPUInstance instance,
+		WGPUSurface compatibleSurface,
+		WGPUPowerPreference powerPreference,
+		WGPUBackendType backendType
+	) {
 		Request<WGPURequestAdapterStatus, WGPUAdapter> req = new();
-		GCHandle h = GCHandle.Alloc(req);
+		var h = GCHandle.Alloc(req);
 		try {
 			WGPURequestAdapterOptions opts = new() {
 				compatibleSurface = compatibleSurface,
@@ -277,7 +313,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 			WGPURequestAdapterCallbackInfo cb = new() {
 				mode = WGPUCallbackMode.AllowSpontaneous,
 				callback = &adapterRequestCallback,
-				userdata1 = (void *)GCHandle.ToIntPtr(h),
+				userdata1 = (void*)GCHandle.ToIntPtr(h),
 			};
 			WGPUFuture future = wgpuInstanceRequestAdapter(instance, &opts, cb);
 			req.Done.Wait();
@@ -290,10 +326,15 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	}
 
 	[UnmanagedCallersOnly]
-	private static void adapterRequestCallback(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message,
-		void *userdata1, void *userdata2) {
-		GCHandle h = GCHandle.FromIntPtr((IntPtr)userdata1);
-		Request<WGPURequestAdapterStatus, WGPUAdapter> req = (Request<WGPURequestAdapterStatus, WGPUAdapter>)h.Target!;
+	private static void adapterRequestCallback(
+		WGPURequestAdapterStatus status,
+		WGPUAdapter adapter,
+		WGPUStringView message,
+		void* userdata1,
+		void* userdata2
+	) {
+		var h = GCHandle.FromIntPtr((IntPtr)userdata1);
+		var req = (Request<WGPURequestAdapterStatus, WGPUAdapter>)h.Target!;
 		req.Status = status;
 		req.Object = adapter;
 		req.Message = message.ToString();
@@ -303,20 +344,20 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	private static WGPUDevice requestDeviceBlocking(WebGPUDevice owner, WGPUAdapter adapter, out GCHandle lostCallbackStateHandle) {
 		Request<WGPURequestDeviceStatus, WGPUDevice> req = new();
 		DeviceLostCallbackState st = new() { Owner = owner };
-		GCHandle reqHandle = GCHandle.Alloc(req);
-		GCHandle stHandle = GCHandle.Alloc(st);
+		var reqHandle = GCHandle.Alloc(req);
+		var stHandle = GCHandle.Alloc(st);
 		try {
 			WGPUDeviceDescriptor desc = new() {
 				deviceLostCallbackInfo = new WGPUDeviceLostCallbackInfo {
 					mode = WGPUCallbackMode.AllowSpontaneous,
 					callback = &deviceLostCallback,
-					userdata1 = (void *)GCHandle.ToIntPtr(stHandle),
+					userdata1 = (void*)GCHandle.ToIntPtr(stHandle),
 				},
 			};
 			WGPURequestDeviceCallbackInfo cb = new() {
 				mode = WGPUCallbackMode.AllowSpontaneous,
 				callback = &deviceRequestCallback,
-				userdata1 = (void *)GCHandle.ToIntPtr(reqHandle),
+				userdata1 = (void*)GCHandle.ToIntPtr(reqHandle),
 			};
 			WGPUFuture future = wgpuAdapterRequestDevice(adapter, &desc, cb);
 			req.Done.Wait();
@@ -333,10 +374,15 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	}
 
 	[UnmanagedCallersOnly]
-	private static void deviceRequestCallback(WGPURequestDeviceStatus status, WGPUDevice device, WGPUStringView message,
-		void *userdata1, void *userdata2) {
-		GCHandle h = GCHandle.FromIntPtr((IntPtr)userdata1);
-		Request<WGPURequestDeviceStatus, WGPUDevice> req = (Request<WGPURequestDeviceStatus, WGPUDevice>)h.Target!;
+	private static void deviceRequestCallback(
+		WGPURequestDeviceStatus status,
+		WGPUDevice device,
+		WGPUStringView message,
+		void* userdata1,
+		void* userdata2
+	) {
+		var h = GCHandle.FromIntPtr((IntPtr)userdata1);
+		var req = (Request<WGPURequestDeviceStatus, WGPUDevice>)h.Target!;
 		req.Status = status;
 		req.Object = device;
 		req.Message = message.ToString();
@@ -344,10 +390,15 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	}
 
 	[UnmanagedCallersOnly]
-	private static void deviceLostCallback(WGPUDevice *device, WGPUDeviceLostReason reason, WGPUStringView message,
-		void *userdata1, void *userdata2) {
-		GCHandle h = GCHandle.FromIntPtr((nint)userdata1);
-		DeviceLostCallbackState st = (DeviceLostCallbackState)h.Target!;
+	private static void deviceLostCallback(
+		WGPUDevice* device,
+		WGPUDeviceLostReason reason,
+		WGPUStringView message,
+		void* userdata1,
+		void* userdata2
+	) {
+		var h = GCHandle.FromIntPtr((nint)userdata1);
+		var st = (DeviceLostCallbackState)h.Target!;
 		DeviceLossEventReason r = DeviceLossEventReason.Enum.FromTag((DeviceLossEventReason.Case)((int)reason - 1)); // TODO this fucking sucks
 		st.Owner.NotifyLost(new DeviceLostInfo(DeviceLossInfoKind.Final, r, message.ToString()));
 	}
@@ -385,7 +436,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// </remarks>
 	public void WriteToBuffer<T>(GPUBufferHandle buffer, ulong offset, in T val) where T : unmanaged {
 		chk();
-		fixed (T *p = &val)
+		fixed (T* p = &val)
 			wgpuQueueWriteBuffer(Queue, buffer.WGPUBuffer, offset, p, (nuint)sizeof(T));
 	}
 
@@ -404,7 +455,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		chk();
 		if (data.IsEmpty)
 			return;
-		fixed (T *p = data)
+		fixed (T* p = data)
 			wgpuQueueWriteBuffer(Queue, buffer.WGPUBuffer, offset, p, (nuint)(data.Length * sizeof(T)));
 	}
 
@@ -419,7 +470,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// This is a queue write, not a mapped-buffer write. The pointer only needs to remain
 	/// valid for the duration of the call.
 	/// </remarks>
-	public void WriteToBuffer(GPUBufferHandle buffer, ulong offset, void *data, nuint size) {
+	public void WriteToBuffer(GPUBufferHandle buffer, ulong offset, void* data, nuint size) {
 		chk();
 		wgpuQueueWriteBuffer(Queue, buffer.WGPUBuffer, offset, data, size);
 	}
@@ -449,7 +500,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 			}
 		}
 
-		fixed (WGPUTextureFormat *p = wgpuViewFormats) {
+		fixed (WGPUTextureFormat* p = wgpuViewFormats) {
 			WGPUTextureDescriptor desc = new() {
 				size = new WGPUExtent3D {
 					width = @params.Width,
@@ -468,9 +519,18 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 			try {
 				// TODO: think about whether default view creation should be external
 				// so that the try-catch isn't necessary
-				return new GPUTexture(tex, @params.Width, @params.Height, @params.DepthOrArrayLayers,
-					@params.MipLevelCount, @params.SampleCount, @params.Dimension, @params.Format, @params.Usage,
-					viewFormats.ToArray());
+				return new GPUTexture(
+					tex,
+					@params.Width,
+					@params.Height,
+					@params.DepthOrArrayLayers,
+					@params.MipLevelCount,
+					@params.SampleCount,
+					@params.Dimension,
+					@params.Format,
+					@params.Usage,
+					viewFormats.ToArray()
+				);
 			} catch (WebGPUException) {
 				wgpuTextureRelease(tex);
 				throw;
@@ -504,7 +564,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		chk();
 		if (data.IsEmpty)
 			return;
-		fixed (T *p = data)
+		fixed (T* p = data)
 			WriteToTexture(tex, dst, p, (nuint)(data.Length * sizeof(T)), layout);
 	}
 
@@ -530,7 +590,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// The pointer only needs to remain valid for the duration of the call.
 	/// </para>
 	/// </remarks>
-	public void WriteToTexture(GPUTextureHandle tex, in GPUTextureRegion dst, void *data, nuint size, in GPUTextureLayout layout) {
+	public void WriteToTexture(GPUTextureHandle tex, in GPUTextureRegion dst, void* data, nuint size, in GPUTextureLayout layout) {
 		chk();
 		WGPUTexelCopyTextureInfo copyDst = new() {
 			texture = tex.WGPUTexture,
@@ -664,7 +724,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 			}
 		}
 
-		WGPUBindGroupLayoutEntry *rawEntries = stackalloc WGPUBindGroupLayoutEntry[entries.Length];
+		WGPUBindGroupLayoutEntry* rawEntries = stackalloc WGPUBindGroupLayoutEntry[entries.Length];
 		for (int i = 0; i < entries.Length; i++)
 			rawEntries[i] = toRawBindGroupLayoutEntry(entries[i]);
 		WGPUBindGroupLayoutDescriptor desc = new() {
@@ -682,7 +742,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		case GPUBufferBindingResource b:
 			raw.buffer = b.Buffer.WGPUBuffer;
 			raw.offset = b.Offset;
-			raw.size = b.Size ?? (b.Buffer.Size - b.Offset);
+			raw.size = b.Size ?? b.Buffer.Size - b.Offset;
 			return raw;
 		case GPUSamplerBindingResource s:
 			raw.sampler = s.Sampler.WGPUSampler;
@@ -740,7 +800,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 				ArgumentNullException.ThrowIfNull(b.Buffer);
 				if (b.Offset > b.Buffer.Size)
 					throw new ArgumentException($"buffer binding {e.Binding} has an offset past the end of the buffer", nameof(entries));
-				ulong size = b.Size ?? (b.Buffer.Size - b.Offset);
+				ulong size = b.Size ?? b.Buffer.Size - b.Offset;
 				if (size == 0)
 					throw new ArgumentException($"buffer binding {e.Binding} must expose a nonzero range", nameof(entries));
 				if (b.Offset + size > b.Buffer.Size)
@@ -757,7 +817,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 			}
 		}
 
-		WGPUBindGroupEntry *rawEntries = stackalloc WGPUBindGroupEntry[entries.Length];
+		WGPUBindGroupEntry* rawEntries = stackalloc WGPUBindGroupEntry[entries.Length];
 		for (int i = 0; i < entries.Length; i++)
 			rawEntries[i] = toRawBindGroupEntry(entries[i]);
 		WGPUBindGroupDescriptor desc = new() {
@@ -781,7 +841,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		int bytes = Encoding.UTF8.GetByteCount(source);
 		Span<byte> utf8 = bytes <= 1024 ? stackalloc byte[bytes] : new byte[bytes];
 		int written = Encoding.UTF8.GetBytes(source, utf8);
-		fixed (byte *p = utf8) {
+		fixed (byte* p = utf8) {
 			WGPUShaderSourceWGSL src = new() {
 				chain = new WGPUChainedStruct {
 					sType = WGPUSType.ShaderSourceWGSL,
@@ -806,7 +866,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		if (code.IsEmpty)
 			throw new ArgumentException("SPIR-V code must not be empty", nameof(code));
 
-		fixed (uint *p = code) {
+		fixed (uint* p = code) {
 			WGPUShaderSourceSPIRV src = new() {
 				chain = new WGPUChainedStruct {
 					sType = WGPUSType.ShaderSourceSPIRV,
@@ -840,7 +900,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		if ((code.Length & 0b11) != 0)
 			throw new ArgumentException("byte length of SPIR-V code encoded as bytes must be a multiple of 4", nameof(code));
 
-		Span<uint> words = (code.Length <= 1024) ? stackalloc uint[code.Length >> 2] : new uint[code.Length >> 2];
+		Span<uint> words = code.Length <= 1024 ? stackalloc uint[code.Length >> 2] : new uint[code.Length >> 2];
 		for (int i = 0; i < words.Length; i++)
 			words[i] = BinaryPrimitives.ReadUInt32LittleEndian(code.Slice(i << 2, 4));
 		return CreateShaderModuleSPIRV(words);
@@ -860,7 +920,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		if (layouts.IsEmpty)
 			throw new ArgumentException("pipeline layout must contain at least one bind group layout");
 
-		WGPUBindGroupLayout *bgLayouts = stackalloc WGPUBindGroupLayout[layouts.Length];
+		WGPUBindGroupLayout* bgLayouts = stackalloc WGPUBindGroupLayout[layouts.Length];
 		for (int i = 0; i < layouts.Length; i++) {
 			ArgumentNullException.ThrowIfNull(layouts[i]);
 			bgLayouts[i] = layouts[i].WGPUBindGroupLayout;
@@ -914,19 +974,19 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		for (int i = 0; i < vertBuffers.Length; i++)
 			totalVertAttrCount += vertBuffers[i].Attributes.Length;
 
-		ReadOnlySpan<ColorTargetState> colorTargets = (haveFrag && !frag.Targets.IsDefault) ? frag.Targets.AsSpan() : ReadOnlySpan<ColorTargetState>.Empty;
+		ReadOnlySpan<ColorTargetState> colorTargets = haveFrag && !frag.Targets.IsDefault ? frag.Targets.AsSpan() : ReadOnlySpan<ColorTargetState>.Empty;
 
-		WGPUVertexBufferLayout *wgpuVertBuffers = stackalloc WGPUVertexBufferLayout[vertBuffers.Length];
-		WGPUVertexAttribute *wgpuVertAttrs = stackalloc WGPUVertexAttribute[totalVertAttrCount];
-		WGPUColorTargetState *wgpuColorTargets = stackalloc WGPUColorTargetState[colorTargets.Length];
-		WGPUBlendState *wgpuBlendStates = stackalloc WGPUBlendState[colorTargets.Length];
+		WGPUVertexBufferLayout* wgpuVertBuffers = stackalloc WGPUVertexBufferLayout[vertBuffers.Length];
+		WGPUVertexAttribute* wgpuVertAttrs = stackalloc WGPUVertexAttribute[totalVertAttrCount];
+		WGPUColorTargetState* wgpuColorTargets = stackalloc WGPUColorTargetState[colorTargets.Length];
+		WGPUBlendState* wgpuBlendStates = stackalloc WGPUBlendState[colorTargets.Length];
 
 		int vsEntrySize = Encoding.UTF8.GetByteCount(vert.EntryPoint);
-		byte *vsEntry = stackalloc byte[vsEntrySize];
+		byte* vsEntry = stackalloc byte[vsEntrySize];
 		int vsEntryLen = Encoding.UTF8.GetBytes(vert.EntryPoint, new Span<byte>(vsEntry, vsEntrySize));
 
 		int fsEntrySize = haveFrag ? Encoding.UTF8.GetByteCount(frag.EntryPoint) : 0;
-		byte *fsEntry = stackalloc byte[fsEntrySize];
+		byte* fsEntry = stackalloc byte[fsEntrySize];
 		int fsEntryLen = haveFrag ? Encoding.UTF8.GetBytes(frag.EntryPoint, new Span<byte>(fsEntry, fsEntrySize)) : 0;
 
 		// -----------------------------------------------------------------
@@ -941,7 +1001,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 				arrayStride = vb.ArrayStride,
 				stepMode = vb.StepMode.ToWebGPUType(),
 				attributeCount = (nuint)vbAttributes.Length,
-				attributes = vbAttributes.IsEmpty ? null : (wgpuVertAttrs + attrBase),
+				attributes = vbAttributes.IsEmpty ? null : wgpuVertAttrs + attrBase,
 			};
 			attrBase += vbAttributes.Length;
 		}
@@ -950,7 +1010,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 			module = vert.ShaderModule.WGPUShaderModule,
 			entryPoint = new WGPUStringView(vsEntry, vsEntryLen),
 			constantCount = 0, // TODO
-			constants = null,  // TODO
+			constants = null, // TODO
 			bufferCount = (nuint)vertBuffers.Length,
 			buffers = vertBuffers.IsEmpty ? null : wgpuVertBuffers,
 		};
@@ -958,7 +1018,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		// -----------------------------------------------------------------
 		// fragment
 		WGPUFragmentState wgpuFrag = default;
-		WGPUFragmentState *pWgpuFrag = null;
+		WGPUFragmentState* pWgpuFrag = null;
 		if (haveFrag) {
 			for (int i = 0; i < colorTargets.Length; i++)
 				wgpuColorTargets[i] = colorTargets[i].ToWebGPUType(&wgpuBlendStates[i]);
@@ -966,7 +1026,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 				module = frag.ShaderModule.WGPUShaderModule,
 				entryPoint = new WGPUStringView(fsEntry, fsEntryLen),
 				constantCount = 0, // TODO
-				constants = null,  // TODO
+				constants = null, // TODO
 				targetCount = (nuint)colorTargets.Length,
 				targets = colorTargets.IsEmpty ? null : wgpuColorTargets,
 			};
@@ -978,7 +1038,7 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		WGPUPrimitiveState wgpuPrim = prim.ToWebGPUType();
 
 		WGPUDepthStencilState wgpuDepthStencil = default;
-		WGPUDepthStencilState *pWgpuDepthStencil = null;
+		WGPUDepthStencilState* pWgpuDepthStencil = null;
 		if (@params.DepthStencil is DepthStencilState ds) {
 			wgpuDepthStencil = ds.ToWebGPUType();
 			pWgpuDepthStencil = &wgpuDepthStencil;
@@ -1034,19 +1094,25 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// for the simple common usecase of binding a single uniform with e.g shader parameters.
 	/// </para>
 	/// </remarks>
-	public GPUBindGroupLayout CreateUniformBufferBindGroupLayout(ShaderStage visibility,
-		ulong minBindingSize = 0, bool hasDynamicOffset = false, uint binding = 0) =>
-		CreateBindGroupLayout([
-			new GPUBindGroupLayoutEntry(
-				Binding: binding,
-				Visibility: visibility,
-				Layout: new GPUBufferBindingLayout(
-					Type: BufferBindingType.Uniform,
-					HasDynamicOffset: hasDynamicOffset,
-					MinBindingSize: minBindingSize
-				)
-			),
-		]);
+	public GPUBindGroupLayout CreateUniformBufferBindGroupLayout(
+		ShaderStage visibility,
+		ulong minBindingSize = 0,
+		bool hasDynamicOffset = false,
+		uint binding = 0
+	) =>
+		CreateBindGroupLayout(
+			[
+				new GPUBindGroupLayoutEntry(
+					Binding: binding,
+					Visibility: visibility,
+					Layout: new GPUBufferBindingLayout(
+						Type: BufferBindingType.Uniform,
+						HasDynamicOffset: hasDynamicOffset,
+						MinBindingSize: minBindingSize
+					)
+				),
+			]
+		);
 
 	/// <summary>
 	/// Creates a bind group with a single uniform buffer, returning an
@@ -1062,18 +1128,26 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 	/// for the simple common usecase of binding a single uniform with e.g shader parameters.
 	/// </para>
 	/// </remarks>
-	public GPUBindGroup CreateUniformBufferBindGroup(GPUBindGroupLayoutHandle layout,
-		GPUBufferHandle buffer, ulong offset = 0, ulong? size = null, uint binding = 0) =>
-		CreateBindGroup(layout, [
-			new GPUBindGroupEntry(
-				Binding: binding,
-				Resource: new GPUBufferBindingResource(
-					Buffer: buffer,
-					Offset: offset,
-					Size: size
-				)
-			),
-		]);
+	public GPUBindGroup CreateUniformBufferBindGroup(
+		GPUBindGroupLayoutHandle layout,
+		GPUBufferHandle buffer,
+		ulong offset = 0,
+		ulong? size = null,
+		uint binding = 0
+	) =>
+		CreateBindGroup(
+			layout,
+			[
+				new GPUBindGroupEntry(
+					Binding: binding,
+					Resource: new GPUBufferBindingResource(
+						Buffer: buffer,
+						Offset: offset,
+						Size: size
+					)
+				),
+			]
+		);
 
 	/// <summary>
 	/// Creates a texture+sampler bind group for a 2D color texture view and a
@@ -1112,10 +1186,13 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 		if (view.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float
 			or TextureFormat.Case.Depth24PlusStencil8 or TextureFormat.Case.Depth32FloatStencil8 or TextureFormat.Case.Stencil8)
 			throw new ArgumentException("view must be a color format", nameof(view));
-		return CreateBindGroup(StdColorTexture2DLayout, [
-			new GPUBindGroupEntry(Binding: 0, new GPUTextureViewBindingResource(view)),
-			new GPUBindGroupEntry(Binding: 1, new GPUSamplerBindingResource(sampler)),
-		]);
+		return CreateBindGroup(
+			StdColorTexture2DLayout,
+			[
+				new GPUBindGroupEntry(Binding: 0, new GPUTextureViewBindingResource(view)),
+				new GPUBindGroupEntry(Binding: 1, new GPUSamplerBindingResource(sampler)),
+			]
+		);
 	}
 
 	/// <summary>
@@ -1174,10 +1251,13 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 			throw new ArgumentException("view must not be multisampled", nameof(view));
 		if (!(view.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float))
 			throw new ArgumentException("view must be a depth-only format", nameof(view));
-		return CreateBindGroup(StdFilteringDepthTexture2DLayout, [
-			new GPUBindGroupEntry(Binding: 0, new GPUTextureViewBindingResource(view)),
-			new GPUBindGroupEntry(Binding: 1, new GPUSamplerBindingResource(sampler)),
-		]);
+		return CreateBindGroup(
+			StdFilteringDepthTexture2DLayout,
+			[
+				new GPUBindGroupEntry(Binding: 0, new GPUTextureViewBindingResource(view)),
+				new GPUBindGroupEntry(Binding: 1, new GPUSamplerBindingResource(sampler)),
+			]
+		);
 	}
 
 	/// <summary>
@@ -1216,10 +1296,13 @@ public sealed unsafe class WebGPUDevice : IDisposable {
 			throw new ArgumentException("view must not be multisampled", nameof(view));
 		if (!(view.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float))
 			throw new ArgumentException("view must be a depth-only format", nameof(view));
-		return CreateBindGroup(StdComparisonDepthTexture2DLayout, [
-			new GPUBindGroupEntry(Binding: 0, new GPUTextureViewBindingResource(view)),
-			new GPUBindGroupEntry(Binding: 1, new GPUSamplerBindingResource(sampler)),
-		]);
+		return CreateBindGroup(
+			StdComparisonDepthTexture2DLayout,
+			[
+				new GPUBindGroupEntry(Binding: 0, new GPUTextureViewBindingResource(view)),
+				new GPUBindGroupEntry(Binding: 1, new GPUSamplerBindingResource(sampler)),
+			]
+		);
 	}
 
 	// ==========================================================================

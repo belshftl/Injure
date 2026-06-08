@@ -4,7 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+
 using FreeTypeSharp;
+
 using static FreeTypeSharp.FT;
 
 using Injure.Rendering;
@@ -104,7 +106,7 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 		ResolvedFontState st = font.GetState();
 		FTException.Check(FT_Load_Glyph(st.FtFace, glyphID, st.Options.LoadFlags));
 		FTException.Check(FT_Render_Glyph(st.FtFace->glyph, st.Options.RenderMode));
-		FT_GlyphSlotRec_ *slot = st.FtFace->glyph;
+		FT_GlyphSlotRec_* slot = st.FtFace->glyph;
 		int bitmapLeft = slot->bitmap_left;
 		int bitmapTop = slot->bitmap_top;
 		int w = checked((int)slot->bitmap.width);
@@ -137,7 +139,7 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 		byte[] buf = new byte[checked(w * h)];
 		if (bitmap.buffer is null || w == 0 || h == 0)
 			return buf;
-		fixed (byte *dst = buf) {
+		fixed (byte* dst = buf) {
 			if (pitch == w) {
 				ulong sz = (ulong)(w * h);
 				Buffer.MemoryCopy(bitmap.buffer, dst, sz, sz);
@@ -145,8 +147,8 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 				// negative pitch = rows are bottom-up
 				int absPitch = Math.Abs(pitch);
 				for (int y = 0; y < h; y++) {
-					byte *srcRow = (pitch >= 0) ? (bitmap.buffer + y * absPitch) : (bitmap.buffer + (h - 1 - y) * absPitch);
-					byte *dstRow = dst + y * w;
+					byte* srcRow = pitch >= 0 ? bitmap.buffer + y * absPitch : bitmap.buffer + (h - 1 - y) * absPitch;
+					byte* dstRow = dst + y * w;
 					Buffer.MemoryCopy(srcRow, dstRow, (ulong)w, (ulong)w);
 				}
 			}
@@ -158,13 +160,12 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 		int w = width + padding * 2;
 		int h = height + padding * 2;
 		int px, py;
-		for (int i = 0; i < pages.Count; i++) {
+		for (int i = 0; i < pages.Count; i++)
 			if (tryAllocOnPage(pages[i], w, h, out px, out py)) {
 				x = px + padding;
 				y = py + padding;
 				return pages[i];
 			}
-		}
 		GlyphAtlasPage page = newpage();
 		if (!tryAllocOnPage(page, w, h, out px, out py))
 			throw new InvalidOperationException("glyph is larger than atlas page");
@@ -175,12 +176,15 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 
 	private GlyphAtlasPage newpage() {
 		GlyphAtlasPage page = new() {
-			Texture = new Texture2D(gpuDevice, new Texture2DCreateParams(
-				Width: (uint)pageWidth,
-				Height: (uint)pageHeight,
-				Format: Texture2DFormat.R8_UNorm,
-				SamplerParams: SamplerStates.LinearClamp
-			)),
+			Texture = new Texture2D(
+				gpuDevice,
+				new Texture2DCreateParams(
+					Width: (uint)pageWidth,
+					Height: (uint)pageHeight,
+					Format: Texture2DFormat.R8_UNorm,
+					SamplerParams: SamplerStates.LinearClamp
+				)
+			),
 			Width = pageWidth,
 			Height = pageHeight,
 			WriteX = 0,

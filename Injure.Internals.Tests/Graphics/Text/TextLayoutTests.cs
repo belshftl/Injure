@@ -8,9 +8,9 @@ public sealed class TextLayoutTests {
 	[Fact]
 	public void SkipLeadingWsWorks() {
 		ParagraphCluster[] clusters = [
-			new ParagraphCluster(0, 1, 0, 1, 10, true,  LineBreakKind.None),
-			new ParagraphCluster(1, 1, 1, 1, 10, true,  LineBreakKind.None),
-			new ParagraphCluster(2, 1, 2, 1, 10, false, LineBreakKind.None),
+			new(0, 1, 0, 1, 10, true, LineBreakKind.None),
+			new(1, 1, 1, 1, 10, true, LineBreakKind.None),
+			new(2, 1, 2, 1, 10, false, LineBreakKind.None),
 		];
 		int next = TextLayouter.SkipLeadingWs(clusters, 0);
 		Assert.Equal(2, next);
@@ -19,9 +19,9 @@ public sealed class TextLayoutTests {
 	[Fact]
 	public void TrimTrailingWsWorks() {
 		ParagraphCluster[] clusters = [
-			new ParagraphCluster(0, 1, 0, 1, 10, false, LineBreakKind.None),
-			new ParagraphCluster(1, 1, 1, 1, 10, true,  LineBreakKind.Soft),
-			new ParagraphCluster(2, 1, 2, 1, 10, true,  LineBreakKind.Soft),
+			new(0, 1, 0, 1, 10, false, LineBreakKind.None),
+			new(1, 1, 1, 1, 10, true, LineBreakKind.Soft),
+			new(2, 1, 2, 1, 10, true, LineBreakKind.Soft),
 		];
 		int trimmed = TextLayouter.TrimTrailingWs(clusters, 0, 3);
 		Assert.Equal(1, trimmed);
@@ -30,7 +30,7 @@ public sealed class TextLayoutTests {
 	[Fact]
 	public void FlattenSourceOrderClustersWorks() {
 		ParagraphRun[] runs = [
-			new ParagraphRun {
+			new() {
 				Font = null!,
 				Item = default,
 				ShapedRun = null!,
@@ -40,7 +40,7 @@ public sealed class TextLayoutTests {
 				],
 				GlyphOrderClusters = null!,
 			},
-			new ParagraphRun {
+			new() {
 				Font = null!,
 				Item = default,
 				ShapedRun = null!,
@@ -74,11 +74,11 @@ public sealed class TextLayoutTests {
 	[Fact]
 	public void WrapParaLogicalLinesWorks() {
 		ParagraphCluster[] clusters = [
-			new ParagraphCluster(0, 1, 0, 1, 10, false, LineBreakKind.None),
-			new ParagraphCluster(1, 1, 1, 1, 10, false, LineBreakKind.None),
-			new ParagraphCluster(2, 1, 2, 1, 10, true,  LineBreakKind.Soft),
-			new ParagraphCluster(3, 1, 3, 1, 10, false, LineBreakKind.None),
-			new ParagraphCluster(4, 1, 4, 1, 10, false, LineBreakKind.None),
+			new(0, 1, 0, 1, 10, false, LineBreakKind.None),
+			new(1, 1, 1, 1, 10, false, LineBreakKind.None),
+			new(2, 1, 2, 1, 10, true, LineBreakKind.Soft),
+			new(3, 1, 3, 1, 10, false, LineBreakKind.None),
+			new(4, 1, 4, 1, 10, false, LineBreakKind.None),
 		];
 		LogicalLine[] lines = TextLayouter.WrapParaLogicalLines(
 			clusters,

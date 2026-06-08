@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
+
 using HarfBuzzSharp;
 
 using Injure.Internals.Analyzers.Attributes;
@@ -65,7 +66,8 @@ internal readonly record struct ParagraphCluster(
 	int SourceLength,
 	float Width,
 	bool IsWhitespaceOnly,
-	LineBreakKind BreakAfter) {
+	LineBreakKind BreakAfter
+) {
 	internal int SourceLimit => SourceStart + SourceLength;
 }
 
@@ -119,9 +121,15 @@ internal enum TextLayoutPlanMode {
 }
 
 internal static class TextLayouter {
-	public static TextLayoutPlan BuildPlan(ITextItemizer itemizer, FallbackResolver fallbackResolver,
-		ResolvedFontFallbackChain fonts, ReadOnlySpan<char> text, in TextStyle style, TextLayoutPlanMode mode) {
-		List<PlannedGlyph>? glyphs = mode == TextLayoutPlanMode.GlyphPlan ? new() : null;
+	public static TextLayoutPlan BuildPlan(
+		ITextItemizer itemizer,
+		FallbackResolver fallbackResolver,
+		ResolvedFontFallbackChain fonts,
+		ReadOnlySpan<char> text,
+		in TextStyle style,
+		TextLayoutPlanMode mode
+	) {
+		List<PlannedGlyph>? glyphs = mode == TextLayoutPlanMode.GlyphPlan ? new List<PlannedGlyph>() : null;
 		List<TextLine> lines = new();
 
 		float lineTopY = 0f;
@@ -151,17 +159,19 @@ internal static class TextLayouter {
 				float alignOffsetX = getAlignOffset(lineW, style.LayoutOptions.MaxWidth, style.LayoutOptions.HorizontalAlign);
 				if (glyphs is not null && alignOffsetX != 0f)
 					shiftPlannedGlyphs(glyphs, glyphStart, glyphs.Count, alignOffsetX);
-				lines.Add(new TextLine(
-					GlyphStart: glyphStart,
-					GlyphCount: glyphs is not null ? glyphs.Count - glyphStart : 0,
-					Width: lineW,
-					BaselineY: baselineY,
-					Ascent: metrics.Ascent,
-					Descent: metrics.Descent,
-					LineGap: metrics.LineGap,
-					Height: metrics.Height,
-					OffsetX: alignOffsetX
-				));
+				lines.Add(
+					new TextLine(
+						GlyphStart: glyphStart,
+						GlyphCount: glyphs is not null ? glyphs.Count - glyphStart : 0,
+						Width: lineW,
+						BaselineY: baselineY,
+						Ascent: metrics.Ascent,
+						Descent: metrics.Descent,
+						LineGap: metrics.LineGap,
+						Height: metrics.Height,
+						OffsetX: alignOffsetX
+					)
+				);
 				maxLineWidth = Math.Max(lineW, maxLineWidth);
 				lineTopY += metrics.Height;
 			}
@@ -211,8 +221,15 @@ internal static class TextLayouter {
 		return any ? new FontLineMetrics(ascent, descent, lineGap, Height: ascent + descent + lineGap) : fallback;
 	}
 
-	public static ParagraphRun[] BuildParaRuns(ITextItemizer itemizer, FallbackResolver fallbackResolver,
-		ResolvedFontFallbackChain fonts, string paraText, int paraAbsoluteStart, string locale, string? languageBCP47) {
+	public static ParagraphRun[] BuildParaRuns(
+		ITextItemizer itemizer,
+		FallbackResolver fallbackResolver,
+		ResolvedFontFallbackChain fonts,
+		string paraText,
+		int paraAbsoluteStart,
+		string locale,
+		string? languageBCP47
+	) {
 		LineBreakOpportunity[] brklist = TextAnalysis.GetLineBreaks(paraText, locale);
 		Dictionary<int, LineBreakKind> breaks = BuildBreaksDict(brklist);
 		LogicalBidiRun[] bidiRuns = TextAnalysis.GetLogicalBidiRuns(paraText);
@@ -241,9 +258,13 @@ internal static class TextLayouter {
 		};
 	}
 
-	public static ParagraphCluster[] BuildParaClusters(in TextItem item, ShapedCluster[] shapedClusters,
-		int paraAbsoluteStart, IReadOnlyDictionary<int, LineBreakKind> breaks) {
-		ParagraphCluster[] paraClusters = new ParagraphCluster[shapedClusters.Length];
+	public static ParagraphCluster[] BuildParaClusters(
+		in TextItem item,
+		ShapedCluster[] shapedClusters,
+		int paraAbsoluteStart,
+		IReadOnlyDictionary<int, LineBreakKind> breaks
+	) {
+		var paraClusters = new ParagraphCluster[shapedClusters.Length];
 		for (int i = 0; i < shapedClusters.Length; i++) {
 			ShapedCluster shapedCluster = shapedClusters[i];
 			int absoluteSourceStart = item.SourceStart + shapedCluster.SourceStart;
@@ -278,8 +299,13 @@ internal static class TextLayouter {
 		return dict;
 	}
 
-	public static LogicalLine[] WrapParaLogicalLines(ReadOnlySpan<ParagraphCluster> paraClusters, int paraAbsoluteStart, int paraLength,
-		float maxWidth, TextWrapMode wrapMode) {
+	public static LogicalLine[] WrapParaLogicalLines(
+		ReadOnlySpan<ParagraphCluster> paraClusters,
+		int paraAbsoluteStart,
+		int paraLength,
+		float maxWidth,
+		TextWrapMode wrapMode
+	) {
 		if (paraLength == 0)
 			return [new LogicalLine(Start: paraAbsoluteStart, Limit: paraAbsoluteStart)];
 		List<LogicalLine> lines = new();
@@ -355,8 +381,14 @@ internal static class TextLayouter {
 		return w;
 	}
 
-	public static float EmitVisualLineGlyphs(ReadOnlySpan<ParagraphRun> paraRuns, string paraText, int paraAbsoluteStart,
-		LogicalLine logiLine, float baselineY, List<PlannedGlyph> dst) {
+	public static float EmitVisualLineGlyphs(
+		ReadOnlySpan<ParagraphRun> paraRuns,
+		string paraText,
+		int paraAbsoluteStart,
+		LogicalLine logiLine,
+		float baselineY,
+		List<PlannedGlyph> dst
+	) {
 		VisualBidiRun[] visualRuns = TextAnalysis.GetVisualBidiRunsForLine(
 			paraText,
 			logiLine.Start - paraAbsoluteStart,
@@ -389,20 +421,28 @@ internal static class TextLayouter {
 		return penX;
 	}
 
-	public static void EmitParaRunGlyphs(ParagraphRun run, int sliceStart, int sliceLimit, float baselineY,
-		ref float penX, List<PlannedGlyph> dst) {
+	public static void EmitParaRunGlyphs(
+		ParagraphRun run,
+		int sliceStart,
+		int sliceLimit,
+		float baselineY,
+		ref float penX,
+		List<PlannedGlyph> dst
+	) {
 		foreach (ParagraphCluster paraCluster in run.GlyphOrderClusters) {
 			if (!Contains(paraCluster, sliceStart, sliceLimit))
 				continue;
 			for (int i = paraCluster.GlyphStart; i < paraCluster.GlyphStart + paraCluster.GlyphCount; i++) {
 				ShapedGlyph shaped = run.ShapedRun.Glyphs[i];
-				dst.Add(new PlannedGlyph(
-					Font: run.Font,
-					GlyphID: shaped.GlyphID,
-					Cluster: shaped.Cluster,
-					X: penX + shaped.XOffset,
-					Y: baselineY - shaped.YOffset
-				));
+				dst.Add(
+					new PlannedGlyph(
+						Font: run.Font,
+						GlyphID: shaped.GlyphID,
+						Cluster: shaped.Cluster,
+						X: penX + shaped.XOffset,
+						Y: baselineY - shaped.YOffset
+					)
+				);
 				penX += shaped.XAdvance;
 				// TODO: YAdvance and such
 			}

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+
 using WebGPU;
+
 using static WebGPU.WebGPU;
 
 namespace Injure.Rendering;
@@ -96,9 +98,21 @@ public abstract class GPUTextureViewHandle {
 public sealed class GPUTextureView : GPUTextureViewHandle, IDisposable {
 	private WGPUTextureView texView;
 
-	internal GPUTextureView(WGPUTextureView texView, TextureFormat format, TextureViewDimension dimension,
-		TextureAspect aspect, TextureUsage usage, uint baseMipLevel, uint mipLevelCount, uint baseArrayLayer, uint arrayLayerCount,
-		uint width, uint height, uint depth, uint sampleCount) {
+	internal GPUTextureView(
+		WGPUTextureView texView,
+		TextureFormat format,
+		TextureViewDimension dimension,
+		TextureAspect aspect,
+		TextureUsage usage,
+		uint baseMipLevel,
+		uint mipLevelCount,
+		uint baseArrayLayer,
+		uint arrayLayerCount,
+		uint width,
+		uint height,
+		uint depth,
+		uint sampleCount
+	) {
 		this.texView = texView;
 		Format = format;
 		Dimension = dimension;

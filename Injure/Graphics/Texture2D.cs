@@ -51,9 +51,24 @@ public sealed class Texture2D : IRevokable, IDisposable {
 	private int disposed = 0;
 	private int revoked = 0;
 
-	internal GPUTexture Texture { get { chk(); return texture; } }
-	internal GPUSampler Sampler { get { chk(); return sampler; } }
-	internal GPUBindGroupRef BindGroup { get { chk(); return (bindGroup ??= device.CreateStdColorTexture2DBindGroup(Texture, Sampler)).AsRef(); } }
+	internal GPUTexture Texture {
+		get {
+			chk();
+			return texture;
+		}
+	}
+	internal GPUSampler Sampler {
+		get {
+			chk();
+			return sampler;
+		}
+	}
+	internal GPUBindGroupRef BindGroup {
+		get {
+			chk();
+			return (bindGroup ??= device.CreateStdColorTexture2DBindGroup(Texture, Sampler)).AsRef();
+		}
+	}
 
 	/// <summary>
 	/// Returns the underlying <see cref="GPUTexture"/>, bypassing ownership/lifetime/revocation contracts.
@@ -130,16 +145,18 @@ public sealed class Texture2D : IRevokable, IDisposable {
 		GPUTexture? texture = null;
 		GPUSampler? sampler = null;
 		try {
-			texture = device.CreateTexture(new GPUTextureCreateParams(
-				Width: @params.Width,
-				Height: @params.Height,
-				DepthOrArrayLayers: 1,
-				MipLevelCount: 1,
-				SampleCount: 1,
-				Dimension: TextureDimension.Dimension2D,
-				Format: getTextureFormat(fmt),
-				Usage: TextureUsage.TextureBinding | TextureUsage.CopyDst
-			));
+			texture = device.CreateTexture(
+				new GPUTextureCreateParams(
+					Width: @params.Width,
+					Height: @params.Height,
+					DepthOrArrayLayers: 1,
+					MipLevelCount: 1,
+					SampleCount: 1,
+					Dimension: TextureDimension.Dimension2D,
+					Format: getTextureFormat(fmt),
+					Usage: TextureUsage.TextureBinding | TextureUsage.CopyDst
+				)
+			);
 			sampler = device.CreateSampler(@params.SamplerParams ?? SamplerStates.NearestClamp);
 			this.texture = texture;
 			this.sampler = sampler;
@@ -229,21 +246,21 @@ public sealed class Texture2D : IRevokable, IDisposable {
 	}
 
 	private static TextureFormat getTextureFormat(Texture2DFormat fmt) => fmt.Tag switch {
-		Texture2DFormat.Case.R8_UNorm          => TextureFormat.R8Unorm,
-		Texture2DFormat.Case.RG16_UNorm        => TextureFormat.RG8Unorm,
-		Texture2DFormat.Case.RGBA32_UNorm      => TextureFormat.RGBA8Unorm,
+		Texture2DFormat.Case.R8_UNorm => TextureFormat.R8Unorm,
+		Texture2DFormat.Case.RG16_UNorm => TextureFormat.RG8Unorm,
+		Texture2DFormat.Case.RGBA32_UNorm => TextureFormat.RGBA8Unorm,
 		Texture2DFormat.Case.RGBA32_UNorm_Srgb => TextureFormat.RGBA8UnormSrgb,
-		Texture2DFormat.Case.BGRA32_UNorm      => TextureFormat.BGRA8Unorm,
+		Texture2DFormat.Case.BGRA32_UNorm => TextureFormat.BGRA8Unorm,
 		Texture2DFormat.Case.BGRA32_UNorm_Srgb => TextureFormat.BGRA8UnormSrgb,
 		_ => throw new UnreachableException(),
 	};
 
 	private static PixelFormat getUploadPixelFormat(Texture2DFormat fmt) => fmt.Tag switch {
-		Texture2DFormat.Case.R8_UNorm          => PixelFormat.R8_UNorm,
-		Texture2DFormat.Case.RG16_UNorm        => PixelFormat.RG16_UNorm,
-		Texture2DFormat.Case.RGBA32_UNorm      => PixelFormat.RGBA32_UNorm,
+		Texture2DFormat.Case.R8_UNorm => PixelFormat.R8_UNorm,
+		Texture2DFormat.Case.RG16_UNorm => PixelFormat.RG16_UNorm,
+		Texture2DFormat.Case.RGBA32_UNorm => PixelFormat.RGBA32_UNorm,
 		Texture2DFormat.Case.RGBA32_UNorm_Srgb => PixelFormat.RGBA32_UNorm,
-		Texture2DFormat.Case.BGRA32_UNorm      => PixelFormat.BGRA32_UNorm,
+		Texture2DFormat.Case.BGRA32_UNorm => PixelFormat.BGRA32_UNorm,
 		Texture2DFormat.Case.BGRA32_UNorm_Srgb => PixelFormat.BGRA32_UNorm,
 		_ => throw new UnreachableException(),
 	};

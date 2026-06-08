@@ -10,6 +10,7 @@ using Injure.Input;
 using Injure.Layers;
 using Injure.Rendering;
 using Injure.Scheduling;
+
 using static Injure.Core.GameServiceSharedUtil;
 
 namespace Injure.Core;
@@ -44,9 +45,9 @@ internal sealed class GameServiceLifetime {
 
 public sealed class HostServices {
 	private readonly GameServiceLifetime lifetime;
-	public IWindowController Window { get => Alive(lifetime, field); }
-	public IRenderController Render { get => Alive(lifetime, field); }
-	public ITimingController Timing { get => Alive(lifetime, field); }
+	public IWindowController Window => Alive(lifetime, field);
+	public IRenderController Render => Alive(lifetime, field);
+	public ITimingController Timing => Alive(lifetime, field);
 
 	internal HostServices(GameServiceLifetime lifetime, IWindowController window, IRenderController render, ITimingController timing) {
 		this.lifetime = lifetime;
@@ -58,7 +59,7 @@ public sealed class HostServices {
 
 public sealed class GraphicsServices {
 	private readonly GameServiceLifetime lifetime;
-	public WebGPUDevice Device { get => Alive(lifetime, field); }
+	public WebGPUDevice Device => Alive(lifetime, field);
 
 	internal GraphicsServices(GameServiceLifetime lifetime, WebGPUDevice device) {
 		this.lifetime = lifetime;
@@ -68,7 +69,7 @@ public sealed class GraphicsServices {
 
 public sealed class InputServices {
 	private readonly GameServiceLifetime lifetime;
-	public ActionRegistry Actions { get => Alive(lifetime, field); }
+	public ActionRegistry Actions => Alive(lifetime, field);
 
 	internal InputServices(GameServiceLifetime lifetime, ActionRegistry actions) {
 		this.lifetime = lifetime;
@@ -78,8 +79,8 @@ public sealed class InputServices {
 
 public sealed class LayerServices {
 	private readonly GameServiceLifetime lifetime;
-	public LayerStack Stack { get => Alive(lifetime, field); }
-	public LayerTagRegistry Tags { get => Alive(lifetime, field); }
+	public LayerStack Stack => Alive(lifetime, field);
+	public LayerTagRegistry Tags => Alive(lifetime, field);
 
 	internal LayerServices(GameServiceLifetime lifetime, LayerStack stack, LayerTagRegistry tags) {
 		this.lifetime = lifetime;
@@ -90,8 +91,8 @@ public sealed class LayerServices {
 
 public sealed class AdvancedServices {
 	private readonly GameServiceLifetime lifetime;
-	public EngineResourceStore EngineResources { get => Alive(lifetime, field); }
-	public AssetThreadContext AssetMainThreadContext { get => AliveAndNonnull(lifetime, field, "assets subsystem is not enabled"); }
+	public EngineResourceStore EngineResources => Alive(lifetime, field);
+	public AssetThreadContext AssetMainThreadContext => AliveAndNonnull(lifetime, field, "assets subsystem is not enabled");
 
 	internal AdvancedServices(GameServiceLifetime lifetime, EngineResourceStore engineResources, AssetThreadContext? assetMainThreadCtx) {
 		this.lifetime = lifetime;
@@ -107,16 +108,16 @@ public sealed class GameServices {
 	private readonly TextSystem? text;
 
 	// required:
-	public ITickerRegistry Tickers { get => Alive(lifetime, field); }
-	public HostServices Host { get => Alive(lifetime, field); }
-	public GraphicsServices Graphics { get => Alive(lifetime, field); }
-	public InputServices Input { get => Alive(lifetime, field); }
-	public LayerServices Layers { get => Alive(lifetime, field); }
-	public AdvancedServices Advanced { get => Alive(lifetime, field); }
+	public ITickerRegistry Tickers => Alive(lifetime, field);
+	public HostServices Host => Alive(lifetime, field);
+	public GraphicsServices Graphics => Alive(lifetime, field);
+	public InputServices Input => Alive(lifetime, field);
+	public LayerServices Layers => Alive(lifetime, field);
+	public AdvancedServices Advanced => Alive(lifetime, field);
 
 	// optional:
-	public AssetStore Assets { get => AliveAndNonnull(lifetime, assets, "assets subsystem is not enabled"); }
-	public TextSystem Text { get => AliveAndNonnull(lifetime, text, "text subsystem is not enabled"); }
+	public AssetStore Assets => AliveAndNonnull(lifetime, assets, "assets subsystem is not enabled");
+	public TextSystem Text => AliveAndNonnull(lifetime, text, "text subsystem is not enabled");
 	public bool HasAssets => Alive(lifetime, assets is not null);
 	public bool HasText => Alive(lifetime, text is not null);
 
@@ -134,7 +135,7 @@ public sealed class GameServices {
 		AssetThreadContext? assetMainThreadCtx,
 		TextSystem? text
 	) {
-		if ((assets is null) ^ (assetMainThreadCtx is null))
+		if (assets is null ^ assetMainThreadCtx is null)
 			throw new InternalStateException("was expecting either none of or both the asset store and asset thread context to be null");
 		lifetime = new GameServiceLifetime();
 		Tickers = tickers;

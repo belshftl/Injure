@@ -136,7 +136,7 @@ public sealed class ActionContext(ActionProfile profile) {
 
 		foreach (ButtonBinding b in map.ButtonBindings) {
 			if (!ret.ButtonActionsBySource.TryGetValue(b.Source, out List<ActionID>? list)) {
-				list = new();
+				list = new List<ActionID>();
 				ret.ButtonActionsBySource.Add(b.Source, list);
 			}
 			list.Add(b.Action);
@@ -156,7 +156,7 @@ public sealed class ActionContext(ActionProfile profile) {
 
 		foreach (ImpulseAxisBinding b in map.ImpulseAxisBindings) {
 			if (!ret.ImpulseAxesBySource.TryGetValue(b.Source, out List<ImpulseAxisBinding>? list)) {
-				list = new();
+				list = new List<ImpulseAxisBinding>();
 				ret.ImpulseAxesBySource.Add(b.Source, list);
 			}
 			list.Add(b);
@@ -249,10 +249,18 @@ public sealed class ActionContext(ActionProfile profile) {
 	}
 
 	private void handlePointerWheel(PointerWheelEvent wheel) {
-		handleImpulseAxis(wheel.Tick, InputImpulseAxisSource.PointerWheel(PointerWheelAxis.X), wheel.X,
-			ImpulseAxisActionEventInfo.FromPointer(wheel.MouseX, wheel.MouseY, wheel.IntegerX));
-		handleImpulseAxis(wheel.Tick, InputImpulseAxisSource.PointerWheel(PointerWheelAxis.Y), wheel.Y,
-			ImpulseAxisActionEventInfo.FromPointer(wheel.MouseX, wheel.MouseY, wheel.IntegerY));
+		handleImpulseAxis(
+			wheel.Tick,
+			InputImpulseAxisSource.PointerWheel(PointerWheelAxis.X),
+			wheel.X,
+			ImpulseAxisActionEventInfo.FromPointer(wheel.MouseX, wheel.MouseY, wheel.IntegerX)
+		);
+		handleImpulseAxis(
+			wheel.Tick,
+			InputImpulseAxisSource.PointerWheel(PointerWheelAxis.Y),
+			wheel.Y,
+			ImpulseAxisActionEventInfo.FromPointer(wheel.MouseX, wheel.MouseY, wheel.IntegerY)
+		);
 	}
 
 	private void handleImpulseAxis(MonoTick tick, InputImpulseAxisSource source, float amount, ImpulseAxisActionEventInfo info) {
@@ -370,12 +378,10 @@ public sealed class ActionContext(ActionProfile profile) {
 		};
 	}
 
-	private Vector2 getPair2D(InputSnapshot raw, StateAxis2DPairSource source) {
-		return new Vector2(
-			getStateAxisValue(raw, source.X),
-			getStateAxisValue(raw, source.Y)
-		);
-	}
+	private Vector2 getPair2D(InputSnapshot raw, StateAxis2DPairSource source) => new(
+		getStateAxisValue(raw, source.X),
+		getStateAxisValue(raw, source.Y)
+	);
 
 	private Vector2 getDigital2D(DigitalAxis2DSource source) {
 		float x = getDigitalAxisValue(source.Left, source.Right, source.XSOCD);
@@ -409,7 +415,9 @@ public sealed class ActionContext(ActionProfile profile) {
 		ulong negAt = buttonSourcePressedAt.TryGetValue(negative, out ulong n) ? n : throw new InternalStateException("negative source isn't down");
 		ulong posAt = buttonSourcePressedAt.TryGetValue(positive, out ulong p) ? p : throw new InternalStateException("positive source isn't down");
 		if (negAt == posAt)
-			throw new InternalStateException("negative/positive sources ended up with the same stamp; either it's not getting incremented correctly or both directions somehow resolved to the same source");
+			throw new InternalStateException(
+				"negative/positive sources ended up with the same stamp; either it's not getting incremented correctly or both directions somehow resolved to the same source"
+			);
 		return negAt > posAt ? -1f : 1f;
 	}
 
@@ -417,7 +425,9 @@ public sealed class ActionContext(ActionProfile profile) {
 		ulong negAt = buttonSourcePressedAt.TryGetValue(negative, out ulong n) ? n : throw new InternalStateException("negative source isn't down");
 		ulong posAt = buttonSourcePressedAt.TryGetValue(positive, out ulong p) ? p : throw new InternalStateException("positive source isn't down");
 		if (negAt == posAt)
-			throw new InternalStateException("negative/positive sources ended up with the same stamp; either it's not getting incremented correctly or both directions somehow resolved to the same source");
+			throw new InternalStateException(
+				"negative/positive sources ended up with the same stamp; either it's not getting incremented correctly or both directions somehow resolved to the same source"
+			);
 		return negAt < posAt ? -1f : 1f;
 	}
 

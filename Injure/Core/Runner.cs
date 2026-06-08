@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Hexa.NET.SDL3;
 
 using Injure.Assets;
@@ -115,7 +116,10 @@ public static unsafe class Runner {
 		switch (s.Positioning.Tag) {
 		case WindowPositioning.Case.Undefined: x = y = unchecked((int)SDL.SDL_WINDOWPOS_UNDEFINED_MASK); break;
 		case WindowPositioning.Case.Centered: x = y = unchecked((int)SDL.SDL_WINDOWPOS_CENTERED_MASK); break;
-		case WindowPositioning.Case.Explicit: x = s.X; y = s.Y; break;
+		case WindowPositioning.Case.Explicit:
+			x = s.X;
+			y = s.Y;
+			break;
 		default: throw new UnreachableException(); // silence "use of unassigned local"
 		}
 		SDL.SetNumberProperty(props, SDL.SDL_PROP_WINDOW_CREATE_X_NUMBER, x);
@@ -148,19 +152,19 @@ public static unsafe class Runner {
 			throw new InvalidOperationException("an IGame instance is already running");
 
 		double renderStep = tmst.TargetFPS > 0.0 ? 1.0 / tmst.TargetFPS : 0.0;
-		MonoTick loopStep = MonoTick.PeriodFromHz(tmst.TargetLoopHz);
+		var loopStep = MonoTick.PeriodFromHz(tmst.TargetLoopHz);
 
-		MonoTick t1_5ms = MonoTick.FromSeconds(0.0015);
-		MonoTick t0_5ms = MonoTick.FromSeconds(0.0005);
-		MonoTick t0_1ms = MonoTick.FromSeconds(0.0001);
+		var t1_5ms = MonoTick.FromSeconds(0.0015);
+		var t0_5ms = MonoTick.FromSeconds(0.0005);
+		var t0_1ms = MonoTick.FromSeconds(0.0001);
 
 		// sdl/precisewait init
 		initSDLFrom(in winconf);
 		game.Loading(new LoadingContext(LoadingPhase.Start, redrawRequested: true));
-		MonoTick loadingStartTick = MonoTick.GetCurrent();
+		var loadingStartTick = MonoTick.GetCurrent();
 
 		// webgpu bootstrap
-		Task<WebGPUDevice> bootstrap = Task.Run(() => new WebGPUDevice());
+		var bootstrap = Task.Run(() => new WebGPUDevice());
 
 		// basic loading-time event loop
 		SDLEvent ev;
@@ -186,7 +190,7 @@ public static unsafe class Runner {
 				elapsed = (MonoTick.GetCurrent() - loadingStartTick).ToSeconds();
 				game.Loading(new LoadingContext(LoadingPhase.Tick, elapsed));
 			}
-bootstrapCancelled:
+		bootstrapCancelled:
 			SDL.Delay(10);
 		}
 		if (!bootstrap.IsCompletedSuccessfully)
@@ -205,24 +209,30 @@ bootstrapCancelled:
 		TimingController timingControl = new(tmst);
 
 		// service/system init
-		TickerScheduler sched = new(new TickerSchedulerOptions(
-			MaxBatchDuration: loopStep,
-			Budget: TickerBudgetOptions.CreateDefault(loopStep)
-		));
+		TickerScheduler sched = new(
+			new TickerSchedulerOptions(
+				MaxBatchDuration: loopStep,
+				Budget: TickerBudgetOptions.CreateDefault(loopStep)
+			)
+		);
 		InputSystem input = new();
 		ActionRegistry actionRegistry = new();
 		LayerStack layerStack = new(sched, input);
 		LayerTagRegistry layerTags = new();
 		EngineResourceStore eresources = new();
-		eresources.RegisterSource(new EmbeddedEngineResourceSource(
-			typeof(Runner).Assembly,
-			new HashSet<EngineResourceID>([
-				BuiltinShaders.Primitive2D.ResourceID,
-				BuiltinShaders.Textured2DColor.ResourceID,
-				BuiltinShaders.Textured2DRMask.ResourceID,
-				BuiltinShaders.Textured2DSDF.ResourceID,
-			])
-		));
+		eresources.RegisterSource(
+			new EmbeddedEngineResourceSource(
+				typeof(Runner).Assembly,
+				new HashSet<EngineResourceID>(
+					[
+						BuiltinShaders.Primitive2D.ResourceID,
+						BuiltinShaders.Textured2DColor.ResourceID,
+						BuiltinShaders.Textured2DRMask.ResourceID,
+						BuiltinShaders.Textured2DSDF.ResourceID,
+					]
+				)
+			)
+		);
 		AssetStore? assets = null;
 		AssetThreadContext? assetCtx = null;
 		if (svconf.Assets) {
@@ -260,7 +270,7 @@ bootstrapCancelled:
 		double renderAccum = 0.0;
 		MonoTick nextLoopDeadline = MonoTick.GetCurrent() + loopStep;
 
-		MonoTick last = MonoTick.GetCurrent();
+		var last = MonoTick.GetCurrent();
 
 		bool quitRequested = false;
 		while (!quitRequested) {
@@ -269,7 +279,7 @@ bootstrapCancelled:
 			if (quitRequested)
 				break;
 
-			MonoTick t = MonoTick.GetCurrent();
+			var t = MonoTick.GetCurrent();
 			double dt = (double)(t - last).ToSeconds();
 			last = t;
 
@@ -321,7 +331,7 @@ bootstrapCancelled:
 			bool reachedLoopDeadline = false;
 			//bool restartLoop = false;
 			for (;;) {
-				MonoTick now = MonoTick.GetCurrent();
+				var now = MonoTick.GetCurrent();
 				if (now >= deadline) {
 					reachedLoopDeadline = now >= nextLoopDeadline;
 					break;
@@ -355,7 +365,7 @@ bootstrapCancelled:
 			//	continue;
 			if (reachedLoopDeadline) {
 				nextLoopDeadline += loopStep;
-				MonoTick now2 = MonoTick.GetCurrent();
+				var now2 = MonoTick.GetCurrent();
 				if ((long)(now2.Value - nextLoopDeadline.Value) > (long)(loopStep.Value * (ulong)tmst.MaxLoopDeadlineMissByLoopDurations))
 					nextLoopDeadline = now2 + loopStep;
 			}
@@ -371,7 +381,7 @@ bootstrapCancelled:
 		sfOutput.Dispose();
 		gpuDevice.Dispose();
 
-earlyquit:
+	earlyquit:
 		SDLOwner.ShutdownSDL();
 		Volatile.Write(ref running, 0);
 	}

@@ -3,7 +3,9 @@
 using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
+
 using WebGPU;
+
 using static WebGPU.WebGPU;
 
 namespace Injure.Rendering;
@@ -110,8 +112,18 @@ public sealed unsafe class GPUTexture : GPUTextureHandle, IDisposable {
 	private readonly TextureFormat[] viewFormats;
 	private WGPUTexture tex;
 
-	internal GPUTexture(WGPUTexture tex, uint width, uint height, uint depthOrArrayLayers, uint mipLevelCount,
-		uint sampleCount, TextureDimension dimension, TextureFormat format, TextureUsage usage, TextureFormat[] viewFormats) {
+	internal GPUTexture(
+		WGPUTexture tex,
+		uint width,
+		uint height,
+		uint depthOrArrayLayers,
+		uint mipLevelCount,
+		uint sampleCount,
+		TextureDimension dimension,
+		TextureFormat format,
+		TextureUsage usage,
+		TextureFormat[] viewFormats
+	) {
 		this.tex = tex;
 		Width = width;
 		Height = height;
@@ -121,7 +133,7 @@ public sealed unsafe class GPUTexture : GPUTextureHandle, IDisposable {
 		Dimension = dimension;
 		DefaultViewDimension = dimension.Tag switch {
 			TextureDimension.Case.Dimension1D => TextureViewDimension.Dimension1D,
-			TextureDimension.Case.Dimension2D => (depthOrArrayLayers > 1) ? TextureViewDimension.Dimension2DArray : TextureViewDimension.Dimension2D,
+			TextureDimension.Case.Dimension2D => depthOrArrayLayers > 1 ? TextureViewDimension.Dimension2DArray : TextureViewDimension.Dimension2D,
 			TextureDimension.Case.Dimension3D => TextureViewDimension.Dimension3D,
 			_ => throw new UnreachableException(),
 		};
@@ -172,7 +184,8 @@ public sealed unsafe class GPUTexture : GPUTextureHandle, IDisposable {
 			baseArrayLayer = @params.BaseArrayLayer,
 			arrayLayerCount = arrLayerCount,
 		};
-		return new GPUTextureView(WebGPUException.Check(wgpuTextureCreateView(WGPUTexture, &desc)),
+		return new GPUTextureView(
+			WebGPUException.Check(wgpuTextureCreateView(WGPUTexture, &desc)),
 			fmt,
 			dim,
 			@params.Aspect,

@@ -7,8 +7,13 @@ using System.Text.RegularExpressions;
 
 namespace Injure.Coroutines;
 
-internal sealed class NamedEnumerator(IEnumerator enumerator,
-		string debugName, string sourceFile, int sourceLine, string sourceMember) : IEnumerator, IDisposable {
+internal sealed class NamedEnumerator(
+	IEnumerator enumerator,
+	string debugName,
+	string sourceFile,
+	int sourceLine,
+	string sourceMember
+) : IEnumerator, IDisposable {
 	private readonly IEnumerator enumerator = enumerator;
 	public string DebugName { get; } = debugName;
 	public string SourceFile { get; } = sourceFile;
@@ -38,7 +43,12 @@ internal static partial class CoroNameCleanup {
 }
 
 public static class CoroNamingExtensions {
-	public static IEnumerator Named(this IEnumerator enumerator, string debugName,
-		[CallerFilePath] string sourceFile = "", [CallerLineNumber] int sourceLine = 0, [CallerMemberName] string sourceMember = "") =>
+	public static IEnumerator Named(
+		this IEnumerator enumerator,
+		string debugName,
+		[CallerFilePath] string sourceFile = "",
+		[CallerLineNumber] int sourceLine = 0,
+		[CallerMemberName] string sourceMember = ""
+	) =>
 		new NamedEnumerator(enumerator, debugName, sourceFile, sourceLine, sourceMember);
 }

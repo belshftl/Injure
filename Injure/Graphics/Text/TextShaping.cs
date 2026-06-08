@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+
 using HarfBuzzSharp;
 
 namespace Injure.Graphics.Text;
@@ -38,7 +39,8 @@ internal readonly record struct ShapedCluster(
 	int SourceStart,
 	int SourceLength,
 	float Width,
-	bool IsWhitespaceOnly) {
+	bool IsWhitespaceOnly
+) {
 	public static readonly int Size = Unsafe.SizeOf<ShapedCluster>();
 	public int SourceLimit => SourceStart + SourceLength;
 }
@@ -69,6 +71,7 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 		TextSegmentProperties Properties,
 		bool GuessSegmentProperties
 	);
+
 	private sealed class Entry {
 		public required ShapedRun Shaped;
 		public required ulong LastUseStamp;
@@ -98,11 +101,14 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 		}
 		ShapedRun shaped = shape(font, in item);
 		int est = estimate(shaped, in item);
-		cache.Add(key, new Entry {
-			Shaped = shaped,
-			LastUseStamp = ++nextUseStamp,
-			EstimatedCost = est,
-		});
+		cache.Add(
+			key,
+			new Entry {
+				Shaped = shaped,
+				LastUseStamp = ++nextUseStamp,
+				EstimatedCost = est,
+			}
+		);
 		totalEstimatedCost += est;
 		text.OnCacheActivity();
 		Trim();
@@ -131,7 +137,7 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 		st.HbFont.Shape(buf);
 		GlyphInfo[] infos = buf.GlyphInfos;
 		GlyphPosition[] positions = buf.GlyphPositions;
-		ShapedGlyph[] glyphs = new ShapedGlyph[buf.Length];
+		var glyphs = new ShapedGlyph[buf.Length];
 		float w = 0f;
 		for (int i = 0; i < buf.Length; i++) {
 			glyphs[i] = new ShapedGlyph(
@@ -158,7 +164,9 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 	}
 
 	private static (TextSegmentProperties Properties, ShapedCluster[] SourceOrderClusters, ShapedCluster[] GlyphOrderClusters) buildClusters(
-		in TextItem item, HarfBuzzSharp.Buffer buf, ShapedGlyph[] glyphs
+		in TextItem item,
+		HarfBuzzSharp.Buffer buf,
+		ShapedGlyph[] glyphs
 	) {
 		List<ShapedCluster> glyphOrderClusters = new();
 		if (glyphs.Length != 0) {
@@ -184,26 +192,32 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 				int sourceStart = Math.Clamp(checked((int)cluster), 0, item.Text.Length);
 				int sourceLimit = Math.Max(Math.Clamp(nextClusterMap[cluster], 0, item.Text.Length), sourceStart);
 				ReadOnlySpan<char> sourceText = item.Text.AsSpan(sourceStart, sourceLimit - sourceStart);
-				glyphOrderClusters.Add(new ShapedCluster(
-					GlyphStart: glyphStart,
-					GlyphCount: glyphCount,
-					SourceStart: sourceStart,
-					SourceLength: sourceLimit - sourceStart,
-					Width: clusterWidth,
-					IsWhitespaceOnly: isWsOnly(sourceText))
+				glyphOrderClusters.Add(
+					new ShapedCluster(
+						GlyphStart: glyphStart,
+						GlyphCount: glyphCount,
+						SourceStart: sourceStart,
+						SourceLength: sourceLimit - sourceStart,
+						Width: clusterWidth,
+						IsWhitespaceOnly: isWsOnly(sourceText)
+					)
 				);
 				glyphStart += glyphCount;
 			}
 		}
 		ShapedCluster[] glyphOrderArray = glyphOrderClusters.ToArray();
-		ShapedCluster[] sourceOrderArray = new ShapedCluster[glyphOrderArray.Length];
+		var sourceOrderArray = new ShapedCluster[glyphOrderArray.Length];
 		Array.Copy(glyphOrderArray, sourceOrderArray, glyphOrderArray.Length);
-		Array.Sort(sourceOrderArray, static (ShapedCluster a, ShapedCluster b) => {
-			int n = a.SourceStart.CompareTo(b.SourceStart);
-			return (n != 0) ? n : a.GlyphStart.CompareTo(b.GlyphStart);
-		});
-		TextSegmentProperties props = (!item.GuessSegmentProperties) ? item.Properties :
-			new TextSegmentProperties(Direction: buf.Direction, Script: buf.Script, LanguageBCP47: item.Properties.LanguageBCP47);
+		Array.Sort(
+			sourceOrderArray,
+			static (ShapedCluster a, ShapedCluster b) => {
+				int n = a.SourceStart.CompareTo(b.SourceStart);
+				return n != 0 ? n : a.GlyphStart.CompareTo(b.GlyphStart);
+			}
+		);
+		TextSegmentProperties props = !item.GuessSegmentProperties
+			? item.Properties
+			: new TextSegmentProperties(Direction: buf.Direction, Script: buf.Script, LanguageBCP47: item.Properties.LanguageBCP47);
 		return (props, sourceOrderArray, glyphOrderArray);
 	}
 

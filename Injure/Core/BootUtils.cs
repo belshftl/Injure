@@ -3,6 +3,7 @@
 using System;
 using System.Buffers.Binary;
 using System.IO;
+
 using Hexa.NET.SDL3;
 
 namespace Injure.Core;
@@ -38,7 +39,7 @@ public sealed class BootImage {
 		if (file.Length != expectedSize)
 			throw new InvalidDataException($"malformed boot image: expected {expectedSize} bytes, got {file.Length}");
 
-		Color32[] pixels = new Color32[pxcnt];
+		var pixels = new Color32[pxcnt];
 		bool nonOpaque = false;
 		ReadOnlySpan<byte> src = file.AsSpan(8);
 		for (int i = 0; i < pxcnt; i++) {
@@ -125,10 +126,10 @@ public sealed unsafe class BootDraw {
 		if (width <= 0 || height <= 0)
 			return;
 
-		fixed (Color32 *src = image.Data)
-		fixed (Color32 *dst = buffer) {
-			Color32 *srcRow = src + srcY * image.Width + srcX;
-			Color32 *dstRow = dst + dstY * Width + dstX;
+		fixed (Color32* src = image.Data)
+		fixed (Color32* dst = buffer) {
+			Color32* srcRow = src + srcY * image.Width + srcX;
+			Color32* dstRow = dst + dstY * Width + dstX;
 			if (image.Opaque) {
 				nuint rowsz = (nuint)(width * sizeof(Color32));
 				for (int row = 0; row < height; row++) {
@@ -165,7 +166,7 @@ public sealed unsafe class BootDraw {
 		return true;
 	}
 
-	private static void blend(Color32 *dst, Color32 *src, int pixels) {
+	private static void blend(Color32* dst, Color32* src, int pixels) {
 		for (int i = 0; i < pixels; i++) {
 			Color32 s = src[i];
 			if (s.A == 0)
@@ -186,11 +187,11 @@ public sealed unsafe class BootDraw {
 
 	// TODO: something that doesn't involve making an entire new surface every time
 	private static void sdlpresent(Color32[] buffer, int width, int height) {
-		SDLSurface *dst = SDL.GetWindowSurface(SDLOwner.Window);
+		SDLSurface* dst = SDL.GetWindowSurface(SDLOwner.Window);
 		if (dst is null)
 			throw new InvalidOperationException($"SDL_GetWindowSurface: {SDL.GetErrorS()}");
-		fixed (Color32 *p = buffer) {
-			SDLSurface *src = SDL.CreateSurfaceFrom(width, height, SDLPixelFormat.Rgba32, p, width * sizeof(Color32));
+		fixed (Color32* p = buffer) {
+			SDLSurface* src = SDL.CreateSurfaceFrom(width, height, SDLPixelFormat.Rgba32, p, width * sizeof(Color32));
 			try {
 				if (src is null)
 					throw new InvalidOperationException($"SDL_CreateSurfaceFrom: {SDL.GetErrorS()}");

@@ -14,9 +14,10 @@ namespace Injure.Timing;
 /// </list>
 /// </remarks>
 public static partial class PreciseWait {
+// @formatter:off
 #pragma warning disable IDE0002 // name can be simplified
 	static PreciseWait() {
-		global::Injure.Native.PreciseWait.Init();
+		Native.PreciseWait.Init();
 	}
 
 	/// <summary>
@@ -35,7 +36,7 @@ public static partial class PreciseWait {
 	/// <exception cref="System.ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="ns"/> is negative.
 	/// </exception>
-	public static void WaitPreferUndershoot(long ns) => global::Injure.Native.PreciseWait.Wait(ns, false);
+	public static void WaitPreferUndershoot(long ns) => Native.PreciseWait.Wait(ns, false);
 
 	/// <summary>
 	/// Suspends the calling thread for approximately <paramref name="ns"/> nanoseconds, subject to OS
@@ -53,6 +54,7 @@ public static partial class PreciseWait {
 	/// <exception cref="System.ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="ns"/> is negative.
 	/// </exception>
-	public static void WaitPreferOvershoot(long ns) => global::Injure.Native.PreciseWait.Wait(ns, true);
+	public static void WaitPreferOvershoot(long ns) => Native.PreciseWait.Wait(ns, true);
 #pragma warning restore IDE0002 // name can be simplified
+// @formatter:on
 }

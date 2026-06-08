@@ -123,11 +123,14 @@ public static partial class LocatedJsonParser {
 			if (properties.ContainsKey(name))
 				throw err(propertyPath, nameSpan, $"duplicate property '{name}'");
 
-			properties.Add(name, new JProperty {
-				Name = name,
-				NameSpan = nameSpan,
-				Value = value,
-			});
+			properties.Add(
+				name,
+				new JProperty {
+					Name = name,
+					NameSpan = nameSpan,
+					Value = value,
+				}
+			);
 		}
 	}
 
@@ -172,7 +175,7 @@ public static partial class LocatedJsonParser {
 		if (name.Length == 0)
 			return false;
 		foreach (char ch in name)
-			if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_'))
+			if (!(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '-' || ch == '_'))
 				return false;
 		return true;
 	}

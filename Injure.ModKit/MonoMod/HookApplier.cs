@@ -21,7 +21,7 @@ internal static class HookApplier<TGameApi> {
 		List<PatchDeclaration> patches = new();
 		foreach (LoadedCodeMod<TGameApi> mod in mods)
 			patches.AddRange(mod.LoadHooks.Snapshot());
-		Dictionary<string, UntypedBoundedScope> scopes = mods.ToDictionary(
+		var scopes = mods.ToDictionary(
 			static m => m.Staged.Manifest.OwnerID,
 			static m => m.Scope,
 			StringComparer.Ordinal

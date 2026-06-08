@@ -77,7 +77,7 @@ public readonly record struct AssetDependencySnapshot(
 		string? assemblyQualifiedTypeName = catchEx(() => type.AssemblyQualifiedName, null);
 		string? assemblyName = catchEx(() => type.Assembly.GetName().Name, null);
 		return new AssetDependencySnapshot(
-			BestEffortTypeName: !string.IsNullOrWhiteSpace(fullTypeName) ? fullTypeName : (!string.IsNullOrWhiteSpace(typeName) ? typeName : "<unknown dependency type>"),
+			BestEffortTypeName: !string.IsNullOrWhiteSpace(fullTypeName) ? fullTypeName : !string.IsNullOrWhiteSpace(typeName) ? typeName : "<unknown dependency type>",
 			BestEffortDebugDescription: !string.IsNullOrWhiteSpace(debugDescription) ? debugDescription : "<dependency description unavailable>",
 			TypeName: typeName,
 			FullTypeName: fullTypeName,

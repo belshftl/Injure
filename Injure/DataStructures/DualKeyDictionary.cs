@@ -97,7 +97,11 @@ public sealed class DualKeyDictionary<TKeyL, TKeyR, TValue> : IEnumerable<DualKe
 	/// <exception cref="ArgumentException">
 	/// Thrown if the sequence contains a duplicate left key or duplicate right key.
 	/// </exception>
-	public DualKeyDictionary(IEnumerable<DualKeyValuePair<TKeyL, TKeyR, TValue>> items, IEqualityComparer<TKeyL>? leftComparer, IEqualityComparer<TKeyR>? rightComparer) : this(0, leftComparer, rightComparer) {
+	public DualKeyDictionary(IEnumerable<DualKeyValuePair<TKeyL, TKeyR, TValue>> items, IEqualityComparer<TKeyL>? leftComparer, IEqualityComparer<TKeyR>? rightComparer) : this(
+		0,
+		leftComparer,
+		rightComparer
+	) {
 		ArgumentNullException.ThrowIfNull(items);
 		foreach (DualKeyValuePair<TKeyL, TKeyR, TValue> dkvp in items)
 			Add(dkvp.LeftKey, dkvp.RightKey, dkvp.Value);

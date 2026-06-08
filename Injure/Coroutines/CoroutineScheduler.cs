@@ -61,12 +61,17 @@ public sealed class CoroutineScheduler : IDisposable {
 		// not named Stack because it's a list not a stack
 		public IReadOnlyList<CoroutineStackFrame> StackFrames => stack;
 
-		public void StackPush(IEnumerator enumerator,
-				string debugName, string sourceFile = "", int sourceLine = 0, string sourceMember = "") =>
+		public void StackPush(
+			IEnumerator enumerator,
+			string debugName,
+			string sourceFile = "",
+			int sourceLine = 0,
+			string sourceMember = ""
+		) =>
 			stack.Add(new CoroutineStackFrame(enumerator, debugName, sourceFile, sourceLine, sourceMember));
 
 		public CoroutineStackFrame StackPeek() =>
-			(stack.Count > 0) ? stack[^1] : throw new InternalStateException("coroutine instance stack is empty");
+			stack.Count > 0 ? stack[^1] : throw new InternalStateException("coroutine instance stack is empty");
 
 		public void StackPopAndDispose() {
 			if (stack.Count == 0)
@@ -108,10 +113,9 @@ public sealed class CoroutineScheduler : IDisposable {
 		public void ClearWait(CoroutineScheduler sched, CoroCancellationReason? reason = null) {
 			if (Wait is null)
 				return;
-			if (reason is CoroCancellationReason r) {
+			if (reason is CoroCancellationReason r)
 				// TODO: decide what to do in catch
 				try { Wait.OnCancel(r); } catch {}
-			}
 			// TODO: this is kind of bolted on as opposed to properly delegated somewhere
 			if (Wait is CoroWaitForHandle hwait)
 				hwait.Detach(sched);
@@ -219,10 +223,13 @@ public sealed class CoroutineScheduler : IDisposable {
 			StartTick = tick,
 		};
 		string debugName = options.Name ?? enumDebugName(routine) ?? CoroNameCleanup.Clean(routine.GetType().Name);
-		inst.StackPush(routine, debugName,
+		inst.StackPush(
+			routine,
+			debugName,
 			enumSourceFile(routine) ?? callerFile,
 			enumSourceLine(routine) ?? callerLine,
-			enumSourceMember(routine) ?? callerMember);
+			enumSourceMember(routine) ?? callerMember
+		);
 		slots[handle.Slot].TerminalInfo = null;
 		slots[handle.Slot].TerminalTrace = null;
 		slots[handle.Slot].RetainCount = 0;
@@ -262,8 +269,14 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// Thrown if <paramref name="scope"/> is a cancelled scope or registering the coroutine
 	/// handle in the scope failed.
 	/// </exception>
-	public CoroutineHandle Start(IEnumerator routine, CoroutineScope scope, CoroutineOptions? options = null,
-			[CallerFilePath] string callerFile = "", [CallerLineNumber] int callerLine = 0, [CallerMemberName] string callerMember = "") =>
+	public CoroutineHandle Start(
+		IEnumerator routine,
+		CoroutineScope scope,
+		CoroutineOptions? options = null,
+		[CallerFilePath] string callerFile = "",
+		[CallerLineNumber] int callerLine = 0,
+		[CallerMemberName] string callerMember = ""
+	) =>
 		start(routine, scope, defer: true, options, callerFile, callerLine, callerMember);
 
 	/// <summary>
@@ -299,8 +312,14 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// a coroutine during a tick and defer its first execution to the next tick, use
 	/// <see cref="Start(IEnumerator, CoroutineScope, CoroutineOptions, string, int, string)"/> instead.
 	/// </remarks>
-	public CoroutineHandle StartImmediately(IEnumerator routine, CoroutineScope scope, CoroutineOptions? options = null,
-			[CallerFilePath] string callerFile = "", [CallerLineNumber] int callerLine = 0, [CallerMemberName] string callerMember = "") {
+	public CoroutineHandle StartImmediately(
+		IEnumerator routine,
+		CoroutineScope scope,
+		CoroutineOptions? options = null,
+		[CallerFilePath] string callerFile = "",
+		[CallerLineNumber] int callerLine = 0,
+		[CallerMemberName] string callerMember = ""
+	) {
 		if (ticking)
 			throw new InvalidOperationException("StartImmediately() cannot be called in the middle of a scheduler tick; use Start() to defer execution to the next tick");
 		return start(routine, scope, defer: false, options, callerFile, callerLine, callerMember);
@@ -557,14 +576,13 @@ public sealed class CoroutineScheduler : IDisposable {
 		int cancelled = 0;
 		foreach (int slotidx in activeSlots) {
 			CoroutineInstance? inst = slots[slotidx].Instance;
-			if (inst?.Scope?.OwnerID == ownerID) {
+			if (inst?.Scope?.OwnerID == ownerID)
 				try {
 					if (TryCancel(inst.Handle, CoroCancellationReason.OwnerRemoved))
 						cancelled++;
 				} catch (Exception ex) {
 					failures.Add(ex);
 				}
-			}
 		}
 		if (failures.Count > 0)
 			throw new AggregateException("cancelling one or more coroutines from this owner failed", failures);
@@ -605,13 +623,15 @@ public sealed class CoroutineScheduler : IDisposable {
 			slot.TerminalTrace = null;
 			return new CoroutineHandle(idx, slot.Generation);
 		}
-		slots.Add(new CoroutineSlot {
-			Generation = 1,
-			Instance = null,
-			TerminalInfo = null,
-			TerminalTrace = null,
-			RetainCount = 0,
-		});
+		slots.Add(
+			new CoroutineSlot {
+				Generation = 1,
+				Instance = null,
+				TerminalInfo = null,
+				TerminalTrace = null,
+				RetainCount = 0,
+			}
+		);
 		return new CoroutineHandle(slots.Count - 1, 1);
 	}
 
@@ -645,7 +665,7 @@ public sealed class CoroutineScheduler : IDisposable {
 	}
 
 	private static CoroutineTrace makeTrace(CoroutineInstance inst) {
-		CoroutineTraceFrame[] frames = new CoroutineTraceFrame[inst.StackDepth];
+		var frames = new CoroutineTraceFrame[inst.StackDepth];
 		for (int i = 0; i < inst.StackDepth; i++) {
 			CoroutineStackFrame frame = inst.StackFrames[i];
 			frames[i] = new CoroutineTraceFrame {
@@ -670,13 +690,13 @@ public sealed class CoroutineScheduler : IDisposable {
 	}
 
 	private static string? enumDebugName(IEnumerator e) =>
-		(e is NamedEnumerator named) ? named.DebugName : null;
+		e is NamedEnumerator named ? named.DebugName : null;
 	private static string? enumSourceFile(IEnumerator e) =>
-		(e is NamedEnumerator named) ? named.SourceFile : null;
+		e is NamedEnumerator named ? named.SourceFile : null;
 	private static int? enumSourceLine(IEnumerator e) =>
-		(e is NamedEnumerator named) ? named.SourceLine : null;
+		e is NamedEnumerator named ? named.SourceLine : null;
 	private static string? enumSourceMember(IEnumerator e) =>
-		(e is NamedEnumerator named) ? named.SourceMember : null;
+		e is NamedEnumerator named ? named.SourceMember : null;
 
 	// ==========================================================================
 	// coroutine get/lifecycle
@@ -835,11 +855,13 @@ public sealed class CoroutineScheduler : IDisposable {
 				continue;
 			}
 			if (yielded is IEnumerator child) {
-				inst.StackPush(child,
+				inst.StackPush(
+					child,
 					enumDebugName(child) ?? CoroNameCleanup.Clean(child.GetType().Name),
 					enumSourceFile(child) ?? "",
 					enumSourceLine(child) ?? 0,
-					enumSourceMember(child) ?? "");
+					enumSourceMember(child) ?? ""
+				);
 				continue;
 			}
 
@@ -871,13 +893,14 @@ public sealed class CoroutineScheduler : IDisposable {
 		inst.PreservedTerminalTrace = makeTrace(inst);
 
 		inst.TransitionToFaulted(this, ex, tick);
-		if (slots[inst.Handle.Slot].RetainCount == 0) { // TODO: better policy for what counts as "unhandled"
-			pendingUnhandledFaults.Add(new CoroutineUnhandledFaultInfo {
-				Exception = ExceptionSnapshot.FromException(ex),
-				Info = makeInfo(inst),
-				Trace = inst.PreservedTerminalTrace,
-			});
-		}
+		if (slots[inst.Handle.Slot].RetainCount == 0) // TODO: better policy for what counts as "unhandled"
+			pendingUnhandledFaults.Add(
+				new CoroutineUnhandledFaultInfo {
+					Exception = ExceptionSnapshot.FromException(ex),
+					Info = makeInfo(inst),
+					Trace = inst.PreservedTerminalTrace,
+				}
+			);
 		requestReap(inst.Handle.Slot);
 	}
 

@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -153,7 +154,7 @@ internal static class Util {
 			signed = false;
 			return true;
 		}
-		if (sym.ContainingNamespace.ToDisplayString() == "System") {
+		if (sym.ContainingNamespace.ToDisplayString() == "System")
 			switch (sym.Name) {
 			case "Int128":
 				name = "global::System.Int128";
@@ -164,7 +165,6 @@ internal static class Util {
 				signed = false;
 				return true;
 			}
-		}
 
 		name = null;
 		signed = false;

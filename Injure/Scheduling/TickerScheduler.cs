@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
+
 using Injure.Timing;
 
 namespace Injure.Scheduling;
@@ -25,9 +26,9 @@ internal struct EwmaMonoTick {
 		}
 
 		if (sample >= val)
-			val += (sample - val) >> alphaShift;
+			val += sample - val >> alphaShift;
 		else
-			val -= (val - sample) >> alphaShift;
+			val -= val - sample >> alphaShift;
 	}
 }
 
@@ -123,9 +124,7 @@ internal sealed class ScheduledTicker {
 		return subscription;
 	}
 
-	public bool RemoveSubscription(TickerSubscription subscription) {
-		return subscriptions.Remove(subscription);
-	}
+	public bool RemoveSubscription(TickerSubscription subscription) => subscriptions.Remove(subscription);
 
 	public void ClearSubscriptions() {
 		subscriptions.Clear();
@@ -212,14 +211,12 @@ public readonly record struct TickerBudgetOptions(
 				return max;
 			return slack;
 		}
-		static MonoTick maxOne(MonoTick value) {
-			return value == MonoTick.Zero ? (MonoTick)1 : value;
-		}
+		static MonoTick maxOne(MonoTick value) => value == MonoTick.Zero ? (MonoTick)1 : value;
 
 		if (targetLoopPeriod == MonoTick.Zero)
 			throw new ArgumentOutOfRangeException(nameof(targetLoopPeriod), "target loop period must be nonzero");
 		MonoTick slack = reservedLoopSlack ?? defaultReservedSlack(targetLoopPeriod);
-		if (slack > (targetLoopPeriod >> 1)) // keep slack sane, at most 1/2 of the full loop
+		if (slack > targetLoopPeriod >> 1) // keep slack sane, at most 1/2 of the full loop
 			slack = targetLoopPeriod >> 1;
 		return new TickerBudgetOptions(
 			TargetLoopPeriod: targetLoopPeriod,
@@ -268,6 +265,7 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 		PendingAdd,
 		Active,
 	}
+
 	private sealed class TickerSlot {
 		public required int Generation;
 		public required TickerSlotState State;
@@ -286,6 +284,7 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 		Remove,
 		Retime,
 	}
+
 	private readonly record struct TickerCommand(
 		TickerCommandKind Kind,
 		TickerHandle Handle,
@@ -349,7 +348,7 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 
 	public void ApplyPending() {
 		lock (@lock) {
-			MonoTick commitAt = MonoTick.GetCurrent();
+			var commitAt = MonoTick.GetCurrent();
 			foreach (TickerCommand cmd in pending) {
 				if (!tryGetSlot(cmd.Handle, out int slotIndex))
 					continue;
@@ -385,7 +384,7 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 			batchID = ++nextBatchID;
 
 		int calls = 0;
-		MonoTick start = MonoTick.GetCurrent();
+		var start = MonoTick.GetCurrent();
 		List<DueTickerCall> dueCalls = new();
 		List<MonoTick> dueBudgets = new();
 
@@ -440,7 +439,7 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 				TickerSlot slot = slots[slotIndex];
 				if (slot.State != TickerSlotState.Active)
 					continue;
-				MonoTick now = MonoTick.GetCurrent();
+				var now = MonoTick.GetCurrent();
 				if (!slot.Scheduled.TryTakeOneIfDue(now, batchID, calls))
 					continue;
 				return true;
@@ -450,13 +449,13 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 	}
 
 	private void invokeDueCall(DueTickerCall call, MonoTick budget) {
-		MonoTick callbackStart = MonoTick.GetCurrent();
+		var callbackStart = MonoTick.GetCurrent();
 		TickDeadline deadline = budget > MonoTick.Zero ? new TickDeadline(callbackStart + budget) : default;
 
 		TickCallbackTimingInfo info = call.Info;
 		call.Subscription.Callback(in info, in deadline);
 
-		MonoTick callbackEnd = MonoTick.GetCurrent();
+		var callbackEnd = MonoTick.GetCurrent();
 		MonoTick runtime = callbackEnd - callbackStart;
 
 		lock (@lock) {
@@ -557,18 +556,19 @@ public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITicker
 			if (slots[i].State == TickerSlotState.Active && slots[i].Scheduled is not null)
 				activeSlots.Add(i);
 		activeSlots.Sort((a, b) => {
-			ScheduledTicker left = slots[a].Scheduled;
-			ScheduledTicker right = slots[b].Scheduled;
-			int cmp = left.NextAt.CompareTo(right.NextAt);
-			if (cmp != 0)
-				return cmp;
-			cmp = left.Priority.CompareTo(right.Priority);
-			if (cmp != 0)
-				return cmp;
-			cmp = left.InsertionOrder.CompareTo(right.InsertionOrder);
-			if (cmp != 0)
-				return cmp;
-			return a.CompareTo(b);
-		});
+				ScheduledTicker left = slots[a].Scheduled;
+				ScheduledTicker right = slots[b].Scheduled;
+				int cmp = left.NextAt.CompareTo(right.NextAt);
+				if (cmp != 0)
+					return cmp;
+				cmp = left.Priority.CompareTo(right.Priority);
+				if (cmp != 0)
+					return cmp;
+				cmp = left.InsertionOrder.CompareTo(right.InsertionOrder);
+				if (cmp != 0)
+					return cmp;
+				return a.CompareTo(b);
+			}
+		);
 	}
 }

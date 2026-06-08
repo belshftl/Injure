@@ -4,16 +4,18 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+
 using Hexa.NET.SDL3;
 
 using Injure.Rendering;
 using Injure.Timing;
+
 using static Injure.Core.SDLException;
 
 namespace Injure.Core;
 
 public sealed unsafe class SDLWindowController : IWindowController {
-	private readonly SDLWindow *window;
+	private readonly SDLWindow* window;
 
 	private WindowSettings settings;
 	private WindowState state;
@@ -21,7 +23,7 @@ public sealed unsafe class SDLWindowController : IWindowController {
 	public WindowSettings Settings => settings;
 	public WindowState State => state;
 
-	public SDLWindowController(SDLWindow *window, WindowSettings initialSettings) {
+	public SDLWindowController(SDLWindow* window, WindowSettings initialSettings) {
 		ArgumentNullException.ThrowIfNull(window);
 		this.window = window;
 		if (!tryNormalize(initialSettings, out WindowSettings normalized, out string? err))
@@ -46,7 +48,7 @@ public sealed unsafe class SDLWindowController : IWindowController {
 		}
 	}
 
-	private static bool tryNormalize(in WindowSettings s, out WindowSettings normalized, [NotNullWhen(false)] out string? err ) {
+	private static bool tryNormalize(in WindowSettings s, out WindowSettings normalized, [NotNullWhen(false)] out string? err) {
 		if (s.Title is null) {
 			normalized = default;
 			err = "window title must not be null";
@@ -82,8 +84,8 @@ public sealed unsafe class SDLWindowController : IWindowController {
 		if (old.Borderless != next.Borderless)
 			Check(SDL.SetWindowBordered(window, !next.Borderless));
 
-		if (!next.Fullscreen) {
-			if (old.Positioning != next.Positioning || old.X != next.X || old.Y != next.Y) {
+		if (!next.Fullscreen)
+			if (old.Positioning != next.Positioning || old.X != next.X || old.Y != next.Y)
 				switch (next.Positioning.Tag) {
 				case WindowPositioning.Case.Undefined:
 					Check(SDL.SetWindowPosition(window, unchecked((int)SDL.SDL_WINDOWPOS_UNDEFINED_MASK), unchecked((int)SDL.SDL_WINDOWPOS_UNDEFINED_MASK)));
@@ -97,8 +99,6 @@ public sealed unsafe class SDLWindowController : IWindowController {
 				default:
 					throw new UnreachableException();
 				}
-			}
-		}
 
 		if (old.Width != next.Width || old.Height != next.Height)
 			Check(SDL.SetWindowSize(window, next.Width, next.Height));
@@ -106,7 +106,7 @@ public sealed unsafe class SDLWindowController : IWindowController {
 		if (old.Fullscreen != next.Fullscreen)
 			Check(SDL.SetWindowFullscreen(window, next.Fullscreen));
 
-		if (old.Mode != next.Mode) {
+		if (old.Mode != next.Mode)
 			switch (next.Mode.Tag) {
 			case WindowMode.Case.Normal:
 				Check(SDL.RestoreWindow(window));
@@ -120,7 +120,6 @@ public sealed unsafe class SDLWindowController : IWindowController {
 			default:
 				throw new InternalStateException("unexpected WindowMode value");
 			}
-		}
 
 		if (old.Visible != next.Visible) {
 			if (next.Visible)
@@ -130,7 +129,7 @@ public sealed unsafe class SDLWindowController : IWindowController {
 		}
 	}
 
-	private static WindowState queryState(SDLWindow *window, MonoTick now) {
+	private static WindowState queryState(SDLWindow* window, MonoTick now) {
 		int width, height;
 		int drawableWidth, drawableHeight;
 		int x, y;
@@ -139,12 +138,12 @@ public sealed unsafe class SDLWindowController : IWindowController {
 		Check(SDL.GetWindowSizeInPixels(window, &drawableWidth, &drawableHeight));
 		Check(SDL.GetWindowPosition(window, &x, &y));
 
-		SDLWindowFlags flags = (SDLWindowFlags)SDL.GetWindowFlags(window);
+		var flags = (SDLWindowFlags)SDL.GetWindowFlags(window);
 
 		// https://wiki.libsdl.org/SDL3/SDL_GetWindowTitle
 		// (const char *) Returns the title of the window in UTF-8 format ...
-		byte *title = SDL.GetWindowTitle(window);
-		byte *end = title;
+		byte* title = SDL.GetWindowTitle(window);
+		byte* end = title;
 		while (*end != '\0')
 			end++;
 		string titlestr = Encoding.UTF8.GetString(new ReadOnlySpan<byte>(title, checked((int)(end - title))));
@@ -173,7 +172,7 @@ public sealed unsafe class SDLWindowController : IWindowController {
 	}
 
 	public bool TryHandleSDLEvent(in SDLEvent ev, IRenderOutput resizeSink, IGame hostEventSink) {
-		MonoTick tick = (MonoTick)ev.Window.Timestamp;
+		var tick = (MonoTick)ev.Window.Timestamp;
 		switch ((SDLEventType)ev.Type) {
 		case SDLEventType.WindowShown:
 			state.Visible = true;

@@ -205,10 +205,16 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 			snapshot = weakRefs.ToArray();
 		}
 
-		ReloadWeakReferenceSnapshot[] result = new ReloadWeakReferenceSnapshot[snapshot.Length];
+		var result = new ReloadWeakReferenceSnapshot[snapshot.Length];
 		for (int i = 0; i < snapshot.Length; i++) {
 			object? target = snapshot[i].Reference.Target;
-			result[i] = new ReloadWeakReferenceSnapshot(Generation, snapshot[i].Category, snapshot[i].Description, target is not null, target?.GetType().FullName ?? "<collected>");
+			result[i] = new ReloadWeakReferenceSnapshot(
+				Generation,
+				snapshot[i].Category,
+				snapshot[i].Description,
+				target is not null,
+				target?.GetType().FullName ?? "<collected>"
+			);
 		}
 		return result;
 	}
@@ -235,12 +241,14 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 			try {
 				stoppingCts.Cancel();
 			} catch (Exception ex) {
-				(failures ??= new()).Add(BoundedScopeFailure.FromException(Generation, index: -1, operation: "cancel generation stopping token", itemTypeName: "CancellationTokenSource", ex));
+				(failures ??= new List<BoundedScopeFailure>()).Add(
+					BoundedScopeFailure.FromException(Generation, index: -1, operation: "cancel generation stopping token", itemTypeName: "CancellationTokenSource", ex)
+				);
 			}
 
-			await teardownAsync(tear, reason, maxParallelism, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
-			await disposeParallelAsync(parr, maxParallelism, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
-			await disposeOrderedAsync(ord, f => (failures ??= new()).Add(f)).ConfigureAwait(false);
+			await teardownAsync(tear, reason, maxParallelism, f => (failures ??= new List<BoundedScopeFailure>()).Add(f)).ConfigureAwait(false);
+			await disposeParallelAsync(parr, maxParallelism, f => (failures ??= new List<BoundedScopeFailure>()).Add(f)).ConfigureAwait(false);
+			await disposeOrderedAsync(ord, f => (failures ??= new List<BoundedScopeFailure>()).Add(f)).ConfigureAwait(false);
 		} finally {
 			Array.Clear(tear);
 			Array.Clear(parr);
@@ -261,28 +269,28 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 		Lock failureLock = new();
 		int nextIndex = -1;
 		int workerCount = Math.Min(maxWorkerCount, items.Length);
-		Task[] workers = new Task[workerCount];
-		for (int worker = 0; worker < workerCount; worker++) {
+		var workers = new Task[workerCount];
+		for (int worker = 0; worker < workerCount; worker++)
 			workers[worker] = Task.Run(() => {
-				for (;;) {
-					int i = Interlocked.Increment(ref nextIndex);
-					if (i >= items.Length)
-						return;
-					if (items[i] is null)
-						continue;
-					string typeName = items[i].GetType().FullName ?? items[i].GetType().Name;
-					try {
-						items[i].Teardown(in ctx);
-					} catch (Exception ex) {
-						BoundedScopeFailure failure = BoundedScopeFailure.FromException(Generation, i, "tear down IReloadTeardown item", typeName, ex);
-						lock (failureLock)
-							addFailure(failure);
-					} finally {
-						items[i] = null!;
+					for (;;) {
+						int i = Interlocked.Increment(ref nextIndex);
+						if (i >= items.Length)
+							return;
+						if (items[i] is null)
+							continue;
+						string typeName = items[i].GetType().FullName ?? items[i].GetType().Name;
+						try {
+							items[i].Teardown(in ctx);
+						} catch (Exception ex) {
+							var failure = BoundedScopeFailure.FromException(Generation, i, "tear down IReloadTeardown item", typeName, ex);
+							lock (failureLock)
+								addFailure(failure);
+						} finally {
+							items[i] = null!;
+						}
 					}
 				}
-			});
-		}
+			);
 		await Task.WhenAll(workers).ConfigureAwait(false);
 	}
 
@@ -293,26 +301,26 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 		Lock failureLock = new();
 		int nextIndex = -1;
 		int workerCount = Math.Min(maxWorkerCount, items.Length);
-		Task[] workers = new Task[workerCount];
-		for (int worker = 0; worker < workerCount; worker++) {
+		var workers = new Task[workerCount];
+		for (int worker = 0; worker < workerCount; worker++)
 			workers[worker] = Task.Run(async () => {
-				for (;;) {
-					int i = Interlocked.Increment(ref nextIndex);
-					if (i >= items.Length)
-						return;
-					string typeName = items[i].TypeName;
-					try {
-						await items[i].DisposeAsync().ConfigureAwait(false);
-					} catch (Exception ex) {
-						BoundedScopeFailure failure = BoundedScopeFailure.FromException(Generation, i, "dispose unordered IDisposable item", typeName, ex);
-						lock (failureLock)
-							addFailure(failure);
-					} finally {
-						items[i] = default;
+					for (;;) {
+						int i = Interlocked.Increment(ref nextIndex);
+						if (i >= items.Length)
+							return;
+						string typeName = items[i].TypeName;
+						try {
+							await items[i].DisposeAsync().ConfigureAwait(false);
+						} catch (Exception ex) {
+							var failure = BoundedScopeFailure.FromException(Generation, i, "dispose unordered IDisposable item", typeName, ex);
+							lock (failureLock)
+								addFailure(failure);
+						} finally {
+							items[i] = default;
+						}
 					}
 				}
-			});
-		}
+			);
 		await Task.WhenAll(workers).ConfigureAwait(false);
 	}
 
@@ -345,7 +353,7 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 			list = null;
 			return Array.Empty<T>();
 		}
-		T[] snapshot = new T[list.Count];
+		var snapshot = new T[list.Count];
 		for (int i = 0; i < list.Count; i++)
 			snapshot[i] = list[list.Count - i - 1];
 		list.Clear();

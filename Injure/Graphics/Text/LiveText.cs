@@ -15,9 +15,24 @@ public sealed class LiveText : IDisposable {
 	private ulong chainHash;
 	private bool disposed = false;
 
-	public FontFallbackChain Fonts { get { ObjectDisposedException.ThrowIf(disposed, this); return req.Fonts; } }
-	public string Text { get { ObjectDisposedException.ThrowIf(disposed, this); return req.Text; } }
-	public TextStyle Style { get { ObjectDisposedException.ThrowIf(disposed, this); return req.Style; } }
+	public FontFallbackChain Fonts {
+		get {
+			ObjectDisposedException.ThrowIf(disposed, this);
+			return req.Fonts;
+		}
+	}
+	public string Text {
+		get {
+			ObjectDisposedException.ThrowIf(disposed, this);
+			return req.Text;
+		}
+	}
+	public TextStyle Style {
+		get {
+			ObjectDisposedException.ThrowIf(disposed, this);
+			return req.Style;
+		}
+	}
 	public TextLayout Layout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);

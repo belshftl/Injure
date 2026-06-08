@@ -26,61 +26,90 @@ public sealed class PrimitiveBatchSharedState : IDisposable {
 	private readonly GPURenderPipeline _pipeline;
 	private bool disposed = false;
 
-	public GPUShaderModule Shader { get { ObjectDisposedException.ThrowIf(disposed, this); return _shader; } }
-	public GPUBindGroupLayoutRef LocalsBindGroupLayout { get { ObjectDisposedException.ThrowIf(disposed, this); return _localsBindGroupLayout.AsRef(); } }
-	public GPUPipelineLayout PipelineLayout { get { ObjectDisposedException.ThrowIf(disposed, this); return _pipelineLayout; } }
-	public GPURenderPipeline Pipeline { get { ObjectDisposedException.ThrowIf(disposed, this); return _pipeline; } }
+	public GPUShaderModule Shader {
+		get {
+			ObjectDisposedException.ThrowIf(disposed, this);
+			return _shader;
+		}
+	}
+	public GPUBindGroupLayoutRef LocalsBindGroupLayout {
+		get {
+			ObjectDisposedException.ThrowIf(disposed, this);
+			return _localsBindGroupLayout.AsRef();
+		}
+	}
+	public GPUPipelineLayout PipelineLayout {
+		get {
+			ObjectDisposedException.ThrowIf(disposed, this);
+			return _pipelineLayout;
+		}
+	}
+	public GPURenderPipeline Pipeline {
+		get {
+			ObjectDisposedException.ThrowIf(disposed, this);
+			return _pipeline;
+		}
+	}
 
-	public PrimitiveBatchSharedState(WebGPUDevice device, EngineResourceStore engineResources, BlendState? blend,
-		ColorWriteMask colorWriteMask, TextureFormat colorTargetFormat) {
+	public PrimitiveBatchSharedState(
+		WebGPUDevice device,
+		EngineResourceStore engineResources,
+		BlendState? blend,
+		ColorWriteMask colorWriteMask,
+		TextureFormat colorTargetFormat
+	) {
 		ColorTargetFormat = colorTargetFormat;
 		_shader = device.CreateShaderModuleWGSL(engineResources.GetText(BuiltinShaders.Primitive2D.ResourceID));
 		_localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)PrimitiveBatchLocalsUniform.Size);
-		_pipelineLayout = device.CreatePipelineLayout([
-			device.StdGlobalsUniformLayout,
-			_localsBindGroupLayout,
-		]);
-		_pipeline = device.CreateRenderPipeline(new GPURenderPipelineCreateParams(
-			Layout: PipelineLayout,
-			Vertex: new VertexState(
-				ShaderModule: Shader,
-				EntryPoint: BuiltinShaders.Primitive2D.VSEntry,
-				Buffers: [
-					new VertexBufferLayout(
-						ArrayStride: (ulong)Vertex2DColor.Size,
-						StepMode: VertexStepMode.Vertex,
-						Attributes: [
-							new VertexAttribute(
-								Format: VertexFormat.Float32x2,
-								Offset: 0,
-								ShaderLocation: 0
-							),
-							new VertexAttribute(
-								Format: VertexFormat.Unorm8x4,
-								Offset: 8,
-								ShaderLocation: 1
-							),
-						]
-					),
-				]
-			),
-			Fragment: new FragmentState(
-				ShaderModule: Shader,
-				EntryPoint: BuiltinShaders.Primitive2D.FSEntry,
-				Targets: [
-					new ColorTargetState(
-						Format: colorTargetFormat,
-						Blend: blend,
-						WriteMask: colorWriteMask
-					),
-				]
-			),
-			Primitive: new PrimitiveState(
-				Topology: PrimitiveTopology.TriangleList,
-				FrontFace: FrontFace.CCW,
-				CullMode: CullMode.None
+		_pipelineLayout = device.CreatePipelineLayout(
+			[
+				device.StdGlobalsUniformLayout,
+				_localsBindGroupLayout,
+			]
+		);
+		_pipeline = device.CreateRenderPipeline(
+			new GPURenderPipelineCreateParams(
+				Layout: PipelineLayout,
+				Vertex: new VertexState(
+					ShaderModule: Shader,
+					EntryPoint: BuiltinShaders.Primitive2D.VSEntry,
+					Buffers: [
+						new VertexBufferLayout(
+							ArrayStride: (ulong)Vertex2DColor.Size,
+							StepMode: VertexStepMode.Vertex,
+							Attributes: [
+								new VertexAttribute(
+									Format: VertexFormat.Float32x2,
+									Offset: 0,
+									ShaderLocation: 0
+								),
+								new VertexAttribute(
+									Format: VertexFormat.Unorm8x4,
+									Offset: 8,
+									ShaderLocation: 1
+								),
+							]
+						),
+					]
+				),
+				Fragment: new FragmentState(
+					ShaderModule: Shader,
+					EntryPoint: BuiltinShaders.Primitive2D.FSEntry,
+					Targets: [
+						new ColorTargetState(
+							Format: colorTargetFormat,
+							Blend: blend,
+							WriteMask: colorWriteMask
+						),
+					]
+				),
+				Primitive: new PrimitiveState(
+					Topology: PrimitiveTopology.TriangleList,
+					FrontFace: FrontFace.CCW,
+					CullMode: CullMode.None
+				)
 			)
-		));
+		);
 	}
 
 	public void Dispose() {
@@ -119,8 +148,16 @@ public sealed class PrimitiveBatch : IDisposable {
 	private bool submitted = false;
 	private bool disposed = false;
 
-	public PrimitiveBatch(WebGPUDevice device, ViewGlobals globals, RenderFrame frame, RenderPass pass,
-		PrimitiveBatchSharedState shared, in PrimitiveBatchParams @params, int initialVertCapacity = 256, int initialIndexCapacity = 512) {
+	public PrimitiveBatch(
+		WebGPUDevice device,
+		ViewGlobals globals,
+		RenderFrame frame,
+		RenderPass pass,
+		PrimitiveBatchSharedState shared,
+		in PrimitiveBatchParams @params,
+		int initialVertCapacity = 256,
+		int initialIndexCapacity = 512
+	) {
 		this.device = device;
 		this.globals = globals;
 		this.frame = frame;
@@ -177,14 +214,13 @@ public sealed class PrimitiveBatch : IDisposable {
 		idxs[icount++] = i2;
 	}
 
-	private static float winding(Vector2 a, Vector2 b, Vector2 c) {
+	private static float winding(Vector2 a, Vector2 b, Vector2 c) =>
 		// in cartesian coordinates (+Y = up):
 		// > 0 = ccw
 		// < 0 = cw
 		// in screen space coords, +Y is down, but i'm like pretty sure that's just the
 		// ortho projection and +Y in clip space coords points up so >0 = ccw / <0 = cw
-		return (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
-	}
+		(b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
 
 	public void Triangle(Vertex2DColor a, Vertex2DColor b, Vertex2DColor c) {
 		chk();
@@ -217,9 +253,9 @@ public sealed class PrimitiveBatch : IDisposable {
 
 	public void Rect(RectF rect, Color32 cTopleft, Color32 cTopright, Color32 cBottomleft, Color32 cBottomright) =>
 		Quad(
-			new Vertex2DColor(rect.X,              rect.Y,               cTopleft),
-			new Vertex2DColor(rect.X + rect.Width, rect.Y,               cTopright),
-			new Vertex2DColor(rect.X,              rect.Y + rect.Height, cBottomleft),
+			new Vertex2DColor(rect.X, rect.Y, cTopleft),
+			new Vertex2DColor(rect.X + rect.Width, rect.Y, cTopright),
+			new Vertex2DColor(rect.X, rect.Y + rect.Height, cBottomleft),
 			new Vertex2DColor(rect.X + rect.Width, rect.Y + rect.Height, cBottomright)
 		);
 	public void Rect(RectF rect, Color32 color) =>
@@ -241,7 +277,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		Vector2 p1 = (Vector2)b + normal;
 		Vector2 p2 = (Vector2)b - normal;
 		Vector2 p3 = (Vector2)a - normal;
-		
+
 		ensure(4, 6);
 		uint i0 = addvert(new Vertex2DColor(p0.X, p0.Y, a.Color));
 		uint i1 = addvert(new Vertex2DColor(p1.X, p1.Y, b.Color));
@@ -260,9 +296,7 @@ public sealed class PrimitiveBatch : IDisposable {
 
 	private void flatcolor(Action<ReadOnlySpan<Vertex2DColor>> draw, ReadOnlySpan<Vector2> points, Color32 color) {
 		const int maxstack = 256;
-		Span<Vertex2DColor> verts = points.Length <= maxstack ?
-			stackalloc Vertex2DColor[points.Length] :
-			new Vertex2DColor[points.Length];
+		Span<Vertex2DColor> verts = points.Length <= maxstack ? stackalloc Vertex2DColor[points.Length] : new Vertex2DColor[points.Length];
 		for (int i = 0; i < points.Length; i++)
 			verts[i] = new Vertex2DColor(points[i], color);
 		draw(verts);
@@ -270,9 +304,7 @@ public sealed class PrimitiveBatch : IDisposable {
 
 	private void flatcolor(Action<ReadOnlySpan<Vertex2DColor>, float> draw, ReadOnlySpan<Vector2> points, Color32 color, float thickness) {
 		const int maxstack = 256;
-		Span<Vertex2DColor> verts = points.Length <= maxstack ?
-			stackalloc Vertex2DColor[points.Length] :
-			new Vertex2DColor[points.Length];
+		Span<Vertex2DColor> verts = points.Length <= maxstack ? stackalloc Vertex2DColor[points.Length] : new Vertex2DColor[points.Length];
 		for (int i = 0; i < points.Length; i++)
 			verts[i] = new Vertex2DColor(points[i], color);
 		draw(verts, thickness);
@@ -296,7 +328,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		chk();
 		if (verts.Length == 0)
 			return;
-		if ((verts.Length % 3) != 0)
+		if (verts.Length % 3 != 0)
 			throw new ArgumentException("triangle list vertex count must be a multiple of 3", nameof(verts));
 		ensure(verts.Length, verts.Length);
 		uint baseidx = (uint)vcount;
@@ -315,12 +347,11 @@ public sealed class PrimitiveBatch : IDisposable {
 		uint baseidx = (uint)vcount;
 		addverts(verts);
 		// flip winding every other triangle
-		for (uint i = 0; i < (uint)verts.Length - 2; i++) {
+		for (uint i = 0; i < (uint)verts.Length - 2; i++)
 			if ((i & 1) == 0)
 				add3idxs(baseidx + i, baseidx + i + 1, baseidx + i + 2);
 			else
 				add3idxs(baseidx + i + 1, baseidx + i, baseidx + i + 2);
-		}
 	}
 	public void TriangleStrip(ReadOnlySpan<Vector2> points, Color32 color) =>
 		flatcolor(TriangleStrip, points, color);
@@ -329,7 +360,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		chk();
 		if (verts.Length == 0)
 			return;
-		if ((verts.Length % 2) != 0)
+		if (verts.Length % 2 != 0)
 			throw new ArgumentException("line list vertex count must be a multiple of 2", nameof(verts));
 		for (int i = 0; i < verts.Length; i += 2)
 			Line(verts[i], verts[i + 1], thickness);

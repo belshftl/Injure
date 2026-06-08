@@ -47,7 +47,10 @@ public sealed class OwnerOrderedEntry<T> {
 	public IReadOnlyList<OwnerOrderingConstraint> AfterOwners => afterOwners;
 
 	public OwnerOrderedEntry(
-		T item, string ownerID, string localID, int localPriority = 0,
+		T item,
+		string ownerID,
+		string localID,
+		int localPriority = 0,
 		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
 		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
 	) {
@@ -137,18 +140,19 @@ public static class OwnerOrderedSorter {
 		}
 
 		// sort within owners by local priority
-		T[] result = new T[entries.Count];
+		var result = new T[entries.Count];
 		int resultidx = 0;
 		foreach (Node<T> node in ordered) {
 			node.Items.Sort(static (a, b) => {
-				int n = a.LocalPriority.CompareTo(b.LocalPriority);
-				if (n != 0)
+					int n = a.LocalPriority.CompareTo(b.LocalPriority);
+					if (n != 0)
+						return n;
+					n = StringComparer.Ordinal.Compare(a.LocalID, b.LocalID);
+					if (n == 0)
+						throw new InternalStateException("duplicate LocalID got into local-priority sort");
 					return n;
-				n = StringComparer.Ordinal.Compare(a.LocalID, b.LocalID);
-				if (n == 0)
-					throw new InternalStateException("duplicate LocalID got into local-priority sort");
-				return n;
-			});
+				}
+			);
 			foreach (OwnerOrderedEntry<T> ent in node.Items)
 				result[resultidx++] = ent.Item;
 		}
@@ -165,7 +169,9 @@ public static class OwnerOrderedSorter {
 	) {
 		if (!nodes.ContainsKey(constraint.OwnerID)) {
 			if (constraint.Kind == OwnerOrderingConstraintKind.Hard)
-				throw new OwnerOrderingException($"owner '{entry.OwnerID}' local '{entry.LocalID}' has hard '{direction}' constraint targeting unknown owner '{constraint.OwnerID}'");
+				throw new OwnerOrderingException(
+					$"owner '{entry.OwnerID}' local '{entry.LocalID}' has hard '{direction}' constraint targeting unknown owner '{constraint.OwnerID}'"
+				);
 			return;
 		}
 		addEdge(nodes, fromOwnerID, toOwnerID);
@@ -178,9 +184,8 @@ public static class OwnerOrderedSorter {
 			throw new OwnerOrderingException($"owner '{fromOwnerID}' has a self-reference");
 		if (!nodes.TryGetValue(fromOwnerID, out Node<T>? fromNode))
 			throw new OwnerOrderingException($"unknown source owner '{fromOwnerID}'");
-		if (!nodes.TryGetValue(toOwnerID, out Node<T>? toNode)) {
+		if (!nodes.TryGetValue(toOwnerID, out Node<T>? toNode))
 			throw new OwnerOrderingException($"unknown target owner '{toOwnerID}'");
-		}
 		if (fromNode.Outgoing.Add(toOwnerID))
 			toNode.InDegree++;
 	}
@@ -210,7 +215,7 @@ public static class OwnerOrderedSorter {
 			state[id] = VisitState.Visiting;
 			stackIndex[id] = stack.Count;
 			stack.Add(id);
-			foreach (string nextID in nodes[id].Outgoing.Where(remaining.Contains).OrderBy(static x => x, StringComparer.Ordinal)) {
+			foreach (string nextID in nodes[id].Outgoing.Where(remaining.Contains).OrderBy(static x => x, StringComparer.Ordinal))
 				if (!state.TryGetValue(nextID, out VisitState nextState)) {
 					dfs(nextID);
 					if (cycle is not null)
@@ -220,7 +225,6 @@ public static class OwnerOrderedSorter {
 					cycle = stack.GetRange(start, stack.Count - start);
 					return;
 				}
-			}
 			stack.RemoveAt(stack.Count - 1);
 			stackIndex.Remove(id);
 			state[id] = VisitState.Done;
@@ -326,7 +330,7 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 
 			T[] s = OwnerOrderedSorter.Sort(entries.Values.ToArray());
 			Volatile.Write(ref snapshot, s);
-			OwnerOrderedEntry<T>[] result = new OwnerOrderedEntry<T>[removedEntries.Count];
+			var result = new OwnerOrderedEntry<T>[removedEntries.Count];
 			for (int i = 0; i < removedEntries.Count; i++)
 				result[i] = removedEntries[i].Entry;
 			return result;
@@ -364,7 +368,7 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 			T[] s = OwnerOrderedSorter.Sort(entries.Values.ToArray());
 			Volatile.Write(ref snapshot, s);
 
-			OwnerOrderedEntry<T>[] result = new OwnerOrderedEntry<T>[removedEntries.Count];
+			var result = new OwnerOrderedEntry<T>[removedEntries.Count];
 			for (i = 0; i < removedEntries.Count; i++)
 				result[i] = removedEntries[i].Entry;
 			return result;

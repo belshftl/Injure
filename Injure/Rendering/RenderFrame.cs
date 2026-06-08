@@ -3,7 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+
 using WebGPU;
+
 using static WebGPU.WebGPU;
 
 namespace Injure.Rendering;
@@ -60,14 +62,20 @@ public sealed unsafe class RenderFrame : IDisposable {
 		activepass = false;
 	}
 
-	private RenderPass beginPass(WGPUCommandEncoder enc, WGPUTextureView colorView, WGPUTextureView depthStencilView,
-		in ColorAttachmentOps colorOps, in DepthAttachmentOps? depthOps, in StencilAttachmentOps? stencilOps) {
+	private RenderPass beginPass(
+		WGPUCommandEncoder enc,
+		WGPUTextureView colorView,
+		WGPUTextureView depthStencilView,
+		in ColorAttachmentOps colorOps,
+		in DepthAttachmentOps? depthOps,
+		in StencilAttachmentOps? stencilOps
+	) {
 		if (done)
 			throw new InvalidOperationException("frame already submitted/disposed");
 		if (activepass)
 			throw new InvalidOperationException("frame already has an active pass");
 
-		WGPURenderPassColorAttachment *colorAttachments = stackalloc WGPURenderPassColorAttachment[1];
+		WGPURenderPassColorAttachment* colorAttachments = stackalloc WGPURenderPassColorAttachment[1];
 		colorAttachments[0] = new WGPURenderPassColorAttachment {
 			view = colorView,
 			loadOp = colorOps.LoadOp.ToWebGPUType(),
@@ -82,7 +90,7 @@ public sealed unsafe class RenderFrame : IDisposable {
 		};
 
 		if (depthStencilView.IsNotNull) {
-			WGPURenderPassDepthStencilAttachment *depthStencilAttachment = stackalloc WGPURenderPassDepthStencilAttachment[1];
+			WGPURenderPassDepthStencilAttachment* depthStencilAttachment = stackalloc WGPURenderPassDepthStencilAttachment[1];
 			DepthAttachmentOps d = depthOps ?? throw new ArgumentNullException(nameof(depthOps));
 			depthStencilAttachment[0] = new WGPURenderPassDepthStencilAttachment {
 				view = depthStencilView,
@@ -193,8 +201,12 @@ public sealed unsafe class RenderFrame : IDisposable {
 	/// format, or if <paramref name="depthView"/> is a non-depth-only format.
 	/// </exception>
 	/// <inheritdoc cref="BeginColorPass(GPUTextureViewHandle, in ColorAttachmentOps)"/>
-	public RenderPass BeginColorDepthPass(GPUTextureViewHandle colorView, in ColorAttachmentOps colorOps,
-		GPUTextureViewHandle depthView, in DepthAttachmentOps depthOps) {
+	public RenderPass BeginColorDepthPass(
+		GPUTextureViewHandle colorView,
+		in ColorAttachmentOps colorOps,
+		GPUTextureViewHandle depthView,
+		in DepthAttachmentOps depthOps
+	) {
 		validateColorView(colorView, nameof(colorView));
 		validateDepthView(depthView, nameof(depthView));
 		validateCompatibleAttachments(colorView, depthView);
@@ -220,8 +232,13 @@ public sealed unsafe class RenderFrame : IDisposable {
 	/// format, or <paramref name="depthStencilView"/> is a non-depth+stencil format.
 	/// </exception>
 	/// <inheritdoc cref="BeginColorPass(GPUTextureViewHandle, in ColorAttachmentOps)"/>
-	public RenderPass BeginColorDepthStencilPass(GPUTextureViewHandle colorView, in ColorAttachmentOps colorOps,
-		GPUTextureViewHandle depthStencilView, in DepthAttachmentOps depthOps, in StencilAttachmentOps stencilOps) {
+	public RenderPass BeginColorDepthStencilPass(
+		GPUTextureViewHandle colorView,
+		in ColorAttachmentOps colorOps,
+		GPUTextureViewHandle depthStencilView,
+		in DepthAttachmentOps depthOps,
+		in StencilAttachmentOps stencilOps
+	) {
 		validateColorView(colorView, nameof(colorView));
 		validateDepthStencilView(depthStencilView, nameof(depthStencilView));
 		validateCompatibleAttachments(colorView, depthStencilView);

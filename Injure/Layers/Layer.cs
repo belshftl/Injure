@@ -16,9 +16,9 @@ namespace Injure.Layers;
 public readonly partial struct LayerFeatures {
 	[Flags]
 	public enum Bits {
-		None   = 0,
+		None = 0,
 		Render = 1 << 0,
-		Input  = 1 << 1,
+		Input = 1 << 1,
 	}
 }
 
@@ -26,10 +26,10 @@ public readonly partial struct LayerFeatures {
 public readonly partial struct LayerBlockMask {
 	[Flags]
 	public enum Bits {
-		None   = 0,
+		None = 0,
 		Update = 1 << 0,
 		Render = 1 << 1,
-		Input  = 1 << 2,
+		Input = 1 << 2,
 	}
 }
 
@@ -53,7 +53,8 @@ public abstract class Layer {
 	internal LayerStack? Owner { get; set; }
 	internal LayerRuntime? Runtime { get; private set; }
 
-	private const string eMsg = "activation-bound layer services (time domain, coroutines, IMonoTickReceiver auto-update) are not available yet; most likely, you have to move this code from the constructor or WarmAsync to OnEnter";
+	private const string eMsg =
+		"activation-bound layer services (time domain, coroutines, IMonoTickReceiver auto-update) are not available yet; most likely, you have to move this code from the constructor or WarmAsync to OnEnter";
 
 	/// <summary>
 	/// Runtime-provided time domain for this layer.

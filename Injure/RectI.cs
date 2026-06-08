@@ -159,9 +159,7 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 	/// Returns whether this rectangle fully contains another rectangle.
 	/// </summary>
 	/// <param name="other">The rectangle to test.</param>
-	public bool Contains(RectI other) => other.HasArea ?
-		(other.Left >= Left && other.Right <= Right && other.Top >= Top && other.Bottom <= Bottom) :
-		Contains(other.Position);
+	public bool Contains(RectI other) => other.HasArea ? other.Left >= Left && other.Right <= Right && other.Top >= Top && other.Bottom <= Bottom : Contains(other.Position);
 
 	/// <summary>
 	/// Attempts to compute the intersection of this rectangle and another rectangle.
@@ -235,9 +233,14 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 	/// <param name="formatProvider">Format provider to use.</param>
 	public string ToString(string? format, IFormatProvider? formatProvider) {
 		formatProvider ??= CultureInfo.CurrentCulture;
-		return string.Format(formatProvider, "{{ X = {0}, Y = {1}, Width = {2}, Height = {3} }}",
-			X.ToString(format, formatProvider), Y.ToString(format, formatProvider),
-			Width.ToString(format, formatProvider), Height.ToString(format, formatProvider));
+		return string.Format(
+			formatProvider,
+			"{{ X = {0}, Y = {1}, Width = {2}, Height = {3} }}",
+			X.ToString(format, formatProvider),
+			Y.ToString(format, formatProvider),
+			Width.ToString(format, formatProvider),
+			Height.ToString(format, formatProvider)
+		);
 	}
 }
 

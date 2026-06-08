@@ -3,6 +3,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+
 using Hexa.NET.SDL3;
 
 namespace Injure.Core;

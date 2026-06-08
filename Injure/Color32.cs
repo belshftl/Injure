@@ -98,7 +98,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// the resulting integer has memory layout <c>AABBGGRR</c> (when going lower -> higher memory address).
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public uint ToLogicalRgba32() => ((uint)R << 24) | ((uint)G << 16) | ((uint)B << 8) | A;
+	public uint ToLogicalRgba32() => (uint)R << 24 | (uint)G << 16 | (uint)B << 8 | A;
 
 	/// <summary>Converts this value to a 0xAARRGGBB u32 integer.</summary>
 	/// <remarks>
@@ -106,7 +106,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// the resulting integer has memory layout <c>BBGGRRAA</c> (when going lower -> higher memory address).
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public uint ToLogicalArgb32() => ((uint)A << 24) | ((uint)R << 16) | ((uint)G << 8) | B;
+	public uint ToLogicalArgb32() => (uint)A << 24 | (uint)R << 16 | (uint)G << 8 | B;
 
 	/// <summary>Converts this value to a 0xAABBGGRR u32 integer.</summary>
 	/// <remarks>
@@ -114,7 +114,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// the resulting integer has memory layout <c>RRGGBBAA</c> (when going lower -> higher memory address).
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public uint ToLogicalAbgr32() => ((uint)A << 24) | ((uint)B << 16) | ((uint)G << 8) | R;
+	public uint ToLogicalAbgr32() => (uint)A << 24 | (uint)B << 16 | (uint)G << 8 | R;
 
 	/// <summary>Converts this value to a <c>0xBBGGRRAA</c> u32 integer.</summary>
 	/// <remarks>
@@ -122,7 +122,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// the resulting integer has memory layout <c>AARRGGBB</c> (when going lower -> higher memory address).
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public uint ToLogicalBgra32() => ((uint)B << 24) | ((uint)G << 16) | ((uint)R << 8) | A;
+	public uint ToLogicalBgra32() => (uint)B << 24 | (uint)G << 16 | (uint)R << 8 | A;
 
 	/// <summary>Converts a 0xRRGGBBAA u32 integer to a <see cref="Color32"/> value.</summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -144,7 +144,8 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// Reinterprets this value as a u32 integer; the result is host-endianness-dependent.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public uint ReinterpretToU32() => Unsafe.ReadUnaligned<uint>(ref Unsafe.As<Color32, byte>(ref Unsafe.AsRef(in this))); // do an unaligned read since the min alignment of this struct is 1
+	public uint ReinterpretToU32() =>
+		Unsafe.ReadUnaligned<uint>(ref Unsafe.As<Color32, byte>(ref Unsafe.AsRef(in this))); // do an unaligned read since the min alignment of this struct is 1
 
 	/// <summary>
 	/// Reinterprets a u32 integer as a <see cref="Color32"/> value; the result is host-endianness-dependent.
@@ -179,7 +180,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 			color = default;
 			return false;
 		}
-		color = new(bytes[0], bytes[1], bytes[2], bytes[3]);
+		color = new Color32(bytes[0], bytes[1], bytes[2], bytes[3]);
 		return true;
 	}
 
@@ -301,17 +302,18 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 			n++;
 		if (span.Length - n != 6 && span.Length - n != 8)
 			return false;
-		if (!conv(span[n], out byte r0) || !conv(span[n + 1], out byte r1) || !conv(span[n + 2], out byte g0) || !conv(span[n + 3], out byte g1) || !conv(span[n + 4], out byte b0) || !conv(span[n + 5], out byte b1))
+		if (!conv(span[n], out byte r0) || !conv(span[n + 1], out byte r1) || !conv(span[n + 2], out byte g0) || !conv(span[n + 3], out byte g1) || !conv(span[n + 4], out byte b0) ||
+			!conv(span[n + 5], out byte b1))
 			return false;
 
-		byte r = (byte)((r0 << 4) | r1);
-		byte g = (byte)((g0 << 4) | g1);
-		byte b = (byte)((b0 << 4) | b1);
+		byte r = (byte)(r0 << 4 | r1);
+		byte g = (byte)(g0 << 4 | g1);
+		byte b = (byte)(b0 << 4 | b1);
 		byte a = 0xff;
 		if (span.Length - n == 8) {
 			if (!conv(span[n + 6], out byte a0) || !conv(span[n + 7], out byte a1))
 				return false;
-			a = (byte)((a0 << 4) | a1);
+			a = (byte)(a0 << 4 | a1);
 		}
 		val = new Color32(r, g, b, a);
 		return true;
@@ -371,21 +373,21 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// <summary>The color <c>#00000000</c>.</summary>
 	public static readonly Color32 Transparent = new(0x00, 0x00, 0x00, 0x00);
 	/// <summary>The color <c>#FFFFFFFF</c>.</summary>
-	public static readonly Color32 White       = new(0xff, 0xff, 0xff, 0xff);
+	public static readonly Color32 White = new(0xff, 0xff, 0xff, 0xff);
 	/// <summary>The color <c>#000000FF</c>.</summary>
-	public static readonly Color32 Black       = new(0x00, 0x00, 0x00, 0xff);
+	public static readonly Color32 Black = new(0x00, 0x00, 0x00, 0xff);
 	/// <summary>The color <c>#FF0000FF</c>.</summary>
-	public static readonly Color32 Red         = new(0xff, 0x00, 0x00, 0xff);
+	public static readonly Color32 Red = new(0xff, 0x00, 0x00, 0xff);
 	/// <summary>The color <c>#00FF00FF</c>.</summary>
-	public static readonly Color32 Green       = new(0x00, 0xff, 0x00, 0xff);
+	public static readonly Color32 Green = new(0x00, 0xff, 0x00, 0xff);
 	/// <summary>The color <c>#0000FFFF</c>.</summary>
-	public static readonly Color32 Blue        = new(0x00, 0x00, 0xff, 0xff);
+	public static readonly Color32 Blue = new(0x00, 0x00, 0xff, 0xff);
 	/// <summary>The color <c>#FFFF00FF</c>.</summary>
-	public static readonly Color32 Yellow      = new(0xff, 0xff, 0x00, 0xff);
+	public static readonly Color32 Yellow = new(0xff, 0xff, 0x00, 0xff);
 	/// <summary>The color <c>#00FFFFFF</c>.</summary>
-	public static readonly Color32 Cyan        = new(0x00, 0xff, 0xff, 0xff);
+	public static readonly Color32 Cyan = new(0x00, 0xff, 0xff, 0xff);
 	/// <summary>The color <c>#FF00FFFF</c>.</summary>
-	public static readonly Color32 Magenta     = new(0xff, 0x00, 0xff, 0xff);
+	public static readonly Color32 Magenta = new(0xff, 0x00, 0xff, 0xff);
 	/// <summary>The color <c>#00008BFF</c>.</summary>
-	public static readonly Color32 DarkBlue    = new(0x00, 0x00, 0x8b, 0xff);
+	public static readonly Color32 DarkBlue = new(0x00, 0x00, 0x8b, 0xff);
 }

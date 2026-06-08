@@ -40,7 +40,7 @@ internal static class ExceptionPolicy {
 		case InternalStateException ise:
 			internalEx = ise;
 			return true;
-		case TargetInvocationException { InnerException: { } inner }:
+		case TargetInvocationException { InnerException: {} inner }:
 			return TryGetInternalStateException(inner, out internalEx);
 		case AggregateException agg:
 			foreach (Exception innerEx in agg.InnerExceptions)

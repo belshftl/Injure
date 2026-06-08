@@ -90,7 +90,8 @@ internal static class Core {
 	public static readonly DiagnosticDescriptor BadReloadEntrypointTarget = new(
 		id: "IJM0010",
 		title: "Invalid [ModReloadEntrypoint] class",
-		messageFormat: "[ModReloadEntrypoint] target class '{0}' must be a non-generic sealed class implementing IModReloadEntrypoint<in TGameApi, L> with TGameApi '{1}' and lifetime marker '{2}'",
+		messageFormat:
+		"[ModReloadEntrypoint] target class '{0}' must be a non-generic sealed class implementing IModReloadEntrypoint<in TGameApi, L> with TGameApi '{1}' and lifetime marker '{2}'",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true

@@ -28,8 +28,7 @@ public static class UITextStyleUtil {
 
 	public static TextStyle ToEngineStyle(UITextStyle style, float textScale, float maxLogicalWidth) {
 		int px = ResolvePixelSize(style, textScale);
-		float maxPx = float.IsPositiveInfinity(maxLogicalWidth) ? float.PositiveInfinity :
-			MathF.Max(0f, maxLogicalWidth * textScale);
+		float maxPx = float.IsPositiveInfinity(maxLogicalWidth) ? float.PositiveInfinity : MathF.Max(0f, maxLogicalWidth * textScale);
 		return new TextStyle(
 			new FontOptions(px, style.RasterMode, style.Hinting, style.UseEmbeddedBitmaps),
 			style.Color,

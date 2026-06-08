@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Lifetime;
@@ -87,7 +88,7 @@ internal sealed class LifetimeObligation {
 	public ObligationSatisfactionLevel BestObservedSatisfaction => bestObservedSatisfaction;
 	public ObligationSatisfactionLevel WorstObservedSatisfaction => worstObservedSatisfaction;
 	public Location? StateLocation => stateLocation;
-	public List<PassedToCallFact> PassedToCalls { get; } = new List<PassedToCallFact>();
+	public List<PassedToCallFact> PassedToCalls { get; } = new();
 	public ImmutableArray<ObligationPathDivergence> PathDivergences => pathDivergences.ToImmutableArray();
 
 	public bool TrySatisfy(ObligationSatisfactionLevel level, Location location) {
@@ -152,7 +153,7 @@ internal sealed class LifetimeObligation {
 
 	public bool HasPartialPathLeakEvidence() {
 		foreach (ObligationPathDivergence d in pathDivergences)
-			if ((isSafePath(d.Left) && isOpenOrLeakedPath(d.Right)) || (isSafePath(d.Right) && isOpenOrLeakedPath(d.Left)))
+			if (isSafePath(d.Left) && isOpenOrLeakedPath(d.Right) || isSafePath(d.Right) && isOpenOrLeakedPath(d.Left))
 				return true;
 		return false;
 	}

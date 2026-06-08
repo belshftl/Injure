@@ -5,4 +5,5 @@ using Injure.Internals.Analyzers.Attributes;
 namespace Injure.Coroutines;
 
 [StronglyTypedInt(typeof(long))]
-public readonly partial struct CoroutineTick {}
+public readonly partial struct CoroutineTick {
+}

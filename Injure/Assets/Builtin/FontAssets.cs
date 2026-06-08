@@ -9,8 +9,12 @@ using Injure.Graphics.Text;
 
 namespace Injure.Assets.Builtin;
 
-public sealed class FontAssetData(Stream stream,
-	string debugName, string? suggestedExtension = null, object? origin = null) : AssetData(debugName, suggestedExtension, origin) {
+public sealed class FontAssetData(
+	Stream stream,
+	string debugName,
+	string? suggestedExtension = null,
+	object? origin = null
+) : AssetData(debugName, suggestedExtension, origin) {
 	public readonly Stream Stream = stream;
 }
 
@@ -22,8 +26,14 @@ public sealed class FontAssetResolver : IAssetResolver {
 			await stream.DisposeAsync().ConfigureAwait(false);
 			return AssetResolveResult.NotHandled();
 		}
-		return AssetResolveResult.Success(new FontAssetData(stream,
-			info.AssetID.ToString(), Path.GetExtension(info.AssetID.Path), info.AssetID));
+		return AssetResolveResult.Success(
+			new FontAssetData(
+				stream,
+				info.AssetID.ToString(),
+				Path.GetExtension(info.AssetID.Path),
+				info.AssetID
+			)
+		);
 	}
 
 	private static bool looksLikeAFont(Stream stream) {
@@ -32,13 +42,13 @@ public sealed class FontAssetResolver : IAssetResolver {
 			Span<byte> hdr = stackalloc byte[4];
 			if (stream.Read(hdr) != 4)
 				return false;
-			return (((uint)hdr[0] << 24) | ((uint)hdr[1] << 16) | ((uint)hdr[2] << 8) | hdr[3]) is
+			return ((uint)hdr[0] << 24 | (uint)hdr[1] << 16 | (uint)hdr[2] << 8 | hdr[3]) is
 				0x00010000 or // truetype / opentype with truetype outlines
 				0x4f54544f or // 'OTTO' (opentype with cff/cff2 outlines)
 				0x74746366 or // 'ttcf' (truetype collection)
 				0x774f4646 or // 'wOFF' (woff 1)
 				0x774f4632 or // 'wOF2' (woff 2)
-				0x74727565;   // 'true' (old apple tag for sfnt-wrapped truetype)
+				0x74727565; // 'true' (old apple tag for sfnt-wrapped truetype)
 		} finally {
 			stream.Position = saved;
 		}

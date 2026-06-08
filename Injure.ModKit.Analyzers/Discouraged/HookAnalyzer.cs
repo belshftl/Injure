@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
@@ -30,12 +31,18 @@ public sealed class HookAnalyzer : DiagnosticAnalyzer {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(static ctx => {
-			KnownSymbols known = new(ctx.Compilation);
-			ctx.RegisterOperationAction(c => analyzeObjectCreation(c, known), OperationKind.ObjectCreation);
-			ctx.RegisterOperationAction(c => analyzeInvocation(c, known), OperationKind.Invocation);
-			ctx.RegisterOperationAction(c => analyzeAssignment(c, known),
-				OperationKind.SimpleAssignment, OperationKind.CompoundAssignment, OperationKind.Increment, OperationKind.Decrement);
-		});
+				KnownSymbols known = new(ctx.Compilation);
+				ctx.RegisterOperationAction(c => analyzeObjectCreation(c, known), OperationKind.ObjectCreation);
+				ctx.RegisterOperationAction(c => analyzeInvocation(c, known), OperationKind.Invocation);
+				ctx.RegisterOperationAction(
+					c => analyzeAssignment(c, known),
+					OperationKind.SimpleAssignment,
+					OperationKind.CompoundAssignment,
+					OperationKind.Increment,
+					OperationKind.Decrement
+				);
+			}
+		);
 	}
 
 	private static void analyzeObjectCreation(OperationAnalysisContext ctx, KnownSymbols known) {
@@ -83,7 +90,8 @@ public sealed class HookAnalyzer : DiagnosticAnalyzer {
 
 		if (left is IPropertyReferenceOperation propRef) {
 			IPropertySymbol prop = propRef.Property.OriginalDefinition;
-			if (known.InstructionMembers.Contains(prop) || (propRef.Property.IsIndexer && propRef.Instance?.Type is { } receiverType && isInstructionListLike(receiverType, known))) {
+			if (known.InstructionMembers.Contains(prop) ||
+				propRef.Property.IsIndexer && propRef.Instance?.Type is {} receiverType && isInstructionListLike(receiverType, known)) {
 				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Discouraged.DestructiveILEdit, left.Syntax.GetLocation()));
 				return;
 			}

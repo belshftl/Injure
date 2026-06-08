@@ -2,6 +2,9 @@
 
 using System.Collections.Immutable;
 using System.Linq;
+
+using Injure.ModKit.Analyzers.Shared;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -20,13 +23,20 @@ public sealed class LifecycleMemberAnalyzer : DiagnosticAnalyzer {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(static ctx => {
-			if (!Shared.HotReloadModel.TryGetHotReloadLevel(ctx.Compilation, out var lv) || lv < Shared.ModAssemblyHotReloadLevelMirror.SafeBoundary)
-				return;
-			KnownSymbols known = new(ctx.Compilation);
-			ctx.RegisterSymbolAction(c => analyzeField(c, known), SymbolKind.Field);
-			ctx.RegisterSymbolAction(c => analyzeProperty(c, known), SymbolKind.Property);
-			ctx.RegisterSyntaxNodeAction(c => analyzeLambda(c, known), SyntaxKind.SimpleLambdaExpression, SyntaxKind.ParenthesizedLambdaExpression, SyntaxKind.AnonymousMethodExpression);
-		});
+				if (!HotReloadModel.TryGetHotReloadLevel(ctx.Compilation, out ModAssemblyHotReloadLevelMirror lv) ||
+					lv < ModAssemblyHotReloadLevelMirror.SafeBoundary)
+					return;
+				KnownSymbols known = new(ctx.Compilation);
+				ctx.RegisterSymbolAction(c => analyzeField(c, known), SymbolKind.Field);
+				ctx.RegisterSymbolAction(c => analyzeProperty(c, known), SymbolKind.Property);
+				ctx.RegisterSyntaxNodeAction(
+					c => analyzeLambda(c, known),
+					SyntaxKind.SimpleLambdaExpression,
+					SyntaxKind.ParenthesizedLambdaExpression,
+					SyntaxKind.AnonymousMethodExpression
+				);
+			}
+		);
 	}
 
 	private static void analyzeField(SymbolAnalysisContext ctx, KnownSymbols known) {

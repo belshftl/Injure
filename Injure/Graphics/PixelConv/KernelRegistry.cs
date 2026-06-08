@@ -7,7 +7,7 @@ using System.Runtime.Intrinsics.X86;
 
 namespace Injure.Graphics.PixelConv;
 
-using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte *, byte *, nuint, void>;
+using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte*, byte*, nuint, void>;
 
 internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, Kernel sse2, Kernel advSIMD, Kernel scalar, bool sentinel = false) {
 	public readonly Kernel AVX2 = avx2;
@@ -84,21 +84,21 @@ internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, K
 
 internal static unsafe class KernelRegistry {
 	public static readonly ImmutableArray<KernelFallbackChain> Kernels = [
-		new KernelFallbackChain(null, null, null, null, null, sentinel: true), // Memcpy
-		new KernelFallbackChain(&AVX2Kernels.Copy32SetAlpha, null, &SSE2Kernels.Copy32SetAlpha, &AdvSIMDKernels.Copy32SetAlpha, &ScalarKernels.Copy32SetAlpha),
-		new KernelFallbackChain(&AVX2Kernels.Copy64SetAlpha, null, &SSE2Kernels.Copy64SetAlpha, &AdvSIMDKernels.Copy64SetAlpha, &ScalarKernels.Copy64SetAlpha),
+		new(null, null, null, null, null, sentinel: true), // Memcpy
+		new(&AVX2Kernels.Copy32SetAlpha, null, &SSE2Kernels.Copy32SetAlpha, &AdvSIMDKernels.Copy32SetAlpha, &ScalarKernels.Copy32SetAlpha),
+		new(&AVX2Kernels.Copy64SetAlpha, null, &SSE2Kernels.Copy64SetAlpha, &AdvSIMDKernels.Copy64SetAlpha, &ScalarKernels.Copy64SetAlpha),
 
-		new KernelFallbackChain(&AVX2Kernels.Shuffle32, &SSSE3Kernels.Shuffle32, null, &AdvSIMDKernels.Shuffle32, &ScalarKernels.Shuffle32),
-		new KernelFallbackChain(&AVX2Kernels.Expand24To32, &SSSE3Kernels.Expand24To32, null, &AdvSIMDKernels.Expand24To32, &ScalarKernels.Expand24To32),
-		new KernelFallbackChain(&AVX2Kernels.Contract32To24, null, null, null, &ScalarKernels.Contract32To24),
+		new(&AVX2Kernels.Shuffle32, &SSSE3Kernels.Shuffle32, null, &AdvSIMDKernels.Shuffle32, &ScalarKernels.Shuffle32),
+		new(&AVX2Kernels.Expand24To32, &SSSE3Kernels.Expand24To32, null, &AdvSIMDKernels.Expand24To32, &ScalarKernels.Expand24To32),
+		new(&AVX2Kernels.Contract32To24, null, null, null, &ScalarKernels.Contract32To24),
 
-		new KernelFallbackChain(null, null, null, null, &ScalarKernels.Shuffle64),
-		new KernelFallbackChain(null, null, null, null, &ScalarKernels.Widen32To64),
-		new KernelFallbackChain(null, null, null, null, &ScalarKernels.Narrow64To32),
+		new(null, null, null, null, &ScalarKernels.Shuffle64),
+		new(null, null, null, null, &ScalarKernels.Widen32To64),
+		new(null, null, null, null, &ScalarKernels.Narrow64To32),
 
-		new KernelFallbackChain(null, null, null, null, &ScalarKernels.Packed16To32),
-		new KernelFallbackChain(null, null, null, null, &ScalarKernels.Unpacked32ToPacked16),
+		new(null, null, null, null, &ScalarKernels.Packed16To32),
+		new(null, null, null, null, &ScalarKernels.Unpacked32ToPacked16),
 
-		new KernelFallbackChain(null, null, null, null, &ScalarKernels.Generic),
+		new(null, null, null, null, &ScalarKernels.Generic),
 	];
 }

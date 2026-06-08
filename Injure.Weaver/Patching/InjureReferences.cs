@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+
 using Mono.Cecil;
 
 namespace Injure.Weaver.Patching;
@@ -11,7 +12,7 @@ public sealed class InjureReferences {
 	public const string PublicizedStateMachineAttributeFullName = "Injure.ModKit.Abstractions.Weaver.PublicizedStateMachineAttribute";
 	public const string ModHookTargetStoreAttributeFullName = "Injure.ModKit.Abstractions.MonoMod.ModHookTargetStoreAttribute";
 	public const string HookTargetFullName = "Injure.ModKit.Abstractions.MonoMod.HookTarget";
-	
+
 	public required TypeReference PublicizedAttributeType { get; init; }
 	public required MethodReference PublicizedAttributeCtor { get; init; }
 
@@ -31,31 +32,41 @@ public sealed class InjureReferences {
 public static class InjureReferenceResolver {
 	public static InjureReferences Resolve(ModuleDefinition module) {
 		TypeDefinition publicizedAttribute = findRequiredType(module, InjureReferences.PublicizedAttributeFullName);
-		MethodDefinition publicizedCtor = findCtor(publicizedAttribute, static ctor =>
-			ctor.Parameters.Count == 0
+		MethodDefinition publicizedCtor = findCtor(
+			publicizedAttribute,
+			static ctor =>
+				ctor.Parameters.Count == 0
 		);
 
 		TypeDefinition publicizedSignatureAttribute = findRequiredType(module, InjureReferences.PublicizedSignatureAttributeFullName);
-		MethodDefinition publicizedSignatureCtor = findCtor(publicizedSignatureAttribute, static ctor =>
-			ctor.Parameters.Count == 0
+		MethodDefinition publicizedSignatureCtor = findCtor(
+			publicizedSignatureAttribute,
+			static ctor =>
+				ctor.Parameters.Count == 0
 		);
 
 		TypeDefinition publicizedStateMachineAttribute = findRequiredType(module, InjureReferences.PublicizedStateMachineAttributeFullName);
-		MethodDefinition publicizedStateMachineCtor = findCtor(publicizedStateMachineAttribute, static ctor =>
-			ctor.Parameters.Count == 0
+		MethodDefinition publicizedStateMachineCtor = findCtor(
+			publicizedStateMachineAttribute,
+			static ctor =>
+				ctor.Parameters.Count == 0
 		);
 
 		TypeDefinition storeAttribute = findRequiredType(module, InjureReferences.ModHookTargetStoreAttributeFullName);
-		MethodDefinition storeAttributeCtor = findCtor(storeAttribute, static ctor =>
-			ctor.Parameters.Count == 1 && ctor.Parameters[0].ParameterType.FullName == "System.Type"
+		MethodDefinition storeAttributeCtor = findCtor(
+			storeAttribute,
+			static ctor =>
+				ctor.Parameters.Count == 1 && ctor.Parameters[0].ParameterType.FullName == "System.Type"
 		);
 
 		TypeDefinition hookTarget = findRequiredType(module, InjureReferences.HookTargetFullName);
-		MethodDefinition hookTargetCtor = findCtor(hookTarget, static ctor =>
-			ctor.Parameters.Count == 3 &&
-			ctor.Parameters[0].ParameterType.FullName == "System.String" &&
-			ctor.Parameters[1].ParameterType.FullName == "System.Reflection.MethodBase" &&
-			ctor.Parameters[2].ParameterType.FullName == "System.Type"
+		MethodDefinition hookTargetCtor = findCtor(
+			hookTarget,
+			static ctor =>
+				ctor.Parameters.Count == 3 &&
+				ctor.Parameters[0].ParameterType.FullName == "System.String" &&
+				ctor.Parameters[1].ParameterType.FullName == "System.Reflection.MethodBase" &&
+				ctor.Parameters[2].ParameterType.FullName == "System.Type"
 		);
 
 		return new InjureReferences {

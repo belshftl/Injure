@@ -7,7 +7,9 @@ namespace Injure.Input;
 
 public readonly struct GamepadID : IEquatable<GamepadID> {
 	internal readonly uint Value; // 0 is invalid
-	internal GamepadID(uint value) => Value = value;
+	internal GamepadID(uint value) {
+		Value = value;
+	}
 
 	public bool Equals(GamepadID other) => Value == other.Value;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is GamepadID other && Equals(other);

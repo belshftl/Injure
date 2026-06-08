@@ -99,7 +99,8 @@ public sealed class SourceText(string sourceName, string text) {
 				suffix = "";
 				return false;
 			}
-			if (path.Length != prefix.Length && !endsWithSep(prefix) && path[prefix.Length] != Path.DirectorySeparatorChar && path[prefix.Length] != Path.AltDirectorySeparatorChar) {
+			if (path.Length != prefix.Length && !endsWithSep(prefix) && path[prefix.Length] != Path.DirectorySeparatorChar &&
+				path[prefix.Length] != Path.AltDirectorySeparatorChar) {
 				suffix = "";
 				return false;
 			}
@@ -129,7 +130,7 @@ public sealed class SourceText(string sourceName, string text) {
 
 	private static int[] computeLineStarts(string text) {
 		List<int> starts = new() { 0 };
-		for (int i = 0; i < text.Length; i++) {
+		for (int i = 0; i < text.Length; i++)
 			if (text[i] == '\n') {
 				starts.Add(i + 1);
 			} else if (text[i] == '\r') {
@@ -137,7 +138,6 @@ public sealed class SourceText(string sourceName, string text) {
 					i++;
 				starts.Add(i + 1);
 			}
-		}
 		return starts.ToArray();
 	}
 
@@ -149,7 +149,7 @@ public sealed class SourceText(string sourceName, string text) {
 		for (int i = 0; i < line.Length; i++) {
 			colToVisual[i + 1] = visual;
 			if (line[i] == '\t') {
-				int spaces = 8 - ((visual - 1) % 8);
+				int spaces = 8 - (visual - 1) % 8;
 				sb.Append(' ', spaces);
 				visual += spaces;
 			} else {
