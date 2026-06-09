@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+using System;
+using System.ComponentModel;
+
+using static Injure.Native.PreciseWait;
+
 namespace Injure.Timing;
 
 /// <summary>
@@ -13,11 +18,24 @@ namespace Injure.Timing;
 /// <item><description>On Linux and FreeBSD, this is implemented using <c>clock_nanosleep(2)</c>.</description></item>
 /// </list>
 /// </remarks>
-public static partial class PreciseWait {
-// @formatter:off
-#pragma warning disable IDE0002 // name can be simplified
+public static class PreciseWait {
+	private static void wrap(string fn, int rv) {
+		if (rv != 0) {
+			if (OperatingSystem.IsWindows())
+				throw new Win32Exception(rv, fn);
+			if (OperatingSystem.IsMacOS())
+				throw new InvalidOperationException($"{fn}: kern_return_t {rv}");
+			if (OperatingSystem.IsLinux() || OperatingSystem.IsFreeBSD())
+				throw new InvalidOperationException($"{fn}: errno {rv}");
+			throw new InvalidOperationException($"{fn}: {rv}");
+		}
+	}
+
 	static PreciseWait() {
-		Native.PreciseWait.Init();
+		if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux() || OperatingSystem.IsFreeBSD())
+			wrap("precisewait_init", precisewait_init());
+		else
+			throw new PlatformNotSupportedException("PreciseWait is only supported on Windows / MacOS / Linux / FreeBSD");
 	}
 
 	/// <summary>
@@ -33,10 +51,13 @@ public static partial class PreciseWait {
 	/// <paramref name="ns"/> is rounded down to a 100-nanosecond step.
 	/// </para>
 	/// </remarks>
-	/// <exception cref="System.ArgumentOutOfRangeException">
+	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="ns"/> is negative.
 	/// </exception>
-	public static void WaitPreferUndershoot(long ns) => Native.PreciseWait.Wait(ns, false);
+	public static void WaitPreferUndershoot(long ns) {
+		ArgumentOutOfRangeException.ThrowIfNegative(ns);
+		wrap("precisewait", precisewait(ns, false));
+	}
 
 	/// <summary>
 	/// Suspends the calling thread for approximately <paramref name="ns"/> nanoseconds, subject to OS
@@ -51,10 +72,11 @@ public static partial class PreciseWait {
 	/// the <paramref name="ns"/> argument is rounded up to a 100-nanosecond step.
 	/// </para>
 	/// </remarks>
-	/// <exception cref="System.ArgumentOutOfRangeException">
+	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="ns"/> is negative.
 	/// </exception>
-	public static void WaitPreferOvershoot(long ns) => Native.PreciseWait.Wait(ns, true);
-#pragma warning restore IDE0002 // name can be simplified
-// @formatter:on
+	public static void WaitPreferOvershoot(long ns) {
+		ArgumentOutOfRangeException.ThrowIfNegative(ns);
+		wrap("precisewait", precisewait(ns, true));
+	}
 }
