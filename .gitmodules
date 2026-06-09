@@ -1,3 +1,3 @@
-[submodule "Injure.Native/Native/extern/libunibreak"]
-	path = Injure.Native/Native/extern/libunibreak
+[submodule "Injure.Native/misc/extern/libunibreak"]
+	path = Injure.Native/misc/extern/libunibreak
 	url = https://github.com/adah1972/libunibreak

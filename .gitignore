@@ -3,7 +3,8 @@
 .idea
 Injure*/bin
 Injure*/obj
-Injure.Native/Native/obj
-Injure.Native/Native/out
+Injure.Native/audio/target
+Injure.Native/misc/obj
+Injure.Native/misc/out
 TestGame/*/bin
 TestGame/*/obj
