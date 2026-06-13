@@ -41,8 +41,6 @@ public sealed class StronglyTypedIntAnalyzer : DiagnosticAnalyzer {
 			report(context, Diagnostics.StronglyTypedIntInvalidTarget, loc, "Ref structs are not supported.");
 		else if (sym.IsRecord)
 			report(context, Diagnostics.StronglyTypedIntInvalidTarget, loc, "'record struct' is not supported.");
-		else if (sym.ContainingType is not null)
-			report(context, Diagnostics.StronglyTypedIntInvalidTarget, loc, "Nested structs are not supported.");
 		else if (sym.TypeParameters.Length != 0)
 			report(context, Diagnostics.StronglyTypedIntInvalidTarget, loc, "Generic structs are not supported.");
 		else if (attr.ConstructorArguments.Length != 1)

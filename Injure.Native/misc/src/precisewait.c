@@ -14,7 +14,7 @@
 #if defined(INJUREMISC_WIN)
 #define EXPORT __declspec(dllexport)
 #else
-#define EXPORT __attribute__((visibility("default"), used))
+#define EXPORT __attribute__((__visibility__("default"), __used__))
 #endif
 
 #if defined(__cplusplus)
