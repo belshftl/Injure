@@ -204,7 +204,7 @@ internal static class Diagnostics {
 	public static readonly DiagnosticDescriptor StronglyTypedIntUnsupportedBacking = new(
 		id: "IJI0203",
 		title: "unsupported backing type for StronglyTypedInt",
-		messageFormat: "backing type '{0}' is not supported (supported: int, uint, long, ulong, Int128, UInt128)",
+		messageFormat: "backing type '{0}' is not supported (supported: sbyte, byte, short, ushort, int, uint, long, ulong, nint, nuint, Int128, UInt128)",
 		category: "StronglyTypedInt",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
