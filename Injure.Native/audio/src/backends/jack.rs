@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
 use libc::{c_char, c_int, c_void};
@@ -232,7 +233,7 @@ impl JackBackend {
             unsafe {
                 (*self.context.control)
                     .running
-                    .store(false, Ordering::Release)
+                    .store(false, Ordering::Release);
             };
         }
     }
@@ -327,7 +328,7 @@ unsafe extern "C" fn sample_rate_callback(nframes: JackNFrames, arg: *mut c_void
         unsafe {
             (*ctx.control)
                 .sample_rate
-                .store(nframes as i32, Ordering::Release)
+                .store(nframes as i32, Ordering::Release);
         };
     }
 
@@ -344,7 +345,7 @@ unsafe extern "C" fn buffer_size_callback(nframes: JackNFrames, arg: *mut c_void
         unsafe {
             (*ctx.control)
                 .quantum_frames
-                .store(nframes as i32, Ordering::Release)
+                .store(nframes as i32, Ordering::Release);
         };
     }
 

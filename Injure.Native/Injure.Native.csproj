@@ -16,6 +16,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="../Injure.Internals.Analyzers/Injure.Internals.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<None Include="audio/target/debug/build/libinjureaudio.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
 
 		<None Include="misc/out/osx-arm64/libinjuremisc.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />

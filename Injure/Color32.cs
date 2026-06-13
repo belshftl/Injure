@@ -35,6 +35,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// <summary>Size of a <see cref="Color32"/> value in bytes. Equal to 4.</summary>
 	public const int Size = 4;
 
+#if DEBUG
 	static Color32() {
 		if (Unsafe.SizeOf<Color32>() != 4)
 			throw new InternalStateException("expected Color32 size to be 4 bytes");
@@ -47,6 +48,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 		if (Marshal.OffsetOf<Color32>(nameof(A)) != 3)
 			throw new InternalStateException("expected Color32 A offset to be 3");
 	}
+#endif
 
 	/// <summary>
 	/// Reads the <paramref name="n"/>th byte of this <see cref="Color32"/> value.

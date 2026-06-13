@@ -34,13 +34,9 @@ internal static unsafe class Unibreak {
 	public static void SetLineBreaks(string text, Span<byte> breaks, string? lang = null) {
 		if (breaks.Length < text.Length)
 			throw new ArgumentException("breaks buffer too small", nameof(breaks));
-#pragma warning disable IDE0002 // name can be simplified
-// @formatter:off
 		fixed (char* pText = text)
 		fixed (byte* pBreaks = breaks)
-			global::Injure.Native.Unibreak.set_linebreaks_utf16(pText, (nuint)text.Length, lang, pBreaks);
-// @formatter:on
-#pragma warning restore IDE0002 // name can be simplified
+			Native.Unibreak.set_linebreaks_utf16(pText, (nuint)text.Length, lang, pBreaks);
 	}
 }
 

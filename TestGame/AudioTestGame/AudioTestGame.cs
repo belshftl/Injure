@@ -28,7 +28,9 @@ public sealed class Game : IGame {
 	public static LayerServices Layers => GameServices.Layers;
 	public static WindowState WindowState => GameServices.Host.Window.State;
 
-	private static IntPtr engine;
+	private static ae_engine_ptr engine;
+	private static ae_sound_id sound;
+	private static ae_voice_id voice;
 
 	public static void Main() {
 		Game g = new();
@@ -41,44 +43,60 @@ public sealed class Game : IGame {
 		));
 	}
 
+	private static void chk(ae_result r) {
+		if (r != ae_result.AE_OK)
+			throw new InvalidOperationException($"ae_result {r}");
+	}
+
 	public void Init(GameServices sv) {
-		static void chk(ae_result r) {
-			if (r != ae_result.AE_OK)
-				throw new InvalidOperationException($"ae_result {r}");
-		}
-
 		GameServices = sv;
-
-		if (Unsafe.SizeOf<ae_command>() != 80)
-			throw new InvalidOperationException("ae_command is not 80 bytes");
 
 		ae_config config = new() {
 			channels = 2,
 			command_capacity = 1024,
-			max_voices = 256,
+			maintenance_capacity = 1024,
 		};
 		engine = ae_create(in config);
-		if (engine == IntPtr.Zero)
+		if (engine.Value == IntPtr.Zero)
 			throw new InvalidOperationException("ae_create failed");
-
 		chk(ae_start_jack(engine, "audio-test", autoconnect: 1));
+		chk(ae_get_stats(engine, out ae_stats initial));
 
-		ae_command cmd = new() {
-			kind = ae_command_kind.AE_COMMAND_SET_TEST_TONE,
-			size = (uint)Unsafe.SizeOf<ae_command>(),
-			target_frame = AE_COMMAND_IMMEDIATE,
-			data = new ae_command_data {
-				set_test_tone = new ae_set_test_tone_command {
-					enabled = 1,
-					hz = 440f,
-					gain = 0.1f,
-				},
-			},
+		ae_sound_desc desc = new() {
+			channels = 2,
+			sample_rate = checked((uint)initial.sample_rate), // TODO fix the type mismatch by making ae_stats.sample_rate a uint
+			frame_count = checked((ulong)initial.sample_rate), // TODO fix the type mismatch by making ae_stats.sample_rate a uint
+			format = ae_sample_format.AE_SAMPLE_FORMAT_F32,
+			flags = 0,
 		};
-		chk(ae_enqueue_command(engine, in cmd));
+		chk(ae_sound_alloc(engine, in desc, out sound));
+		chk(ae_sound_get_buffer(engine, sound, out ae_sound_mapping mapping));
+
+		int sampleCount = checked((int)(mapping.byte_length / sizeof(float)));
+		Span<float> pcm;
+		unsafe {
+			pcm = new Span<float>(mapping.data, sampleCount);
+		}
+		for (int frame = 0; frame < initial.sample_rate; frame++) {
+			float sample = MathF.Sin(frame * MathF.Tau * 440.0f / initial.sample_rate) * 0.05f;
+			pcm[frame * 2] = sample;
+			pcm[frame * 2 + 1] = sample;
+		}
+
+		chk(ae_sound_commit(engine, sound));
+
+		ae_play_voice_desc vdesc = new() {
+			sound = sound,
+			start_frame = AE_FRAME_IMMEDIATE,
+			source_frame = 0,
+			gain = 1f,
+			playback_rate = 1f,
+			flags = ae_voice_flags.AE_VOICE_FLAG_LOOP,
+		};
+		chk(ae_voice_play(engine, in vdesc, out voice));
 
 		TickerHandle logTicker = Tickers.Add(new TickerSpec(
-			Timing: new TickerTiming(MonoTick.PeriodFromHz(2.0)),
+			Timing: new TickerTiming(MonoTick.PeriodFromHz(4.0)),
 			Options: TickerOptions.Default with {
 				OverrunMode = TickerOverrunMode.Once
 			}
@@ -93,6 +111,11 @@ public sealed class Game : IGame {
 	}
 
 	public void Shutdown() {
+		chk(ae_voice_stop(engine, voice));
+		System.Threading.Thread.Sleep(50);
+		chk(ae_collect_garbage(engine));
+		chk(ae_sound_free(engine, sound));
+		chk(ae_stop(engine));
 		ae_destroy(engine);
 		GameServices = null!;
 	}

@@ -1,80 +1,93 @@
+// SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-pub const AE_COMMAND_NONE: u32 = 0;
-pub const AE_COMMAND_SET_TEST_TONE: u32 = 1;
+use std::ptr::NonNull;
+use std::sync::Arc;
 
-pub const AE_COMMAND_IMMEDIATE: i64 = i64::MIN;
+use crate::assets::{AeSoundId, SoundAsset};
+use crate::voices::{VoiceBlock, VoiceBlockId};
 
-#[repr(i32)]
+pub const AE_VOICE_FLAG_NONE: u32 = 0;
+pub const AE_VOICE_FLAG_LOOP: u32 = 1 << 0;
+pub const AE_FRAME_IMMEDIATE: i64 = i64::MIN;
+
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AeVoiceId(pub u64);
+
+#[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[rustfmt::skip]
 pub enum AeResult {
     Ok = 0,
-    Null = -1,
-    BadState = -2,
-    JackOpenFailed = -3,
-    JackPortFailed = -4,
-    JackActivateFailed = -5,
-    NoOutputPorts = -6,
-    CommandQueueFull = -7,
-    LockPoisoned = -8,
-    BadCommand = -9,
+
+    Null                = 0x80_000001,
+    BadState            = 0x80_000002,
+    CommandQueueFull    = 0x80_000003,
+    MutexPoisoned       = 0x80_000004,
+    BadSoundDesc        = 0x80_000005,
+    SoundNotFound       = 0x80_000006,
+    SoundBadState       = 0x80_000007,
+    SoundInUse          = 0x80_000008,
+    BadVoiceDesc        = 0x80_000009,
+    VoiceNotFound       = 0x80_00000a,
+    UnsupportedPlayback = 0x80_00000b,
+    IdExhausted         = 0x80_00000c,
+
+    JackOpenFailed      = 0x81_000001,
+    JackPortFailed      = 0x81_000002,
+    JackActivateFailed  = 0x81_000003,
+
+    OutOfMemory         = 0xff_ffffff,
+}
+
+impl AeResult {
+    pub fn code(self) -> u32 {
+        self as u32
+    }
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
-pub struct AeSetTestToneCommand {
-    pub enabled: i32,
-    pub hz: f32,
+#[derive(Debug, Clone)]
+pub struct AePlayVoiceDesc {
+    pub sound: AeSoundId,
+    pub start_frame: i64,
+    pub source_frame: u64,
     pub gain: f32,
-    pub _reserved0: i32,
+    pub playback_rate: f32,
+    pub flags: u32,
+    pub reserved0: u32,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union AeCommandData {
-    pub set_test_tone: AeSetTestToneCommand,
-    pub raw: [u64; 8],
+#[derive(Debug)]
+pub enum RtCommand {
+    AddVoiceBlock {
+        block: NonNull<VoiceBlock>,
+    },
+    StartVoice {
+        id: AeVoiceId,
+        sound: Arc<SoundAsset>,
+        source_frame: u64,
+        gain: f32,
+        playback_rate: f32,
+        flags: u32,
+    },
+    StopVoice {
+        id: AeVoiceId,
+    },
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AeCommand {
-    pub kind: u32,
-    pub size: u32,
-    pub target_frame: i64,
-    pub data: AeCommandData,
+// ownership of AddVoiceBlock pointers crosses the SPSC queue
+unsafe impl Send for RtCommand {}
+
+#[derive(Debug)]
+pub enum MaintenanceEvent {
+    VoiceSlotReleased,
+    ReclaimVoiceBlock {
+        block: NonNull<VoiceBlock>,
+        id: VoiceBlockId,
+        slots: u32,
+    },
 }
 
-impl AeCommand {
-    pub fn is_abi_valid(&self) -> bool {
-        self.size == core::mem::size_of::<AeCommand>() as u32
-            && self.kind == AE_COMMAND_SET_TEST_TONE
-    }
-
-    pub fn is_semantically_valid(&self) -> bool {
-        if !self.is_abi_valid() {
-            return false;
-        }
-
-        // scheduling is not implemented yet
-        if self.target_frame != AE_COMMAND_IMMEDIATE {
-            return false;
-        }
-
-        #[allow(clippy::single_match)]
-        match self.kind {
-            AE_COMMAND_SET_TEST_TONE => {
-                // SAFETY: this union field selected by `self.kind`
-                let c = unsafe { self.data.set_test_tone };
-                (c.enabled == 0 || c.enabled == 1)
-                    && c.hz.is_finite()
-                    && c.hz >= 0.0
-                    && c.hz <= 200000.0
-                    && c.gain.is_finite()
-                    && c.gain >= 0.0
-                    && c.gain <= 1.0
-            }
-            _ => false,
-        }
-    }
-}
+unsafe impl Send for MaintenanceEvent {}
