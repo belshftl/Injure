@@ -105,14 +105,12 @@ public sealed class StronglyTypedIntGenerator : IIncrementalGenerator {
 			sb.Append(header).AppendLine(" {");
 
 		sb.Append('\t').AppendLine(@"[global::System.CodeDom.Compiler.GeneratedCodeAttribute(""Injure.Internals.Analyzers.StronglyTypedIntGenerator"", ""0.1.0-alpha"")]");
-		sb.Append('\t').Append("[global::System.Runtime.InteropServices.StructLayoutAttribute(global::System.Runtime.InteropServices.LayoutKind.Explicit, Size = ")
-			.Append(backingSize.ToString(System.Globalization.CultureInfo.InvariantCulture)).AppendLine(", Pack = 1)]");
+		sb.Append('\t').AppendLine("[global::System.Runtime.InteropServices.StructLayoutAttribute(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
 		sb.Append('\t').Append(accessibility(info.Symbol)).Append("readonly partial struct ").Append(targetType).Append(" : global::System.IEquatable<").Append(targetType)
 			.Append(">, global::System.IComparable<").Append(targetType).AppendLine(">,");
 		sb.Append("\tglobal::System.IComparable, global::System.ISpanFormattable, global::System.IParsable<").Append(targetType).AppendLine(">,");
 		sb.Append("\tglobal::System.ISpanParsable<").Append(targetType).AppendLine("> {");
-		sb.Append("\t\t[global::System.Runtime.InteropServices.FieldOffsetAttribute(0)] private readonly ").Append(backingType).Append(' ')
-			.Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
+		sb.Append("\t\tprivate readonly ").Append(backingType).Append(' ').Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
 		sb.Append("\t\tpublic ").Append(backingType).Append(" Value => ").Append(Constants.StronglyTypedIntBackingFieldName).AppendLine(";");
 		sb.Append("\t\tpublic static readonly ").Append(targetType).AppendLine(" Zero = new(0);");
 		sb.Append("\t\tpublic ").Append(targetType).Append("(").Append(backingType).AppendLine(" val) {");
