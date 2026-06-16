@@ -15,4 +15,5 @@ panic = "abort"
 
 [dependencies]
 libc = "0.2"
+num_enum = "0.7"
 rtrb = "0.3"

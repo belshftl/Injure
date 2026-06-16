@@ -4,7 +4,7 @@
 use std::mem::size_of;
 use std::sync::Arc;
 
-use crate::commands::AeResult;
+use crate::AeResult;
 
 pub const AE_SAMPLE_FORMAT_F32: u32 = 1;
 
@@ -12,11 +12,9 @@ pub const AE_SAMPLE_FORMAT_F32: u32 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AeSoundId(pub u64);
 
-#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct SoundSlotIndex(u32);
 
-#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct SoundGeneration(u32);
 

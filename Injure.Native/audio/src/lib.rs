@@ -4,21 +4,50 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::borrow_as_ptr)]
 #![warn(clippy::pedantic)]
+#![allow(clippy::float_cmp)]
 #![allow(clippy::missing_safety_doc)]
 #![allow(clippy::wildcard_imports)]
 
 mod assets;
 mod backends;
-mod commands;
 mod engine;
+mod ring;
 mod voices;
+
+use std::ffi::CStr;
 
 use assets::{AeSoundDesc, AeSoundId, AeSoundMapping};
 use backends::jack::JackBackend;
-use commands::{AePlayVoiceDesc, AeResult, AeVoiceId};
 use engine::{AeConfig, AeStats, Engine};
 use libc::c_char;
-use std::ffi::CStr;
+use voices::{AePlayVoiceDesc, AeVoiceId};
+
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, num_enum::TryFromPrimitive)]
+#[rustfmt::skip]
+pub enum AeResult {
+    Ok = 0,
+
+    Null                = 0x80_000001,
+    BadState            = 0x80_000002,
+    CommandQueueFull    = 0x80_000003,
+    MutexPoisoned       = 0x80_000004,
+    BadSoundDesc        = 0x80_000005,
+    SoundNotFound       = 0x80_000006,
+    SoundBadState       = 0x80_000007,
+    SoundInUse          = 0x80_000008,
+    BadVoiceDesc        = 0x80_000009,
+    VoiceNotFound       = 0x80_00000a,
+    UnsupportedPlayback = 0x80_00000b,
+    IdExhausted         = 0x80_00000c,
+    FrameExhausted      = 0x80_00000d,
+
+    JackOpenFailed      = 0x81_000001,
+    JackPortFailed      = 0x81_000002,
+    JackActivateFailed  = 0x81_000003,
+
+    OutOfMemory         = 0xff_ffffff,
+}
 
 #[repr(C)]
 pub struct AeEngineWrapper {
@@ -27,7 +56,11 @@ pub struct AeEngineWrapper {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ae_create(config: *const AeConfig) -> *mut AeEngineWrapper {
+pub unsafe extern "C" fn ae_create(config: *const AeConfig, out_wrapper: *mut *mut AeEngineWrapper) -> AeResult {
+    if out_wrapper.is_null() {
+        return AeResult::Null;
+    }
+
     let default_config = AeConfig {
         channels: 2,
         command_capacity: 1024,
@@ -41,10 +74,19 @@ pub unsafe extern "C" fn ae_create(config: *const AeConfig) -> *mut AeEngineWrap
         unsafe { &*config }
     };
 
-    Box::into_raw(Box::new(AeEngineWrapper {
-        engine: Box::new(Engine::new(config)),
-        jack: None,
-    }))
+    match Engine::try_new(config) {
+        Ok(engine) => {
+            let wrapper = Box::into_raw(Box::new(AeEngineWrapper {
+                engine: Box::new(engine),
+                jack: None,
+            }));
+            // SAFETY: `out_wrapper` has been checked non-null, caller promises that it's writable
+            // for `*mut AeEngineWrapper`
+            unsafe { *out_wrapper = wrapper };
+            AeResult::Ok
+        }
+        Err(e) => e
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -137,10 +179,8 @@ pub unsafe extern "C" fn ae_get_stats(
     let out_stats = unsafe { &mut *out_stats };
 
     let cpu_load = wrapper.jack.as_ref().map_or(0.0, JackBackend::cpu_load);
-    match wrapper.engine.fill_stats(out_stats, cpu_load) {
-        Ok(()) => AeResult::Ok,
-        Err(e) => e,
-    }
+    wrapper.engine.fill_stats(out_stats, cpu_load);
+    AeResult::Ok
 }
 
 #[unsafe(no_mangle)]
