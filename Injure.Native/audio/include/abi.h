@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef _WIN32
@@ -20,6 +21,10 @@ extern "C" {
 typedef struct ae_engine ae_engine;
 typedef uint64_t ae_sound_id;
 typedef uint64_t ae_voice_id;
+typedef uint64_t ae_optional_mix_frame; /* 0 = immediate/unspecified */
+typedef uint64_t ae_mix_frame; /* 0 is not a valid value; only used for API outputs */
+
+#define AE_FRAME_IMMEDIATE ((uint64_t)0)
 
 typedef enum ae_result : uint32_t {
 	AE_OK = 0,
@@ -36,6 +41,7 @@ typedef enum ae_result : uint32_t {
 	AE_ERR_VOICE_NOT_FOUND      = 0x8000000a,
 	AE_ERR_UNSUPPORTED_PLAYBACK = 0x8000000b,
 	AE_ERR_ID_EXHAUSTED         = 0x8000000c,
+	AE_ERR_FRAME_EXHAUSTED      = 0x8000000d,
 
 	AE_ERR_JACK_OPEN_FAILED     = 0x81000001,
 	AE_ERR_JACK_PORT_FAILED     = 0x81000002,
@@ -53,20 +59,18 @@ typedef enum ae_voice_flags : uint32_t {
 	AE_VOICE_FLAG_LOOP = 1 << 0,
 } ae_voice_flags;
 
-#define AE_FRAME_IMMEDIATE ((int64_t)INT64_MIN)
-
 typedef struct ae_config {
-	int32_t channels;
-	int32_t command_capacity;
-	int32_t maintenance_capacity;
+	uint32_t channels;
+	size_t command_capacity;
+	size_t maintenance_capacity;
 } ae_config;
 
 typedef struct ae_stats {
-	int64_t frame_cursor;
-	int32_t sample_rate;
-	int32_t quantum_frames;
-	int32_t channel_count;
-	int64_t xrun_count;
+	ae_mix_frame mix_frame;
+	uint32_t sample_rate;
+	uint32_t quantum_frames;
+	uint32_t channel_count;
+	uint64_t xrun_count;
 	int32_t running;
 	float cpu_load;
 	uint64_t active_voice_count;
@@ -74,6 +78,7 @@ typedef struct ae_stats {
 	uint64_t failed_voice_start_count;
 	uint64_t allocated_sound_count;
 	uint64_t committed_sound_count;
+	ae_result rt_error;
 } ae_stats;
 
 typedef struct ae_sound_desc {
@@ -92,7 +97,7 @@ typedef struct ae_sound_mapping {
 
 typedef struct ae_play_voice_desc {
 	ae_sound_id sound;
-	int64_t start_frame;
+	ae_optional_mix_frame start_frame;
 	uint64_t source_frame;
 	float gain;
 	float playback_rate;
@@ -100,7 +105,7 @@ typedef struct ae_play_voice_desc {
 	uint32_t reserved0;
 } ae_play_voice_desc;
 
-EXPORT ae_engine *ae_create(const ae_config *config);
+EXPORT ae_result ae_create(const ae_config *config, ae_engine **out_engine);
 EXPORT void ae_destroy(ae_engine *engine);
 
 EXPORT ae_result ae_start_jack(ae_engine *engine, const char *client_name, int32_t autoconnect);

@@ -9,7 +9,6 @@ using Injure.Timing;
 using Injure.Scheduling;
 
 using static Injure.Native.Audio;
-using System.Runtime.CompilerServices;
 
 namespace AudioTestGame;
 
@@ -56,16 +55,14 @@ public sealed class Game : IGame {
 			command_capacity = 1024,
 			maintenance_capacity = 1024,
 		};
-		engine = ae_create(in config);
-		if (engine.Value == IntPtr.Zero)
-			throw new InvalidOperationException("ae_create failed");
+		chk(ae_create(in config, out engine));
 		chk(ae_start_jack(engine, "audio-test", autoconnect: 1));
 		chk(ae_get_stats(engine, out ae_stats initial));
 
 		ae_sound_desc desc = new() {
 			channels = 2,
-			sample_rate = checked((uint)initial.sample_rate), // TODO fix the type mismatch by making ae_stats.sample_rate a uint
-			frame_count = checked((ulong)initial.sample_rate), // TODO fix the type mismatch by making ae_stats.sample_rate a uint
+			sample_rate = initial.sample_rate,
+			frame_count = initial.sample_rate,
 			format = ae_sample_format.AE_SAMPLE_FORMAT_F32,
 			flags = 0,
 		};
@@ -87,7 +84,7 @@ public sealed class Game : IGame {
 
 		ae_play_voice_desc vdesc = new() {
 			sound = sound,
-			start_frame = AE_FRAME_IMMEDIATE,
+			start_frame = ae_optional_mix_frame.IMMEDIATE,
 			source_frame = 0,
 			gain = 1f,
 			playback_rate = 1f,
@@ -103,7 +100,7 @@ public sealed class Game : IGame {
 		));
 		logTicker.Subscribe((in _, in _) => {
 			chk(ae_get_stats(engine, out ae_stats s));
-			Console.WriteLine($"sr={s.sample_rate} q={s.quantum_frames} frame={s.frame_cursor} xruns={s.xrun_count} cpu={s.cpu_load:0.00}%");
+			Console.WriteLine($"sr={s.sample_rate} q={s.quantum_frames} mix={s.mix_frame} xruns={s.xrun_count} cpu={s.cpu_load:0.00}%");
 		});
 	}
 
