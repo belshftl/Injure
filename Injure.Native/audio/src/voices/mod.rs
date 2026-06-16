@@ -5,14 +5,31 @@ use rtrb::Producer;
 use std::ptr::NonNull;
 use std::sync::Arc;
 
+use crate::AeSoundId;
 use crate::assets::SoundAsset;
-use crate::commands::{AE_VOICE_FLAG_LOOP, AeVoiceId, MaintenanceEvent};
+use crate::engine::AeOptionalMixFrame;
+use crate::ring::MaintenanceEvent;
+
+// pub const AE_VOICE_FLAG_NONE: u32 = 0;
+pub const AE_VOICE_FLAG_LOOP: u32 = 1 << 0;
 
 pub const VOICES_PER_BLOCK: usize = 64;
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct VoiceBlockId(pub u64);
+pub struct AeVoiceId(pub u64);
+
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct AePlayVoiceDesc {
+    pub sound: AeSoundId,
+    pub start_frame: AeOptionalMixFrame,
+    pub source_frame: u64,
+    pub gain: f32,
+    pub playback_rate: f32,
+    pub flags: u32,
+    pub reserved0: u32,
+}
 
 pub struct ActiveVoice {
     pub id: AeVoiceId,
@@ -28,18 +45,16 @@ pub struct VoiceSlot {
 }
 
 pub struct VoiceBlock {
-    pub id: VoiceBlockId,
     pub slots: Box<[VoiceSlot]>,
     pub next: Option<Box<VoiceBlock>>,
 }
 
 impl VoiceBlock {
-    pub fn try_new(id: VoiceBlockId) -> Result<Box<Self>, ()> {
+    pub fn try_new() -> Result<Box<Self>, ()> {
         let mut slots = Vec::new();
         slots.try_reserve_exact(VOICES_PER_BLOCK).map_err(|_| ())?;
         slots.resize_with(VOICES_PER_BLOCK, || VoiceSlot { active: None });
         Ok(Box::new(Self {
-            id,
             slots: slots.into_boxed_slice(),
             next: None,
         }))
@@ -145,12 +160,10 @@ impl VoicePool {
                 *cursor = removed.next.take();
                 self.block_count -= 1;
 
-                let id = removed.id;
                 let ptr = NonNull::from(Box::leak(removed));
                 let event = MaintenanceEvent::ReclaimVoiceBlock {
                     block: ptr,
-                    id,
-                    slots: VOICES_PER_BLOCK as u32,
+                    slots: VOICES_PER_BLOCK,
                 };
 
                 if maintenance.push(event).is_err() {

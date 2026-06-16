@@ -6,7 +6,7 @@ use std::ffi::{CStr, CString};
 use std::ptr;
 use std::sync::atomic::Ordering;
 
-use crate::commands::AeResult;
+use crate::AeResult;
 use crate::engine::{ControlState, RtState};
 
 mod ffi {
@@ -126,10 +126,10 @@ impl JackBackend {
         control: *const ControlState,
         rt: *mut RtState,
         client_name: &CStr,
-        channels: i32,
+        channels: u32,
         autoconnect: bool,
     ) -> Result<Self, AeResult> {
-        if control.is_null() || rt.is_null() || channels <= 0 {
+        if control.is_null() || rt.is_null() || channels == 0 {
             return Err(AeResult::Null);
         }
 
@@ -156,11 +156,11 @@ impl JackBackend {
         client: *mut jack_client_t,
         control: *const ControlState,
         rt: *mut RtState,
-        channels: i32,
+        channels: u32,
         autoconnect: bool,
     ) -> Result<Self, AeResult> {
-        let sr = unsafe { jack_get_sample_rate(client) } as i32;
-        let bs = unsafe { jack_get_buffer_size(client) } as i32;
+        let sr = unsafe { jack_get_sample_rate(client) };
+        let bs = unsafe { jack_get_buffer_size(client) };
 
         // SAFETY: this function is called from `start`, which checks that `control` is valid
         unsafe {
@@ -328,7 +328,7 @@ unsafe extern "C" fn sample_rate_callback(nframes: JackNFrames, arg: *mut c_void
         unsafe {
             (*ctx.control)
                 .sample_rate
-                .store(nframes as i32, Ordering::Release);
+                .store(nframes, Ordering::Release);
         };
     }
 
@@ -345,7 +345,7 @@ unsafe extern "C" fn buffer_size_callback(nframes: JackNFrames, arg: *mut c_void
         unsafe {
             (*ctx.control)
                 .quantum_frames
-                .store(nframes as i32, Ordering::Release);
+                .store(nframes, Ordering::Release);
         };
     }
 
