@@ -30,7 +30,7 @@ pub enum AeResult {
 
     Null                = 0x80_000001,
     BadState            = 0x80_000002,
-    CommandQueueFull    = 0x80_000003,
+    MessageQueueFull    = 0x80_000003,
     MutexPoisoned       = 0x80_000004,
     BadSoundDesc        = 0x80_000005,
     SoundNotFound       = 0x80_000006,
@@ -46,6 +46,7 @@ pub enum AeResult {
     JackPortFailed      = 0x81_000002,
     JackActivateFailed  = 0x81_000003,
 
+    AllocationTooLarge  = 0xff_fffffe,
     OutOfMemory         = 0xff_ffffff,
 }
 
@@ -56,14 +57,17 @@ pub struct AeEngineWrapper {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ae_create(config: *const AeConfig, out_wrapper: *mut *mut AeEngineWrapper) -> AeResult {
+pub unsafe extern "C" fn ae_create(
+    config: *const AeConfig,
+    out_wrapper: *mut *mut AeEngineWrapper,
+) -> AeResult {
     if out_wrapper.is_null() {
         return AeResult::Null;
     }
 
     let default_config = AeConfig {
         channels: 2,
-        command_capacity: 1024,
+        message_queue_capacity: 1024,
         maintenance_capacity: 1024,
     };
 
@@ -85,7 +89,7 @@ pub unsafe extern "C" fn ae_create(config: *const AeConfig, out_wrapper: *mut *m
             unsafe { *out_wrapper = wrapper };
             AeResult::Ok
         }
-        Err(e) => e
+        Err(e) => e,
     }
 }
 
