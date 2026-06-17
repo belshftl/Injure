@@ -1,13 +1,10 @@
 [package]
 name = "injureaudio"
-version = "0.1.0"
+version = "0.1.0-alpha"
 edition = "2024"
 
 [lib]
 crate-type = ["cdylib"]
-
-[profile.dev]
-panic = "abort"
 
 [profile.release]
 lto = true
@@ -16,4 +13,5 @@ panic = "abort"
 [dependencies]
 libc = "0.2"
 num_enum = "0.7"
+nz = "0.4"
 rtrb = "0.3"

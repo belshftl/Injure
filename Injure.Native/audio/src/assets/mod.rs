@@ -1,12 +1,16 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-use std::mem::size_of;
+use core::mem::size_of;
 use std::sync::Arc;
 
 use crate::AeResult;
 
-pub const AE_SAMPLE_FORMAT_F32: u32 = 1;
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, num_enum::TryFromPrimitive)]
+pub enum AeSampleFormat {
+    F32 = 1,
+}
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -32,17 +36,26 @@ pub struct AeSoundDesc {
 #[derive(Debug)]
 pub struct AeSoundMapping {
     pub data: *mut core::ffi::c_void,
-    pub byte_length: u64,
-    pub frame_stride: u64,
+    pub byte_length: usize,
+    pub frame_stride: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct AeMappedSoundDesc {
+    pub channels: usize,
+    pub sample_rate: usize,
+    pub frame_count: usize,
+    pub format: AeSampleFormat,
+    pub flags: u32,
 }
 
 pub struct SoundBuilder {
-    pub desc: AeSoundDesc,
+    pub desc: AeMappedSoundDesc,
     pub pcm: Box<[f32]>,
 }
 
 pub struct SoundAsset {
-    pub desc: AeSoundDesc,
+    pub desc: AeMappedSoundDesc,
     pub pcm: Box<[f32]>,
 }
 
@@ -81,11 +94,21 @@ impl SoundTable {
     pub fn allocate(&mut self, desc: &AeSoundDesc) -> Result<AeSoundId, AeResult> {
         validate_desc(desc)?;
 
-        let sample_count = desc
-            .frame_count
-            .checked_mul(u64::from(desc.channels))
-            .and_then(|n| usize::try_from(n).ok())
-            .ok_or(AeResult::BadSoundDesc)?;
+        let channels = desc.channels as usize;
+        let sample_rate = desc.sample_rate as usize;
+        let frame_count =
+            usize::try_from(desc.frame_count).map_err(|_| AeResult::AllocationTooLarge)?;
+        let format =
+            AeSampleFormat::try_from(desc.format).map_err(|_| AeResult::AllocationTooLarge)?;
+
+        let sample_count = frame_count
+            .checked_mul(channels)
+            .ok_or(AeResult::AllocationTooLarge)?;
+        if channels.checked_mul(size_of::<f32>()).is_none()
+            || sample_count.checked_mul(size_of::<f32>()).is_none()
+        {
+            return Err(AeResult::AllocationTooLarge);
+        }
 
         let mut pcm = Vec::<f32>::new();
         pcm.try_reserve_exact(sample_count)
@@ -93,7 +116,13 @@ impl SoundTable {
         pcm.resize(sample_count, 0.0);
 
         let state = SoundState::Allocated(SoundBuilder {
-            desc: desc.clone(),
+            desc: AeMappedSoundDesc {
+                channels,
+                sample_rate,
+                frame_count,
+                format,
+                flags: desc.flags,
+            },
             pcm: pcm.into_boxed_slice(),
         });
 
@@ -126,8 +155,8 @@ impl SoundTable {
 
         Ok(AeSoundMapping {
             data: builder.pcm.as_mut_ptr().cast(),
-            byte_length: (builder.pcm.len() * size_of::<f32>()) as u64,
-            frame_stride: u64::from(builder.desc.channels) * size_of::<f32>() as u64,
+            byte_length: builder.pcm.len() * size_of::<f32>(),
+            frame_stride: builder.desc.channels * size_of::<f32>(),
         })
     }
 
@@ -232,7 +261,7 @@ fn validate_desc(desc: &AeSoundDesc) -> Result<(), AeResult> {
         || desc.channels > 2
         || desc.sample_rate == 0
         || desc.frame_count == 0
-        || desc.format != AE_SAMPLE_FORMAT_F32
+        || desc.format != AeSampleFormat::F32 as u32
         || desc.flags != 0
     {
         Err(AeResult::BadSoundDesc)

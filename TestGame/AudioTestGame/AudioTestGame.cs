@@ -52,7 +52,7 @@ public sealed class Game : IGame {
 
 		ae_config config = new() {
 			channels = 2,
-			command_capacity = 1024,
+			message_queue_capacity = 1024,
 			maintenance_capacity = 1024,
 		};
 		chk(ae_create(in config, out engine));
@@ -84,7 +84,7 @@ public sealed class Game : IGame {
 
 		ae_play_voice_desc vdesc = new() {
 			sound = sound,
-			start_frame = ae_optional_mix_frame.IMMEDIATE,
+			start_frame = (ae_optional_mix_frame)200000,
 			source_frame = 0,
 			gain = 1f,
 			playback_rate = 1f,

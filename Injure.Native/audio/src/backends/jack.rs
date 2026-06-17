@@ -326,9 +326,7 @@ unsafe extern "C" fn sample_rate_callback(nframes: JackNFrames, arg: *mut c_void
     if !ctx.control.is_null() {
         // SAFETY: `ctx.control` points to `Engine`'s `control`, which outlives the `JackBackend`
         unsafe {
-            (*ctx.control)
-                .sample_rate
-                .store(nframes, Ordering::Release);
+            (*ctx.control).sample_rate.store(nframes, Ordering::Release);
         };
     }
 

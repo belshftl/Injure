@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 use rtrb::Producer;
-use std::ptr::NonNull;
 use std::sync::Arc;
 
 use crate::AeSoundId;
 use crate::assets::SoundAsset;
-use crate::engine::AeOptionalMixFrame;
-use crate::ring::MaintenanceEvent;
+use crate::engine::{AeOptionalMixFrame, SourcePosition, SourceStep};
+use crate::ring::{MaintenanceEvent, OwnedRingAllocation, RingAllocation};
 
 // pub const AE_VOICE_FLAG_NONE: u32 = 0;
 pub const AE_VOICE_FLAG_LOOP: u32 = 1 << 0;
@@ -31,31 +30,37 @@ pub struct AePlayVoiceDesc {
     pub reserved0: u32,
 }
 
+#[derive(Debug)]
 pub struct ActiveVoice {
     pub id: AeVoiceId,
     pub sound: Arc<SoundAsset>,
-    pub source_position: f64,
-    pub source_step: f64,
+    pub source_position: SourcePosition,
+    pub source_step: SourceStep,
     pub gain: f32,
     pub flags: u32,
 }
 
+#[derive(Debug)]
 pub struct VoiceSlot {
-    pub active: Option<ActiveVoice>,
+    active: Option<ActiveVoice>,
 }
 
+#[derive(Debug)]
 pub struct VoiceBlock {
-    pub slots: Box<[VoiceSlot]>,
-    pub next: Option<Box<VoiceBlock>>,
+    slots: [VoiceSlot; VOICES_PER_BLOCK],
+    next: Option<Box<VoiceBlock>>,
 }
 
 impl VoiceBlock {
-    pub fn try_new() -> Result<Box<Self>, ()> {
+    pub fn try_new() -> Result<Box<Self>, std::collections::TryReserveError> {
         let mut slots = Vec::new();
-        slots.try_reserve_exact(VOICES_PER_BLOCK).map_err(|_| ())?;
+        slots.try_reserve_exact(VOICES_PER_BLOCK)?;
         slots.resize_with(VOICES_PER_BLOCK, || VoiceSlot { active: None });
+        let slots: Box<[VoiceSlot]> = slots.into_boxed_slice();
+        let slots: Box<[VoiceSlot; VOICES_PER_BLOCK]> =
+            slots.try_into().expect("voice block size should be fixed");
         Ok(Box::new(Self {
-            slots: slots.into_boxed_slice(),
+            slots: *slots,
             next: None,
         }))
     }
@@ -70,12 +75,12 @@ impl VoiceBlock {
 
 pub struct VoicePool {
     head: Option<Box<VoiceBlock>>,
-    active_count: u64,
-    block_count: u64,
+    active_count: usize,
+    block_count: usize,
 }
 
 impl VoicePool {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             head: None,
             active_count: 0,
@@ -83,28 +88,27 @@ impl VoicePool {
         }
     }
 
-    pub fn add_block(&mut self, mut block: Box<VoiceBlock>) {
+    pub fn add_block(&mut self, block: RingAllocation<VoiceBlock>) {
+        let mut block = block.into_box();
         block.next = self.head.take();
         self.head = Some(block);
         self.block_count += 1;
     }
 
-    pub fn start_voice(&mut self, voice: ActiveVoice) -> Result<(), ActiveVoice> {
+    pub fn start(&mut self, voice: ActiveVoice) -> Result<(), ActiveVoice> {
         let mut block = self.head.as_deref_mut();
         while let Some(current) = block {
-            for slot in &mut current.slots {
-                if slot.active.is_none() {
-                    slot.active = Some(voice);
-                    self.active_count += 1;
-                    return Ok(());
-                }
+            if let Some(slot) = current.slots.iter_mut().find(|slot| slot.active.is_none()) {
+                slot.active = Some(voice);
+                self.active_count += 1;
+                return Ok(());
             }
             block = current.next.as_deref_mut();
         }
         Err(voice)
     }
 
-    pub fn stop_voice(&mut self, id: AeVoiceId) -> bool {
+    pub fn stop(&mut self, id: AeVoiceId) -> bool {
         let mut block = self.head.as_deref_mut();
         while let Some(current) = block {
             for slot in &mut current.slots {
@@ -119,12 +123,8 @@ impl VoicePool {
         false
     }
 
-    pub fn render_stereo(
-        &mut self,
-        left: &mut [f32],
-        right: &mut [f32],
-        maintenance: &mut Producer<MaintenanceEvent>,
-    ) {
+    pub fn render_stereo(&mut self, left: &mut [f32], right: &mut [f32]) -> usize {
+        let mut released = 0;
         let mut block = self.head.as_deref_mut();
         while let Some(current) = block {
             for slot in &mut current.slots {
@@ -135,17 +135,17 @@ impl VoicePool {
                 if !render_voice(voice, left, right) {
                     slot.active = None;
                     self.active_count -= 1;
-                    _ = maintenance.push(MaintenanceEvent::VoiceSlotReleased);
+                    released += 1;
                 }
             }
             block = current.next.as_deref_mut();
         }
+        released
     }
 
     pub fn reclaim_empty_blocks(&mut self, maintenance: &mut Producer<MaintenanceEvent>) {
         let mut empty_seen = 0usize;
         let mut cursor = &mut self.head;
-
         while cursor.is_some() {
             let is_empty = cursor
                 .as_ref()
@@ -159,16 +159,19 @@ impl VoicePool {
                 let mut removed = cursor.take().expect("cursor should contain a block");
                 *cursor = removed.next.take();
                 self.block_count -= 1;
-
-                let ptr = NonNull::from(Box::leak(removed));
+                let allocation = OwnedRingAllocation::from_box(removed).into_ring();
                 let event = MaintenanceEvent::ReclaimVoiceBlock {
-                    block: ptr,
-                    slots: VOICES_PER_BLOCK,
+                    block: allocation,
+                    slots: nz::usize!(VOICES_PER_BLOCK),
                 };
-
-                if maintenance.push(event).is_err() {
-                    // SAFETY: push failed means ownership didn't cross the queue
-                    let mut restored = unsafe { Box::from_raw(ptr.as_ptr()) };
+                if let Err(event) = maintenance.push(event) {
+                    let rtrb::PushError::Full(MaintenanceEvent::ReclaimVoiceBlock {
+                        block, ..
+                    }) = event
+                    else {
+                        unreachable!()
+                    };
+                    let mut restored = block.into_box();
                     restored.next = cursor.take();
                     *cursor = Some(restored);
                     self.block_count += 1;
@@ -181,28 +184,31 @@ impl VoicePool {
         }
     }
 
-    pub fn active_count(&self) -> u64 {
+    pub fn active_count(&self) -> usize {
         self.active_count
     }
 
-    pub fn block_count(&self) -> u64 {
+    pub fn block_count(&self) -> usize {
         self.block_count
     }
 }
 
 fn render_voice(voice: &mut ActiveVoice, left: &mut [f32], right: &mut [f32]) -> bool {
-    let channels = voice.sound.desc.channels as usize;
-    let frame_count = voice.sound.desc.frame_count as usize;
+    let channels = voice.sound.desc.channels;
+    let frame_count = voice.sound.desc.frame_count;
     let nframes = left.len().min(right.len());
 
     for i in 0..nframes {
-        let mut source_frame = voice.source_position as usize;
+        let Ok(mut source_frame) = usize::try_from(voice.source_position.whole) else {
+            return false;
+        };
+
         if source_frame >= frame_count {
             if voice.flags & AE_VOICE_FLAG_LOOP == 0 {
                 return false;
             }
-            voice.source_position %= frame_count as f64;
-            source_frame = voice.source_position as usize;
+            voice.source_position.whole %= frame_count as u64;
+            source_frame %= frame_count;
         }
 
         let base = source_frame * channels;
@@ -219,8 +225,9 @@ fn render_voice(voice: &mut ActiveVoice, left: &mut [f32], right: &mut [f32]) ->
             _ => return false,
         }
 
-        voice.source_position += voice.source_step;
+        if !voice.source_position.advance(voice.source_step) {
+            return false;
+        }
     }
-
     true
 }
