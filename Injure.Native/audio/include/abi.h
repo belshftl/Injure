@@ -31,7 +31,7 @@ typedef enum ae_result : uint32_t {
 
 	AE_ERR_NULL                 = 0x80000001,
 	AE_ERR_BAD_STATE            = 0x80000002,
-	AE_ERR_COMMAND_QUEUE_FULL   = 0x80000003,
+	AE_ERR_MESSAGE_QUEUE_FULL   = 0x80000003,
 	AE_ERR_MUTEX_POISONED       = 0x80000004,
 	AE_ERR_BAD_SOUND_DESC       = 0x80000005,
 	AE_ERR_SOUND_NOT_FOUND      = 0x80000006,
@@ -47,6 +47,7 @@ typedef enum ae_result : uint32_t {
 	AE_ERR_JACK_PORT_FAILED     = 0x81000002,
 	AE_ERR_JACK_ACTIVATE_FAILED = 0x81000003,
 
+	AE_ERR_ALLOCATION_TOO_LARGE = 0xfffffffe,
 	AE_ERR_OUT_OF_MEMORY        = 0xffffffff,
 } ae_result;
 
@@ -61,7 +62,7 @@ typedef enum ae_voice_flags : uint32_t {
 
 typedef struct ae_config {
 	uint32_t channels;
-	size_t command_capacity;
+	size_t message_queue_capacity;
 	size_t maintenance_capacity;
 } ae_config;
 
@@ -70,14 +71,14 @@ typedef struct ae_stats {
 	uint32_t sample_rate;
 	uint32_t quantum_frames;
 	uint32_t channel_count;
+	uint32_t running;
 	uint64_t xrun_count;
-	int32_t running;
-	float cpu_load;
 	uint64_t active_voice_count;
 	uint64_t voice_block_count;
 	uint64_t failed_voice_start_count;
 	uint64_t allocated_sound_count;
 	uint64_t committed_sound_count;
+	float cpu_load;
 	ae_result rt_error;
 } ae_stats;
 
@@ -91,8 +92,8 @@ typedef struct ae_sound_desc {
 
 typedef struct ae_sound_mapping {
 	void *data;
-	uint64_t byte_length;
-	uint64_t frame_stride;
+	size_t byte_length;
+	size_t frame_stride;
 } ae_sound_mapping;
 
 typedef struct ae_play_voice_desc {
@@ -119,7 +120,7 @@ EXPORT ae_result ae_sound_commit(ae_engine *engine, ae_sound_id sound);
 EXPORT ae_result ae_sound_free(ae_engine *engine, ae_sound_id sound);
 
 EXPORT ae_result ae_voice_play(ae_engine *engine, const ae_play_voice_desc *desc, ae_voice_id *out_voice);
-EXPORT ae_result ae_voice_stop(ae_engine *engine, ae_voice_id voice);
+EXPORT ae_result ae_voice_stop(ae_engine *engine, ae_voice_id voice, ae_optional_mix_frame stop_frame);
 
 #ifdef __cplusplus
 }

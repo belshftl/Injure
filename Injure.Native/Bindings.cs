@@ -102,7 +102,7 @@ public static partial class Audio {
 
 		AE_ERR_NULL                 = 0x80000001,
 		AE_ERR_BAD_STATE            = 0x80000002,
-		AE_ERR_COMMAND_QUEUE_FULL   = 0x80000003,
+		AE_ERR_MESSAGE_QUEUE_FULL   = 0x80000003,
 		AE_ERR_MUTEX_POISONED       = 0x80000004,
 		AE_ERR_BAD_SOUND_DESC       = 0x80000005,
 		AE_ERR_SOUND_NOT_FOUND      = 0x80000006,
@@ -134,7 +134,7 @@ public static partial class Audio {
 	[StructLayout(LayoutKind.Sequential)]
 	public struct ae_config {
 		public uint channels;
-		public nuint command_capacity;
+		public nuint message_queue_capacity;
 		public nuint maintenance_capacity;
 	}
 
@@ -144,14 +144,14 @@ public static partial class Audio {
 		public uint sample_rate;
 		public uint quantum_frames;
 		public uint channel_count;
+		public uint running;
 		public long xrun_count;
-		public int running;
-		public float cpu_load;
 		public long active_voice_count;
 		public long voice_block_count;
 		public long failed_voice_start_count;
 		public long allocated_sound_count;
 		public long committed_sound_count;
+		public float cpu_load;
 		public ae_result rt_error;
 	}
 
@@ -165,8 +165,8 @@ public static partial class Audio {
 
 	public struct ae_sound_mapping {
 		public unsafe void* data;
-		public ulong byte_length;
-		public ulong frame_stride;
+		public nuint byte_length;
+		public nuint frame_stride;
 	}
 
 	public struct ae_play_voice_desc {
