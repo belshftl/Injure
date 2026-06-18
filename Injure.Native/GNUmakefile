@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 belshftl
+# SPDX-License-Identifier: MIT
+
 MAKEOVERRIDES =
 
 RID      ?= $(error RID must be set)

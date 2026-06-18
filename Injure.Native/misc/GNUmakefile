@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 belshftl
+# SPDX-License-Identifier: MIT
+
 RID      ?= $(error RID must be set)
 
 ROOT     := .
