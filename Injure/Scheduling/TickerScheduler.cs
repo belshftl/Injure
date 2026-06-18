@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 
+using Injure.ModKit.Abstractions.CodeAnalysis;
 using Injure.Timing;
 
 namespace Injure.Scheduling;
@@ -259,6 +260,7 @@ public readonly record struct TickerSchedulerOptions(
 	TickerBudgetOptions Budget = default
 );
 
+[GameCentralized]
 public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITickerRegistry {
 	private enum TickerSlotState {
 		Empty,

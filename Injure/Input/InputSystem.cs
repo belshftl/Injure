@@ -3,35 +3,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 using Hexa.NET.SDL3;
 
+using Injure.DataStructures;
 using Injure.Timing;
 
 namespace Injure.Input;
 
-public readonly struct InputCursor : IEquatable<InputCursor>, IComparable<InputCursor> {
-	internal readonly ulong Seq;
-	internal InputCursor(ulong seq) {
-		Seq = seq;
-	}
-
-	public bool Equals(InputCursor other) => Seq == other.Seq;
-	public override bool Equals([NotNullWhen(true)] object? obj) => obj is InputCursor other && Equals(other);
-	public override int GetHashCode() => Seq.GetHashCode();
-	public int CompareTo(InputCursor other) => Seq.CompareTo(other.Seq);
-
-	public static bool operator ==(InputCursor left, InputCursor right) => left.Equals(right);
-	public static bool operator !=(InputCursor left, InputCursor right) => !left.Equals(right);
-	public static bool operator <(InputCursor left, InputCursor right) => left.Seq < right.Seq;
-	public static bool operator >(InputCursor left, InputCursor right) => left.Seq > right.Seq;
-	public static bool operator <=(InputCursor left, InputCursor right) => left.Seq <= right.Seq;
-	public static bool operator >=(InputCursor left, InputCursor right) => left.Seq >= right.Seq;
-}
-
-internal sealed class InputSystem {
+internal sealed class InputSystem : IInputSource {
 	private struct MutableGamepadState {
 		public GamepadID ID;
 		public uint Buttons;
@@ -43,8 +24,9 @@ internal sealed class InputSystem {
 		public float RightTrigger;
 	}
 
-	private readonly List<InputEvent> events = new();
-	private ulong headSeq = 0;
+	private readonly object cursorSourceToken = new();
+	private readonly RingBuffer<InputEvent> events;
+
 	private ulong nextSeq = 0;
 
 	private ulong keys0;
@@ -59,8 +41,13 @@ internal sealed class InputSystem {
 	private bool pointerCaptured;
 
 	private readonly List<MutableGamepadState> gamepads = new();
-	private readonly Dictionary<uint, int> gamepadIdxBySdlInstanceID = new();
+	private readonly Dictionary<uint, GamepadID> gamepadBySdlInstanceID = new();
 	private uint nextGamepadID = 0; // first will be 1 since this gets incremented upfront
+
+	public InputSystem(int maxBufferedEvents) {
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferedEvents);
+		events = new RingBuffer<InputEvent>(maxBufferedEvents);
+	}
 
 	public InputSnapshot CurrentState => new(
 		new KeyboardState(keys0, keys1, keys2, keys3),
@@ -68,45 +55,71 @@ internal sealed class InputSystem {
 		snapshotGamepads()
 	);
 
-	public InputCursor CreateCursor() => new(nextSeq);
+	private ulong oldestSeq => nextSeq - checked((ulong)events.Count);
 
-	public InputView CreateViewSince(InputCursor cursor, out InputCursor next) => new(ReadSince(cursor, out next), CurrentState);
-	public InputView CreateViewSince(ref InputCursor cursor) => new(ReadSince(cursor, out cursor), CurrentState);
+	public InputCursor CreateCursor() => new(cursorSourceToken, nextSeq);
 
-	public ReadOnlySpan<InputEvent> ReadSince(InputCursor cursor, out InputCursor next) {
-		if (cursor.Seq < headSeq || cursor.Seq > nextSeq)
-			throw new ArgumentOutOfRangeException(nameof(cursor));
-		int start = checked((int)(cursor.Seq - headSeq));
-		next = new InputCursor(nextSeq);
-		return CollectionsMarshal.AsSpan(events)[start..]; // TODO: Dont
+	public InputView CreateViewSince(ref InputCursor cursor) {
+		InputView view = CreateViewSince(cursor, out InputCursor next);
+		cursor = next;
+		return view;
+	}
+
+	public InputView CreateViewSince(InputCursor cursor, out InputCursor next) {
+		validateCursor(cursor);
+
+		ulong currentOldestSeq = oldestSeq;
+		ulong currentNextSeq = nextSeq;
+
+		if (cursor.Seq > currentNextSeq)
+			throw new ArgumentOutOfRangeException(nameof(cursor), "input cursor points beyond the current event history");
+
+		next = new InputCursor(cursorSourceToken, currentNextSeq);
+
+		if (cursor.Seq < currentOldestSeq) {
+			ulong lostCount = currentOldestSeq - cursor.Seq;
+			return new InputView(
+				InputEventView.Empty, // don't return the retained tail
+				CurrentState,
+				historyLost: true,
+				lostEventCount: lostCount
+			);
+		}
+
+		int start = checked((int)(cursor.Seq - currentOldestSeq));
+		int length = checked((int)(currentNextSeq - cursor.Seq));
+
+		return new InputView(
+			new InputEventView(events.View(start, length)),
+			CurrentState,
+			historyLost: false,
+			lostEventCount: 0
+		);
 	}
 
 	public void AdvanceToCurrent(ref InputCursor cursor) {
-		cursor = new InputCursor(nextSeq);
+		validateCursor(cursor);
+		cursor = new InputCursor(cursorSourceToken, nextSeq);
+	}
+
+	private void validateCursor(InputCursor cursor) {
+		if (!cursor.BelongsTo(cursorSourceToken))
+			throw new ArgumentException("input cursor was not created by this input source", nameof(cursor));
 	}
 
 	public void Push(InputEvent ev) {
 		ArgumentNullException.ThrowIfNull(ev);
 		applyEventToState(ev);
-		events.Add(ev);
-		nextSeq++;
+		events.PushNewest(ev);
+		checked {
+			nextSeq++;
+		}
 	}
 
 	public void SetPointerInsideWindow(bool inside) => pointerInsideWindow = inside;
 	public void SetPointerCaptured(bool captured) => pointerCaptured = captured;
 
-	public void DiscardBefore(InputCursor cursor) {
-		if (cursor.Seq < headSeq || cursor.Seq > nextSeq)
-			throw new ArgumentOutOfRangeException(nameof(cursor));
-		int toRemove = checked((int)(cursor.Seq - headSeq));
-		if (toRemove == 0)
-			return;
-		events.RemoveRange(0, toRemove);
-		headSeq = cursor.Seq;
-	}
-
 	public void DiscardAll() {
-		headSeq = nextSeq;
 		events.Clear();
 	}
 
@@ -170,11 +183,12 @@ internal sealed class InputSystem {
 	}
 
 	private bool tryFindGamepad(GamepadID id, out int idx) {
-		for (int i = 0; i < gamepads.Count; i++)
-			if (gamepads[i].ID == id) {
-				idx = i;
-				return true;
-			}
+		for (int i = 0; i < gamepads.Count; i++) {
+			if (gamepads[i].ID != id)
+				continue;
+			idx = i;
+			return true;
+		}
 		idx = -1;
 		return false;
 	}
@@ -184,13 +198,6 @@ internal sealed class InputSystem {
 			if (gamepads[i].ID != id)
 				continue;
 			gamepads.RemoveAt(i);
-			foreach (uint k in gamepadIdxBySdlInstanceID.Keys) {
-				int mapped = gamepadIdxBySdlInstanceID[k];
-				if (mapped == i)
-					gamepadIdxBySdlInstanceID.Remove(k);
-				else if (mapped > i)
-					gamepadIdxBySdlInstanceID[k] = mapped - 1;
-			}
 			return;
 		}
 	}
@@ -284,7 +291,8 @@ internal sealed class InputSystem {
 	}
 
 	private void synthesizeGamepadsReleaseAll(MonoTick tick) {
-		foreach (MutableGamepadState g in gamepads) {
+		for (int i = 0; i < gamepads.Count; i++) {
+			MutableGamepadState g = gamepads[i];
 			for (int bit = 0; bit < 32; bit++) {
 				if ((g.Buttons & 1u << bit) == 0)
 					continue;
@@ -309,39 +317,39 @@ internal sealed class InputSystem {
 				Push(new KeyEvent((MonoTick)ev.Key.Timestamp, key, ev.Key.Down != 0 ? EdgeType.Press : EdgeType.Release));
 			return true;
 		} else if (t == SDLEventType.GamepadAdded) {
-			uint inst = checked((uint)ev.Gdevice.Which);
-			if (gamepadIdxBySdlInstanceID.ContainsKey(inst))
+			uint instance = checked((uint)ev.Gdevice.Which);
+			if (gamepadBySdlInstanceID.ContainsKey(instance))
 				return true;
 			GamepadID id = new(++nextGamepadID);
-			gamepadIdxBySdlInstanceID.Add(inst, gamepads.Count);
+			gamepadBySdlInstanceID.Add(instance, id);
 			Push(new GamepadAddedEvent((MonoTick)ev.Gdevice.Timestamp, id));
 			return true;
 		} else if (t == SDLEventType.GamepadRemoved) {
-			uint inst = checked((uint)ev.Gdevice.Which);
-			if (!gamepadIdxBySdlInstanceID.TryGetValue(inst, out int idx))
+			uint instance = checked((uint)ev.Gdevice.Which);
+			if (!gamepadBySdlInstanceID.Remove(instance, out GamepadID id))
 				return true;
-			Push(new GamepadRemovedEvent((MonoTick)ev.Gdevice.Timestamp, gamepads[idx].ID));
+			Push(new GamepadRemovedEvent((MonoTick)ev.Gdevice.Timestamp, id));
 			return true;
 		} else if (t == SDLEventType.GamepadAxisMotion) {
-			uint inst = checked((uint)ev.Gdevice.Which);
-			if (!gamepadIdxBySdlInstanceID.TryGetValue(inst, out int idx))
+			uint instance = checked((uint)ev.Gdevice.Which);
+			if (!gamepadBySdlInstanceID.TryGetValue(instance, out GamepadID id))
 				return true;
 			GamepadAxis axis = TranslateGamepadAxis((SDLGamepadAxis)ev.Gaxis.Axis);
 			if (axis != GamepadAxis.Unknown) {
 				float v = NormalizeGamepadAxis(axis, ev.Gaxis.Value);
-				Push(new GamepadAxisEvent((MonoTick)ev.Gaxis.Timestamp, gamepads[idx].ID, axis, v));
+				Push(new GamepadAxisEvent((MonoTick)ev.Gaxis.Timestamp, id, axis, v));
 			}
 			return true;
 		} else if (t is SDLEventType.GamepadButtonDown or SDLEventType.GamepadButtonUp) {
-			uint inst = checked((uint)ev.Gdevice.Which);
-			if (!gamepadIdxBySdlInstanceID.TryGetValue(inst, out int idx))
+			uint instance = checked((uint)ev.Gdevice.Which);
+			if (!gamepadBySdlInstanceID.TryGetValue(instance, out GamepadID id))
 				return true;
 			GamepadButton btn = TranslateGamepadButton((SDLGamepadButton)ev.Gbutton.Button);
 			if (btn != GamepadButton.Unknown)
 				Push(
 					new GamepadButtonEvent(
 						(MonoTick)ev.Gbutton.Timestamp,
-						gamepads[idx].ID,
+						id,
 						btn,
 						ev.Gbutton.Down != 0 ? EdgeType.Press : EdgeType.Release
 					)
@@ -552,12 +560,13 @@ internal sealed class InputSystem {
 	};
 
 	public static float NormalizeGamepadAxis(GamepadAxis axis, short raw) {
-		static float normalizeStick(short v) => v < 0 ? (float)v / 32768f : (float)v / 32767f;
-		static float normalizeTrigger(short v) => Math.Clamp((float)v / 32767f, 0f, 1f);
+		static float normalizeStick(short v) => v < 0 ? v / 32768f : v / 32767f;
+		static float normalizeTrigger(short v) => Math.Clamp(v / 32767f, 0f, 1f);
 		return axis.Tag switch {
+			GamepadAxis.Case.Unknown => throw new ArgumentException("unknown gamepad axis", nameof(axis)),
 			GamepadAxis.Case.LeftX or GamepadAxis.Case.LeftY or GamepadAxis.Case.RightX or GamepadAxis.Case.RightY => normalizeStick(raw),
 			GamepadAxis.Case.LeftTrigger or GamepadAxis.Case.RightTrigger => normalizeTrigger(raw),
-			_ => throw new ArgumentOutOfRangeException(nameof(axis), $"unknown gamepad axis '{axis}'"),
+			_ => throw new UnreachableException(),
 		};
 	}
 }

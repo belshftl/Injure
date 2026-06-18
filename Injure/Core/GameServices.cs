@@ -7,7 +7,6 @@ using System.Threading;
 using Injure.Assets;
 using Injure.Graphics.Text;
 using Injure.Input;
-using Injure.Layers;
 using Injure.Rendering;
 using Injure.Scheduling;
 
@@ -69,23 +68,13 @@ public sealed class GraphicsServices {
 
 public sealed class InputServices {
 	private readonly GameServiceLifetime lifetime;
+	public IInputSource Raw => Alive(lifetime, field);
 	public ActionRegistry Actions => Alive(lifetime, field);
 
-	internal InputServices(GameServiceLifetime lifetime, ActionRegistry actions) {
+	internal InputServices(GameServiceLifetime lifetime, IInputSource raw, ActionRegistry actions) {
 		this.lifetime = lifetime;
+		Raw = raw;
 		Actions = actions;
-	}
-}
-
-public sealed class LayerServices {
-	private readonly GameServiceLifetime lifetime;
-	public LayerStack Stack => Alive(lifetime, field);
-	public LayerTagRegistry Tags => Alive(lifetime, field);
-
-	internal LayerServices(GameServiceLifetime lifetime, LayerStack stack, LayerTagRegistry tags) {
-		this.lifetime = lifetime;
-		Stack = stack;
-		Tags = tags;
 	}
 }
 
@@ -112,7 +101,6 @@ public sealed class GameServices {
 	public HostServices Host => Alive(lifetime, field);
 	public GraphicsServices Graphics => Alive(lifetime, field);
 	public InputServices Input => Alive(lifetime, field);
-	public LayerServices Layers => Alive(lifetime, field);
 	public AdvancedServices Advanced => Alive(lifetime, field);
 
 	// optional:
@@ -127,9 +115,8 @@ public sealed class GameServices {
 		IRenderController renderController,
 		ITimingController timingController,
 		WebGPUDevice gpuDevice,
+		IInputSource rawInput,
 		ActionRegistry actionRegistry,
-		LayerStack layerStack,
-		LayerTagRegistry layerTags,
 		EngineResourceStore engineResources,
 		AssetStore? assets,
 		AssetThreadContext? assetMainThreadCtx,
@@ -141,8 +128,7 @@ public sealed class GameServices {
 		Tickers = tickers;
 		Host = new HostServices(lifetime, windowController, renderController, timingController);
 		Graphics = new GraphicsServices(lifetime, gpuDevice);
-		Input = new InputServices(lifetime, actionRegistry);
-		Layers = new LayerServices(lifetime, layerStack, layerTags);
+		Input = new InputServices(lifetime, rawInput, actionRegistry);
 		Advanced = new AdvancedServices(lifetime, engineResources, assetMainThreadCtx);
 		this.assets = assets;
 		this.assetMainThreadCtx = assetMainThreadCtx;

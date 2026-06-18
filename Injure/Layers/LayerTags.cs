@@ -2,20 +2,24 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 
 using Injure.DataStructures;
+using Injure.ModKit.Abstractions.CodeAnalysis;
 
 namespace Injure.Layers;
 
 public readonly struct LayerTag : IEquatable<LayerTag> {
+	internal readonly ulong RegistryID; // IDs start at 1 so `default` isn't a valid tag
 	internal readonly ulong ID; // IDs start at 1 so `default` isn't a valid tag
-	internal LayerTag(ulong id) {
+	internal LayerTag(ulong registryID, ulong id) {
+		RegistryID = registryID;
 		ID = id;
 	}
 
-	public bool Equals(LayerTag other) => ID == other.ID;
+	public bool Equals(LayerTag other) => RegistryID == other.RegistryID && ID == other.ID;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is LayerTag other && Equals(other);
-	public override int GetHashCode() => ID.GetHashCode();
+	public override int GetHashCode() => HashCode.Combine(RegistryID, ID);
 	public static bool operator ==(LayerTag left, LayerTag right) => left.Equals(right);
 	public static bool operator !=(LayerTag left, LayerTag right) => !left.Equals(right);
 }
@@ -82,18 +86,17 @@ public readonly struct LayerTagSet {
 	public ReadOnlySpan<LayerTag> AsSpan() => items is null ? ReadOnlySpan<LayerTag>.Empty : items;
 }
 
+[GameCentralized]
 public sealed class LayerTagRegistry {
-	private readonly TwoWayMap<string, ulong> namespaces;
-	private readonly TwoWayMap<TagKey, LayerTag> tags;
+	private static ulong nextRegistryID = 0; // first ID will be 1 since this gets incremented upfront
+	internal readonly ulong RegistryID = Interlocked.Increment(ref nextRegistryID);
+
+	private readonly TwoWayMap<string, ulong> namespaces = new(cmpLeft: StringComparer.Ordinal);
+	private readonly TwoWayMap<TagKey, LayerTag> tags = new();
 
 	// first will be 1 since these get incremented upfront
 	private ulong nextNamespaceID = 0;
 	private ulong nextTagID = 0;
-
-	internal LayerTagRegistry() {
-		namespaces = new TwoWayMap<string, ulong>(cmpLeft: StringComparer.Ordinal);
-		tags = new TwoWayMap<TagKey, LayerTag>();
-	}
 
 	public LayerTag GetOrCreate(string ns, string name) {
 		validate(ns, nameof(ns), "layer tag namespace");
@@ -102,7 +105,7 @@ public sealed class LayerTagRegistry {
 		TagKey key = new(nsID, name);
 		if (tags.TryGetByLeft(key, out LayerTag tag))
 			return tag;
-		tag = new LayerTag(++nextTagID);
+		tag = new LayerTag(RegistryID, ++nextTagID);
 		tags.Add(key, tag);
 		return tag;
 	}

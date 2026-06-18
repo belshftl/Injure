@@ -15,7 +15,6 @@ using Injure.Assets.Builtin;
 using Injure.Graphics;
 using Injure.Graphics.Text;
 using Injure.Input;
-using Injure.Layers;
 using Injure.Rendering;
 using Injure.Scheduling;
 using Injure.Timing;
@@ -138,10 +137,13 @@ public static unsafe class Runner {
 		ServiceConfig svconf = conf.Service;
 		WindowConfig winconf = conf.Window;
 		RenderConfig rconf = conf.Render;
+		InputConfig iconf = conf.Input;
 		TimingConfig tmconf = conf.Timing;
 		TimingSettings tmst = tmconf.Settings;
 
 		// validation and basic init
+		if (iconf.MaxBufferedEvents <= 0)
+			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(iconf.MaxBufferedEvents);
 		if (tmst.RenderMode == RenderTimingMode.Capped)
 			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetFPS);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetLoopHz);
@@ -164,7 +166,7 @@ public static unsafe class Runner {
 		var loadingStartTick = MonoTick.GetCurrent();
 
 		// webgpu bootstrap
-		var bootstrap = Task.Run(() => new WebGPUDevice());
+		Task<WebGPUDevice> bootstrap = Task.Run(() => new WebGPUDevice());
 
 		// basic loading-time event loop
 		SDLEvent ev;
@@ -215,10 +217,8 @@ public static unsafe class Runner {
 				Budget: TickerBudgetOptions.CreateDefault(loopStep)
 			)
 		);
-		InputSystem input = new();
+		InputSystem input = new(iconf.MaxBufferedEvents);
 		ActionRegistry actionRegistry = new();
-		LayerStack layerStack = new(sched, input);
-		LayerTagRegistry layerTags = new();
 		EngineResourceStore eresources = new();
 		eresources.RegisterSource(
 			new EmbeddedEngineResourceSource(
@@ -253,9 +253,8 @@ public static unsafe class Runner {
 			renderControl,
 			timingControl,
 			gpuDevice,
+			input,
 			actionRegistry,
-			layerStack,
-			layerTags,
 			eresources,
 			assets,
 			assetCtx,

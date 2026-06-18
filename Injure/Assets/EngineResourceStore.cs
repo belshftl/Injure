@@ -7,6 +7,8 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
+using Injure.ModKit.Abstractions.CodeAnalysis;
+
 namespace Injure.Assets;
 
 /// <summary>
@@ -17,6 +19,7 @@ namespace Injure.Assets;
 /// hot reload, no dependency tracking, no async, no multi-step pipeline, and resources
 /// are treated as plain byte blobs.
 /// </remarks>
+[GameCentralized]
 public sealed class EngineResourceStore {
 	// ==========================================================================
 	// internal types

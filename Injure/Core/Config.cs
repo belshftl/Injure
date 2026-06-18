@@ -4,31 +4,42 @@ using Injure.Rendering;
 
 namespace Injure.Core;
 
-public readonly record struct ServiceConfig(
-	bool Assets,
-	bool Text
-);
+public readonly struct ServiceConfig {
+	public required bool Assets { get; init; }
+	public required bool Text { get; init; }
+}
 
-public readonly record struct WindowConfig(
-	WindowSettings Settings,
-	bool AllowHighDPI = true
-);
+public readonly struct WindowConfig {
+	public required WindowSettings Settings { get; init; }
+	public bool AllowHighDPI { get; init; } = true; 
 
-public readonly record struct RenderConfig(
-	RenderSettings Settings,
-	PowerPreference PowerPreference,
-	BackendType Backend = default
-) {
-	public RenderConfig(RenderSettings Settings) : this(Settings, PowerPreference.HighPerformance) {}
-};
+	public WindowConfig() {}
+}
 
-public readonly record struct TimingConfig(
-	TimingSettings Settings
-);
+public readonly struct RenderConfig {
+	public RenderSettings Settings { get; init; } = new RenderSettings();
+	public PowerPreference PowerPreference { get; init; } = PowerPreference.HighPerformance;
+	public BackendType Backend { get; init; } = BackendType.Null;
 
-public readonly record struct GameConfig(
-	ServiceConfig Service,
-	WindowConfig Window,
-	RenderConfig Render,
-	TimingConfig Timing
-);
+	public RenderConfig() {}
+}
+
+public readonly struct InputConfig {
+	public int MaxBufferedEvents { get; init; } = 8192;
+
+	public InputConfig() {}
+}
+
+public readonly struct TimingConfig {
+	public required TimingSettings Settings { get; init; }
+}
+
+public readonly struct GameConfig {
+	public required ServiceConfig Service { get; init; }
+	public required WindowConfig Window { get; init; }
+	public required TimingConfig Timing { get; init; }
+	public RenderConfig Render { get; init; } = new RenderConfig();
+	public InputConfig Input { get; init; } = new InputConfig();
+
+	public GameConfig() {}
+}

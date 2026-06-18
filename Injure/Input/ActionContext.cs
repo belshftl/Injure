@@ -50,6 +50,9 @@ public sealed class ActionContext(ActionProfile profile) {
 	private bool forceEmitStateAxes2D;
 
 	public ControlView Update(MonoTick tick, in InputView input) {
+		if (input.HistoryLost)
+			throw new NotImplementedException();
+
 		events.Clear();
 		buttonStates.Clear();
 		stateAxisStates.Clear();
