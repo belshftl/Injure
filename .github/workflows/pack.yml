@@ -112,14 +112,14 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Install native deps
+      - name: Install native deps for macOS
         if: runner.os == 'macOS'
         run: |
           brew update
           brew install jack pkgconf
           echo "PKG_CONFIG_PATH=$(brew --prefix jack)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
 
-      - name: Install native deps
+      - name: Install native deps for Linux
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -y
@@ -127,15 +127,15 @@ jobs:
 
       - name: Build native
         working-directory: Injure.Native
-        run: make MODE=release RID=${{ matrix.rid }}
+        run: make OUTDIR=stage MODE=release RID=${{ matrix.rid }}
 
-      - name: Upload native artifacts
+      - name: Upload native artifact
         uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.rid }}
           path: |
-            Injure.Native/audio/target/release/${{ matrix.libaudio_out_name }}
-            Injure.Native/misc/out/${{ matrix.rid }}/${{ matrix.libmisc_out_name }}
+            Injure.Native/stage/${{ matrix.libaudio_out_name }}
+            Injure.Native/stage/${{ matrix.rid }}/${{ matrix.libmisc_out_name }}
 
   pack-and-push:
     if: github.event_name != 'pull_request'
@@ -151,21 +151,21 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Fetch artifacts for osx-arm64
+      - name: Fetch artifact for osx-arm64
         uses: actions/download-artifact@v5
         with:
           name: native-osx-arm64
           path: Injure.Native/pack/osx-arm64
           merge-multiple: true
 
-      - name: Fetch artifacts for linux-x64
+      - name: Fetch artifact for linux-x64
         uses: actions/download-artifact@v5
         with:
           name: native-linux-x64
           path: Injure.Native/pack/linux-x64
           merge-multiple: true
 
-      - name: Fetch artifacts for linux-arm64
+      - name: Fetch artifact for linux-arm64
         uses: actions/download-artifact@v5
         with:
           name: native-linux-arm64

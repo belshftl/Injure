@@ -1,3 +1,5 @@
+MAKEOVERRIDES =
+
 RID      ?= $(error RID must be set)
 MODE     ?= debug
 
@@ -14,27 +16,44 @@ else
 endif
 
 ifneq ($(filter osx-x64 osx-arm64,$(RID)),)
-	AUDIOOUT := $(AUDIODIR)/target/$(MODE)/libinjureaudio.dylib
-	MISCOUT := $(MISCDIR)/out/$(RID)/libinjuremisc.dylib
+	AUDIOOUTNAME := libinjureaudio.dylib
+	MISCOUTNAME  := libinjuremisc.dylib
 else ifneq ($(filter linux-x64 linux-arm64,$(RID)),)
-	AUDIOOUT := $(AUDIODIR)/target/$(MODE)/libinjureaudio.so
-	MISCOUT := $(MISCDIR)/out/$(RID)/libinjuremisc.so
+	AUDIOOUTNAME := libinjureaudio.so
+	MISCOUTNAME  := libinjuremisc.so
 else
 	$(error unsupported RID $(RID))
 endif
 
-AUDIOSRC := $(shell find $(AUDIODIR)/src -name '*.rs') $(AUDIODIR)/build.rs
-MISCSRC  := $(MISCDIR)/src/precisewait.c
+OUTDIR     ?= $(ROOT)/pack/$(RID)
 
-.PHONY: all clean
+AUDIOOUT   ?= $(OUTDIR)/$(AUDIOOUTNAME)
+MISCOUT    ?= $(OUTDIR)/$(MISCOUTNAME)
+
+AUDIOBUILD := $(AUDIODIR)/target/$(MODE)/$(AUDIOOUTNAME)
+MISCBUILD  := $(MISCDIR)/out/$(RID)/$(MISCOUTNAME)
+
+AUDIOSRC   := $(shell find $(AUDIODIR)/src -name '*.rs') $(AUDIODIR)/build.rs
+MISCSRC    := $(MISCDIR)/src/precisewait.c
+
+.PHONY: all pack clean
 all: $(AUDIOOUT) $(MISCOUT)
 
-$(AUDIOOUT): $(AUDIOSRC) $(AUDIODIR)/Cargo.toml
+$(AUDIOBUILD): $(AUDIOSRC) $(AUDIODIR)/Cargo.toml
 	cargo build $(CARGOFLAGS) --manifest-path $(AUDIODIR)/Cargo.toml
 
-$(MISCOUT): $(MISCSRC) $(MISCDIR)/GNUmakefile
+$(MISCBUILD): $(MISCSRC) $(MISCDIR)/GNUmakefile
 	make -C $(MISCDIR) RID=$(RID)
 
+$(AUDIOOUT): $(AUDIOBUILD)
+	mkdir -p $(OUTDIR)
+	cp $(AUDIOBUILD) $(AUDIOOUT)
+
+$(MISCOUT): $(MISCBUILD)
+	mkdir -p $(OUTDIR)
+	cp $(MISCBUILD) $(MISCOUT)
+
 clean: $(AUDIODIR)/Cargo.toml $(MISCDIR)/GNUmakefile
+	rm -rf $(OUTDIR)
 	cargo clean --manifest-path $(AUDIODIR)/Cargo.toml
 	make -C $(MISCDIR) clean RID=$(RID)
