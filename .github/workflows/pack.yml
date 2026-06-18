@@ -79,6 +79,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - rid: osx-arm64
+            runs_on: macos-14
+            libaudio_out_name: libinjureaudio.dylib
+            libmisc_out_name: libinjuremisc.dylib
           - rid: linux-x64
             runs_on: ubuntu-24.04
             libaudio_out_name: libinjureaudio.so
@@ -87,10 +91,6 @@ jobs:
             runs_on: ubuntu-24.04-arm
             libaudio_out_name: libinjureaudio.so
             libmisc_out_name: libinjuremisc.so
-          - rid: osx-arm64
-            runs_on: macos-14
-            libaudio_out_name: libinjureaudio.dylib
-            libmisc_out_name: libinjuremisc.dylib
           # TODO:
           # - rid: osx-x64
           #   runs_on: macos-15-intel
@@ -113,6 +113,14 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Install native deps
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install jack pkgconf
+          echo "PKG_CONFIG_PATH=$(brew --prefix jack)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+
+      - name: Install native deps
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends libjack-jackd2-dev pkg-config
@@ -143,6 +151,13 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Fetch artifacts for osx-arm64
+        uses: actions/download-artifact@v5
+        with:
+          name: native-osx-arm64
+          path: Injure.Native/pack/osx-arm64
+          merge-multiple: true
+
       - name: Fetch artifacts for linux-x64
         uses: actions/download-artifact@v5
         with:
@@ -155,13 +170,6 @@ jobs:
         with:
           name: native-linux-arm64
           path: Injure.Native/pack/linux-arm64
-          merge-multiple: true
-
-      - name: Fetch artifacts for osx-arm64
-        uses: actions/download-artifact@v5
-        with:
-          name: native-osx-arm64
-          path: Injure.Native/pack/osx-arm64
           merge-multiple: true
 
       - name: Get package version

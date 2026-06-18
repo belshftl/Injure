@@ -1,3 +1,3 @@
 fn main() {
-    println!("cargo:rustc-link-lib=jack");
+    pkg_config::probe_library("jack").unwrap();
 }
