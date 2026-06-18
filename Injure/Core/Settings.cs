@@ -22,19 +22,21 @@ public readonly partial struct WindowPositioning {
 	}
 }
 
-public readonly record struct WindowSettings(
-	string Title,
-	int Width,
-	int Height,
-	WindowMode Mode = default,
-	WindowPositioning Positioning = default,
-	int X = 0,
-	int Y = 0,
-	bool Visible = true,
-	bool Resizable = true,
-	bool Borderless = false,
-	bool Fullscreen = false
-);
+public readonly struct WindowSettings {
+	public required string Title { get; init; }
+	public required int Width { get; init; }
+	public required int Height { get; init; }
+	public WindowMode Mode { get; init; } = WindowMode.Normal;
+	public WindowPositioning Positioning { get; init; } = WindowPositioning.Undefined;
+	public int X { get; init; } = 0;
+	public int Y { get; init; } = 0;
+	public bool Visible { get; init; } = true;
+	public bool Resizable { get; init; } = true;
+	public bool Borderless { get; init; } = false;
+	public bool Fullscreen { get; init; } = false;
+
+	public WindowSettings() {}
+}
 
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct PresentMode {
@@ -45,9 +47,11 @@ public readonly partial struct PresentMode {
 	}
 }
 
-public readonly record struct RenderSettings(
-	PresentMode PresentMode
-);
+public readonly struct RenderSettings {
+	public PresentMode PresentMode { get; init; } = PresentMode.TearFree;
+
+	public RenderSettings() {}
+}
 
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct RenderTimingMode {
@@ -57,9 +61,11 @@ public readonly partial struct RenderTimingMode {
 	}
 }
 
-public readonly record struct TimingSettings(
-	RenderTimingMode RenderMode,
-	double TargetFPS,
-	double TargetLoopHz = 480.0,
-	int MaxLoopDeadlineMissByLoopDurations = 4
-);
+public readonly struct TimingSettings {
+	public required RenderTimingMode RenderMode { get; init; }
+	public required double TargetFPS { get; init; }
+	public double TargetLoopHz { get; init; } = 480.0;
+	public int MaxLoopDeadlineMissByLoopDurations { get; init; } = 4;
+
+	public TimingSettings() {}
+}

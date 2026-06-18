@@ -7,11 +7,13 @@ using System.Threading.Tasks;
 
 using Injure.Graphics;
 using Injure.Input;
+using Injure.ModKit.Abstractions.CodeAnalysis;
 using Injure.Scheduling;
 
 namespace Injure.Layers;
 
-public sealed class LayerStack : IDisposable {
+[GameCentralized]
+public sealed class LayerStack(ITickerRegistry tickers, IInputSource input) : IDisposable {
 	// ==========================================================================
 	// internal types
 	private sealed class LayerEntry {
@@ -115,8 +117,8 @@ public sealed class LayerStack : IDisposable {
 
 	// ==========================================================================
 	// fields
-	private readonly ITickerRegistry tickers;
-	private readonly InputSystem input;
+	private readonly ITickerRegistry tickers = tickers ?? throw new ArgumentNullException(nameof(tickers));
+	private readonly IInputSource input = input ?? throw new ArgumentNullException(nameof(input));
 
 	private readonly List<LayerEntry> entries = new(); // bottom -> top
 	private readonly List<PendingOp> pending = new();
@@ -129,11 +131,6 @@ public sealed class LayerStack : IDisposable {
 	private bool applying;
 	private int callbackDepth;
 	private int renderDepth;
-
-	internal LayerStack(ITickerRegistry tickers, InputSystem input) {
-		this.tickers = tickers ?? throw new ArgumentNullException(nameof(tickers));
-		this.input = input ?? throw new ArgumentNullException(nameof(input));
-	}
 
 	// ==========================================================================
 	// public api (layer management)
@@ -300,10 +297,6 @@ public sealed class LayerStack : IDisposable {
 			callbackDepth--;
 		}
 		applyPending();
-		if (tryGetOldestLiveInputCursor(out InputCursor oldest))
-			input.DiscardBefore(oldest);
-		else
-			input.DiscardAll();
 	}
 
 	private void resolvePassStates(Span<ResolvedPassState> dst) {
@@ -327,22 +320,6 @@ public sealed class LayerStack : IDisposable {
 			dst[i] = new ResolvedPassState(updateAllowed, active);
 			blocked.AddRules(ent.Layer.BlockRules);
 		}
-	}
-
-	private bool tryGetOldestLiveInputCursor(out InputCursor oldest) {
-		bool found = false;
-		oldest = default;
-
-		foreach (LayerEntry ent in entries) {
-			if (ent.Layer.Features.HasNone(LayerFeatures.Input))
-				continue;
-
-			if (!found || ent.InputCursor < oldest) {
-				oldest = ent.InputCursor;
-				found = true;
-			}
-		}
-		return found;
 	}
 
 	// ==========================================================================
@@ -597,7 +574,6 @@ public sealed class LayerStack : IDisposable {
 			sub.Remove();
 		refcounts.Clear();
 		subs.Clear();
-		input.DiscardAll();
 	}
 
 	// ==========================================================================

@@ -8,6 +8,7 @@ using Injure.Assets;
 using Injure.Core;
 using Injure.Graphics;
 using Injure.Graphics.Text;
+using Injure.Layers;
 using Injure.ModKit.Abstractions;
 using Injure.ModKit.Runtime;
 using Injure.Timing;
@@ -35,7 +36,11 @@ public sealed class Game : IGame {
 	}
 	public static ITickerRegistry Tickers => GameServices.Tickers;
 	public static InputServices Input => GameServices.Input;
-	public static LayerServices Layers => GameServices.Layers;
+	public static LayerStack LayerStack {
+		get => field ?? throw new InvalidOperationException("game not initialized yet or already shut down");
+		private set;
+	}
+	public static LayerTagRegistry LayerTagRegistry { get; } = new();
 	public static AssetStore Assets => GameServices.Assets;
 	public static TextSystem Text => GameServices.Text;
 	public static WindowState WindowState => GameServices.Host.Window.State;
@@ -87,16 +92,17 @@ public sealed class Game : IGame {
 		};
 		ModWatcher.RebuildFrom(Mods.GetWatchSpecs());
 
-		Runner.Run(g, new GameConfig(
-			Service: new ServiceConfig(Assets: true, Text: true),
-			Window: new WindowConfig(new WindowSettings(Title: "TestGame", Width: 640, Height: 480)),
-			Render: new RenderConfig(new RenderSettings(PresentMode.Adaptive)),
-			Timing: new TimingConfig(new TimingSettings(RenderTimingMode.Capped, TargetFPS: 60.0))
-		));
+		Runner.Run(g, new GameConfig {
+			Service = new ServiceConfig { Assets = true, Text = true },
+			Window = new WindowConfig { Settings = new WindowSettings { Title = "TestGame", Width = 640, Height = 480 } },
+			Timing = new TimingConfig { Settings = new TimingSettings { RenderMode = RenderTimingMode.Capped, TargetFPS = 60.0 } },
+		});
 	}
 
 	public void Init(GameServices sv) {
 		GameServices = sv;
+		LayerStack = new(Tickers, Input.Raw);
+
 		Mods.AttachGameActivateBlocking(sv);
 		Assets.RegisterSource(OwnerID, new DirectoryAssetSource(OwnerID, AssetsDirectory), "AssetsDirectory");
 		Actions.Init();
@@ -109,11 +115,11 @@ public sealed class Game : IGame {
 				OverrunMode = TickerOverrunMode.CatchUp
 			}
 		));
-		Layers.Stack.PushTop(new GameplayLayer(), gameplayTicker);
+		LayerStack.PushTop(new GameplayLayer(), gameplayTicker);
 	}
 
 	public void Render(Canvas cv) {
-		Layers.Stack.Render(cv);
+		LayerStack.Render(cv);
 	}
 
 	public void Shutdown() {
