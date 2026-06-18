@@ -63,9 +63,9 @@ jobs:
       - name: Restore
         run: dotnet restore
 
-      - name: Build native
-        working-directory: Injure.Native
-        run: make MODE=release RID=linux-x64
+      - name: Build libmisc
+        working-directory: Injure.Native/misc
+        run: make RID=linux-x64
 
       - name: Build
         run: dotnet build --no-restore -c Release
@@ -111,6 +111,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install native deps
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libjack-jackd2-dev pkg-config
 
       - name: Build native
         working-directory: Injure.Native
