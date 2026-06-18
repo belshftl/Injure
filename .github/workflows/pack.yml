@@ -64,8 +64,8 @@ jobs:
         run: dotnet restore
 
       - name: Build native
-        working-directory: Injure.Native/Native
-        run: make RID=linux-x64 # TODO it's probably fine but still don't hardcode this
+        working-directory: Injure.Native
+        run: make MODE=release RID=linux-x64
 
       - name: Build
         run: dotnet build --no-restore -c Release
@@ -81,20 +81,25 @@ jobs:
         include:
           - rid: linux-x64
             runs_on: ubuntu-24.04
-            out_name: libinjurenative.so
+            libaudio_out_name: libinjureaudio.so
+            libmisc_out_name: libinjuremisc.so
           - rid: linux-arm64
             runs_on: ubuntu-24.04-arm
-            out_name: libinjurenative.so
+            libaudio_out_name: libinjureaudio.so
+            libmisc_out_name: libinjuremisc.so
           - rid: osx-arm64
             runs_on: macos-14
-            out_name: libinjurenative.dylib
+            libaudio_out_name: libinjureaudio.dylib
+            libmisc_out_name: libinjuremisc.dylib
           # TODO:
           # - rid: osx-x64
           #   runs_on: macos-15-intel
-          #   out_name: libinjurenative.dylib
+          #   libaudio_out_name: libinjureaudio.dylib
+          #   libmisc_out_name: libinjuremisc.dylib
           # - rid: win-x64
           #   runs_on: windows-2025
-          #   out_name: injurenative.dll
+          #   libaudio_out_name: injureaudio.dll
+          #   libmisc_out_name: injuremisc.dll
 
     runs-on: ${{ matrix.runs_on }}
 
@@ -108,14 +113,16 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Build native
-        working-directory: Injure.Native/Native
-        run: make RID=${{ matrix.rid }}
+        working-directory: Injure.Native
+        run: make MODE=release RID=${{ matrix.rid }}
 
-      - name: Upload native artifact
+      - name: Upload native artifacts
         uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.rid }}
-          path: Injure.Native/Native/out/${{ matrix.rid }}/${{ matrix.out_name }}
+          path: |
+            Injure.Native/audio/target/release/${{ matrix.libaudio_out_name }}
+            Injure.Native/misc/out/${{ matrix.rid }}/${{ matrix.libmisc_out_name }}
 
   pack-and-push:
     if: github.event_name != 'pull_request'
@@ -131,23 +138,26 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Fetch artifact for linux-x64
+      - name: Fetch artifacts for linux-x64
         uses: actions/download-artifact@v5
         with:
           name: native-linux-x64
-          path: Injure.Native/Native/out/linux-x64
+          path: Injure.Native/pack/linux-x64
+          merge-multiple: true
 
-      - name: Fetch artifact for linux-arm64
+      - name: Fetch artifacts for linux-arm64
         uses: actions/download-artifact@v5
         with:
           name: native-linux-arm64
-          path: Injure.Native/Native/out/linux-arm64
+          path: Injure.Native/pack/linux-arm64
+          merge-multiple: true
 
-      - name: Fetch artifact for osx-arm64
+      - name: Fetch artifacts for osx-arm64
         uses: actions/download-artifact@v5
         with:
           name: native-osx-arm64
-          path: Injure.Native/Native/out/osx-arm64
+          path: Injure.Native/pack/osx-arm64
+          merge-multiple: true
 
       - name: Get package version
         id: version

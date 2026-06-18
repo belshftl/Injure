@@ -1,4 +1,4 @@
-RID       ?= $(error RID must be set)
+RID      ?= $(error RID must be set)
 
 ROOT     := .
 SRCDIR   := $(ROOT)/src
