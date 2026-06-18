@@ -135,7 +135,7 @@ jobs:
           name: native-${{ matrix.rid }}
           path: |
             Injure.Native/stage/${{ matrix.libaudio_out_name }}
-            Injure.Native/stage/${{ matrix.rid }}/${{ matrix.libmisc_out_name }}
+            Injure.Native/stage/${{ matrix.libmisc_out_name }}
 
   pack-and-push:
     if: github.event_name != 'pull_request'
