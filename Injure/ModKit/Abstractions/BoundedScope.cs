@@ -81,6 +81,33 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 	ReloadGeneration Generation { get; }
 
 	/// <summary>
+	/// Whether scope invalidation has already begun or finished.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// If a read of this property returns <see langword="true"/>, cancellation has
+	/// already been requested on the generation's stopping token. The inverse is not
+	/// guaranteed: cancellation may already have been requested while a concurrent
+	/// read of this property still returns <see langword="false"/>.
+	/// </para>
+	/// <para>
+	/// Primarily diagnostic and intended for outside observers; conditional behavior based
+	/// on whether this property is true or false for your own mod's scope is likely a bug,
+	/// or at least a sign of bad behavior.
+	/// </para>
+	/// <para>
+	/// Avoid relying on this property to determine if usage of another member of the scope
+	/// is safe, as that is prone to race conditions if the scope is invalidated between the
+	/// check and the later usage.
+	/// </para>
+	/// <para>
+	/// For documentation consistency: this property remains available after scope invalidation
+	/// has already begun or finished.
+	/// </para>
+	/// </remarks>
+	bool IsInvalidatingOrInvalidated { get; }
+
+	/// <summary>
 	/// Registers an <see cref="IReloadTeardown"/> for unordered, parallel teardown
 	/// when this reload generation ends.
 	/// </summary>
