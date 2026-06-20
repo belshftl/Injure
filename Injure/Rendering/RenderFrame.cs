@@ -26,10 +26,10 @@ namespace Injure.Rendering;
 /// <para>
 /// Only one <see cref="RenderPass"/> may be active at a time. Temporary
 /// resources that must survive up to the submission (or discard via disposal)
-/// can be registered with <see cref="DisposeAfterSubmit(IDisposable)"/>.
+/// can be registered with <see cref="AddOrderedDisposable{T}(T)"/>.
 /// </para>
 /// </remarks>
-public sealed unsafe class RenderFrame : IDisposable {
+public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 	private readonly WebGPUDevice device;
 	private readonly WGPUSurfaceTexture primaryTex;
 	private readonly GPUTextureView primaryView;
@@ -259,30 +259,31 @@ public sealed unsafe class RenderFrame : IDisposable {
 	/// Registers an <see cref="IDisposable"/> for cleanup after this frame is
 	/// submitted or discarded.
 	/// </summary>
-	/// <param name="disp">Object to dispose once the frame is finished.</param>
+	/// <param name="disposable">Object to dispose once the frame is finished.</param>
 	/// <remarks>
 	/// Typically used for temporary resources that are no longer needed by
 	/// CPU code after command recording, but must remain alive until the
 	/// submit is complete because encoded GPU work references them.
 	/// </remarks>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="disp"/> is <see langword="null"/>.
+	/// Thrown if <paramref name="disposable"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the frame has already been submitted/disposed.
 	/// </exception>
-	public void DisposeAfterSubmit(IDisposable disp) {
-		ArgumentNullException.ThrowIfNull(disp);
+	public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable {
+		ArgumentNullException.ThrowIfNull(disposable);
 		if (done)
 			throw new InvalidOperationException("frame already submitted/disposed");
-		deferred.Add(disp);
+		deferred.Add(disposable);
+		return disposable;
 	}
 
 	/// <summary>
 	/// Finishes command recording, submits the frame, and presents on the primary output.
 	/// </summary>
 	/// <remarks>
-	/// Any disposables registered with <see cref="DisposeAfterSubmit(IDisposable)"/>
+	/// Any disposables registered with <see cref="AddOrderedDisposable{T}(T)"/>
 	/// are disposed once submission is complete.
 	/// </remarks>
 	/// <exception cref="InvalidOperationException">
@@ -320,7 +321,7 @@ public sealed unsafe class RenderFrame : IDisposable {
 	/// <c>using</c>, rather than only disposing on non-submit paths.
 	/// </para>
 	/// <para>
-	/// Any disposables registered with <see cref="DisposeAfterSubmit(IDisposable)"/>
+	/// Any disposables registered with <see cref="AddOrderedDisposable{T}(T)"/>
 	/// are disposed.
 	/// Disposing a frame with an active pass is a bug and throws instead of
 	/// silently ending the pass.
