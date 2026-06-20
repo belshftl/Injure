@@ -851,7 +851,7 @@ public sealed class AssetStore {
 	/// under one of the specified owner IDs, with the specified constraint kinds.
 	/// </param>
 	/// <returns>
-	/// A registration handle that can be disposed to remove the registration.
+	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
 	/// <paramref name="localID"/> must be unique among all other sources registered in
@@ -902,7 +902,7 @@ public sealed class AssetStore {
 	/// under one of the specified owner IDs, with the specified constraint kinds.
 	/// </param>
 	/// <returns>
-	/// A registration handle that can be disposed to remove the registration.
+	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
 	/// <paramref name="localID"/> must be unique among all other resolvers registered in
@@ -983,7 +983,7 @@ public sealed class AssetStore {
 	/// under one of the specified owner IDs, with the specified constraint kinds.
 	/// </param>
 	/// <returns>
-	/// A registration handle that can be disposed to remove the registration.
+	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
 	/// <paramref name="localID"/> must be unique among all other creators for the type <typeparamref name="T"/>
@@ -1064,7 +1064,7 @@ public sealed class AssetStore {
 	/// constraint kinds (also see remarks on unsubscribe order).
 	/// </param>
 	/// <returns>
-	/// A registration handle that can be disposed to remove the registration.
+	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
 	/// <para>
