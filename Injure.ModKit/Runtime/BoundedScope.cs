@@ -57,23 +57,23 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 
 	public ReloadGeneration Generation { get; }
 
-	public bool IsInvalidated => stoppingToken.IsCancellationRequested;
+	public bool IsInvalidatingOrInvalidated => stoppingToken.IsCancellationRequested;
 	public CancellationToken RawStopping => stoppingToken;
 
 	public BoundedScopeView<L> AsTyped<L>() where L : struct, IModLifetimeIdentity {
-		if (IsInvalidated)
+		if (IsInvalidatingOrInvalidated)
 			throw new ReloadGenerationExpiredException(Generation);
 		return new BoundedScopeView<L>(this);
 	}
 
 	public BoundedCts<L> CreateCts<L>() where L : struct, IModLifetimeIdentity {
-		if (IsInvalidated)
+		if (IsInvalidatingOrInvalidated)
 			throw new ReloadGenerationExpiredException(Generation);
 		return CreateLinkedCts<L>(CancellationToken.None);
 	}
 
 	public BoundedCts<L> CreateLinkedCts<L>(CancellationToken ct) where L : struct, IModLifetimeIdentity {
-		if (IsInvalidated)
+		if (IsInvalidatingOrInvalidated)
 			throw new ReloadGenerationExpiredException(Generation);
 		CancellationTokenSource linked = ct.CanBeCanceled
 			? CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, ct)
@@ -96,10 +96,10 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 
 	public T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown {
 		ArgumentNullException.ThrowIfNull(teardown);
-		if (IsInvalidated)
+		if (IsInvalidatingOrInvalidated)
 			throw new ReloadGenerationExpiredException(Generation);
 		lock (@lock) {
-			if (IsInvalidated || teardowns is null)
+			if (IsInvalidatingOrInvalidated || teardowns is null)
 				throw new ReloadGenerationExpiredException(Generation);
 			teardowns.Add(teardown);
 			return teardown;
@@ -135,17 +135,17 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 		ArgumentException.ThrowIfNullOrWhiteSpace(category);
 		ArgumentNullException.ThrowIfNull(description);
 		lock (@lock) {
-			if (IsInvalidated || weakRefs is null)
+			if (IsInvalidatingOrInvalidated || weakRefs is null)
 				throw new ReloadGenerationExpiredException(Generation);
 			weakRefs.Add(new TrackedWeakReference(new WeakReference(item), category, description));
 		}
 	}
 
 	private void add(OwnedDisposable disp, bool ordered) {
-		if (IsInvalidated)
+		if (IsInvalidatingOrInvalidated)
 			throw new ReloadGenerationExpiredException(Generation);
 		lock (@lock) {
-			if (IsInvalidated || parallel is null || this.ordered is null)
+			if (IsInvalidatingOrInvalidated || parallel is null || this.ordered is null)
 				throw new ReloadGenerationExpiredException(Generation);
 			if (ordered)
 				this.ordered.Add(disp);
@@ -155,12 +155,12 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 	}
 
 	public IReadOnlyList<ReloadWeakReferenceSnapshot> SnapshotWeakReferences() {
-		if (IsInvalidated)
+		if (IsInvalidatingOrInvalidated)
 			return Array.Empty<ReloadWeakReferenceSnapshot>();
 
 		TrackedWeakReference[] snapshot;
 		lock (@lock) {
-			if (IsInvalidated || weakRefs is null)
+			if (IsInvalidatingOrInvalidated || weakRefs is null)
 				return Array.Empty<ReloadWeakReferenceSnapshot>();
 			snapshot = weakRefs.ToArray();
 		}
@@ -332,6 +332,7 @@ internal sealed class BoundedScopeView<L> : IBoundedScope<L> where L : struct, I
 	}
 
 	public ReloadGeneration Generation => core.Generation;
+	public bool IsInvalidatingOrInvalidated => core.IsInvalidatingOrInvalidated;
 	public BoundedCt<L> Stopping { get; }
 	public BoundedCts<L> CreateCts() => core.CreateCts<L>();
 	public BoundedCts<L> CreateLinkedCts(CancellationToken cancellationToken) => core.CreateLinkedCts<L>(cancellationToken);

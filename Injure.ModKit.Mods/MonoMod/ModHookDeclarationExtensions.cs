@@ -11,6 +11,9 @@ using Injure.ModKit.Abstractions.MonoMod;
 
 namespace Injure.ModKit.Mods.MonoMod;
 
+/// <summary>
+/// Provides utility/convenience extensions for <see cref="IModHookDeclarations{L}"/>.
+/// </summary>
 public static class ModHookDeclarationExtensions {
 	extension<L>(IModHookDeclarations<L> declarations) where L : struct, IModLifetimeIdentity {
 		public void DeclareHook(string targetID, Delegate hookMethod, in ModHookConfig config) =>
