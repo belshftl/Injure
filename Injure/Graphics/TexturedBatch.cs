@@ -76,34 +76,34 @@ public struct TexturedBatchLocalsUniformSDF {
 public sealed class TexturedBatchSharedState : IDisposable {
 	public readonly TextureInterpretation TextureInterpretation;
 	public readonly TextureFormat ColorTargetFormat;
-	private readonly GPUShaderModule _shader;
-	private readonly GPUBindGroupLayout _localsBindGroupLayout;
-	private readonly GPUPipelineLayout _pipelineLayout;
-	private readonly GPURenderPipeline _pipeline;
+	private readonly GPUShaderModule shader;
+	private readonly GPUBindGroupLayout localsBindGroupLayout;
+	private readonly GPUPipelineLayout pipelineLayout;
+	private readonly GPURenderPipeline pipeline;
 	private bool disposed = false;
 
 	public GPUShaderModule Shader {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return _shader;
+			return shader;
 		}
 	}
 	public GPUBindGroupLayoutRef LocalsBindGroupLayout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return _localsBindGroupLayout.AsRef();
+			return localsBindGroupLayout.AsRef();
 		}
 	}
 	public GPUPipelineLayout PipelineLayout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return _pipelineLayout;
+			return pipelineLayout;
 		}
 	}
 	public GPURenderPipeline Pipeline {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return _pipeline;
+			return pipeline;
 		}
 	}
 
@@ -123,19 +123,19 @@ public sealed class TexturedBatchSharedState : IDisposable {
 			TextureInterpretation.Case.SDF => BuiltinShaders.Textured2DSDF,
 			_ => throw new UnreachableException(),
 		};
-		_shader = device.CreateShaderModuleWGSL(engineResources.GetText(shaderInfo.ResourceID));
+		shader = device.CreateShaderModuleWGSL(engineResources.GetText(shaderInfo.ResourceID));
 		if (interp != TextureInterpretation.SDF)
-			_localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)TexturedBatchLocalsUniformPlain.Size);
+			localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)TexturedBatchLocalsUniformPlain.Size);
 		else
-			_localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex | ShaderStage.Fragment, (ulong)TexturedBatchLocalsUniformSDF.Size);
-		_pipelineLayout = device.CreatePipelineLayout(
+			localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex | ShaderStage.Fragment, (ulong)TexturedBatchLocalsUniformSDF.Size);
+		pipelineLayout = device.CreatePipelineLayout(
 			[
 				device.StdGlobalsUniformLayout,
-				_localsBindGroupLayout,
+				localsBindGroupLayout,
 				device.StdColorTexture2DLayout,
 			]
 		);
-		_pipeline = device.CreateRenderPipeline(
+		pipeline = device.CreateRenderPipeline(
 			new GPURenderPipelineCreateParams(
 				Layout: PipelineLayout,
 				Vertex: new VertexState(
@@ -189,10 +189,10 @@ public sealed class TexturedBatchSharedState : IDisposable {
 		if (disposed)
 			return;
 		disposed = true;
-		_pipeline.Dispose();
-		_pipelineLayout.Dispose();
-		_localsBindGroupLayout.Dispose();
-		_shader.Dispose();
+		pipeline.Dispose();
+		pipelineLayout.Dispose();
+		localsBindGroupLayout.Dispose();
+		shader.Dispose();
 	}
 }
 
@@ -366,9 +366,9 @@ public sealed class TexturedBatch : IDisposable {
 		if (disposed)
 			return;
 		disposed = true;
-		frame.DisposeAfterSubmit(ibuffer);
-		frame.DisposeAfterSubmit(vbuffer);
-		frame.DisposeAfterSubmit(localsUniformBindGroup);
-		frame.DisposeAfterSubmit(localsUniformBuffer);
+		frame.AddOrderedDisposable(ibuffer);
+		frame.AddOrderedDisposable(vbuffer);
+		frame.AddOrderedDisposable(localsUniformBindGroup);
+		frame.AddOrderedDisposable(localsUniformBuffer);
 	}
 }

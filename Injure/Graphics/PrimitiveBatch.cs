@@ -21,34 +21,34 @@ public struct PrimitiveBatchLocalsUniform {
 
 public sealed class PrimitiveBatchSharedState : IDisposable {
 	public readonly TextureFormat ColorTargetFormat;
-	private readonly GPUShaderModule _shader;
-	private readonly GPUBindGroupLayout _localsBindGroupLayout;
-	private readonly GPUPipelineLayout _pipelineLayout;
-	private readonly GPURenderPipeline _pipeline;
+	private readonly GPUShaderModule shader;
+	private readonly GPUBindGroupLayout localsBindGroupLayout;
+	private readonly GPUPipelineLayout pipelineLayout;
+	private readonly GPURenderPipeline pipeline;
 	private bool disposed = false;
 
 	public GPUShaderModule Shader {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return _shader;
+			return shader;
 		}
 	}
 	public GPUBindGroupLayoutRef LocalsBindGroupLayout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return _localsBindGroupLayout.AsRef();
+			return localsBindGroupLayout.AsRef();
 		}
 	}
 	public GPUPipelineLayout PipelineLayout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return _pipelineLayout;
+			return pipelineLayout;
 		}
 	}
 	public GPURenderPipeline Pipeline {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return _pipeline;
+			return pipeline;
 		}
 	}
 
@@ -60,15 +60,15 @@ public sealed class PrimitiveBatchSharedState : IDisposable {
 		TextureFormat colorTargetFormat
 	) {
 		ColorTargetFormat = colorTargetFormat;
-		_shader = device.CreateShaderModuleWGSL(engineResources.GetText(BuiltinShaders.Primitive2D.ResourceID));
-		_localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)PrimitiveBatchLocalsUniform.Size);
-		_pipelineLayout = device.CreatePipelineLayout(
+		shader = device.CreateShaderModuleWGSL(engineResources.GetText(BuiltinShaders.Primitive2D.ResourceID));
+		localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)PrimitiveBatchLocalsUniform.Size);
+		pipelineLayout = device.CreatePipelineLayout(
 			[
 				device.StdGlobalsUniformLayout,
-				_localsBindGroupLayout,
+				localsBindGroupLayout,
 			]
 		);
-		_pipeline = device.CreateRenderPipeline(
+		pipeline = device.CreateRenderPipeline(
 			new GPURenderPipelineCreateParams(
 				Layout: PipelineLayout,
 				Vertex: new VertexState(
@@ -117,10 +117,10 @@ public sealed class PrimitiveBatchSharedState : IDisposable {
 		if (disposed)
 			return;
 		disposed = true;
-		_pipeline.Dispose();
-		_pipelineLayout.Dispose();
-		_localsBindGroupLayout.Dispose();
-		_shader.Dispose();
+		pipeline.Dispose();
+		pipelineLayout.Dispose();
+		localsBindGroupLayout.Dispose();
+		shader.Dispose();
 	}
 }
 
@@ -401,9 +401,9 @@ public sealed class PrimitiveBatch : IDisposable {
 		if (disposed)
 			return;
 		disposed = true;
-		frame.DisposeAfterSubmit(ibuffer);
-		frame.DisposeAfterSubmit(vbuffer);
-		frame.DisposeAfterSubmit(localsUniformBindGroup);
-		frame.DisposeAfterSubmit(localsUniformBuffer);
+		frame.AddOrderedDisposable(ibuffer);
+		frame.AddOrderedDisposable(vbuffer);
+		frame.AddOrderedDisposable(localsUniformBindGroup);
+		frame.AddOrderedDisposable(localsUniformBuffer);
 	}
 }
