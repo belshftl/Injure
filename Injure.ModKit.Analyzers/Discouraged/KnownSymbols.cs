@@ -21,19 +21,29 @@ internal sealed class KnownSymbols {
 	public ImmutableHashSet<IMethodSymbol> GotoMethods { get; }
 	public ImmutableHashSet<ISymbol> InstructionMembers { get; }
 
+	public INamespaceSymbol? ModInterop { get; }
+	public INamedTypeSymbol? ModInteropManager { get; }
+	public INamedTypeSymbol? ModExportNameAttribute { get; }
+	public INamedTypeSymbol? ModImportNameAttribute { get; }
+
 	public INamedTypeSymbol? IModLoadContext { get; }
 	public INamedTypeSymbol? IModLinkContext { get; }
 	public INamedTypeSymbol? IModActivateContext { get; }
 	public INamedTypeSymbol? IModReloadContext { get; }
 
 	public KnownSymbols(Compilation comp) {
-		Hook = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Hook);
-		ILHook = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILHook);
-		NativeHook = comp.GetTypeByMetadataName(KnownTypeMetadataNames.NativeHook);
-		DetourConfig = comp.GetTypeByMetadataName(KnownTypeMetadataNames.DetourConfig);
-		ILCursor = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILCursor);
-		ILContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.ILContext);
-		Instruction = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Instruction);
+		Hook = comp.GetTypeByMetadataName(KnownMetadataNames.Hook);
+		ILHook = comp.GetTypeByMetadataName(KnownMetadataNames.ILHook);
+		NativeHook = comp.GetTypeByMetadataName(KnownMetadataNames.NativeHook);
+		DetourConfig = comp.GetTypeByMetadataName(KnownMetadataNames.DetourConfig);
+		ILCursor = comp.GetTypeByMetadataName(KnownMetadataNames.ILCursor);
+		ILContext = comp.GetTypeByMetadataName(KnownMetadataNames.ILContext);
+		Instruction = comp.GetTypeByMetadataName(KnownMetadataNames.Instruction);
+
+		ModInterop = getNamespace(comp, KnownMetadataNames.ModInterop);
+		ModInteropManager = comp.GetTypeByMetadataName(KnownMetadataNames.ModInteropManager);
+		ModExportNameAttribute = comp.GetTypeByMetadataName(KnownMetadataNames.ModExportNameAttribute);
+		ModImportNameAttribute = comp.GetTypeByMetadataName(KnownMetadataNames.ModImportNameAttribute);
 
 		EmitDelegateMethods = ILCursor
 			?.GetMembers()
@@ -59,9 +69,19 @@ internal sealed class KnownSymbols {
 			.Select(static m => m.OriginalDefinition)
 			.ToImmutableHashSet(SymbolEqualityComparer.Default) ?? ImmutableHashSet<ISymbol>.Empty;
 
-		IModLoadContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModLoadContext);
-		IModLinkContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModLinkContext);
-		IModActivateContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModActivateContext);
-		IModReloadContext = comp.GetTypeByMetadataName(KnownTypeMetadataNames.IModReloadContext);
+		IModLoadContext = comp.GetTypeByMetadataName(KnownMetadataNames.IModLoadContext);
+		IModLinkContext = comp.GetTypeByMetadataName(KnownMetadataNames.IModLinkContext);
+		IModActivateContext = comp.GetTypeByMetadataName(KnownMetadataNames.IModActivateContext);
+		IModReloadContext = comp.GetTypeByMetadataName(KnownMetadataNames.IModReloadContext);
+	}
+
+	private static INamespaceSymbol? getNamespace(Compilation comp, string qualifiedName) {
+		INamespaceSymbol curr = comp.GlobalNamespace;
+		foreach (string component in qualifiedName.Split('.')) {
+			curr = curr.GetMembers(component).OfType<INamespaceSymbol>().SingleOrDefault();
+			if (curr is null)
+				return null;
+		}
+		return curr;
 	}
 }

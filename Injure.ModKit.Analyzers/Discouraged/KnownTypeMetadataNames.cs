@@ -3,7 +3,7 @@
 
 namespace Injure.ModKit.Analyzers.Discouraged;
 
-internal static class KnownTypeMetadataNames {
+internal static class KnownMetadataNames {
 	public const string Hook = "MonoMod.RuntimeDetour.Hook";
 	public const string ILHook = "MonoMod.RuntimeDetour.ILHook";
 	public const string NativeHook = "MonoMod.RuntimeDetour.NativeHook";
@@ -11,6 +11,11 @@ internal static class KnownTypeMetadataNames {
 	public const string ILCursor = "MonoMod.Cil.ILCursor";
 	public const string ILContext = "MonoMod.Cil.ILContext";
 	public const string Instruction = "Mono.Cecil.Cil.Instruction";
+
+	public const string ModInterop = "MonoMod.ModInterop";
+	public const string ModInteropManager = "MonoMod.ModInterop.ModInteropManager";
+	public const string ModExportNameAttribute = "MonoMod.ModInterop.ModExportNameAttribute";
+	public const string ModImportNameAttribute = "MonoMod.ModInterop.ModImportNameAttribute";
 
 	public const string IModLoadContext = "Injure.ModKit.Abstractions.IModLoadContext`2";
 	public const string IModLinkContext = "Injure.ModKit.Abstractions.IModLinkContext`2";
