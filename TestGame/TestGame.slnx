@@ -2,4 +2,5 @@
 	<Project Path="TestGame/TestGame.csproj" />
 	<Project Path="TestGame.ModApi/TestGame.ModApi.csproj" />
 	<Project Path="TestMod/TestMod.csproj" />
+	<Project Path="TestMod.Contracts/TestMod.Contracts.csproj" />
 </Solution>

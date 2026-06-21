@@ -9,5 +9,6 @@ public interface IModLifetimeIdentity {
 }
 
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
-public sealed class ModLifetimeIdentityMarkerAttribute : Attribute {
+public sealed class ModLifetimeIdentityBelongsToAttribute(string ownerID) : Attribute {
+	public string OwnerID { get; } = ownerID;
 }

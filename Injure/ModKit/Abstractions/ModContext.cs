@@ -3,25 +3,11 @@
 
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 
 using Injure.Core;
 using Injure.ModKit.Abstractions.MonoMod;
 
 namespace Injure.ModKit.Abstractions;
-
-public readonly record struct LoadedDependencyInfo(
-	string OwnerID,
-	Semver Version,
-	ReloadGeneration Generation
-);
-
-public readonly record struct LoadedCodeDependencyInfo(
-	string OwnerID,
-	Semver Version,
-	ReloadGeneration Generation,
-	Assembly Assembly
-);
 
 public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIdentity {
 	string OwnerID { get; }
@@ -38,12 +24,16 @@ public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> whe
 }
 
 public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
-	IReadOnlyCollection<LoadedDependencyInfo> LoadedDependencies { get; }
-	bool TryGetDependency(string ownerID, out LoadedDependencyInfo info);
-	bool TryGetCodeDependency(string ownerID, out LoadedCodeDependencyInfo info);
-	LoadedDependencyInfo RequireDependency(string ownerID);
-	LoadedCodeDependencyInfo RequireCodeDependency(string ownerID);
+	IReadOnlyCollection<LoadedDepInfo> LoadedDependencies { get; }
 	// TODO: IModHookDeclarations<L> LinkHooks { get; }
+
+	bool TryGetDependency(string ownerID, out LoadedDepInfo info);
+	bool TryGetCodeDependency(string ownerID, out UntypedLoadedCodeDepInfo info);
+	bool TryGetCodeDependency<LDependency>(out LoadedCodeDepInfo<LDependency> info) where LDependency : struct, IModLifetimeIdentity;
+
+	LoadedDepInfo RequireDependency(string ownerID);
+	UntypedLoadedCodeDepInfo RequireCodeDependency(string ownerID);
+	LoadedCodeDepInfo<LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity;
 }
 
 public interface IModActivateContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {

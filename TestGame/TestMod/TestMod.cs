@@ -11,13 +11,11 @@ using Injure.ModKit.Mods.MonoMod;
 using MonoMod.Cil;
 using TestGame.ModApi;
 
-[assembly: ModAssembly("jdoe.test-mod", ModAssemblyHotReloadLevel.Live)]
+using TestMod.Contracts;
+
+[assembly: ModAssembly("jdoe.test-mod", ModAssemblyHotReloadLevel.Live, typeof(TestModL))]
 
 namespace TestMod;
-
-[ModLifetimeIdentityMarker]
-public readonly struct TestModL : IModLifetimeIdentity {
-}
 
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {

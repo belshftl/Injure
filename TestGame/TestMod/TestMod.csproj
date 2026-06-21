@@ -11,6 +11,8 @@
 		<ProjectReference Include="../../Injure.ModKit.Mods/Injure.ModKit.Mods.csproj" Private="false" />
 		<ProjectReference Include="../TestGame.ModApi/TestGame.ModApi.csproj" Private="false" />
 
+		<ProjectReference Include="../TestMod.Contracts/TestMod.Contracts.csproj" />
+
 		<!-- placeholder, i'll figure out something better in a bit -->
 		<Reference Include="../TestGame/bin/Debug/net10.0/linux-x64/TestGame.dll" Private="false" />
 	</ItemGroup>

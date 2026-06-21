@@ -7,8 +7,8 @@ internal static class KnownTypeMetadataNames {
 	public const string ModAssemblyAttribute = "Injure.ModKit.Abstractions.ModAssemblyAttribute";
 	public const string ModAssemblyHotReloadLevel = "Injure.ModKit.Abstractions.ModAssemblyHotReloadLevel";
 
-	public const string ModLifetimeIdentityMarkerAttribute = "Injure.ModKit.Abstractions.ModLifetimeIdentityMarkerAttribute";
 	public const string ModLifetimeIdentityInterface = "Injure.ModKit.Abstractions.IModLifetimeIdentity";
+	public const string ModLifetimeIdentityBelongsToAttribute = "Injure.ModKit.Abstractions.ModLifetimeIdentityBelongsToAttribute";
 
 	public const string ModEntrypointAttribute = "Injure.ModKit.Abstractions.ModEntrypointAttribute";
 	public const string ModReloadEntrypointAttribute = "Injure.ModKit.Abstractions.ModReloadEntrypointAttribute";
