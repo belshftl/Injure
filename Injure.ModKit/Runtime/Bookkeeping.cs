@@ -27,9 +27,14 @@ internal readonly record struct ResolvedModGraph(
 internal readonly record struct ModWavePlan(IReadOnlyList<IReadOnlyList<string>> Waves);
 internal readonly record struct StagedMod(ModSource Source, ModManifest Manifest, string StagedRoot, ReloadGeneration Generation, string? MainAssemblyPath);
 
-internal sealed class LoadedContentMod : IStrongRefDroppable {
+internal interface ILoadedMod : IStrongRefDroppable {
+	StagedMod Staged { get; }
+	UntypedBoundedScopeImpl Scope { get; }
+}
+
+internal sealed class LoadedContentMod : ILoadedMod {
 	public required StagedMod Staged { get; init; }
-	public required UntypedBoundedScope Scope {
+	public required UntypedBoundedScopeImpl Scope {
 		get => field ?? throw new InternalStateException("mod active owner scope strong ref has already been dropped");
 		set;
 	}
@@ -39,7 +44,7 @@ internal sealed class LoadedContentMod : IStrongRefDroppable {
 	}
 }
 
-internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
+internal sealed class LoadedCodeMod<TGameApi> : ILoadedMod {
 	public required StagedMod Staged { get; init; }
 	public required ModAlc AssemblyLoadContext {
 		get => field ?? throw new InternalStateException("mod ALC strong ref has already been dropped");
@@ -62,12 +67,12 @@ internal sealed class LoadedCodeMod<TGameApi> : IStrongRefDroppable {
 		get => field ?? throw new InternalStateException("mod lifetime identity type strong ref has already been dropped");
 		set;
 	}
-	public required UntypedBoundedScope Scope {
+	public required UntypedBoundedScopeImpl Scope {
 		get => field ?? throw new InternalStateException("mod owner scope strong ref has already been dropped");
 		set;
 	}
 	private bool activationScopeDropped = false;
-	public UntypedBoundedScope? ActivationScope {
+	public UntypedBoundedScopeImpl? ActivationScope {
 		get => !activationScopeDropped ? field : throw new InternalStateException("mod activation scope strong ref has already been dropped");
 		set;
 	}

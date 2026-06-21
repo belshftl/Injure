@@ -10,7 +10,7 @@ using Injure.ModKit.Abstractions;
 
 namespace Injure.ModKit.Runtime;
 
-internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
+internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 	private readonly record struct TrackedWeakReference(WeakReference Reference, string Category, string Description);
 
 	private struct OwnedDisposable {
@@ -88,7 +88,7 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 		}
 	}
 
-	internal UntypedBoundedScope(ReloadGeneration generation, int maxParallelism) {
+	internal UntypedBoundedScopeImpl(ReloadGeneration generation, int maxParallelism) {
 		Generation = generation;
 		this.maxParallelism = Math.Max(1, maxParallelism);
 		stoppingToken = stoppingCts.Token;
@@ -324,9 +324,9 @@ internal sealed class UntypedBoundedScope : IUntypedBoundedScope {
 }
 
 internal sealed class BoundedScopeView<L> : IBoundedScope<L> where L : struct, IModLifetimeIdentity {
-	private readonly UntypedBoundedScope core;
+	private readonly UntypedBoundedScopeImpl core;
 
-	internal BoundedScopeView(UntypedBoundedScope core) {
+	internal BoundedScopeView(UntypedBoundedScopeImpl core) {
 		this.core = core;
 		Stopping = new BoundedCt<L>(Generation, core.RawStopping);
 	}

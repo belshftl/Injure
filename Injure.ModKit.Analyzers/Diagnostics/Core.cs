@@ -19,34 +19,34 @@ internal static class Core {
 	public static readonly DiagnosticDescriptor BadHotReloadLevel = new(
 		id: "IJM0002",
 		title: "Invalid [ModAssembly] hot reload level",
-		messageFormat: "[ModAssembly] hot reload level value '{0}' s not a named ModAssemblyHotReloadLevel value",
+		messageFormat: "[ModAssembly] hot reload level value '{0}' is not a named ModAssemblyHotReloadLevel value",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
 	);
 
-	public static readonly DiagnosticDescriptor MissingLifetimeIdentityMarker = new(
+	public static readonly DiagnosticDescriptor NullLifetimeIdentityTypeArgument = new(
 		id: "IJM0003",
-		title: "Mod lifetime identity marker missing",
-		messageFormat: "Mods must declare a [ModLifetimeIdentityMarker] empty readonly struct implementing IModLifetimeIdentity",
+		title: "Null [ModAssembly] lifetime identity type argument",
+		messageFormat: "[ModAssembly] lifetime identity type argument is null",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
 	);
 
-	public static readonly DiagnosticDescriptor BadLifetimeIdentityMarkerTarget = new(
+	public static readonly DiagnosticDescriptor BadLifetimeIdentityType = new(
 		id: "IJM0004",
-		title: "Invalid [ModLifetimeIdentityMarker] struct",
-		messageFormat: "[ModLifetimeIdentityMarker] target struct '{0}' must be an empty readonly struct implementing IModLifetimeIdentity",
+		title: "Invalid mod lifetime identity marker type",
+		messageFormat: "Mod lifetime identity type '{0}' must be a public non-generic/nested/byreflike empty readonly struct implementing IModLifetimeIdentity, marked with [ModLifetimeIdentityBelongsTo(...)]",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
 	);
 
-	public static readonly DiagnosticDescriptor DuplicateLifetimeIdentityMarker = new(
+	public static readonly DiagnosticDescriptor LifetimeIdentityOwnerMismatch = new(
 		id: "IJM0005",
-		title: "Duplicate [ModLifetimeIdentityMarker] structs",
-		messageFormat: "There must be exactly one [ModLifetimeIdentityMarker] in the entire assembly; found {0}",
+		title: "Mod lifetime identity marker says it belongs to a different owner",
+		messageFormat: "Mod lifetime identity type '{0}' says it belongs to owner '{1}', while the mod assembly is '{2}'",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true

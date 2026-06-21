@@ -11,12 +11,14 @@ using Microsoft.CodeAnalysis;
 
 namespace Injure.ModKit.Analyzers.Core;
 
-internal sealed class ModAssemblyModel(AttributeData attribute, string ownerID, int hotReloadRawValue, string hotReloadName, bool isLive) {
+internal sealed class ModAssemblyModel(AttributeData attribute, string ownerID, int hotReloadRawValue, string hotReloadName, INamedTypeSymbol? lifetimeIdentityType) {
 	public AttributeData Attribute { get; } = attribute;
 	public string OwnerID { get; } = ownerID;
 	public int HotReloadRawValue { get; } = hotReloadRawValue;
 	public string HotReloadName { get; } = hotReloadName;
-	public bool IsLive { get; } = isLive;
+	public INamedTypeSymbol? LifetimeIdentityType { get; } = lifetimeIdentityType;
+
+	public bool IsLive => HotReloadRawValue == (int)Shared.ModAssemblyHotReloadLevelMirror.Live;
 	public Location Location => Attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None;
 }
 
@@ -39,8 +41,6 @@ internal sealed class Model {
 	private Model(
 		ModAssemblyModel? modAssembly,
 		ImmutableArray<AttributeData> modAssemblyAttributes,
-		ImmutableArray<INamedTypeSymbol> lifetimeCandidates,
-		LifetimeIdentityModel? lifetimeIdentity,
 		ImmutableArray<INamedTypeSymbol> entrypointCandidates,
 		EntrypointModel? entrypoint,
 		ImmutableArray<INamedTypeSymbol> reloadEntrypointCandidates,
@@ -48,8 +48,6 @@ internal sealed class Model {
 	) {
 		ModAssembly = modAssembly;
 		ModAssemblyAttributes = modAssemblyAttributes;
-		LifetimeCandidates = lifetimeCandidates;
-		LifetimeIdentity = lifetimeIdentity;
 		EntrypointCandidates = entrypointCandidates;
 		Entrypoint = entrypoint;
 		ReloadEntrypointCandidates = reloadEntrypointCandidates;
@@ -58,8 +56,6 @@ internal sealed class Model {
 
 	public ModAssemblyModel? ModAssembly { get; }
 	public ImmutableArray<AttributeData> ModAssemblyAttributes { get; }
-	public ImmutableArray<INamedTypeSymbol> LifetimeCandidates { get; }
-	public LifetimeIdentityModel? LifetimeIdentity { get; }
 	public ImmutableArray<INamedTypeSymbol> EntrypointCandidates { get; }
 	public EntrypointModel? Entrypoint { get; }
 	public ImmutableArray<INamedTypeSymbol> ReloadEntrypointCandidates { get; }
@@ -74,28 +70,23 @@ internal sealed class Model {
 		ModAssemblyModel? modAssembly = tryReadModAssembly(compilation, known, out ImmutableArray<AttributeData> modAssemblyAttrs);
 		var allTypes = collectAllNamedTypes(compilation.Assembly.GlobalNamespace).ToImmutableArray();
 
-		var lifetimeCandidates = allTypes
-			.Where(type => SymbolHelpers.HasAttribute(type, known.ModLifetimeIdentityMarkerAttribute, out _))
-			.ToImmutableArray();
-		LifetimeIdentityModel? lifetime = lifetimeCandidates.Length == 1
-			? tryReadLifetimeIdentity(lifetimeCandidates[0], known)
-			: null;
+		INamedTypeSymbol? lifetime = modAssembly?.LifetimeIdentityType;
 
 		var entrypointCandidates = allTypes
 			.Where(type => SymbolHelpers.HasAttribute(type, known.ModEntrypointAttribute, out _))
 			.ToImmutableArray();
 		EntrypointModel? entrypoint = entrypointCandidates.Length == 1 && lifetime is not null
-			? tryReadEntrypoint(entrypointCandidates[0], known.ModEntrypointAttribute, known.ModEntrypointInterface, lifetime.Type)
+			? tryReadEntrypoint(entrypointCandidates[0], known.ModEntrypointAttribute, known.ModEntrypointInterface, lifetime)
 			: null;
 
 		var reloadCandidates = allTypes
 			.Where(type => SymbolHelpers.HasAttribute(type, known.ModReloadEntrypointAttribute, out _))
 			.ToImmutableArray();
 		EntrypointModel? reload = reloadCandidates.Length == 1 && lifetime is not null
-			? tryReadEntrypoint(reloadCandidates[0], known.ModReloadEntrypointAttribute, known.ModReloadEntrypointInterface, lifetime.Type)
+			? tryReadEntrypoint(reloadCandidates[0], known.ModReloadEntrypointAttribute, known.ModReloadEntrypointInterface, lifetime)
 			: null;
 
-		return new Model(modAssembly, modAssemblyAttrs, lifetimeCandidates, lifetime, entrypointCandidates, entrypoint, reloadCandidates, reload);
+		return new Model(modAssembly, modAssemblyAttrs, entrypointCandidates, entrypoint, reloadCandidates, reload);
 	}
 
 	private static ModAssemblyModel? tryReadModAssembly(Compilation compilation, KnownTypes known, out ImmutableArray<AttributeData> matches) {
@@ -117,7 +108,13 @@ internal sealed class Model {
 
 		int raw = Convert.ToInt32(args[1].Value, CultureInfo.InvariantCulture);
 		string name = getEnumFieldName(known.ModAssemblyHotReloadLevel, raw) ?? raw.ToString(CultureInfo.InvariantCulture);
-		return new ModAssemblyModel(attr, ownerID, raw, name, StringComparer.Ordinal.Equals(name, "Live"));
+		TypedConstant lifetimeArg = args[2];
+		if (lifetimeArg.Kind != TypedConstantKind.Type)
+			return null;
+		INamedTypeSymbol? lifetime = null;
+		if (lifetimeArg.Value is not null && lifetimeArg.Value is INamedTypeSymbol sym)
+			lifetime = sym;
+		return new ModAssemblyModel(attr, ownerID, raw, name, lifetime);
 	}
 
 	internal static bool IsEnumValueNamed(INamedTypeSymbol? enumType, int raw) => getEnumFieldName(enumType, raw) is not null;
@@ -134,12 +131,6 @@ internal sealed class Model {
 				return field.Name;
 		}
 		return null;
-	}
-
-	private static LifetimeIdentityModel? tryReadLifetimeIdentity(INamedTypeSymbol type, KnownTypes known) {
-		if (!SymbolHelpers.HasAttribute(type, known.ModLifetimeIdentityMarkerAttribute, out AttributeData attr))
-			return null;
-		return new LifetimeIdentityModel(type, attr);
 	}
 
 	private static EntrypointModel? tryReadEntrypoint(

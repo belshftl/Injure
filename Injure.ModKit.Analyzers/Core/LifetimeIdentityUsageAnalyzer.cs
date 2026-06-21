@@ -37,7 +37,6 @@ public sealed class LifetimeIdentityAnalyzer : DiagnosticAnalyzer {
 				ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.CastExpression);
 				ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.AsExpression);
 				ctx.RegisterSyntaxNodeAction(c => analyzeConversionOrTypeTest(c, known), SyntaxKind.IsExpression);
-				ctx.RegisterSyntaxNodeAction(c => analyzeTypeof(c, known), SyntaxKind.TypeOfExpression);
 			}
 		);
 	}
@@ -116,11 +115,6 @@ public sealed class LifetimeIdentityAnalyzer : DiagnosticAnalyzer {
 		};
 		if (type is not null)
 			reportOrdinaryTypeUse(ctx, known, type);
-	}
-
-	private static void analyzeTypeof(SyntaxNodeAnalysisContext ctx, KnownTypes known) {
-		var @typeof = (TypeOfExpressionSyntax)ctx.Node;
-		reportOrdinaryTypeUse(ctx, known, @typeof.Type);
 	}
 
 	private static void reportOrdinaryTypeUse(SyntaxNodeAnalysisContext ctx, KnownTypes known, TypeSyntax typeSyntax) {

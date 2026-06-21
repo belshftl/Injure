@@ -35,7 +35,7 @@ internal static class HookApplier<TGameApi> {
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static async ValueTask applyAsync(
 		List<PatchDeclaration> patches,
-		IReadOnlyDictionary<string, UntypedBoundedScope> scopes,
+		IReadOnlyDictionary<string, UntypedBoundedScopeImpl> scopes,
 		int maxParallelDomains,
 		CancellationToken ct
 	) {
@@ -62,13 +62,13 @@ internal static class HookApplier<TGameApi> {
 
 	private static void applyDomainSerially(
 		List<PatchDeclaration> patches,
-		IReadOnlyDictionary<string, UntypedBoundedScope> scopes,
+		IReadOnlyDictionary<string, UntypedBoundedScopeImpl> scopes,
 		CancellationToken ct
 	) {
 		patches.Sort(compare);
 		foreach (PatchDeclaration patch in patches) {
 			ct.ThrowIfCancellationRequested();
-			if (!scopes.TryGetValue(patch.OwnerID, out UntypedBoundedScope? scope))
+			if (!scopes.TryGetValue(patch.OwnerID, out UntypedBoundedScopeImpl? scope))
 				throw new InternalStateException($"owner '{patch.OwnerID}' has no active owner scope");
 			patch.Commit(scope);
 		}

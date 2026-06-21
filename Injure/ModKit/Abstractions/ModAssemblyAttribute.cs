@@ -15,7 +15,8 @@ public enum ModAssemblyHotReloadLevel {
 }
 
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
-public sealed class ModAssemblyAttribute(string ownerID, ModAssemblyHotReloadLevel hotReloadLevel) : Attribute {
+public sealed class ModAssemblyAttribute(string ownerID, ModAssemblyHotReloadLevel hotReloadLevel, Type lifetimeIdentityType) : Attribute {
 	public string OwnerID { get; } = ownerID;
 	public ModAssemblyHotReloadLevel HotReloadLevel { get; } = hotReloadLevel;
+	public Type LifetimeIdentityType { get; } = lifetimeIdentityType;
 }
