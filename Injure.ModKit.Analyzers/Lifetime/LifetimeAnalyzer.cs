@@ -3,10 +3,10 @@
 
 using System.Collections.Immutable;
 
-using Injure.ModKit.Analyzers.Shared;
-
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+
+using Injure.ModKit.Analyzers.Shared;
 
 namespace Injure.ModKit.Analyzers.Lifetime;
 

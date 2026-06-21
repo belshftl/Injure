@@ -4,10 +4,10 @@
 using System.Collections.Immutable;
 using System.Linq;
 
-using Injure.ModKit.Analyzers.Shared;
-
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+
+using Injure.ModKit.Analyzers.Shared;
 
 namespace Injure.ModKit.Analyzers.Discouraged;
 

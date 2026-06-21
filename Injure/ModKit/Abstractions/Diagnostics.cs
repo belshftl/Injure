@@ -75,7 +75,8 @@ public readonly record struct DiagnosticEvent(
 	/// Throws if this <see cref="DiagnosticEvent"/> is invalid/malformed.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <see cref="SourceOwnerID"/> or <see cref="Message"/> is null.
+	/// Thrown if <see cref="SourceOwnerID"/> or <see cref="Message"/> is <see langword="null"/>,
+	/// or if <see cref="Generation"/> is non-null but its owner ID is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <see cref="SourceOwnerID"/> is not a valid owner ID, or if
@@ -87,8 +88,11 @@ public readonly record struct DiagnosticEvent(
 	public void Validate() {
 		ModMetadataValidation.ValidateOwnerIDOrThrow(SourceOwnerID);
 		ArgumentNullException.ThrowIfNull(Message);
-		if (Generation is ReloadGeneration g && g.OwnerID != SourceOwnerID)
-			throw new ArgumentException("SourceOwnerID doesn't match reload generation owner");
+		if (Generation is ReloadGeneration g) {
+			ArgumentNullException.ThrowIfNull(g.OwnerID);
+			if (g.OwnerID != SourceOwnerID)
+				throw new ArgumentException("SourceOwnerID doesn't match reload generation owner");
+		}
 		_ = Severity.Tag;
 	}
 }
