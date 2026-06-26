@@ -4,10 +4,10 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
-using Injure;
-using Injure.ModKit.Abstractions;
-using Injure.ModKit.Abstractions.MonoMod;
-using Injure.ModKit.Mods.MonoMod;
+using Injure.Mods;
+using Injure.Mods.MonoMod;
+using Injure.Mods.Utils.MonoMod;
+using Injure.Primitives;
 using MonoMod.Cil;
 using TestGame.ModApi;
 

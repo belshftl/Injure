@@ -34,17 +34,18 @@ public static partial class Audio {
 		IEquatable<ae_mix_frame>,
 		IEquatable<ae_optional_mix_frame>,
 		IComparable<ae_mix_frame>,
-		ISpanFormattable
-	{
+		ISpanFormattable {
 		private readonly ulong backing;
-		public ulong Value => backing != 0 ? backing : throw new InvalidOperationException("badly constructed ae_mix_frame value; if you got this from an API, this could be memory corruption");
+		public ulong Value => backing != 0
+			? backing
+			: throw new InvalidOperationException("badly constructed ae_mix_frame value; if you got this from an API, this could be memory corruption");
 
 		public static explicit operator ulong(ae_mix_frame val) => val.Value;
 		public static implicit operator ae_optional_mix_frame(ae_mix_frame val) => new(val.Value);
 
 		public bool Equals(ae_mix_frame other) => Value == other.Value;
 		public bool Equals(ae_optional_mix_frame other) => other.Value != 0 && Value == other.Value;
-		public override bool Equals([NotNullWhen(true)] object? obj) => (obj is ae_mix_frame mx && Equals(mx)) || (obj is ae_optional_mix_frame opt && Equals(opt));
+		public override bool Equals([NotNullWhen(true)] object? obj) => obj is ae_mix_frame mx && Equals(mx) || obj is ae_optional_mix_frame opt && Equals(opt);
 		public override int GetHashCode() => Value.GetHashCode();
 		public static bool operator ==(ae_mix_frame left, ae_mix_frame right) => left.Equals(right);
 		public static bool operator !=(ae_mix_frame left, ae_mix_frame right) => !left.Equals(right);

@@ -7,7 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-using Injure.DataStructures;
+using Injure.Collections;
 
 namespace Injure.Input;
 

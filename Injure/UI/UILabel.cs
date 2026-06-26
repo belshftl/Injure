@@ -5,8 +5,9 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 
-using Injure.Graphics;
-using Injure.Graphics.Text;
+using Injure.Draw;
+using Injure.Draw.Text;
+using Injure.Primitives;
 
 namespace Injure.UI;
 

@@ -7,7 +7,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-using Injure.Timing;
+using Injure.Time;
 
 namespace Injure.Input;
 

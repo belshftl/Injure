@@ -8,8 +8,8 @@ using System.Runtime.InteropServices;
 
 using Hexa.NET.SDL3;
 
-using Injure.DataStructures;
-using Injure.Timing;
+using Injure.Collections;
+using Injure.Time;
 
 namespace Injure.Input;
 

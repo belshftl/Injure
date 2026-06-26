@@ -3,7 +3,7 @@
 
 using System;
 
-using Injure.DataStructures;
+using Injure.Collections;
 
 namespace Injure.Input;
 

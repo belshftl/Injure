@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Input;
-using Injure.Scheduling;
-using Injure.Timing;
+using Injure.Sched.Tickers;
+using Injure.Time;
 
 namespace Injure.Layers;
 

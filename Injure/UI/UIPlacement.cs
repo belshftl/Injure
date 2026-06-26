@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Numerics;
 
 using Injure.Internals.Analyzers.Attributes;
+using Injure.Primitives;
 
 namespace Injure.UI;
 

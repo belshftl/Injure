@@ -1,8 +1,9 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 belshftl
+// SPDX-License-Identifier: MIT
 
 using HarfBuzzSharp;
 
-using Injure.Graphics.Text;
+using Injure.Draw.Text;
 
 using static Injure.Internals.Tests.Graphics.Text.Util;
 

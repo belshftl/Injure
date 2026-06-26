@@ -5,10 +5,11 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 
-using Injure.Core;
-using Injure.Graphics;
+using Injure.Draw;
 using Injure.Input;
-using Injure.Timing;
+using Injure.Primitives;
+using Injure.Runtime;
+using Injure.Time;
 
 namespace Injure.UI;
 

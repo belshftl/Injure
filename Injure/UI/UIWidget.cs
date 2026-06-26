@@ -5,7 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 
-using Injure.Graphics;
+using Injure.Draw;
+using Injure.Primitives;
 
 namespace Injure.UI;
 

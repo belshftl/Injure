@@ -8,7 +8,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-using Injure.ModKit.Abstractions.CodeAnalysis;
+using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Assets;
 

@@ -9,6 +9,8 @@ using WebGPU;
 
 using static WebGPU.WebGPU;
 
+using Injure.Common;
+
 namespace Injure.Rendering;
 
 /// <summary>

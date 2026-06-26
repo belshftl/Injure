@@ -5,6 +5,8 @@ using System;
 using System.Diagnostics;
 using System.Numerics;
 
+using Injure.Primitives;
+
 namespace Injure.UI;
 
 public static class UICanvasLayout {

@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 
-using Injure.ModKit.Abstractions;
+using Injure.Mods;
 
 namespace Injure.Assets;
 

@@ -11,8 +11,8 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../../Injure/Injure.csproj" />
-		<ProjectReference Include="../../Injure.ModKit/Injure.ModKit.csproj" />
-		<ProjectReference Include="../../Injure.ModKit.Mods/Injure.ModKit.Mods.csproj" /> <!-- TODO figure out something better than this sitting in the game -->
+		<ProjectReference Include="../../Injure.Mods.Runtime/Injure.Mods.Runtime.csproj" />
+		<ProjectReference Include="../../Injure.Mods.Utils/Injure.Mods.Utils.csproj" /> <!-- TODO figure out something better than this sitting in the game -->
 		<ProjectReference Include="../TestGame.ModApi/TestGame.ModApi.csproj" />
 	</ItemGroup>
 

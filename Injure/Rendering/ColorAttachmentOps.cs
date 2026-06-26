@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using Injure.Primitives;
+
 namespace Injure.Rendering;
 
 public readonly record struct ColorAttachmentOps(

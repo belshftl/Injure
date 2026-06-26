@@ -7,6 +7,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 
+using Injure.Mods;
+
 namespace Injure;
 
 /// <summary>
@@ -23,7 +25,7 @@ namespace Injure;
 /// the process; complete freedom on what exactly could happen is reserved.
 /// </para>
 /// <para>
-/// As an example of special treatment, <see cref="ModKit.Abstractions.ExceptionSnapshot"/> will refuse
+/// As an example of special treatment, <see cref="ExceptionSnapshot"/> will refuse
 /// to wrap this exception type and simply re-throws it instead.
 /// </para>
 /// </remarks>

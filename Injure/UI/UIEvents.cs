@@ -4,7 +4,8 @@
 using System.Numerics;
 
 using Injure.Input;
-using Injure.Timing;
+using Injure.Primitives;
+using Injure.Time;
 
 namespace Injure.UI;
 

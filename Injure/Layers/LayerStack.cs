@@ -6,10 +6,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Injure.Graphics;
+using Injure.Draw;
 using Injure.Input;
-using Injure.ModKit.Abstractions.CodeAnalysis;
-using Injure.Scheduling;
+using Injure.Mods.CodeAnalysis;
+using Injure.Sched.Tickers;
 
 namespace Injure.Layers;
 
