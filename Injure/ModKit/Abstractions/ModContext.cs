@@ -21,19 +21,19 @@ public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIden
 
 public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IModHookDeclarations<L> LoadHooks { get; }
+	IModExportDeclarations<L> Exports { get; }
 }
 
 public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
-	IReadOnlyCollection<LoadedDepInfo> LoadedDependencies { get; }
 	// TODO: IModHookDeclarations<L> LinkHooks { get; }
 
-	bool TryGetDependency(string ownerID, out LoadedDepInfo info);
-	bool TryGetCodeDependency(string ownerID, out UntypedLoadedCodeDepInfo info);
-	bool TryGetCodeDependency<LDependency>(out LoadedCodeDepInfo<LDependency> info) where LDependency : struct, IModLifetimeIdentity;
+	bool TryGetDependency(string ownerID, out LoadedDepInfo<L> info);
+	bool TryGetCodeDependency(string ownerID, out UntypedLoadedCodeDepInfo<L> info);
+	bool TryGetCodeDependency<LDependency>(out LoadedCodeDepInfo<L, LDependency> info) where LDependency : struct, IModLifetimeIdentity;
 
-	LoadedDepInfo RequireDependency(string ownerID);
-	UntypedLoadedCodeDepInfo RequireCodeDependency(string ownerID);
-	LoadedCodeDepInfo<LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity;
+	LoadedDepInfo<L> RequireDependency(string ownerID);
+	UntypedLoadedCodeDepInfo<L> RequireCodeDependency(string ownerID);
+	LoadedCodeDepInfo<L, LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity;
 }
 
 public interface IModActivateContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {

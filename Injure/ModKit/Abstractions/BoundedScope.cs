@@ -266,8 +266,7 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 /// Represents a runtime-managed disposal scope bounded over <typeparamref name="L"/>.
 /// </summary>
 /// <typeparam name="L">
-/// Lifetime identity bound or specifier; see <c>Docs/mods/lifetime-identity.md</c>
-/// for more info.
+/// Lifetime identity bound; see <c>Docs/mods/lifetime-identity.md</c> for more info.
 /// </typeparam>
 /// <remarks>
 /// <para>

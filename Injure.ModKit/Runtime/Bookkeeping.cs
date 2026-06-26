@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Reflection;
 
 using Injure.ModKit.Abstractions;
-using Injure.ModKit.Loader;
 using Injure.ModKit.MonoMod;
 
 namespace Injure.ModKit.Runtime;
@@ -25,7 +24,7 @@ internal readonly record struct ResolvedModGraph(
 );
 
 internal readonly record struct ModWavePlan(IReadOnlyList<IReadOnlyList<string>> Waves);
-internal readonly record struct StagedMod(ModSource Source, ModManifest Manifest, string StagedRoot, ReloadGeneration Generation, string? MainAssemblyPath);
+internal readonly record struct StagedMod(ModSource Source, ModManifest Manifest, string StagedRoot, ReloadGeneration Generation, string? EntryAssemblyPath);
 
 internal interface ILoadedMod : IStrongRefDroppable {
 	StagedMod Staged { get; }
@@ -81,6 +80,10 @@ internal sealed class LoadedCodeMod<TGameApi> : ILoadedMod {
 		get => loadHooksBacking ?? throw new InternalStateException("mod patch declaration set strong ref has already been dropped");
 		set => loadHooksBacking = value;
 	}
+	public required UntypedModExportTable Exports {
+		get => field ?? throw new InternalStateException("mod export table strong ref has already been dropped");
+		set;
+	}
 	public bool Active { get; set; }
 
 	public void DropStrongReferences() {
@@ -95,6 +98,8 @@ internal sealed class LoadedCodeMod<TGameApi> : ILoadedMod {
 		ActivationScope = null!;
 		loadHooksBacking?.DropStrongReferences();
 		loadHooksBacking = null;
+		Exports.DropStrongReferences();
+		Exports = null!;
 	}
 }
 

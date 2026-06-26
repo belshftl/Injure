@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Collections.Generic;
-using System.Linq;
 
 using Injure.Core;
 using Injure.ModKit.Abstractions;
@@ -58,6 +56,7 @@ internal abstract class ModContextImpl<TGameApi, L>(
 
 internal sealed class ModLoadContextImpl<TGameApi, L>(
 	ModHookDeclarations<TGameApi, L> loadHooks,
+	UntypedModExportTable exports,
 	string ownerID,
 	Semver version,
 	TGameApi api,
@@ -68,16 +67,21 @@ internal sealed class ModLoadContextImpl<TGameApi, L>(
 	where L : struct, IModLifetimeIdentity {
 	private ModHookDeclarations<TGameApi, L>? loadHooks = loadHooks;
 	public IModHookDeclarations<L> LoadHooks => loadHooks ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
+	public IModExportDeclarations<L> Exports {
+		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
+		private set;
+	} = exports.AsDeclsView<L>();
 
 	public override void OnDropStrongReferences() {
 		loadHooks?.DropStrongReferences();
 		loadHooks = null;
+		Exports = null!;
 	}
 }
 
 internal sealed class ModLinkContextImpl<TGameApi, L>(
-	IReadOnlyDictionary<string, LoadedDepInfo> loaded,
-	IReadOnlyDictionary<string, UntypedLoadedCodeDepInfo> loadedCode,
+	IReadOnlyDictionary<string, UntypedLoadedDepInfo> loaded,
+	IReadOnlyDictionary<string, UntypedUntypedLoadedCodeDepInfo> loadedCode,
 	string ownerID,
 	Semver version,
 	TGameApi api,
@@ -86,27 +90,51 @@ internal sealed class ModLinkContextImpl<TGameApi, L>(
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
 ) : ModContextImpl<TGameApi, L>(nameof(IModLinkContext<,>), ownerID, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLinkContext<TGameApi, L>
 	where L : struct, IModLifetimeIdentity {
-	private IReadOnlyDictionary<string, LoadedDepInfo>? loaded = loaded;
-	private IReadOnlyDictionary<string, UntypedLoadedCodeDepInfo>? loadedCode = loadedCode;
+	private IReadOnlyDictionary<string, UntypedLoadedDepInfo>? loaded = loaded;
+	private IReadOnlyDictionary<string, UntypedUntypedLoadedCodeDepInfo>? loadedCode = loadedCode;
 
-	public IReadOnlyCollection<LoadedDepInfo> LoadedDependencies { get; } = loaded.Values.ToArray();
-
-	public bool TryGetDependency(string ownerID, out LoadedDepInfo info) =>
-		loaded is not null ? loaded.TryGetValue(ownerID, out info) : throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), Generation);
-	public bool TryGetCodeDependency(string ownerID, out UntypedLoadedCodeDepInfo info) =>
-		loadedCode is not null ? loadedCode.TryGetValue(ownerID, out info) : throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), Generation);
-	public bool TryGetCodeDependency<LDependency>(out LoadedCodeDepInfo<LDependency> info) where LDependency : struct, IModLifetimeIdentity {
-		throw new NotImplementedException();
+	public bool TryGetDependency(string ownerID, out LoadedDepInfo<L> info) {
+		if (loaded is null)
+			throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), Generation);
+		if (loaded.TryGetValue(ownerID, out UntypedLoadedDepInfo u)) {
+			info = new LoadedDepInfo<L>(u.OwnerID, u.Version, u.Generation, u.Scope);
+			return true;
+		}
+		info = default;
+		return false;
 	}
 
-	public LoadedDepInfo RequireDependency(string ownerID) => TryGetDependency(ownerID, out LoadedDepInfo info)
+	public bool TryGetCodeDependency(string ownerID, out UntypedLoadedCodeDepInfo<L> info) {
+		if (loadedCode is null)
+			throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), Generation);
+		if (loadedCode.TryGetValue(ownerID, out UntypedUntypedLoadedCodeDepInfo u)) {
+			info = new UntypedLoadedCodeDepInfo<L>(u.LifetimeIdentityType, u.OwnerID, u.Version, u.Generation, u.Scope, u.Assembly);
+			return true;
+		}
+		info = default;
+		return false;
+	}
+
+	public bool TryGetCodeDependency<LDependency>(out LoadedCodeDepInfo<L, LDependency> info) where LDependency : struct, IModLifetimeIdentity {
+		if (loadedCode is null)
+			throw new ModLifecycleContextExpiredException(nameof(IModLinkContext<,>), Generation);
+		string ownerID = ModLifetimeOwnerInference.Infer<LDependency>();
+		if (loadedCode.TryGetValue(ownerID, out UntypedUntypedLoadedCodeDepInfo u)) {
+			info = new LoadedCodeDepInfo<L, LDependency>(u.OwnerID, u.Version, u.Generation, u.Scope.AsTyped<LDependency>(), u.Exports.AsTableView<L, LDependency>(Generation), u.Assembly);
+			return true;
+		}
+		info = default;
+		return false;
+	}
+
+	public LoadedDepInfo<L> RequireDependency(string ownerID) => TryGetDependency(ownerID, out LoadedDepInfo<L> info)
 		? info
 		: throw new ModLoadException(OwnerID, $"declared dependency '{ownerID}' is not loaded");
-	public UntypedLoadedCodeDepInfo RequireCodeDependency(string ownerID) => TryGetCodeDependency(ownerID, out UntypedLoadedCodeDepInfo info)
+	public UntypedLoadedCodeDepInfo<L> RequireCodeDependency(string ownerID) => TryGetCodeDependency(ownerID, out UntypedLoadedCodeDepInfo<L> info)
 		? info
 		: throw new ModLoadException(OwnerID, $"declared code dependency '{ownerID}' is not loaded");
-	public LoadedCodeDepInfo<LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity =>
-		TryGetCodeDependency(out LoadedCodeDepInfo<LDependency> info) ? info
+	public LoadedCodeDepInfo<L, LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity =>
+		TryGetCodeDependency(out LoadedCodeDepInfo<L, LDependency> info) ? info
 		: throw new ModLoadException(OwnerID, $"declared code dependency wiht lifetime identity type '{typeof(LDependency)}' is not loaded");
 
 	public override void OnDropStrongReferences() {

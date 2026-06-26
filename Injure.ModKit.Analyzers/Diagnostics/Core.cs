@@ -55,7 +55,7 @@ internal static class Core {
 	public static readonly DiagnosticDescriptor MissingEntrypoint = new(
 		id: "IJM0006",
 		title: "Mod entrypoint missing",
-		messageFormat: "Mods must declare a [ModEntrypoint] non-generic sealed class implementing IModEntrypoint<in TGameApi, L>",
+		messageFormat: "Mods must declare a [ModEntrypoint] closed-generic sealed class implementing IModEntrypoint<in TGameApi, L>",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
@@ -64,7 +64,7 @@ internal static class Core {
 	public static readonly DiagnosticDescriptor BadEntrypointTarget = new(
 		id: "IJM0007",
 		title: "Invalid [ModEntrypoint] class",
-		messageFormat: "[ModEntrypoint] target class '{0}' must be a non-generic sealed class implementing IModEntrypoint<in TGameApi, L> with lifetime marker '{1}'",
+		messageFormat: "[ModEntrypoint] target class '{0}' must be a closed-generic sealed class implementing IModEntrypoint<in TGameApi, L> with lifetime marker '{1}'",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
@@ -82,7 +82,7 @@ internal static class Core {
 	public static readonly DiagnosticDescriptor MissingReloadEntrypoint = new(
 		id: "IJM0009",
 		title: "Mod reload entrypoint missing",
-		messageFormat: "Live-reloadable mods must declare a [ModReloadEntrypoint] non-generic sealed class implementing IModReloadEntrypoint<in TGameApi, L>",
+		messageFormat: "Live-reloadable mods must declare a [ModReloadEntrypoint] closed-generic sealed class implementing IModReloadEntrypoint<in TGameApi, L>",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
@@ -92,7 +92,7 @@ internal static class Core {
 		id: "IJM0010",
 		title: "Invalid [ModReloadEntrypoint] class",
 		messageFormat:
-		"[ModReloadEntrypoint] target class '{0}' must be a non-generic sealed class implementing IModReloadEntrypoint<in TGameApi, L> with TGameApi '{1}' and lifetime marker '{2}'",
+		"[ModReloadEntrypoint] target class '{0}' must be a closed-generic sealed class implementing IModReloadEntrypoint<in TGameApi, L> with TGameApi '{1}' and lifetime marker '{2}'",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true

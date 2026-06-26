@@ -7,7 +7,7 @@ using System.Reflection;
 
 using Injure.ModKit.Abstractions;
 
-namespace Injure.ModKit.Loader;
+namespace Injure.ModKit.Runtime;
 
 internal static class ModTypeDiscovery {
 	public static Type FindEntrypointType(Assembly assembly, Type gameApiType, Type lifetimeIdentityType, string sourceName) {
