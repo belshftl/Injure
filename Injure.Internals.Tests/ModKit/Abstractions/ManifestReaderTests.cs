@@ -16,7 +16,8 @@ public sealed class ManifestReaderTests {
 		string extra = "",
 		string relationships = "[]",
 		string assets = """{ "management": "none" }""",
-		string nativeLibraries = "[]"
+		string nativeLibraries = "[]",
+		string contractAssemblies = "[]"
 	) => $$"""
 {
 	"schema": 0,
@@ -35,7 +36,8 @@ public sealed class ManifestReaderTests {
 	"relationships": {{relationships}},
 	"assets": {{assets}},
 	"native-libraries": {{nativeLibraries}},
-	"entry-assembly": "bin/TestMod.dll"{{extra}}
+	"entry-assembly": "bin/TestMod.dll",
+	"contract-assemblies": {{contractAssemblies}}{{extra}}
 }
 """;
 
@@ -591,8 +593,29 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
+	public void ParsesContractAssembliesOnCodeMod() {
+		string contractAssemblies = @"[""bin/TestMod.Contracts.dll""]";
+		CodeModManifest manifest = Assert.IsType<CodeModManifest>(parse(validCodeManifest(contractAssemblies: contractAssemblies)));
+		Assert.Single(manifest.ContractAssemblies);
+		Assert.Equal("bin/TestMod.Contracts.dll", manifest.ContractAssemblies[0]);
+	}
+
+	[Fact]
+	public void RejectsContractAssembliesOnContentMod() {
+		ManifestReadException ex = parseError(
+			validContentManifest(
+				extra: @",
+	""contract-assemblies"": [""Mod.Contracts.dll""]
+"
+			)
+		);
+		Assert.Equal("$.contract-assemblies", ex.JsonNodePath);
+		Assert.Contains("only valid for code mods", ex.Message);
+	}
+
+	[Fact]
 	public void ParsesGameCompatibility() {
-		string json = validContentManifest(extra: "", assets: """{ "management": "none" }""").Replace(
+		string json = validContentManifest(assets: """{ "management": "none" }""").Replace(
 			@"""game"": {}",
 			"""
 	"game": {

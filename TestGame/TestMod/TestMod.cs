@@ -17,6 +17,14 @@ using TestMod.Contracts;
 
 namespace TestMod;
 
+internal sealed class ExportsImpl(IOwnerDiagnostics log) : ITestModExports {
+	private readonly IOwnerDiagnostics log = log;
+
+	public void DoSomething() {
+		log.Info("DoSomething() called!");
+	}
+}
+
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
 	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModL> ctx, BoundedCt<TestModL> ct) {
@@ -25,6 +33,7 @@ public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
 			DetourID = "jdoe.test-mod::SomeHook",
 		});
 		*/
+		ctx.Exports.Add<ITestModExports>(new ExportsImpl(ctx.Diagnostics));
 		ctx.Diagnostics.Info("loaded!");
 		ctx.Api.MarkLoaded(ctx.OwnerID);
 		return ValueTask.CompletedTask;

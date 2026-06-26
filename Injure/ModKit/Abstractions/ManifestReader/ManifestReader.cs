@@ -33,7 +33,8 @@ public static class ManifestReader {
 			"relationships",
 			"assets",
 			"native-libraries",
-			"entry-assembly"
+			"entry-assembly",
+			"contract-assemblies"
 		);
 
 		int schema = root.RequiredInt("schema");
@@ -113,6 +114,7 @@ public static class ManifestReader {
 		IReadOnlyList<ModNativeLibraryManifest> nativeLibraries
 	) {
 		rejectIfPresent(root, "entry-assembly", "entry-assembly is only valid for code mods");
+		rejectIfPresent(root, "contract-assemblies", "contract-assemblies is only valid for code mods");
 		return new ContentModManifest {
 			OwnerID = ownerID,
 			Version = version,
@@ -142,7 +144,8 @@ public static class ManifestReader {
 		IReadOnlyList<ModNativeLibraryManifest> nativeLibraries
 	) {
 		string entryAssembly = root.RequiredString("entry-assembly");
-		validateRelativePath(entryAssembly, root.RequiredNode("entry-assembly"), "entry-assembly");
+		validateRelativePath(entryAssembly, root.RequiredNode("entry-assembly"), "entry assembly");
+		IReadOnlyList<string> contractAssemblies = readContractAssemblies(root.OptionalArray("contract-assemblies"));
 		return new CodeModManifest {
 			OwnerID = ownerID,
 			Version = version,
@@ -156,6 +159,7 @@ public static class ManifestReader {
 			NativeLibraries = nativeLibraries,
 			EntryAssembly = entryAssembly,
 			LiveReloadable = liveReloadable,
+			ContractAssemblies = contractAssemblies,
 		};
 	}
 
@@ -284,7 +288,7 @@ public static class ManifestReader {
 			validateLocalID(id, lib.RequiredNode("id"), "native library ID");
 
 			string path = lib.RequiredString("path");
-			validateRelativePath(path, lib.RequiredNode("path"), "native library path");
+			validateRelativePath(path, lib.RequiredNode("path"), "native library");
 
 			string rid = lib.RequiredString("rid");
 			if (string.IsNullOrWhiteSpace(rid))
@@ -300,6 +304,23 @@ public static class ManifestReader {
 					RuntimeIdentifier = rid,
 				}
 			);
+		}
+		return result;
+	}
+
+	private static IReadOnlyList<string> readContractAssemblies(IReadOnlyList<JNode> nodes) {
+		if (nodes.Count == 0)
+			return Array.Empty<string>();
+		List<string> result = new(nodes.Count);
+		HashSet<string> seen = new(StringComparer.Ordinal);
+		foreach (JNode node in nodes) {
+			if (node.Kind != JKind.String)
+				throw err(node, "must be a string");
+			string v = node.StringValue!;
+			validateRelativePath(v, node, "contract assembly");
+			if (!seen.Add(v))
+				throw err(node, $"duplicate contract assembly '{v}'");
+			result.Add(v);
 		}
 		return result;
 	}

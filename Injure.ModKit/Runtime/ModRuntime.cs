@@ -19,7 +19,6 @@ using Injure.Core;
 using Injure.Internals.Analyzers.Attributes;
 using Injure.ModKit.Abstractions;
 using Injure.ModKit.Abstractions.ManifestReader;
-using Injure.ModKit.Loader;
 using Injure.ModKit.MonoMod;
 
 namespace Injure.ModKit.Runtime;
@@ -62,6 +61,7 @@ public readonly partial struct RuntimePhase {
 		Resolved,
 		Staged,
 		NativeLibrariesResolved,
+		ContractAssembliesLoaded,
 		CodeLoaded,
 		HooksDiscovered,
 		Loaded,
@@ -192,6 +192,7 @@ public sealed class ModRuntime<TGameApi> {
 	private ResolvedModGraph activeGraph;
 	private IReadOnlyList<StagedMod> staged = Array.Empty<StagedMod>();
 	private readonly NativeLibraryRegistry nativeLibs = new(RuntimeInformation.RuntimeIdentifier);
+	private ModContractsAlc? contractsAlc;
 	private readonly Dictionary<string, LoadedCodeMod<TGameApi>> activeCode = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, LoadedContentMod> activeContent = new(StringComparer.Ordinal);
 	private GameServices? attachedGameServices;
@@ -234,6 +235,7 @@ public sealed class ModRuntime<TGameApi> {
 		await ResolveAsync(ct).ConfigureAwait(false);
 		await StageAsync(ct).ConfigureAwait(false);
 		await ResolveNativeLibrariesAsync(ct).ConfigureAwait(false);
+		await LoadContractAssembliesAsync(ct).ConfigureAwait(false);
 		await LoadCodeAsync(ct).ConfigureAwait(false);
 		await DiscoverHooksAsync(ct).ConfigureAwait(false);
 		await LoadAsync(ct).ConfigureAwait(false);
@@ -342,9 +344,8 @@ public sealed class ModRuntime<TGameApi> {
 	public async ValueTask StageAsync(CancellationToken ct) {
 		requirePhase(RuntimePhase.Resolved, nameof(StageAsync));
 		try {
-			ResolvedModGraph graph = activeGraph;
 			List<StagedMod> result = new();
-			foreach (ResolvedMod mod in graph.ModsInDeterministicOrder) {
+			foreach (ResolvedMod mod in activeGraph.ModsInDeterministicOrder) {
 				ct.ThrowIfCancellationRequested();
 				result.Add(await stageOneAsync(mod.Source, mod.Manifest, ct).ConfigureAwait(false));
 			}
@@ -369,8 +370,33 @@ public sealed class ModRuntime<TGameApi> {
 		}
 	}
 
+	public ValueTask LoadContractAssembliesAsync(CancellationToken ct) {
+		requirePhase(RuntimePhase.NativeLibrariesResolved, nameof(LoadContractAssembliesAsync));
+		ct.ThrowIfCancellationRequested();
+		try {
+			Dictionary<string, string> pathsBySimpleName = new(StringComparer.OrdinalIgnoreCase);
+			foreach (StagedMod mod in staged) {
+				if (mod.Manifest is not CodeModManifest c)
+					continue;
+				foreach (string relativePath in c.ContractAssemblies) {
+					string path = Path.GetFullPath(Path.Combine(mod.StagedRoot, relativePath));
+					var name = AssemblyName.GetAssemblyName(path);
+					string simpleName = name.Name ?? throw new ModLoadException(mod.Manifest.OwnerID, $"contract assembly '{relativePath}' has no simple assembly name");
+					if (!pathsBySimpleName.TryAdd(simpleName, path))
+						throw new ModLoadException(mod.Manifest.OwnerID, $"contract assembly '{simpleName}' has already been defined");
+				}
+			}
+			contractsAlc = new ModContractsAlc(pathsBySimpleName);
+			phase = RuntimePhase.ContractAssembliesLoaded;
+			return ValueTask.CompletedTask;
+		} catch {
+			phase = RuntimePhase.Faulted;
+			throw;
+		}
+	}
+
 	public async ValueTask LoadCodeAsync(CancellationToken ct) {
-		requirePhase(RuntimePhase.NativeLibrariesResolved, nameof(LoadCodeAsync));
+		requirePhase(RuntimePhase.ContractAssembliesLoaded, nameof(LoadCodeAsync));
 		try {
 			foreach (StagedMod mod in staged) {
 				ct.ThrowIfCancellationRequested();
@@ -435,8 +461,8 @@ public sealed class ModRuntime<TGameApi> {
 	public async ValueTask LinkAsync(CancellationToken ct) {
 		requirePhase(RuntimePhase.LoadHooksApplied, nameof(LinkAsync));
 		try {
-			Dictionary<string, LoadedDepInfo>? owners = buildOwnerInfo(activeContent.Values.Cast<ILoadedMod>().Concat(activeCode.Values));
-			Dictionary<string, UntypedLoadedCodeDepInfo>? codeOwners = buildCodeOwnerInfo(activeCode.Values);
+			Dictionary<string, UntypedLoadedDepInfo>? owners = buildOwnerInfo(activeContent.Values.Cast<ILoadedMod>().Concat(activeCode.Values));
+			Dictionary<string, UntypedUntypedLoadedCodeDepInfo>? codeOwners = buildCodeOwnerInfo(activeCode.Values);
 			try {
 				foreach (IReadOnlyList<string> wave in activeGraph.Waves.Waves) {
 					ct.ThrowIfCancellationRequested();
@@ -1112,11 +1138,11 @@ public sealed class ModRuntime<TGameApi> {
 				.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Staged.Manifest.OwnerID) && !prepareSet.Contains(mod.Staged.Manifest.OwnerID))
 				.Concat(preparedCode.Values);
 
-			Dictionary<string, LoadedDepInfo> candidateOwnersInfo = buildOwnerInfo(
+			Dictionary<string, UntypedLoadedDepInfo> candidateOwnersInfo = buildOwnerInfo(
 				candidateContent.Cast<ILoadedMod>().Concat(candidateCode)
 			);
 
-			Dictionary<string, UntypedLoadedCodeDepInfo> candidateCodeOwnersInfo = buildCodeOwnerInfo(
+			Dictionary<string, UntypedUntypedLoadedCodeDepInfo> candidateCodeOwnersInfo = buildCodeOwnerInfo(
 				candidateCode
 			);
 
@@ -1341,23 +1367,25 @@ public sealed class ModRuntime<TGameApi> {
 
 	private LoadedCodeMod<TGameApi> loadCodeMod(StagedMod stagedMod) {
 		var manifest = (CodeModManifest)stagedMod.Manifest;
-		if (stagedMod.MainAssemblyPath is null || !File.Exists(stagedMod.MainAssemblyPath))
+		if (stagedMod.EntryAssemblyPath is null || !File.Exists(stagedMod.EntryAssemblyPath))
 			throw new ModLoadException(manifest.OwnerID, $"entry assembly '{manifest.EntryAssembly}' not found");
+		if (contractsAlc is null)
+			throw new InternalStateException("contracts alc not made yet");
 
-		ModAlc alc = new(stagedMod.MainAssemblyPath, sharedAssemblies, $"mod:{stagedMod.Generation}");
+		ModAlc alc = new(stagedMod.EntryAssemblyPath, sharedAssemblies, contractsAlc, $"mod:{stagedMod.Generation}");
 		UntypedBoundedScopeImpl? scope = null;
 		try {
-			Assembly assembly = alc.LoadFromAssemblyPath(stagedMod.MainAssemblyPath);
+			Assembly assembly = alc.LoadFromAssemblyPath(stagedMod.EntryAssemblyPath);
 			Type lifetimeIdentityType = validateModAssemblyAttribute(manifest, assembly).LifetimeIdentityType;
 			foreach (Assembly asm in alc.Assemblies)
 				nativeLibs.RegisterAssembly(asm, stagedMod.Generation);
 
 			scope = new UntypedBoundedScopeImpl(stagedMod.Generation, maxScopeTeardownParallelism);
-			Type entryType = ModTypeDiscovery.FindEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.MainAssemblyPath);
+			Type entryType = ModTypeDiscovery.FindEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.EntryAssemblyPath);
 			object entrypoint = Activator.CreateInstance(entryType)!;
 			object? reloadEntrypoint = null;
 			if (manifest.LiveReloadable) {
-				Type reloadEntrypointType = ModTypeDiscovery.FindReloadEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.MainAssemblyPath);
+				Type reloadEntrypointType = ModTypeDiscovery.FindReloadEntrypointType(assembly, typeof(TGameApi), lifetimeIdentityType, stagedMod.EntryAssemblyPath);
 				reloadEntrypoint = Activator.CreateInstance(reloadEntrypointType)!;
 			}
 
@@ -1370,6 +1398,7 @@ public sealed class ModRuntime<TGameApi> {
 				Entrypoint = entrypoint,
 				ReloadEntrypoint = reloadEntrypoint,
 				LoadHooks = new GenerationPatchSet(),
+				Exports = new UntypedModExportTable(lifetimeIdentityType),
 			};
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
 			try {
@@ -1397,12 +1426,12 @@ public sealed class ModRuntime<TGameApi> {
 
 	private async ValueTask runLinkAsync(
 		LoadedCodeMod<TGameApi> mod,
-		IReadOnlyDictionary<string, LoadedDepInfo> owners,
-		IReadOnlyDictionary<string, UntypedLoadedCodeDepInfo> codeOwners,
+		IReadOnlyDictionary<string, UntypedLoadedDepInfo> owners,
+		IReadOnlyDictionary<string, UntypedUntypedLoadedCodeDepInfo> codeOwners,
 		CancellationToken ct
 	) {
-		Dictionary<string, LoadedDepInfo>? dependencies = buildDeclaredDependencyInfo(mod.Staged.Manifest, owners);
-		Dictionary<string, UntypedLoadedCodeDepInfo>? codeDependencies = buildDeclaredDependencyInfo(mod.Staged.Manifest, codeOwners);
+		Dictionary<string, UntypedLoadedDepInfo>? dependencies = buildDeclaredDependencyInfo(mod.Staged.Manifest, owners);
+		Dictionary<string, UntypedUntypedLoadedCodeDepInfo>? codeDependencies = buildDeclaredDependencyInfo(mod.Staged.Manifest, codeOwners);
 		object ctx = createLinkContext(mod, createApi(mod), diagnosticsSinkRegistry, dependencies, codeDependencies);
 		try {
 			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.LinkAsync), ctx, ct).ConfigureAwait(false);
@@ -1718,6 +1747,7 @@ public sealed class ModRuntime<TGameApi> {
 	) => Activator.CreateInstance(
 		typeof(ModLoadContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
 		createLoadHookDeclarations(mod, resolver),
+		mod.Exports,
 		mod.Staged.Manifest.OwnerID,
 		mod.Staged.Manifest.Version,
 		api,
@@ -1730,8 +1760,8 @@ public sealed class ModRuntime<TGameApi> {
 		LoadedCodeMod<TGameApi> mod,
 		TGameApi api,
 		DiagnosticsSinkRegistry diagnosticsSinkRegistry,
-		IReadOnlyDictionary<string, LoadedDepInfo> dependencies,
-		IReadOnlyDictionary<string, UntypedLoadedCodeDepInfo> codeDependencies
+		IReadOnlyDictionary<string, UntypedLoadedDepInfo> dependencies,
+		IReadOnlyDictionary<string, UntypedUntypedLoadedCodeDepInfo> codeDependencies
 	) => Activator.CreateInstance(
 		typeof(ModLinkContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
 		dependencies,
@@ -1780,10 +1810,10 @@ public sealed class ModRuntime<TGameApi> {
 	)!;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static Dictionary<string, LoadedDepInfo> buildOwnerInfo(IEnumerable<ILoadedMod> mods) =>
+	private static Dictionary<string, UntypedLoadedDepInfo> buildOwnerInfo(IEnumerable<ILoadedMod> mods) =>
 		mods.ToDictionary(
 			static mod => mod.Staged.Manifest.OwnerID,
-			static mod => new LoadedDepInfo(
+			static mod => new UntypedLoadedDepInfo(
 				mod.Staged.Manifest.OwnerID,
 				mod.Staged.Manifest.Version,
 				mod.Staged.Generation,
@@ -1793,16 +1823,17 @@ public sealed class ModRuntime<TGameApi> {
 		);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static Dictionary<string, UntypedLoadedCodeDepInfo> buildCodeOwnerInfo(IEnumerable<LoadedCodeMod<TGameApi>> mods) =>
+	private static Dictionary<string, UntypedUntypedLoadedCodeDepInfo> buildCodeOwnerInfo(IEnumerable<LoadedCodeMod<TGameApi>> mods) =>
 		mods.ToDictionary(
 			static mod => mod.Staged.Manifest.OwnerID,
-			static mod => new UntypedLoadedCodeDepInfo(
-				mod.LifetimeIdentityType,
+			static mod => new UntypedUntypedLoadedCodeDepInfo(
 				mod.Staged.Manifest.OwnerID,
 				mod.Staged.Manifest.Version,
 				mod.Staged.Generation,
 				mod.Scope,
-				mod.Assembly
+				mod.Exports,
+				mod.Assembly,
+				mod.LifetimeIdentityType
 			),
 			StringComparer.Ordinal
 		);
