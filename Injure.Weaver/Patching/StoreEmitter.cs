@@ -12,7 +12,7 @@ using Injure.Weaver.Model;
 namespace Injure.Weaver.Patching;
 
 public static class StoreEmitter {
-	public const string HtsName = "__Injure_ModKit_HookTargetStore";
+	public const string HtsName = "__Injure_HookTargetStore";
 
 	public static TypeDefinition Emit(
 		ModuleDefinition module,

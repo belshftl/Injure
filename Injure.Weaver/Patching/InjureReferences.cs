@@ -8,11 +8,11 @@ using Mono.Cecil;
 namespace Injure.Weaver.Patching;
 
 public sealed class InjureReferences {
-	public const string PublicizedAttributeFullName = "Injure.ModKit.Abstractions.Weaver.PublicizedAttribute";
-	public const string PublicizedSignatureAttributeFullName = "Injure.ModKit.Abstractions.Weaver.PublicizedSignatureAttribute";
-	public const string PublicizedStateMachineAttributeFullName = "Injure.ModKit.Abstractions.Weaver.PublicizedStateMachineAttribute";
-	public const string ModHookTargetStoreAttributeFullName = "Injure.ModKit.Abstractions.MonoMod.ModHookTargetStoreAttribute";
-	public const string HookTargetFullName = "Injure.ModKit.Abstractions.MonoMod.HookTarget";
+	public const string PublicizedAttributeFullName = "Injure.Mods.Weaver.PublicizedAttribute";
+	public const string PublicizedSignatureAttributeFullName = "Injure.Mods.Weaver.PublicizedSignatureAttribute";
+	public const string PublicizedStateMachineAttributeFullName = "Injure.Mods.Weaver.PublicizedStateMachineAttribute";
+	public const string ModHookTargetStoreAttributeFullName = "Injure.Mods.MonoMod.ModHookTargetStoreAttribute";
+	public const string HookTargetFullName = "Injure.Mods.MonoMod.HookTarget";
 
 	public required TypeReference PublicizedAttributeType { get; init; }
 	public required MethodReference PublicizedAttributeCtor { get; init; }

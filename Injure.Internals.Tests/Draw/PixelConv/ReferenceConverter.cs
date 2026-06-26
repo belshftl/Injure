@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 
 using Injure.Draw.PixelConv;
 
-namespace Injure.Internals.Tests.Graphics.PixelConv;
+namespace Injure.Internals.Tests.Draw.PixelConv;
 
 public enum ReferenceFamily {
 	Copy32SetAlpha,

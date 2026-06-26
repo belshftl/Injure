@@ -27,7 +27,7 @@ internal enum ObligationState {
 	Satisfied,
 }
 
-// mirrors Injure.ModKit.Abstractions.CodeAnalysis.ObligationSatisfactionLevel
+// mirrors Injure.Mods.CodeAnalysis.ObligationSatisfactionLevel
 internal enum ObligationSatisfactionLevel {
 	None = 0,
 	Generation = 1,

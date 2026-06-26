@@ -5,7 +5,7 @@
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<NoWarn>$(NoWarn);CS1591</NoWarn> <!-- temporary, disable warnings for undocumented public members -->
 
-		<PackageId>Injure.ModKit</PackageId>
+		<PackageId>Injure.Mods.Runtime</PackageId>
 		<Version>0.1.0-alpha.0</Version>
 		<Authors>AtBelshftl</Authors>
 		<Description>mod loader kit from the game framework/engine colloquially known as Injure</Description>

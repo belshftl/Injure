@@ -75,7 +75,7 @@ public sealed class Game : IGame {
 			ApiFactory = _ => new TestApi(),
 			SharedAssemblies = [
 				"Injure",
-				"Injure.ModKit",
+				"Injure.Mods.Runtime",
 				"TestGame.ModApi",
 				"MonoMod.RuntimeDetour",
 				"MonoMod.Utils",
