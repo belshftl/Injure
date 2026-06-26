@@ -5,9 +5,9 @@ using HarfBuzzSharp;
 
 using Injure.Draw.Text;
 
-using static Injure.Internals.Tests.Graphics.Text.Util;
+using static Injure.Internals.Tests.Draw.Text.Util;
 
-namespace Injure.Internals.Tests.Graphics.Text;
+namespace Injure.Internals.Tests.Draw.Text;
 
 public sealed class TextBidiTests {
 	[Fact]

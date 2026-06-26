@@ -2,7 +2,7 @@
 
 Storing plain `Exception` objects is hostile to mod reloadability; they're oftentimes types originating from foreign ALCs, and as such will count as a root for them and prevent them from being unloaded.
 
-The standard type used to store information about an exception without retaining the exception object itself is `ExceptionSnapshot` from `Injure.ModKit.Abstractions`. It attempts to retain any available information about the exception, such as the type name, assembly-qualified name, message, stacktrace, exception text, `Source`/`HelpLink`, and inner exceptions, all converted to their string representations.
+The standard type used to store information about an exception without retaining the exception object itself is `ExceptionSnapshot` from `Injure.Mods`. It attempts to retain any available information about the exception, such as the type name, assembly-qualified name, message, stacktrace, exception text, `Source`/`HelpLink`, and inner exceptions, all converted to their string representations.
 
 These are created with `public static ExceptionSnapshot FromException(Exception ex)`. The dedicated exception type for rethrowing them is `ForeignException`, which is constructed with `.ToException()`, meaning that throwing them is as simple as:
 ```csharp

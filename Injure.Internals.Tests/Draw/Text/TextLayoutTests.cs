@@ -3,7 +3,7 @@
 
 using Injure.Draw.Text;
 
-namespace Injure.Internals.Tests.Graphics.Text;
+namespace Injure.Internals.Tests.Draw.Text;
 
 public sealed class TextLayoutTests {
 	[Fact]

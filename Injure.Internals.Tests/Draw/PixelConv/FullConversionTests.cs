@@ -5,9 +5,9 @@ using System;
 
 using Injure.Draw.PixelConv;
 
-using static Injure.Internals.Tests.Graphics.PixelConv.Util;
+using static Injure.Internals.Tests.Draw.PixelConv.Util;
 
-namespace Injure.Internals.Tests.Graphics.PixelConv;
+namespace Injure.Internals.Tests.Draw.PixelConv;
 
 public sealed class FullConversionTests {
 	private const byte SrcGuard = 0xc7;

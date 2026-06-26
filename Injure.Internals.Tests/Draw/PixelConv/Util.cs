@@ -5,7 +5,7 @@ using System.Diagnostics;
 
 using Injure.Draw.PixelConv;
 
-namespace Injure.Internals.Tests.Graphics.PixelConv;
+namespace Injure.Internals.Tests.Draw.PixelConv;
 
 public static class Util {
 	public static byte[] Rgba64LE(params (ushort R, ushort G, ushort B, ushort A)[] pixels) {

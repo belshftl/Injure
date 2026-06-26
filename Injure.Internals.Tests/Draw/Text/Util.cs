@@ -7,7 +7,7 @@ using HarfBuzzSharp;
 
 using Injure.Draw.Text;
 
-namespace Injure.Internals.Tests.Graphics.Text;
+namespace Injure.Internals.Tests.Draw.Text;
 
 internal static class Util {
 	public static void AssertSpans(ReadOnlySpan<GraphemeSpan> actual, params (int Start, int Length)[] expected) {
