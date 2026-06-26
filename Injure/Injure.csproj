@@ -22,7 +22,7 @@
 		<ProjectReference Include="../Injure.Internals.Analyzers/Injure.Internals.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		<ProjectReference Include="../Injure.Native/Injure.Native.csproj" />
 		<InternalsVisibleTo Include="Injure.Internals.Tests" />
-		<InternalsVisibleTo Include="Injure.ModKit" />
+		<InternalsVisibleTo Include="Injure.Mods.Runtime" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -45,16 +45,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<EmbeddedResource Include="Resources/Shaders/primitive2d.wgsl">
+		<EmbeddedResource Include="Rendering/Shaders/primitive2d.wgsl">
 			<LogicalName>shaders/primitive2d.wgsl</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Resources/Shaders/textured2dColor.wgsl">
+		<EmbeddedResource Include="Rendering/Shaders/textured2dColor.wgsl">
 			<LogicalName>shaders/textured2dColor.wgsl</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Resources/Shaders/textured2dRMask.wgsl">
+		<EmbeddedResource Include="Rendering/Shaders/textured2dRMask.wgsl">
 			<LogicalName>shaders/textured2dRMask.wgsl</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Resources/Shaders/textured2dSDF.wgsl">
+		<EmbeddedResource Include="Rendering/Shaders/textured2dSDF.wgsl">
 			<LogicalName>shaders/textured2dSDF.wgsl</LogicalName>
 		</EmbeddedResource>
 	</ItemGroup>

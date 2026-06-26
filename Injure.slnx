@@ -2,10 +2,10 @@
 	<Project Path="Injure/Injure.csproj" />
 	<Project Path="Injure.Internals.Analyzers/Injure.Internals.Analyzers.csproj" />
 	<Project Path="Injure.Internals.Tests/Injure.Internals.Tests.csproj" />
-	<Project Path="Injure.ModKit/Injure.ModKit.csproj" />
-	<Project Path="Injure.ModKit.Analyzers/Injure.ModKit.Analyzers.csproj" />
-	<Project Path="Injure.ModKit.Analyzers.CodeFixes/Injure.ModKit.Analyzers.CodeFixes.csproj" />
-	<Project Path="Injure.ModKit.Mods/Injure.ModKit.Mods.csproj" />
+	<Project Path="Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj" />
+	<Project Path="Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj" />
+	<Project Path="Injure.Mods.Runtime/Injure.Mods.Runtime.csproj" />
+	<Project Path="Injure.Mods.Utils/Injure.Mods.Utils.csproj" />
 	<Project Path="Injure.Native/Injure.Native.csproj" />
 	<Project Path="Injure.Weaver/Injure.Weaver.csproj" />
 </Solution>

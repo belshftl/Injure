@@ -6,7 +6,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Injure.Graphics.Text;
+using Injure.Draw.Text;
 
 namespace Injure.Assets.Builtin;
 

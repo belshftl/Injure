@@ -13,9 +13,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Injure.DataStructures;
-using Injure.ModKit.Abstractions;
-using Injure.ModKit.Abstractions.CodeAnalysis;
+using Injure.Collections;
+using Injure.Mods;
+using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Assets;
 

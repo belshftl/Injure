@@ -4,10 +4,10 @@
 using System;
 using System.IO;
 
-using Injure.Core;
-using Injure.Graphics;
-using Injure.Timing;
-using Injure.Scheduling;
+using Injure.Draw;
+using Injure.Runtime;
+using Injure.Sched.Tickers;
+using Injure.Time;
 
 using static Injure.Native.Audio;
 

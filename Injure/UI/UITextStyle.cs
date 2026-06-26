@@ -3,7 +3,8 @@
 
 using System;
 
-using Injure.Graphics.Text;
+using Injure.Draw.Text;
+using Injure.Primitives;
 
 namespace Injure.UI;
 

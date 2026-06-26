@@ -5,7 +5,7 @@ using System;
 using System.Numerics;
 
 using Injure.Internals.Analyzers.Attributes;
-using Injure.Timing;
+using Injure.Time;
 
 namespace Injure.Input;
 

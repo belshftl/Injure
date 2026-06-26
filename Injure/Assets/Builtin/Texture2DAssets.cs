@@ -10,8 +10,9 @@ using System.Threading.Tasks;
 
 using StbImageSharp;
 
-using Injure.Graphics;
-using Injure.Graphics.PixelConv;
+using Injure.Draw;
+using Injure.Draw.PixelConv;
+using Injure.Primitives;
 using Injure.Rendering;
 
 namespace Injure.Assets.Builtin;

@@ -6,7 +6,7 @@ using System.Collections.Immutable;
 using System.Linq;
 
 using Injure.Internals.Analyzers.Attributes;
-using Injure.ModKit.Abstractions;
+using Injure.Mods;
 
 namespace Injure.Assets;
 

@@ -5,8 +5,8 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
-using Injure.DataStructures;
-using Injure.ModKit.Abstractions.CodeAnalysis;
+using Injure.Collections;
+using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Layers;
 

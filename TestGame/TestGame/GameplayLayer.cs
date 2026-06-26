@@ -5,12 +5,12 @@ using System;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Injure;
-using Injure.Graphics;
-using Injure.Graphics.Text;
+using Injure.Draw;
+using Injure.Draw.Text;
 using Injure.Input;
 using Injure.Layers;
-using Injure.Scheduling;
+using Injure.Primitives;
+using Injure.Sched.Tickers;
 using Injure.UI;
 
 namespace TestGame;
@@ -61,9 +61,9 @@ public sealed class GameplayLayer : Layer {
 		if (ctx.Actions.Buttons[Actions.ReloadTestMod].Pressed)
 			Game.Mods.RequestReload("jdoe.test-mod");
 		if (ctx.Actions.Buttons[Actions.DisableTestMod].Pressed)
-			Game.Mods.RequestDisable("jdoe.test-mod", Injure.ModKit.Runtime.DisableRequestKind.DisableDependentsAndReloadOptionalDependents);
+			Game.Mods.RequestDisable("jdoe.test-mod", Injure.Mods.Runtime.DisableRequestKind.DisableDependentsAndReloadOptionalDependents);
 		if (ctx.Actions.Buttons[Actions.EnableTestMod].Pressed)
-			Game.Mods.RequestEnable("jdoe.test-mod", Injure.ModKit.Runtime.EnableRequestKind.EnableRequiredDependenciesAndReloadOptionalDependents);
+			Game.Mods.RequestEnable("jdoe.test-mod", Injure.Mods.Runtime.EnableRequestKind.EnableRequiredDependenciesAndReloadOptionalDependents);
 		if (ui is null)
 			throw new InvalidOperationException("Update() called before OnEnter()");
 		ui.Update(ctx.Controls, Game.WindowState);

@@ -4,10 +4,12 @@
 using System;
 using System.Collections.Generic;
 
-using Injure.Coroutines;
 using Injure.Input;
-using Injure.ModKit.Abstractions;
-using Injure.Timing;
+using Injure.Mods;
+using Injure.Sched.Coro;
+using Injure.Time;
+
+using CoroUpdatePhase = Injure.Sched.Coro.CoroUpdatePhase;
 
 namespace Injure.Layers;
 

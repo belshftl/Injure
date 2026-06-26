@@ -5,11 +5,11 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Injure.Coroutines;
-using Injure.Graphics;
+using Injure.Draw;
 using Injure.Input;
 using Injure.Internals.Analyzers.Attributes;
-using Injure.Scheduling;
+using Injure.Sched.Coro;
+using Injure.Sched.Tickers;
 
 namespace Injure.Layers;
 
@@ -46,7 +46,7 @@ public readonly record struct LayerBlockRule(LayerBlockMask Blocked, LayerTagSet
 /// </para>
 /// <para>
 /// Expensive preparation should be done in <see cref="WarmAsync"/>. Activation-bound
-/// services such as time domain, coroutines, <see cref="Timing.IMonoTickReceiver"/> auto-update,
+/// services such as time domain, coroutines, <see cref="Time.IMonoTickReceiver"/> auto-update,
 /// etc. are only available from <see cref="OnEnter"/> until <see cref="OnLeave"/> returns.
 /// </para>
 /// </remarks>
@@ -82,7 +82,7 @@ public abstract class Layer {
 	protected CoroutineScope CoroutineScope => Runtime?.CoroutineScope ?? throw new InvalidOperationException(eMsg);
 
 	/// <summary>
-	/// Runtime-provided automatic updater of <see cref="Timing.IMonoTickReceiver"/>
+	/// Runtime-provided automatic updater of <see cref="Time.IMonoTickReceiver"/>
 	/// objects for this layer.
 	/// </summary>
 	/// <remarks>

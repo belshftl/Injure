@@ -1,6 +1,7 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 belshftl
+// SPDX-License-Identifier: MIT
 
-using Injure.Graphics.Text;
+using Injure.Draw.Text;
 
 namespace Injure.Internals.Tests.Graphics.Text;
 

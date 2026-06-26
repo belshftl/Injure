@@ -6,14 +6,14 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Injure.Assets;
-using Injure.Core;
-using Injure.Graphics;
-using Injure.Graphics.Text;
+using Injure.Runtime;
+using Injure.Draw;
+using Injure.Draw.Text;
 using Injure.Layers;
-using Injure.ModKit.Abstractions;
-using Injure.ModKit.Runtime;
-using Injure.Timing;
-using Injure.Scheduling;
+using Injure.Mods;
+using Injure.Mods.Runtime;
+using Injure.Time;
+using Injure.Sched.Tickers;
 
 using TestGame.ModApi;
 

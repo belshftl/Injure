@@ -3,8 +3,8 @@
 
 using System;
 
-using Injure.Graphics.Text;
-using Injure.ModKit.Abstractions;
+using Injure.Draw.Text;
+using Injure.Mods;
 using Injure.Rendering;
 
 namespace Injure.Assets.Builtin;

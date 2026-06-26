@@ -1,10 +1,11 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2026 belshftl
+// SPDX-License-Identifier: MIT
 
 using System;
 using System.Threading.Tasks;
 
 using Injure.Assets;
-using Injure.ModKit.Abstractions;
+using Injure.Mods;
 
 namespace Injure.Internals.Tests.Assets;
 

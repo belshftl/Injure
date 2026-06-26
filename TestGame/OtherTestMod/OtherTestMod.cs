@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Threading.Tasks;
-using Injure.ModKit.Abstractions;
+using Injure.Mods;
 using TestGame.ModApi;
 
 using TestMod.Contracts;
