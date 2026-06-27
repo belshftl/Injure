@@ -3,29 +3,31 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
 namespace Injure.Sched.Coro;
 
-internal sealed class NamedEnumerator(
-	IEnumerator enumerator,
+public sealed class NamedCoroIterator(
+	IEnumerator<CoroYield> iterator,
 	string debugName,
 	string sourceFile,
 	int sourceLine,
 	string sourceMember
-) : IEnumerator, IDisposable {
-	private readonly IEnumerator enumerator = enumerator;
+) : IEnumerator<CoroYield>, IDisposable {
+	private readonly IEnumerator<CoroYield> iterator = iterator;
 	public string DebugName { get; } = debugName;
 	public string SourceFile { get; } = sourceFile;
 	public int SourceLine { get; } = sourceLine;
 	public string SourceMember { get; } = sourceMember;
 
-	public object Current => enumerator.Current;
-	public bool MoveNext() => enumerator.MoveNext();
-	public void Reset() => enumerator.Reset();
+	public CoroYield Current => iterator.Current;
+	object IEnumerator.Current => iterator.Current;
+	public bool MoveNext() => iterator.MoveNext();
+	public void Reset() => iterator.Reset();
 
-	public void Dispose() => (enumerator as IDisposable)?.Dispose();
+	public void Dispose() => (iterator as IDisposable)?.Dispose();
 }
 
 internal static partial class CoroNameCleanup {
@@ -44,12 +46,12 @@ internal static partial class CoroNameCleanup {
 }
 
 public static class CoroNamingExtensions {
-	public static IEnumerator Named(
-		this IEnumerator enumerator,
-		string debugName,
-		[CallerFilePath] string sourceFile = "",
-		[CallerLineNumber] int sourceLine = 0,
-		[CallerMemberName] string sourceMember = ""
-	) =>
-		new NamedEnumerator(enumerator, debugName, sourceFile, sourceLine, sourceMember);
+	extension(IEnumerator<CoroYield> iterator) {
+		public NamedCoroIterator Named(
+			string debugName,
+			[CallerFilePath] string sourceFile = "",
+			[CallerLineNumber] int sourceLine = 0,
+			[CallerMemberName] string sourceMember = ""
+		) => new(iterator, debugName, sourceFile, sourceLine, sourceMember);
+	}
 }

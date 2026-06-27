@@ -183,29 +183,29 @@ jobs:
           fi
           echo "version=$ver" >> "$GITHUB_OUTPUT"
 
-      - name: Pack Injure.Native
-        run: >
-          dotnet pack Injure.Native/Injure.Native.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
-
       - name: Pack Injure
         run: >
           dotnet pack Injure/Injure.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
-      - name: Pack Injure.ModKit
+      - name: Pack Injure.Mods.Analyzers
         run: >
-          dotnet pack Injure.ModKit/Injure.ModKit.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
-      - name: Pack Injure.ModKit.Analyzers
+      - name: Pack Injure.Mods.Analyzers.CodeFixes
         run: >
-          dotnet pack Injure.ModKit.Analyzers/Injure.ModKit.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
-      - name: Pack Injure.ModKit.Analyzers.CodeFixes
+      - name: Pack Injure.Mods.Runtime
         run: >
-          dotnet pack Injure.ModKit.Analyzers.CodeFixes/Injure.ModKit.Analyzers.CodeFixes.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Mods.Runtime/Injure.Mods.Runtime.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
-      - name: Pack Injure.ModKit.Mods
+      - name: Pack Injure.Mods.Utils
         run: >
-          dotnet pack Injure.ModKit.Mods/Injure.ModKit.Mods.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Mods.Utils/Injure.Mods.Utils.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Pack Injure.Native
+        run: >
+          dotnet pack Injure.Native/Injure.Native.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
       - name: Add GitHub Packages source
         run: >

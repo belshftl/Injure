@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -22,14 +21,14 @@ namespace Injure.Sched.Coro;
 public sealed class CoroutineScheduler : IDisposable {
 	// ==========================================================================
 	// internal types
-	private sealed class CoroutineStackFrame(IEnumerator enumerator, string debugName, string sourceFile = "", int sourceLine = 0, string sourceMember = "") : IDisposable {
-		public IEnumerator Enumerator = enumerator;
+	private sealed class CoroutineStackFrame(IEnumerator<CoroYield> iterator, string debugName, string sourceFile = "", int sourceLine = 0, string sourceMember = "") : IDisposable {
+		public IEnumerator<CoroYield> Iterator = iterator;
 		public string DebugName = debugName;
 		public string SourceFile = sourceFile;
 		public int SourceLine = sourceLine;
 		public string SourceMember = sourceMember;
 
-		public void Dispose() => (Enumerator as IDisposable)?.Dispose();
+		public void Dispose() => (Iterator as IDisposable)?.Dispose();
 	}
 
 	private enum PendingControlAction {
@@ -42,7 +41,7 @@ public sealed class CoroutineScheduler : IDisposable {
 		public required CoroutineHandle Handle { get; init; }
 		public required CoroutineScope? Scope { get => terminated ? null : field; init; }
 		public required CoroutineOptions Options { get; init; }
-		public ICoroutineWait? Wait { get; private set; }
+		public CoroWait? Wait { get; private set; }
 		public CoroutineStatus Status;
 		public Exception? Fault;
 		public CoroCancellationReason? CancellationReason;
@@ -63,13 +62,13 @@ public sealed class CoroutineScheduler : IDisposable {
 		public IReadOnlyList<CoroutineStackFrame> StackFrames => stack;
 
 		public void StackPush(
-			IEnumerator enumerator,
+			IEnumerator<CoroYield> iterator,
 			string debugName,
 			string sourceFile = "",
 			int sourceLine = 0,
 			string sourceMember = ""
 		) =>
-			stack.Add(new CoroutineStackFrame(enumerator, debugName, sourceFile, sourceLine, sourceMember));
+			stack.Add(new CoroutineStackFrame(iterator, debugName, sourceFile, sourceLine, sourceMember));
 
 		public CoroutineStackFrame StackPeek() =>
 			stack.Count > 0 ? stack[^1] : throw new InternalStateException("coroutine instance stack is empty");
@@ -94,7 +93,7 @@ public sealed class CoroutineScheduler : IDisposable {
 			terminated = true;
 		}
 
-		public bool TrySetWait(CoroutineScheduler sched, ICoroutineWait wait, [NotNullWhen(false)] out Exception? ex) {
+		public bool TrySetWait(CoroutineScheduler sched, CoroWait wait, [NotNullWhen(false)] out Exception? ex) {
 			// TODO: this is kind of bolted on as opposed to properly delegated somewhere
 			if (wait is CoroWaitForHandle hwait) {
 				if (hwait.TargetHandle == Handle) {
@@ -205,8 +204,8 @@ public sealed class CoroutineScheduler : IDisposable {
 
 	// ==========================================================================
 	// public api
-	private CoroutineHandle start(IEnumerator routine, CoroutineScope scope, bool defer, CoroutineOptions? options, string callerFile, int callerLine, string callerMember) {
-		ArgumentNullException.ThrowIfNull(routine);
+	private CoroutineHandle start(IEnumerator<CoroYield> iterator, CoroutineScope scope, bool defer, CoroutineOptions? options, string callerFile, int callerLine, string callerMember) {
+		ArgumentNullException.ThrowIfNull(iterator);
 		ArgumentNullException.ThrowIfNull(scope);
 		if (!ReferenceEquals(scope.Scheduler, this))
 			throw new ArgumentException("scope belongs to a different scheduler", nameof(scope));
@@ -223,13 +222,13 @@ public sealed class CoroutineScheduler : IDisposable {
 			Status = CoroutineStatus.Running,
 			StartTick = tick,
 		};
-		string debugName = options.Name ?? enumDebugName(routine) ?? CoroNameCleanup.Clean(routine.GetType().Name);
+		string debugName = options.Name ?? iterDebugName(iterator) ?? CoroNameCleanup.Clean(iterator.GetType().Name);
 		inst.StackPush(
-			routine,
+			iterator,
 			debugName,
-			enumSourceFile(routine) ?? callerFile,
-			enumSourceLine(routine) ?? callerLine,
-			enumSourceMember(routine) ?? callerMember
+			iterSourceFile(iterator) ?? callerFile,
+			iterSourceLine(iterator) ?? callerLine,
+			iterSourceMember(iterator) ?? callerMember
 		);
 		slots[handle.Slot].TerminalInfo = null;
 		slots[handle.Slot].TerminalTrace = null;
@@ -247,7 +246,7 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// <summary>
 	/// Creates a coroutine bound to the specified scope and schedules it to be started on the next tick.
 	/// </summary>
-	/// <param name="routine">The root iterator to run.</param>
+	/// <param name="iterator">The root iterator to run.</param>
 	/// <param name="scope">The lifetime scope to bind to. Must belong to this scheduler.</param>
 	/// <param name="options">Optional coroutine options. When <see langword="null"/>, defaults are used.</param>
 	/// <param name="callerFile">Caller file path, used for debug info.</param>
@@ -257,7 +256,7 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// A handle for the created coroutine.
 	/// </returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="routine"/> or <paramref name="scope"/> is <see langword="null"/>.
+	/// Thrown if <paramref name="iterator"/> or <paramref name="scope"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="scope"/> belongs to a different scheduler.
@@ -271,19 +270,19 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// handle in the scope failed.
 	/// </exception>
 	public CoroutineHandle Start(
-		IEnumerator routine,
+		IEnumerator<CoroYield> iterator,
 		CoroutineScope scope,
 		CoroutineOptions? options = null,
 		[CallerFilePath] string callerFile = "",
 		[CallerLineNumber] int callerLine = 0,
 		[CallerMemberName] string callerMember = ""
 	) =>
-		start(routine, scope, defer: true, options, callerFile, callerLine, callerMember);
+		start(iterator, scope, defer: true, options, callerFile, callerLine, callerMember);
 
 	/// <summary>
 	/// Creates a coroutine bound to the specified scope and immediately starts it.
 	/// </summary>
-	/// <param name="routine">The root iterator to run.</param>
+	/// <param name="iterator">The root iterator to run.</param>
 	/// <param name="scope">The lifetime scope to bind to. Must belong to this scheduler.</param>
 	/// <param name="options">Optional coroutine options. When <see langword="null"/>, defaults are used.</param>
 	/// <param name="callerFile">Caller file path, used for debug info.</param>
@@ -293,7 +292,7 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// A handle for the started coroutine.
 	/// </returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="routine"/> or <paramref name="scope"/> is <see langword="null"/>.
+	/// Thrown if <paramref name="iterator"/> or <paramref name="scope"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="scope"/> belongs to a different scheduler.
@@ -304,17 +303,17 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the scheduler is currently executing a tick, or for the same reasons as
-	/// <see cref="Start(IEnumerator, CoroutineScope, CoroutineOptions, string, int, string)"/>:
+	/// <see cref="Start(IEnumerator{CoroYield}, CoroutineScope, CoroutineOptions, string, int, string)"/>:
 	/// <paramref name="scope"/> is a cancelled scope or registering the coroutine handle in
 	/// the scope failed.
 	/// </exception>
 	/// <remarks>
 	/// Coroutines can only be started when the scheduler is idle; as such, to create
 	/// a coroutine during a tick and defer its first execution to the next tick, use
-	/// <see cref="Start(IEnumerator, CoroutineScope, CoroutineOptions, string, int, string)"/> instead.
+	/// <see cref="Start(IEnumerator{CoroYield}, CoroutineScope, CoroutineOptions, string, int, string)"/> instead.
 	/// </remarks>
 	public CoroutineHandle StartImmediately(
-		IEnumerator routine,
+		IEnumerator<CoroYield> iterator,
 		CoroutineScope scope,
 		CoroutineOptions? options = null,
 		[CallerFilePath] string callerFile = "",
@@ -323,7 +322,7 @@ public sealed class CoroutineScheduler : IDisposable {
 	) {
 		if (ticking)
 			throw new InvalidOperationException("StartImmediately() cannot be called in the middle of a scheduler tick; use Start() to defer execution to the next tick");
-		return start(routine, scope, defer: false, options, callerFile, callerLine, callerMember);
+		return start(iterator, scope, defer: false, options, callerFile, callerLine, callerMember);
 	}
 
 	internal bool TryCancel(CoroutineHandle handle, CoroCancellationReason reason) {
@@ -671,7 +670,7 @@ public sealed class CoroutineScheduler : IDisposable {
 			CoroutineStackFrame frame = inst.StackFrames[i];
 			frames[i] = new CoroutineTraceFrame {
 				DebugName = frame.DebugName,
-				EnumeratorTypeName = frame.Enumerator.GetType().FullName ?? "<null>",
+				EnumeratorTypeName = frame.Iterator.GetType().FullName ?? "<null>",
 				SourceFile = frame.SourceFile,
 				SourceLine = frame.SourceLine,
 				SourceMember = frame.SourceMember,
@@ -690,14 +689,14 @@ public sealed class CoroutineScheduler : IDisposable {
 		};
 	}
 
-	private static string? enumDebugName(IEnumerator e) =>
-		e is NamedEnumerator named ? named.DebugName : null;
-	private static string? enumSourceFile(IEnumerator e) =>
-		e is NamedEnumerator named ? named.SourceFile : null;
-	private static int? enumSourceLine(IEnumerator e) =>
-		e is NamedEnumerator named ? named.SourceLine : null;
-	private static string? enumSourceMember(IEnumerator e) =>
-		e is NamedEnumerator named ? named.SourceMember : null;
+	private static string? iterDebugName(IEnumerator<CoroYield> i) =>
+		i is NamedCoroIterator named ? named.DebugName : null;
+	private static string? iterSourceFile(IEnumerator<CoroYield> i) =>
+		i is NamedCoroIterator named ? named.SourceFile : null;
+	private static int? iterSourceLine(IEnumerator<CoroYield> i) =>
+		i is NamedCoroIterator named ? named.SourceLine : null;
+	private static string? iterSourceMember(IEnumerator<CoroYield> i) =>
+		i is NamedCoroIterator named ? named.SourceMember : null;
 
 	// ==========================================================================
 	// coroutine get/lifecycle
@@ -788,26 +787,6 @@ public sealed class CoroutineScheduler : IDisposable {
 
 	// ==========================================================================
 	// coroutine execution
-	private static bool tryInterpretYield(object? yielded, in CoroutineContext ctx, [NotNullWhen(true)] out ICoroutineWait? wait, [NotNullWhen(false)] out Exception? ex) {
-		wait = null;
-		ex = null;
-		if (yielded is null) {
-			wait = new CoroWaitUntilTick(ctx.Tick + (CoroutineTick)1);
-		} else if (yielded is ICoroutineWait cw) {
-			wait = cw;
-		} else if (yielded is CoroutineHandle handle) {
-			if (handle == ctx.Handle) {
-				wait = null;
-				ex = new InvalidOperationException($"coroutine {ctx.Handle} tried to wait on its own handle");
-				return false;
-			}
-			wait = new CoroWaitForHandle(handle, propagateFault: true, throwOnChildCancelled: false);
-		} else {
-			ex = new InvalidOperationException($"unsupported coroutine yield type '{yielded.GetType().FullName}'");
-		}
-		return wait is not null;
-	}
-
 	private void runInstance(CoroutineInstance inst, double dt, double rawDt, CoroUpdatePhase phase) {
 		int steps = 0;
 
@@ -843,10 +822,10 @@ public sealed class CoroutineScheduler : IDisposable {
 
 			CoroutineStackFrame frame = inst.StackPeek();
 			bool moved;
-			object? yielded;
+			CoroYield yielded;
 			try {
-				moved = frame.Enumerator.MoveNext();
-				yielded = moved ? frame.Enumerator.Current : null;
+				moved = frame.Iterator.MoveNext();
+				yielded = moved ? frame.Iterator.Current : default;
 			} catch (Exception ex) {
 				instFault(inst, ex);
 				return;
@@ -855,24 +834,30 @@ public sealed class CoroutineScheduler : IDisposable {
 				inst.StackPopAndDispose();
 				continue;
 			}
-			if (yielded is IEnumerator child) {
-				inst.StackPush(
-					child,
-					enumDebugName(child) ?? CoroNameCleanup.Clean(child.GetType().Name),
-					enumSourceFile(child) ?? "",
-					enumSourceLine(child) ?? 0,
-					enumSourceMember(child) ?? ""
-				);
-				continue;
-			}
-
-			if (!tryInterpretYield(yielded, in ctx, out ICoroutineWait? newWait, out Exception? interpretEx)) {
-				instFault(inst, interpretEx);
+			if (yielded.Value.MatchWithUninit(
+				child => {
+					inst.StackPush(
+						child,
+						iterDebugName(child) ?? CoroNameCleanup.Clean(child.GetType().Name),
+						iterSourceFile(child) ?? "",
+						iterSourceLine(child) ?? 0,
+						iterSourceMember(child) ?? ""
+					);
+					return false;
+				},
+				wait => {
+					if (wait is CoroWaitForHandle hwait && hwait.TargetHandle == ctx.Handle)
+						instFault(inst, new InvalidOperationException($"coroutine tried to wait on its own handle"));
+					else if (!inst.TrySetWait(this, wait, out Exception? setWaitEx))
+						instFault(inst, setWaitEx);
+					return true;
+				},
+				() => {
+					instFault(inst, new InvalidOperationException("coroutine yielded an uninitialized/invalid CoroYield value"));
+					return true;
+				}
+			))
 				return;
-			}
-			if (!inst.TrySetWait(this, newWait, out Exception? setWaitEx2))
-				instFault(inst, setWaitEx2);
-			return;
 		}
 	}
 
@@ -913,7 +898,7 @@ public sealed class CoroutineScheduler : IDisposable {
 				CoroutineUnhandledFaultInfo info = pendingUnhandledFaults[i];
 				UnhandledFault?.Invoke(info);
 				if (UnhandledFaultMode.Tag is CoroUnhandledFaultMode.Case.LogAfterTick or CoroUnhandledFaultMode.Case.LogAndThrowAfterTick)
-					DiagnosticLogSink?.Invoke(CoroDiagnostics.FormatFault(info));
+					DiagnosticLogSink?.Invoke(CoroutineDiagnostics.FormatFault(info));
 			}
 			if (UnhandledFaultMode.Tag is CoroUnhandledFaultMode.Case.ThrowAfterTick or CoroUnhandledFaultMode.Case.LogAndThrowAfterTick) {
 				CoroutineUnhandledFaultInfo[] arr = pendingUnhandledFaults.ToArray();
