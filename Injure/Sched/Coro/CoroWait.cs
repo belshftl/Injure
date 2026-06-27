@@ -7,52 +7,55 @@ using System.Threading;
 
 namespace Injure.Sched.Coro;
 
-public static class CoroWait {
-	public static ICoroutineWait Ticks(CoroutineTick ticks) =>
+public static class CoroWaits {
+	public static CoroWaitForTicks Ticks(CoroutineTick ticks) =>
 		ticks >= CoroutineTick.Zero ? new CoroWaitForTicks(ticks) : throw new ArgumentOutOfRangeException(nameof(ticks));
-	public static ICoroutineWait Ticks(int ticks) => Ticks((CoroutineTick)ticks); // quality of life overload for int literals
-	public static ICoroutineWait Seconds(double seconds) =>
+	public static CoroWaitForTicks Ticks(int ticks) => Ticks((CoroutineTick)ticks); // quality of life overload for int literals
+	public static CoroWaitForSeconds Seconds(double seconds) =>
 		seconds >= 0 ? new CoroWaitForSeconds(seconds) : throw new ArgumentOutOfRangeException(nameof(seconds));
-	public static ICoroutineWait ForHandle(CoroutineHandle handle, bool propagateFault = true, bool throwOnChildCancelled = false) =>
-		new CoroWaitForHandle(handle, propagateFault, throwOnChildCancelled);
-	public static ICoroutineWait Until(Func<bool> predicate, string? debugDesc = null) =>
-		new CoroWaitUntilPredicate(predicate ?? throw new ArgumentNullException(nameof(predicate)), invert: false, debugDesc);
-	public static ICoroutineWait While(Func<bool> predicate, string? debugDesc = null) =>
-		new CoroWaitUntilPredicate(predicate ?? throw new ArgumentNullException(nameof(predicate)), invert: true, debugDesc);
+	public static CoroWaitForHandle ForHandle(CoroutineHandle handle, bool propagateFault = true, bool throwOnChildCancelled = false) =>
+		new(handle, propagateFault, throwOnChildCancelled);
+	public static CoroWaitUntilPredicate Until(Func<bool> predicate, string? debugDesc = null) =>
+		new(predicate ?? throw new ArgumentNullException(nameof(predicate)), invert: false, debugDesc);
+	public static CoroWaitUntilPredicate While(Func<bool> predicate, string? debugDesc = null) =>
+		new(predicate ?? throw new ArgumentNullException(nameof(predicate)), invert: true, debugDesc);
 }
 
 public sealed class CoroSignal {
 	private int val = 0;
 	public void Signal() => Interlocked.Exchange(ref val, 1);
 	public void Reset() => Interlocked.Exchange(ref val, 0);
-	public ICoroutineWait Wait(string? debugDesc = null) => new CoroWaitForSignal(this, debugDesc);
+	public CoroWaitForSignal Wait(string? debugDesc = null) => new(this, debugDesc);
 	internal bool TryConsumeSignal() => Interlocked.Exchange(ref val, 0) != 0;
 }
 
-internal sealed class CoroWaitForTicks(CoroutineTick ticks) : ICoroutineWait {
+public abstract class CoroWait {
+	public abstract bool KeepWaiting(in CoroutineContext ctx);
+	public virtual void OnCancel(CoroCancellationReason reason) {}
+	public abstract string GetDebugWaitDescription();
+}
+
+public sealed class CoroWaitForTicks(CoroutineTick ticks) : CoroWait {
 	private readonly CoroutineTick total = ticks;
 	private CoroutineTick remaining = ticks;
-	public bool KeepWaiting(in CoroutineContext ctx) => remaining > CoroutineTick.Zero && --remaining > CoroutineTick.Zero;
-	public void OnCancel(CoroCancellationReason reason) {}
-	public string GetDebugWaitDescription() => $"for {remaining} more ticks (started at {total})";
+	public override bool KeepWaiting(in CoroutineContext ctx) => remaining > CoroutineTick.Zero && --remaining > CoroutineTick.Zero;
+	public override string GetDebugWaitDescription() => $"for {remaining} more ticks (started at {total})";
 }
 
-internal sealed class CoroWaitUntilTick(CoroutineTick targetTick) : ICoroutineWait {
+public sealed class CoroWaitUntilTick(CoroutineTick targetTick) : CoroWait {
 	private readonly CoroutineTick target = targetTick;
-	public bool KeepWaiting(in CoroutineContext ctx) => ctx.Tick < target;
-	public void OnCancel(CoroCancellationReason reason) {}
-	public string GetDebugWaitDescription() => $"until tick {target}";
+	public override bool KeepWaiting(in CoroutineContext ctx) => ctx.Tick < target;
+	public override string GetDebugWaitDescription() => $"until tick {target}";
 }
 
-internal sealed class CoroWaitForSeconds(double seconds) : ICoroutineWait {
+public sealed class CoroWaitForSeconds(double seconds) : CoroWait {
 	private readonly double total = seconds;
 	private double remaining = seconds;
-	public bool KeepWaiting(in CoroutineContext ctx) => (remaining -= ctx.DeltaTime) > 0f;
-	public void OnCancel(CoroCancellationReason reason) {}
-	public string GetDebugWaitDescription() => $"for {Math.Max(remaining, 0f):0.###} more seconds (started at {total:0.###})";
+	public override bool KeepWaiting(in CoroutineContext ctx) => (remaining -= ctx.DeltaTime) > 0f;
+	public override string GetDebugWaitDescription() => $"for {Math.Max(remaining, 0f):0.###} more seconds (started at {total:0.###})";
 }
 
-internal sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFault, bool throwOnChildCancelled) : ICoroutineWait {
+public sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFault, bool throwOnChildCancelled) : CoroWait {
 	private readonly CoroutineHandle handle = handle;
 	private readonly bool propagateFault = propagateFault;
 	private readonly bool throwOnChildCancelled = throwOnChildCancelled;
@@ -60,7 +63,7 @@ internal sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFa
 
 	public CoroutineHandle TargetHandle => handle;
 
-	public bool EnsureAttached(CoroutineScheduler scheduler) {
+	internal bool EnsureAttached(CoroutineScheduler scheduler) {
 		if (attached)
 			return true;
 		if (!scheduler.TryRetainHandle(handle))
@@ -69,14 +72,14 @@ internal sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFa
 		return true;
 	}
 
-	public void Detach(CoroutineScheduler scheduler) {
+	internal void Detach(CoroutineScheduler scheduler) {
 		if (!attached)
 			return;
 		scheduler.ReleaseRetainedHandle(handle);
 		attached = false;
 	}
 
-	public bool KeepWaiting(in CoroutineContext ctx) {
+	public override bool KeepWaiting(in CoroutineContext ctx) {
 		if (handle == ctx.Handle)
 			throw new InvalidOperationException($"coroutine {ctx.Handle} tried to wait on its own handle");
 		if (!ctx.Scheduler.TryGetInfo(handle, out CoroutineInfo info))
@@ -101,30 +104,23 @@ internal sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFa
 			throw new UnreachableException();
 		}
 	}
-	public void OnCancel(CoroCancellationReason reason) {}
-	public string GetDebugWaitDescription() => $"for handle {handle}";
+	public override string GetDebugWaitDescription() => $"for handle {handle}";
 }
 
-internal sealed class CoroWaitUntilPredicate(Func<bool> predicate, bool invert, string? debugDesc = null) : ICoroutineWait {
+public sealed class CoroWaitUntilPredicate(Func<bool> predicate, bool invert, string? debugDesc = null) : CoroWait {
 	private readonly Func<bool> predicate = predicate;
 	private readonly bool invert = invert;
 	private readonly string? debugDesc = debugDesc;
-	public bool KeepWaiting(in CoroutineContext ctx) {
+	public override bool KeepWaiting(in CoroutineContext ctx) {
 		bool v = predicate();
 		return invert ? v : !v;
 	}
-	public void OnCancel(CoroCancellationReason reason) {}
-	public string GetDebugWaitDescription() {
-		if (!string.IsNullOrEmpty(debugDesc))
-			return debugDesc;
-		return invert ? "while predicate returns true" : "until predicate returns true";
-	}
+	public override string GetDebugWaitDescription() => debugDesc ?? $"{(invert ? "while" : "until")} predicate returns true";
 }
 
-internal sealed class CoroWaitForSignal(CoroSignal signal, string? debugDesc = null) : ICoroutineWait {
+public sealed class CoroWaitForSignal(CoroSignal signal, string? debugDesc = null) : CoroWait {
 	private readonly CoroSignal signal = signal;
 	private readonly string? debugDesc = debugDesc;
-	public bool KeepWaiting(in CoroutineContext ctx) => !signal.TryConsumeSignal();
-	public void OnCancel(CoroCancellationReason reason) {}
-	public string GetDebugWaitDescription() => debugDesc ?? "for a signal";
+	public override bool KeepWaiting(in CoroutineContext ctx) => !signal.TryConsumeSignal();
+	public override string GetDebugWaitDescription() => debugDesc ?? "for a signal";
 }

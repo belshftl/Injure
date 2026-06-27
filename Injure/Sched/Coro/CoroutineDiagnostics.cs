@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Injure.Sched.Coro;
 
-internal static class CoroDiagnostics {
+internal static class CoroutineDiagnostics {
 	public static string FormatFault(CoroutineUnhandledFaultInfo fault) {
 		StringBuilder sb = new();
 
