@@ -4,8 +4,11 @@
 using System;
 using System.Threading;
 
+using Injure.CodeAnalysis;
+
 namespace Injure.Mods;
 
+[DontImplement]
 public interface IUntypedBoundedCt {
 	ReloadGeneration Generation { get; }
 	CancellationToken Token { get; }

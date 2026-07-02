@@ -99,7 +99,7 @@ internal static class Discouraged {
 		id: "IJM0209",
 		title: "Prefer plain static methods over static lambdas for hooks",
 		messageFormat:
-		"Prefer a plain static method over a static lambda for hooks; static lambdas make it harder to pinpoint the hook body or give it an identity and make debugging/diagnostics/etc worse",
+		"Prefer a plain static method over a static lambda for hooks; static lambdas make it harder to pinpoint the hook body or give it an identity for debugging/diagnostics/etc",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Info,
 		isEnabledByDefault: true
@@ -159,7 +159,7 @@ internal static class Discouraged {
 		id: "IJM0215",
 		title: "Use RequireGoto{Next,Prev} instead of plain Goto{Next,Prev}",
 		messageFormat:
-		"Use ILCursor.RequireGoto{Next,Prev} from Injure.Mods.Utils instead of plain Goto{Next,Prev} as they provide much better exceptions/messages on match failure; eventually, you're gonna have to debug using someone's crash log and will thank yourself for switching",
+		"Use ILCursor.RequireGoto{Next,Prev} from Injure.Mods.Utils instead of plain Goto{Next,Prev} as they provide much better exceptions/messages on match failure",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true

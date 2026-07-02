@@ -4,8 +4,11 @@
 using System;
 using System.Reflection;
 
+using Injure.CodeAnalysis;
+
 namespace Injure.Mods.MonoMod;
 
+[DontImplement]
 public interface IHookAttribute {
 	string? OrderDomain { get; }
 	int LocalPriority { get; }
@@ -17,6 +20,7 @@ public interface IHookAttribute {
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
+[MethodAttributeUsage(MethodConstraints.Static | MethodConstraints.NonGeneric)]
 public sealed class LoadHookAttribute(string targetID) : Attribute, IHookAttribute {
 	public string TargetID { get; } = targetID;
 
@@ -30,6 +34,7 @@ public sealed class LoadHookAttribute(string targetID) : Attribute, IHookAttribu
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
+[MethodAttributeUsage(MethodConstraints.Static | MethodConstraints.NonGeneric | MethodConstraints.ReturnsVoid)]
 public sealed class LoadILHookAttribute(string targetID) : Attribute, IHookAttribute {
 	public string TargetID { get; } = targetID;
 
@@ -43,6 +48,7 @@ public sealed class LoadILHookAttribute(string targetID) : Attribute, IHookAttri
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
+[MethodAttributeUsage(MethodConstraints.Static | MethodConstraints.NonGeneric)]
 public sealed class LoadMethodHookAttribute(Type targetType, string methodName, BindingFlags bindingFlags) : Attribute, IHookAttribute {
 	public Type TargetType { get; } = targetType;
 	public string MethodName { get; } = methodName;
@@ -60,6 +66,7 @@ public sealed class LoadMethodHookAttribute(Type targetType, string methodName, 
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
+[MethodAttributeUsage(MethodConstraints.Static | MethodConstraints.NonGeneric | MethodConstraints.ReturnsVoid)]
 public sealed class LoadMethodILHookAttribute(Type targetType, string methodName, BindingFlags bindingFlags) : Attribute, IHookAttribute {
 	public Type TargetType { get; } = targetType;
 	public string MethodName { get; } = methodName;

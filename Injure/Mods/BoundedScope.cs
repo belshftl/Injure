@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 
+using Injure.CodeAnalysis;
 using Injure.Common;
 using Injure.Mods.CodeAnalysis;
 
@@ -74,6 +75,7 @@ public sealed class BoundedScopeException(
 /// parallel disposals is configured by the runtime.
 /// </para>
 /// </remarks>
+[DontImplement]
 public interface IUntypedBoundedScope : IParallelDisposalScope {
 	/// <summary>
 	/// Generation that this scope is bounded over. This property remains available
@@ -296,6 +298,7 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 /// parallel disposals is configured by the runtime.
 /// </para>
 /// </remarks>
+[DontImplement]
 public interface IBoundedScope<L> : IUntypedBoundedScope where L : struct, IModLifetimeIdentity {
 	/// <summary>
 	/// A cancellation token that fires when scope invalidation begins. This

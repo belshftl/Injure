@@ -187,6 +187,10 @@ jobs:
         run: >
           dotnet pack Injure/Injure.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
+      - name: Pack Injure.Analyzers
+        run: >
+          dotnet pack Injure.Analyzers/Injure.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+
       - name: Pack Injure.Mods.Analyzers
         run: >
           dotnet pack Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}

@@ -11,6 +11,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../../Injure/Injure.csproj" />
+		<ProjectReference Include="../../Injure.Analyzers/Injure.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		<ProjectReference Include="../../Injure.Mods.Runtime/Injure.Mods.Runtime.csproj" />
 		<ProjectReference Include="../../Injure.Mods.Utils/Injure.Mods.Utils.csproj" /> <!-- TODO figure out something better than this sitting in the game -->
 		<ProjectReference Include="../TestGame.ModApi/TestGame.ModApi.csproj" />

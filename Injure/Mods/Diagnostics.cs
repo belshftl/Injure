@@ -337,7 +337,7 @@ public interface IOwnerDiagnostics {
 	void Log(DiagnosticSeverity severity, string message);
 
 	/// <summary>
-	/// Emits a diagnostic with <see cref="Mods.DiagnosticSeverity.Debug"/> severity.
+	/// Emits a diagnostic with <see cref="DiagnosticSeverity.Debug"/> severity.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="message"/> is <see langword="null"/>.
@@ -345,7 +345,7 @@ public interface IOwnerDiagnostics {
 	void Debug(string message);
 
 	/// <summary>
-	/// Emits a diagnostic with <see cref="Mods.DiagnosticSeverity.Info"/> severity.
+	/// Emits a diagnostic with <see cref="DiagnosticSeverity.Info"/> severity.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="message"/> is <see langword="null"/>.
@@ -353,7 +353,7 @@ public interface IOwnerDiagnostics {
 	void Info(string message);
 
 	/// <summary>
-	/// Emits a diagnostic with <see cref="Mods.DiagnosticSeverity.Warning"/> severity.
+	/// Emits a diagnostic with <see cref="DiagnosticSeverity.Warning"/> severity.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="message"/> is <see langword="null"/>.
@@ -361,7 +361,7 @@ public interface IOwnerDiagnostics {
 	void Warning(string message);
 
 	/// <summary>
-	/// Emits a diagnostic with <see cref="Mods.DiagnosticSeverity.Error"/> severity.
+	/// Emits a diagnostic with <see cref="DiagnosticSeverity.Error"/> severity.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="message"/> is <see langword="null"/>.

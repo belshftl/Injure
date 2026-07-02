@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Injure.Mods.Analyzers.Shared;
 
+// mirrors Injure.Mods.ModAssemblyHotReloadLevel
 internal enum ModAssemblyHotReloadLevelMirror {
 	None = 1,
 	SafeBoundary = 2,

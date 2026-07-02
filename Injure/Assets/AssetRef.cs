@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 
+using Injure.CodeAnalysis;
 using Injure.Mods;
 
 namespace Injure.Assets;
@@ -15,6 +16,7 @@ namespace Injure.Assets;
 /// Untyped wrapper over an <see cref="AssetRef{T}"/> used by bulk operations and
 /// generic tooling.
 /// </summary>
+[DontImplement]
 public interface IUntypedAssetRef {
 	/// <summary>Asset type.</summary>
 	Type AssetType { get; }

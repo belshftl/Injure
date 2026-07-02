@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Injure.CodeAnalysis;
 using Injure.Time;
 
 namespace Injure.Runtime;
@@ -26,17 +27,20 @@ public struct WindowState {
 	public MonoTick UpdatedAt { get; internal set; }
 }
 
+[DontImplement]
 public interface IWindowController {
 	WindowSettings Settings { get; }
 	WindowState State { get; }
 	bool TrySet(in WindowSettings settings, [NotNullWhen(false)] out string? err);
 }
 
+[DontImplement]
 public interface IRenderController {
 	RenderSettings Settings { get; }
 	bool TrySet(in RenderSettings settings, [NotNullWhen(false)] out string? err);
 }
 
+[DontImplement]
 public interface ITimingController {
 	TimingSettings Settings { get; }
 	bool TrySet(in TimingSettings settings, [NotNullWhen(false)] out string? err);

@@ -26,7 +26,7 @@ public static class HookDiscoverer {
 		foreach (MethodDefinition method in type.Methods) {
 			if (!isSupportedHookTarget(method))
 				continue;
-			if (hasIntendedHookPointAttribute(method))
+			if (hasHookPointAttribute(method))
 				result.Add(createCandidate(ownerID, HookKind.Intended, method, nameCounts));
 			result.Add(createCandidate(ownerID, HookKind.Raw, method, nameCounts));
 		}
@@ -53,9 +53,9 @@ public static class HookDiscoverer {
 		return true;
 	}
 
-	private static bool hasIntendedHookPointAttribute(MethodDefinition method) {
+	private static bool hasHookPointAttribute(MethodDefinition method) {
 		foreach (CustomAttribute attribute in method.CustomAttributes)
-			if (attribute.AttributeType.Name == "IntendedMonoModHookPointAttribute")
+			if (attribute.AttributeType.Name == "PlausibleMonoModHookPointAttribute")
 				return true;
 		return false;
 	}

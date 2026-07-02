@@ -4,11 +4,13 @@
 using System;
 using System.Collections.Generic;
 
+using Injure.CodeAnalysis;
 using Injure.Mods.MonoMod;
 using Injure.Runtime;
 
 namespace Injure.Mods;
 
+[DontImplement]
 public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIdentity {
 	string OwnerID { get; }
 	Semver Version { get; }
@@ -19,11 +21,13 @@ public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIden
 	DiagnosticsSinkRegistry DiagnosticsSinkRegistry { get; }
 }
 
+[DontImplement]
 public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IModHookDeclarations<L> LoadHooks { get; }
 	IModExportDeclarations<L> Exports { get; }
 }
 
+[DontImplement]
 public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	// TODO: IModHookDeclarations<L> LinkHooks { get; }
 
@@ -36,11 +40,13 @@ public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> whe
 	LoadedCodeDepInfo<L, LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity;
 }
 
+[DontImplement]
 public interface IModActivateContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	GameServices GameServices { get; }
 	IBoundedScope<L> ActivationScope { get; }
 }
 
+[DontImplement]
 public interface IModReloadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IReadOnlySet<string> ReloadSet { get; }
 	GameServices? GameServices { get; }

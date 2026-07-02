@@ -17,7 +17,7 @@ namespace Injure.Mods;
 /// reload boundary. The manifest must declare a compatible reloadability level.
 /// </para>
 /// </remarks>
-// this enum's numeric values are also mirrored in Injure.Mods.Analyzers/Core/Model.cs
+// this enum's numeric values are also mirrored in Injure.Mods.Analyzers/Shared/HotReloadLevel.cs
 public enum ModAssemblyHotReloadLevel {
 	/// <summary>
 	/// Reload is not supported. A process restart is required to replace,

@@ -4,6 +4,8 @@
 using System;
 using System.Reflection;
 
+using Injure.CodeAnalysis;
+
 namespace Injure.Assets;
 
 /// <summary>
@@ -54,6 +56,7 @@ public sealed record EmbeddedAssetDependency(Assembly Assembly, string ResourceP
 /// <summary>
 /// Records dependencies discovered while preparing an asset version.
 /// </summary>
+[DontImplement]
 public interface IAssetDependencyCollector {
 	/// <summary>Adds a dependency to the current asset preparation.</summary>
 	/// <remarks>Dependencies are de-duplicated by value equality.</remarks>

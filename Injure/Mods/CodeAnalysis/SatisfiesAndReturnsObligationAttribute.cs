@@ -3,9 +3,12 @@
 
 using System;
 
+using Injure.CodeAnalysis;
+
 namespace Injure.Mods.CodeAnalysis;
 
 [AttributeUsage(AttributeTargets.Method)]
+[MethodAttributeUsage(MethodConstraints.ReturnsNonVoid)]
 public sealed class SatisfiesAndReturnsObligationAttribute : Attribute {
 	public SatisfiesAndReturnsObligationAttribute(string parameterName, ObligationSatisfactionLevel level) {
 		ParameterName = parameterName;

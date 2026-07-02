@@ -9,7 +9,7 @@ namespace Injure.Mods.MonoMod;
 // types in an attribute
 
 /// <summary>
-/// Set of MonoMod hook types that an intended-hook-point method was designed with in mind.
+/// Set of MonoMod hook types that a plausible-hook-point method explicitly says it supports.
 /// </summary>
 [Flags]
 public enum MonoModHookKinds {
@@ -28,7 +28,7 @@ public enum MonoModHookKinds {
 }
 
 /// <summary>
-/// Least disruptive reload boundary at which hooks for an intended-hook-point method were intended
+/// Least disruptive reload boundary at which hooks for a plausible-hook-point method were intended
 /// to be correctly installable/removable/replaceable.
 /// </summary>
 public enum HookPointReloadBoundary {
@@ -56,7 +56,7 @@ public enum HookPointReloadBoundary {
 }
 
 /// <summary>
-/// What thread(s) an intended-hook-point method runs on; hooks must be prepared to run on those threads.
+/// What thread(s) a plausible-hook-point method runs on; hooks must be prepared to run on those threads.
 /// </summary>
 public enum HookPointThreadAffinity {
 	/// <summary>
@@ -97,7 +97,7 @@ public enum HookPointThreadAffinity {
 }
 
 /// <summary>
-/// What kinds of blocking behavior a well-behaved hook for an intended-hook-point method can exhibit.
+/// What kinds of blocking behavior a well-behaved hook for a plausible-hook-point method can exhibit.
 /// </summary>
 public enum HookPointBlockingPolicy {
 	/// <summary>
@@ -123,7 +123,7 @@ public enum HookPointBlockingPolicy {
 }
 
 /// <summary>
-/// Concurrency hazards of this method that hooks must be prepared to deal with.
+/// Concurrency hazards of a plausible-hook-point method that hooks must be prepared to deal with.
 /// </summary>
 [Flags]
 public enum HookPointConcurrencyHazards {
@@ -191,7 +191,7 @@ public enum HookPointConcurrencyHazards {
 }
 
 /// <summary>
-/// Responsibilities of an intended-hook-point method. Hooks must be prepared to correctly
+/// Responsibilities of a plausible-hook-point method. Hooks must be prepared to correctly
 /// handle them / suppress them / etc.
 /// </summary>
 [Flags]
@@ -312,8 +312,8 @@ public enum HookPointEffects {
 	/// The method may cause C-style undefined behavior if misused or internally broken by a hook.
 	/// </summary>
 	/// <remarks>
-	/// Doesn't necessarily imply native interop; may be as simple as an unsafe method with some
-	/// "clever" pointer arithmetic that can overrun if a hook introduces an off-by-one.
+	/// Doesn't necessarily imply native interop; may be as simple as an unsafe method that deals
+	/// with pointers.
 	/// </remarks>
 	UndefinedBehaviorRisk = 1 << 16,
 }
@@ -331,9 +331,7 @@ public enum HookPointEffects {
 /// roll something of your own that doesn't depend on MonoMod patching.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, AllowMultiple = true, Inherited = false)]
-public sealed class IntendedMonoModHookPointAttribute : Attribute {
-	public required string Hint { get; init; }
-
+public sealed class PlausibleMonoModHookPointAttribute : Attribute {
 	public MonoModHookKinds SupportedKinds { get; init; } = MonoModHookKinds.Hook | MonoModHookKinds.ILHook;
 	public HookPointReloadBoundary ReloadBoundary { get; init; } = HookPointReloadBoundary.Unspecified;
 	public HookPointThreadAffinity ThreadAffinity { get; init; } = HookPointThreadAffinity.Unspecified;

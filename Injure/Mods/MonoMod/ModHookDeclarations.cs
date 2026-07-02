@@ -4,6 +4,8 @@
 using System.Collections.Generic;
 using System.Reflection;
 
+using Injure.CodeAnalysis;
+
 namespace Injure.Mods.MonoMod;
 
 public readonly struct ModHookConfig {
@@ -17,6 +19,7 @@ public readonly struct ModHookConfig {
 	public int? DetourPriority { get; init; }
 }
 
+[DontImplement]
 public interface IModHookDeclarations<L> where L : struct, IModLifetimeIdentity {
 	void DeclareHook(string targetID, MethodInfo hookMethod, in ModHookConfig config);
 	void DeclareHook(MethodBase targetMethod, MethodInfo hookMethod, in ModHookConfig config);
