@@ -7,21 +7,21 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace Injure.Internals.Analyzers.Analyzers;
+namespace Injure.Internals.Analyzers.ClosedFlags;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
-		Diagnostics.ClosedFlagsInvalidTarget,
-		Diagnostics.ClosedFlagsMustBeReadonly,
-		Diagnostics.ClosedFlagsInvalidSourceShape,
-		Diagnostics.ClosedFlagsInvalidBitsEnum,
-		Diagnostics.ClosedFlagsAliasNotSupported,
-		Diagnostics.ClosedFlagsBadMemberValue,
-		Diagnostics.ClosedFlagsDefaultRule,
-		Diagnostics.ClosedFlagsSuspiciousZeroName,
-		Diagnostics.ClosedFlagsMirrorInvalid,
-		Diagnostics.ClosedFlagsMirrorMismatch
+		Diagnostics.ClosedFlags.ClosedFlagsInvalidTarget,
+		Diagnostics.ClosedFlags.ClosedFlagsMustBeReadonly,
+		Diagnostics.ClosedFlags.ClosedFlagsInvalidSourceShape,
+		Diagnostics.ClosedFlags.ClosedFlagsInvalidBitsEnum,
+		Diagnostics.ClosedFlags.ClosedFlagsAliasNotSupported,
+		Diagnostics.ClosedFlags.ClosedFlagsBadMemberValue,
+		Diagnostics.ClosedFlags.ClosedFlagsDefaultRule,
+		Diagnostics.ClosedFlags.ClosedFlagsSuspiciousZeroName,
+		Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid,
+		Diagnostics.ClosedFlags.ClosedFlagsMirrorMismatch
 	);
 
 	public override void Initialize(AnalysisContext ctx) {
@@ -39,19 +39,19 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 
 		Location loc = Util.GetAttributeLocation(attr, sym, ctx.CancellationToken);
 		if (sym.TypeKind != TypeKind.Struct) {
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsInvalidTarget, loc, "Target must be a struct."));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsInvalidTarget, loc, "Target must be a struct."));
 		} else if (!Util.Partial(sym, ctx.CancellationToken)) {
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsInvalidTarget, loc, "Target must be declared 'partial'."));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsInvalidTarget, loc, "Target must be declared 'partial'."));
 		} else if (!sym.IsReadOnly) {
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsMustBeReadonly, loc, sym.Name));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsMustBeReadonly, loc, sym.Name));
 		} else if (sym.IsRefLikeType) {
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsInvalidTarget, loc, "Ref structs are not supported."));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsInvalidTarget, loc, "Ref structs are not supported."));
 		} else if (sym.IsRecord) {
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsInvalidTarget, loc, "'record struct' is not supported."));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsInvalidTarget, loc, "'record struct' is not supported."));
 		} else if (sym.ContainingType is not null) {
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsInvalidTarget, loc, "Nested structs are not supported."));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsInvalidTarget, loc, "Nested structs are not supported."));
 		} else if (sym.TypeParameters.Length != 0) {
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsInvalidTarget, loc, "Generic structs are not supported."));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsInvalidTarget, loc, "Generic structs are not supported."));
 		} else {
 			List<EnumDeclarationSyntax> bitsDecls = new();
 			foreach (SyntaxReference sr in sym.DeclaringSyntaxReferences) {
@@ -64,7 +64,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 					}
 					ctx.ReportDiagnostic(
 						Diagnostic.Create(
-							Diagnostics.ClosedFlagsInvalidSourceShape,
+							Diagnostics.ClosedFlags.ClosedFlagsInvalidSourceShape,
 							member.GetLocation(),
 							$"ClosedFlags struct '{sym.Name}' must contain no members other than a nested enum named 'Bits'."
 						)
@@ -75,7 +75,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (bitsDecls.Count != 1) {
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsInvalidSourceShape,
+						Diagnostics.ClosedFlags.ClosedFlagsInvalidSourceShape,
 						loc,
 						$"ClosedFlags struct '{sym.Name}' must contain exactly one nested enum named 'Bits'."
 					)
@@ -87,7 +87,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (bitsSymbol is null) {
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsInvalidSourceShape,
+						Diagnostics.ClosedFlags.ClosedFlagsInvalidSourceShape,
 						bitsDecls[0].GetLocation(),
 						$"ClosedFlags struct '{sym.Name}' must contain exactly one nested enum named 'Bits'."
 					)
@@ -97,7 +97,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (!Util.IsFlagsEnum(bitsSymbol)) {
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsInvalidBitsEnum,
+						Diagnostics.ClosedFlags.ClosedFlagsInvalidBitsEnum,
 						bitsDecls[0].Identifier.GetLocation(),
 						"ClosedFlags Bits enum must be marked with [Flags]."
 					)
@@ -133,7 +133,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (Constants.ClosedFlagsReservedMemberNames.Contains(field.Name)) {
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsInvalidBitsEnum,
+						Diagnostics.ClosedFlags.ClosedFlagsInvalidBitsEnum,
 						Util.GetLocation(field, bitsSymbol),
 						$"Case member name '{field.Name}' is reserved by generated ClosedFlags code."
 					)
@@ -143,7 +143,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (!Util.TryGetEnumMemberUInt64(field, out ulong v)) {
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsInvalidBitsEnum,
+						Diagnostics.ClosedFlags.ClosedFlagsInvalidBitsEnum,
 						Util.GetLocation(field, bitsSymbol),
 						$"Case member '{field.Name}' does not have a supported constant value."
 					)
@@ -153,7 +153,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (seenValues.TryGetValue(v, out IFieldSymbol? existing)) {
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsAliasNotSupported,
+						Diagnostics.ClosedFlags.ClosedFlagsAliasNotSupported,
 						Util.GetLocation(field, bitsSymbol),
 						field.Name,
 						existing.Name,
@@ -175,14 +175,14 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (v == 0 || (v & v - 1) == 0)
 				continue;
 			if ((v & ~atomicMask) != 0)
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsBadMemberValue, Util.GetLocation(field, bitsSymbol), field.Name));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsBadMemberValue, Util.GetLocation(field, bitsSymbol), field.Name));
 		}
 
 		if (defaultIsInvalid) {
 			foreach (IFieldSymbol zero in zeroFields)
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsDefaultRule,
+						Diagnostics.ClosedFlags.ClosedFlagsDefaultRule,
 						Util.GetLocation(zero, bitsSymbol),
 						"Bits enum must not have any members with a value of 0 when DefaultIsInvalid = true."
 					)
@@ -191,7 +191,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (zeroFields.Count == 0)
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsDefaultRule,
+						Diagnostics.ClosedFlags.ClosedFlagsDefaultRule,
 						Util.GetPrimaryLocation(bitsSymbol),
 						"Bits enum must have exactly one member with a value of 0 when DefaultIsInvalid = false."
 					)
@@ -201,13 +201,13 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 				foreach (IFieldSymbol zero in zeroFields)
 					ctx.ReportDiagnostic(
 						Diagnostic.Create(
-							Diagnostics.ClosedFlagsDefaultRule,
+							Diagnostics.ClosedFlags.ClosedFlagsDefaultRule,
 							Util.GetLocation(zero, bitsSymbol),
 							"Flags enum must have exactly one member with a value of 0 when DefaultIsInvalid = false."
 						)
 					);
 			else if (checkZeroNames && !isNeutralZeroName(zeroFields[0].Name))
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsSuspiciousZeroName, Util.GetLocation(zeroFields[0], bitsSymbol), zeroFields[0].Name));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsSuspiciousZeroName, Util.GetLocation(zeroFields[0], bitsSymbol), zeroFields[0].Name));
 		}
 		return atomicMask;
 	}
@@ -222,23 +222,23 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			bool subset = Util.GetBoolNamedArgument(attr, AttributeSources.ClosedFlagsMirrorAttributeSubsetName, false);
 			Location loc = attr.ApplicationSyntaxReference?.GetSyntax(ctx.CancellationToken).GetLocation() ?? Util.GetLocation(structSymbol, structSymbol);
 			if (!Util.TryGetMirrorEnum(attr, out INamedTypeSymbol? external) || external is null) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsMirrorInvalid, loc, "ClosedFlagsMirror must have exactly one typeof(TEnum) argument."));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid, loc, "ClosedFlagsMirror must have exactly one typeof(TEnum) argument."));
 				continue;
 			}
 			if (external.TypeKind != TypeKind.Enum) {
 				ctx.ReportDiagnostic(
-					Diagnostic.Create(Diagnostics.ClosedFlagsMirrorInvalid, loc, $"ClosedFlagsMirror target '{external.ToDisplayString()}' must be an enum.")
+					Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid, loc, $"ClosedFlagsMirror target '{external.ToDisplayString()}' must be an enum.")
 				);
 				continue;
 			}
 			if (!seenMirrors.Add(external)) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlagsMirrorInvalid, loc, $"Duplicate ClosedFlagsMirror for '{external.ToDisplayString()}'."));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid, loc, $"Duplicate ClosedFlagsMirror for '{external.ToDisplayString()}'."));
 				continue;
 			}
 			if (!SymbolEqualityComparer.Default.Equals(bitsSymbol.EnumUnderlyingType, external.EnumUnderlyingType)) {
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsMirrorInvalid,
+						Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid,
 						loc,
 						$"ClosedFlagsMirror target '{external.ToDisplayString()}' must have the same underlying type as '{bitsSymbol.ToDisplayString()}'."
 					)
@@ -256,7 +256,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if ((closedMask & ~externalMask) != 0)
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsMirrorMismatch,
+						Diagnostics.ClosedFlags.ClosedFlagsMirrorMismatch,
 						loc,
 						$"ClosedFlagsMirror '{structSymbol.Name}.Bits' has one or more bits not present in the target enum ('{external.ToDisplayString()}')."
 					)
@@ -264,7 +264,7 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			if (!subset && (externalMask & ~closedMask) != 0)
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
-						Diagnostics.ClosedFlagsMirrorMismatch,
+						Diagnostics.ClosedFlags.ClosedFlagsMirrorMismatch,
 						loc,
 						$"ClosedFlagsMirror target enum ('{external.ToDisplayString()}') has one or more bits not present in '{structSymbol.Name}.Bits'; if this is intentional, consider using 'Subset = true'."
 					)

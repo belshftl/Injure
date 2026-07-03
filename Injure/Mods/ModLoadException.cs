@@ -3,7 +3,7 @@
 
 namespace Injure.Mods;
 
-public /* unsealed */ class ModLoadException : Exception {
+public sealed class ModLoadException : Exception {
 	public string? ModOwnerID { get; }
 
 	public ModLoadException(string message) : base(message) {

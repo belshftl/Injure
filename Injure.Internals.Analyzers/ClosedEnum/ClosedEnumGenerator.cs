@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Injure.Internals.Analyzers.Generators;
+namespace Injure.Internals.Analyzers.ClosedEnum;
 
 [Generator]
 public sealed class ClosedEnumGenerator : IIncrementalGenerator {
@@ -43,7 +43,7 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 	// ==========================================================================
 	// IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context) {
-		context.RegisterPostInitializationOutput(static (IncrementalGeneratorPostInitializationContext ctx) => {
+		context.RegisterPostInitializationOutput(static ctx => {
 				ctx.AddEmbeddedAttributeDefinition();
 				ctx.AddSource(AttributeSources.ClosedEnumAttributeFilename, SourceText.From(AttributeSources.ClosedEnumAttribute, Encoding.UTF8));
 				ctx.AddSource(AttributeSources.ClosedEnumMirrorAttributeFilename, SourceText.From(AttributeSources.ClosedEnumMirrorAttribute, Encoding.UTF8));
@@ -51,12 +51,12 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		);
 		IncrementalValuesProvider<TargetInfo?> targets = context.SyntaxProvider.ForAttributeWithMetadataName(
 			AttributeSources.ClosedEnumAttributeMetadataName,
-			predicate: static (SyntaxNode node, CancellationToken _) => node is StructDeclarationSyntax,
+			predicate: static (node, _) => node is StructDeclarationSyntax,
 			transform: check
 		);
 		context.RegisterSourceOutput(
 			targets.Collect(),
-			static (SourceProductionContext ctx, ImmutableArray<TargetInfo?> infos) => {
+			static (ctx, infos) => {
 				HashSet<INamedTypeSymbol> seen = new(SymbolEqualityComparer.Default);
 				foreach (TargetInfo? info in infos) {
 					if (info is null || !seen.Add(info.Symbol))
