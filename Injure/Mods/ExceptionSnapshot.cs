@@ -1,10 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace Injure.Mods;
 
 public sealed class ExceptionSnapshot {

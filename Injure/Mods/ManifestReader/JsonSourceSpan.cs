@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-using System.IO;
+using System.Globalization;
 using System.Text;
 
 namespace Injure.Mods.ManifestReader;
@@ -63,7 +61,7 @@ public sealed class SourceText(string sourceName, string text) {
 		int visualEnd = mapCol(colToVisual, endCol);
 		int visualLen = Math.Max(1, visualEnd - visualStart);
 
-		string gutter = lineNo.ToString(System.Globalization.CultureInfo.InvariantCulture).PadLeft(4);
+		string gutter = lineNo.ToString(CultureInfo.InvariantCulture).PadLeft(4);
 
 		StringBuilder sb = new();
 		sb.Append(makePathPrettier(sourceName))

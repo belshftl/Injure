@@ -15,9 +15,9 @@ csharp_indent_switch_labels = false
 csharp_new_line_before_catch = false
 csharp_new_line_before_else = false
 csharp_new_line_before_finally = false
-csharp_new_line_before_open_brace = control_blocks
+csharp_new_line_before_open_brace = never
 csharp_preserve_single_line_blocks = true
-dotnet_separate_import_directive_groups = true
+dotnet_separate_import_directive_groups = false
 
 # PascalCase for public/internal/protected/protected internal
 dotnet_naming_rule.public_internal_members_pascal.severity = suggestion

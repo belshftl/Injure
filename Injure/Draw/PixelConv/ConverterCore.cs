@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;

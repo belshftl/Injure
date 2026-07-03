@@ -1,12 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-
 using Injure.Assets;
 using Injure.Assets.Builtin;
 using Injure.Internals.Analyzers.Attributes;

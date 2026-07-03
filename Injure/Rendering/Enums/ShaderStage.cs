@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 using Injure.Internals.Analyzers.Attributes;
+using WebGPU;
 
 namespace Injure.Rendering;
 
 [ClosedFlags]
-[ClosedFlagsMirror(typeof(WebGPU.WGPUShaderStage))]
+[ClosedFlagsMirror(typeof(WGPUShaderStage))]
 public readonly partial struct ShaderStage {
 	[Flags]
 	public enum Bits : ulong {

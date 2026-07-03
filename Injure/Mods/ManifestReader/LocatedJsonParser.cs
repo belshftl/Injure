@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -153,7 +151,7 @@ public static partial class LocatedJsonParser {
 				};
 			}
 
-			string itemPath = path + "[" + items.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]";
+			string itemPath = path + "[" + items.Count.ToString(CultureInfo.InvariantCulture) + "]";
 			items.Add(parseValue(ref reader, source, utf8, byteToCharOffset, itemPath));
 		}
 	}

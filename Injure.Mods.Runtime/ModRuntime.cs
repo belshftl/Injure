@@ -1,20 +1,13 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-
 using Injure.Internals.Analyzers.Attributes;
 using Injure.Mods.ManifestReader;
 using Injure.Mods.Runtime.MonoMod;

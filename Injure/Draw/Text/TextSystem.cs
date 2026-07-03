@@ -1,18 +1,12 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-
 using FreeTypeSharp;
-
-using static FreeTypeSharp.FT;
-
 using Injure.Assets;
 using Injure.Primitives;
 using Injure.Rendering;
+using static FreeTypeSharp.FT;
 
 namespace Injure.Draw.Text;
 

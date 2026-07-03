@@ -1,11 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Threading;
-
 using Injure.Assets;
 using Injure.Draw.PixelConv;
 using Injure.Internals.Analyzers.Attributes;

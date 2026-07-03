@@ -1,12 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Linq;
-
 using Injure.CodeAnalysis;
 using Injure.Mods;
 

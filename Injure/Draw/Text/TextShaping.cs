@@ -1,12 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
-
 using HarfBuzzSharp;
+using Buffer = HarfBuzzSharp.Buffer;
 
 namespace Injure.Draw.Text;
 
@@ -118,7 +115,7 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 
 	private ShapedRun shape(IResolvedFont font, in TextItem item) {
 		ResolvedFontState st = font.GetState();
-		using HarfBuzzSharp.Buffer buf = new();
+		using Buffer buf = new();
 		buf.AddUtf16(item.Text.AsSpan());
 		if (item.GuessSegmentProperties) {
 			buf.GuessSegmentProperties();
@@ -166,7 +163,7 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 
 	private static (TextSegmentProperties Properties, ShapedCluster[] SourceOrderClusters, ShapedCluster[] GlyphOrderClusters) buildClusters(
 		in TextItem item,
-		HarfBuzzSharp.Buffer buf,
+		Buffer buf,
 		ShapedGlyph[] glyphs
 	) {
 		List<ShapedCluster> glyphOrderClusters = new();

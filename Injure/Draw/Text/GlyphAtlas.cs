@@ -1,18 +1,11 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-
 using FreeTypeSharp;
-
+using Injure.Draw.PixelConv;
 using Injure.Primitives;
-
-using static FreeTypeSharp.FT;
-
 using Injure.Rendering;
+using static FreeTypeSharp.FT;
 
 namespace Injure.Draw.Text;
 
@@ -121,7 +114,7 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 
 		byte[] pixels = readbitmap(slot->bitmap);
 		GlyphAtlasPage page = alloc(w, h, out int x, out int y);
-		page.Texture.Upload(x, y, pixels, srcStride: w, PixelConv.PixelFormat.R8_UNorm, w, h);
+		page.Texture.Upload(x, y, pixels, srcStride: w, PixelFormat.R8_UNorm, w, h);
 		entry = new GlyphAtlasEntry(
 			Page: page,
 			SrcPixels: new RectI(x, y, w, h),

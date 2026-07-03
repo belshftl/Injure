@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics.CodeAnalysis;
-
 using Injure.CodeAnalysis;
 
 namespace Injure.Mods;

@@ -1,13 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Text;
-using System.Threading;
-
 using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Assets;

@@ -1,12 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Buffers.Binary;
-using System.IO;
-
 using Hexa.NET.SDL3;
-
 using Injure.Primitives;
 
 namespace Injure.Runtime;

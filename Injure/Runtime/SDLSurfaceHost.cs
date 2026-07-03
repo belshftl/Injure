@@ -1,13 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 using Hexa.NET.SDL3;
-
-using WebGPU;
-
 using Injure.Rendering;
+using WebGPU;
 
 namespace Injure.Runtime;
 

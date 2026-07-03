@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-
 using Hexa.NET.SDL3;
 
 namespace Injure.Runtime;

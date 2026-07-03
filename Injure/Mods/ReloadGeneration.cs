@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 namespace Injure.Mods;
 
 public readonly record struct ReloadGeneration(string OwnerID, ulong Value) {

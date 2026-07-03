@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Runtime.CompilerServices;
 using System.Diagnostics;
-
+using System.Runtime.CompilerServices;
 using FreeTypeSharp;
 
 namespace Injure.Draw.Text;

@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Collections.Immutable;
-using System.Linq;
-
 using Injure.Internals.Analyzers.Attributes;
 using Injure.Mods;
 

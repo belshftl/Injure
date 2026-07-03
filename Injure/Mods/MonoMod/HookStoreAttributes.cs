@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 namespace Injure.Mods.MonoMod;
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]

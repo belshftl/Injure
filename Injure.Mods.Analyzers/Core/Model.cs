@@ -1,12 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Linq;
-
+using Injure.Mods.Analyzers.Shared;
 using Microsoft.CodeAnalysis;
 
 namespace Injure.Mods.Analyzers.Core;
@@ -18,7 +15,7 @@ internal sealed class ModAssemblyModel(AttributeData attribute, string ownerID, 
 	public string HotReloadName { get; } = hotReloadName;
 	public INamedTypeSymbol? LifetimeIdentityType { get; } = lifetimeIdentityType;
 
-	public bool IsLive => HotReloadRawValue == (int)Shared.ModAssemblyHotReloadLevelMirror.Live;
+	public bool IsLive => HotReloadRawValue == (int)ModAssemblyHotReloadLevelMirror.Live;
 	public Location Location => Attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None;
 }
 

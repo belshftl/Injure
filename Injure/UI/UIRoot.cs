@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
 using System.Numerics;
-
 using Injure.Draw;
 using Injure.Input;
 using Injure.Primitives;

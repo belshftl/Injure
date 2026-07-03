@@ -1,11 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
+using System.Runtime.ExceptionServices;
 using Injure.Draw;
 using Injure.Input;
 using Injure.Mods.CodeAnalysis;
@@ -349,7 +345,7 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input) : ID
 				if (ReferenceEquals(op.Layer.Owner, this))
 					op.Layer.Owner = null;
 				Exception ex = op.Task.Exception.GetBaseException();
-				System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
+				ExceptionDispatchInfo.Capture(ex).Throw();
 			}
 
 			switch (op.Kind) {

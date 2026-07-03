@@ -1,13 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-
 using Injure.Mods.MonoMod;
-
 using MonoMod.Cil;
 
 namespace Injure.Mods.Runtime.MonoMod;

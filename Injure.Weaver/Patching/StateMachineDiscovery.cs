@@ -1,14 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-
+using Injure.Weaver.Model;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-
-using Injure.Weaver.Model;
-
 using ResultDict = System.Collections.Generic.Dictionary<string, Injure.Weaver.Model.PublicizedStateMachineKind>;
 
 namespace Injure.Weaver.Patching;

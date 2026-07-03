@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Reflection;
-
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 

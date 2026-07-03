@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Numerics;
-
 using Injure.Input;
 using Injure.Primitives;
 using Injure.Time;

@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 using Injure.Mods;
 
 namespace Injure.Internals.Tests.Mods;

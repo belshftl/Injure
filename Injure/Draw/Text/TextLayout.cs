@@ -1,13 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
-
 using HarfBuzzSharp;
-
 using Injure.Internals.Analyzers.Attributes;
 using Injure.Primitives;
 

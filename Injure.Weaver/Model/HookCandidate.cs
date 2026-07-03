@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics.CodeAnalysis;
-
 using Mono.Cecil;
 
 namespace Injure.Weaver.Model;

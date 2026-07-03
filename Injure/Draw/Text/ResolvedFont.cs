@@ -1,21 +1,15 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.InteropServices;
-
 using FreeTypeSharp;
-
 using HarfBuzzSharp;
-
+using Injure.Assets;
+using Injure.Internals.Analyzers.Attributes;
 using static FreeTypeSharp.FT;
 using static FreeTypeSharp.FT_LOAD;
 using static FreeTypeSharp.FT_Render_Mode_;
-
-using Injure.Assets;
-using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Draw.Text;
 

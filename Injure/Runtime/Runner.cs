@@ -1,16 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
-
 using Hexa.NET.SDL3;
-
 using Injure.Assets;
 using Injure.Assets.Builtin;
 using Injure.Draw;
@@ -20,7 +14,6 @@ using Injure.Primitives;
 using Injure.Rendering;
 using Injure.Sched.Tickers;
 using Injure.Time;
-
 using Thread = System.Threading.Thread;
 
 namespace Injure.Runtime;

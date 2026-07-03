@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using WebGPU;
 
 namespace Injure.Primitives;
 
@@ -248,7 +248,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// <summary>
 	/// Converts this value to a <see cref="WebGPU.WGPUColor"/> with each channel in the range [0, 1].
 	/// </summary>
-	internal WebGPU.WGPUColor ToWebGPUColor() => new(R / 255.0, G / 255.0, B / 255.0, A / 255.0);
+	internal WGPUColor ToWebGPUColor() => new(R / 255.0, G / 255.0, B / 255.0, A / 255.0);
 
 	public bool Equals(Color32 other) => R == other.R && G == other.G && B == other.B && A == other.A;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is Color32 other && Equals(other);

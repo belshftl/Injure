@@ -1,11 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.Reflection;
-
 using Injure.Mods.Runtime.MonoMod;
 
 namespace Injure.Mods.Runtime;

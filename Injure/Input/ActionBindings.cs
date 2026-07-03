@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Numerics;
-
 using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Input;

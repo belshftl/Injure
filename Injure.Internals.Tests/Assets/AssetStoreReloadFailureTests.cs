@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Threading.Tasks;
-
 using Injure.Assets;
 using Injure.Mods;
 

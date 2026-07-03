@@ -1,15 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-
-using WebGPU;
-
-using static WebGPU.WebGPU;
-
 using Injure.Common;
+using WebGPU;
+using static WebGPU.WebGPU;
 
 namespace Injure.Rendering;
 

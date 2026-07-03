@@ -1,16 +1,12 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
-
 using Injure.Assets;
 using Injure.Draw.Text;
 using Injure.Input;
 using Injure.Rendering;
 using Injure.Sched.Tickers;
-
 using static Injure.Runtime.GameServiceSharedUtil;
 
 namespace Injure.Runtime;

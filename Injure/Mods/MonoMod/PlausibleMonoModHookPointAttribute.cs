@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 namespace Injure.Mods.MonoMod;
 
 // use open enums since 1) these are just informational and 2) you can't have the closed enum

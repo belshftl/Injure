@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using HarfBuzzSharp;
-
 using Injure.Draw.Text;
-
 using static Injure.Internals.Tests.Draw.Text.Util;
 
 namespace Injure.Internals.Tests.Draw.Text;

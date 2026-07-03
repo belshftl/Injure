@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Internals.Analyzers.Attributes;
+using WebGPU;
 
 namespace Injure.Rendering;
 
 [ClosedEnum(CheckZeroName = false)]
-[ClosedEnumMirror(typeof(WebGPU.WGPUBufferBindingType))]
+[ClosedEnumMirror(typeof(WGPUBufferBindingType))]
 public readonly partial struct BufferBindingType {
 	public enum Case {
 		BindingNotUsed = 0,

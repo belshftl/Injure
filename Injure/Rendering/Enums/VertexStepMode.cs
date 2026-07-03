@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Internals.Analyzers.Attributes;
+using WebGPU;
 
 namespace Injure.Rendering;
 
 [ClosedEnum(CheckZeroName = false)]
-[ClosedEnumMirror(typeof(WebGPU.WGPUVertexStepMode))]
+[ClosedEnumMirror(typeof(WGPUVertexStepMode))]
 public readonly partial struct VertexStepMode {
 	public enum Case {
 		VertexBufferNotUsed = 0,

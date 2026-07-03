@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-
 using Microsoft.CodeAnalysis;
 
 namespace Injure.Mods.Analyzers.Discouraged;

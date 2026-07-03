@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
-
 using Microsoft.CodeAnalysis;
 
 namespace Injure.Mods.Analyzers.Lifetime;

@@ -1,15 +1,11 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
-
 using HarfBuzzSharp;
-
 using static Injure.Draw.Text.FriBidi;
 
 namespace Injure.Draw.Text;

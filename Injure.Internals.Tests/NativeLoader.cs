@@ -1,12 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using System.Threading;
+using Injure.Native;
 
 namespace Injure.Internals.Tests;
 
@@ -23,7 +21,7 @@ public static class LibmiscNativeLoader {
 		if (!File.Exists(path))
 			throw new FileNotFoundException($"'{path}' not found");
 		injuremisc = NativeLibrary.Load(path);
-		NativeLibrary.SetDllImportResolver(typeof(Native.Unibreak).Assembly, dllImportResolver);
+		NativeLibrary.SetDllImportResolver(typeof(Unibreak).Assembly, dllImportResolver);
 	}
 
 	private static string getRID() {

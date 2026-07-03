@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Internals.Analyzers.Attributes;
+using WebGPU;
 
 namespace Injure.Rendering;
 
 [ClosedEnum]
-[ClosedEnumMirror(typeof(WebGPU.WGPUStencilOperation))]
+[ClosedEnumMirror(typeof(WGPUStencilOperation))]
 public readonly partial struct StencilOperation {
 	public enum Case {
 		Undefined = 0,

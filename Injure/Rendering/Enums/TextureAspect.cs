@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Internals.Analyzers.Attributes;
+using WebGPU;
 
 namespace Injure.Rendering;
 
 [ClosedEnum]
-[ClosedEnumMirror(typeof(WebGPU.WGPUTextureAspect))]
+[ClosedEnumMirror(typeof(WGPUTextureAspect))]
 public readonly partial struct TextureAspect {
 	public enum Case {
 		Undefined = 0,

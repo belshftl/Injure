@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Runtime.CompilerServices;
-
 using static Injure.Draw.PixelConv.ConverterCore;
 
 namespace Injure.Draw.PixelConv;

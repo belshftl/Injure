@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics;
 using System.Globalization;
-
 using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Mods.Utils.MonoMod;

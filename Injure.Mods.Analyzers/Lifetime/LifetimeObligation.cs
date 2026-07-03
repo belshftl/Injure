@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-
 using Microsoft.CodeAnalysis;
 
 namespace Injure.Mods.Analyzers.Lifetime;

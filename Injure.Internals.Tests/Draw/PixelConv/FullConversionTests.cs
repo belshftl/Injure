@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 using Injure.Draw.PixelConv;
-
 using static Injure.Internals.Tests.Draw.PixelConv.Util;
 
 namespace Injure.Internals.Tests.Draw.PixelConv;

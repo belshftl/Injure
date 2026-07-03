@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 using Injure.Internals.Analyzers.Attributes;
+using WebGPU;
 
 namespace Injure.Rendering;
 
 [ClosedFlags]
-[ClosedFlagsMirror(typeof(WebGPU.WGPUColorWriteMask))]
+[ClosedFlagsMirror(typeof(WGPUColorWriteMask))]
 public readonly partial struct ColorWriteMask {
 	[Flags]
 	public enum Bits : ulong {

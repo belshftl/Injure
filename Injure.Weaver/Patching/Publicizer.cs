@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Mono.Cecil;
-
 using Injure.Weaver.Model;
+using Mono.Cecil;
 
 namespace Injure.Weaver.Patching;
 

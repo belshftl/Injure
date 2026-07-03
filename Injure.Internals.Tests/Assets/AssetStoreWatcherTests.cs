@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Threading.Tasks;
-
 using Injure.Assets;
 
 namespace Injure.Internals.Tests.Assets;

@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Collections.Generic;
-
 using Injure.Common;
 
 namespace Injure.Sched.Coro;

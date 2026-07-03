@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-
+using System.Reflection;
+using Injure.Weaver.Model;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-
-using Injure.Weaver.Model;
+using FieldAttributes = Mono.Cecil.FieldAttributes;
+using MethodAttributes = Mono.Cecil.MethodAttributes;
+using TypeAttributes = Mono.Cecil.TypeAttributes;
 
 namespace Injure.Weaver.Patching;
 
@@ -78,8 +78,8 @@ public static class StoreEmitter {
 
 		ILProcessor il = cctor.Body.GetILProcessor();
 		MethodReference getMethodFromHandle = module.ImportReference(
-			typeof(System.Reflection.MethodBase).GetMethod(
-				nameof(System.Reflection.MethodBase.GetMethodFromHandle),
+			typeof(MethodBase).GetMethod(
+				nameof(MethodBase.GetMethodFromHandle),
 				new[] { typeof(RuntimeMethodHandle) }
 			)
 		);

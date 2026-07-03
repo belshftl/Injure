@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics;
-
 using Injure.Draw.PixelConv;
 
 namespace Injure.Internals.Tests.Draw.PixelConv;

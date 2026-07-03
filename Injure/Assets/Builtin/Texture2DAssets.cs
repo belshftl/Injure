@@ -1,19 +1,13 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
-
-using StbImageSharp;
-
 using Injure.Draw;
 using Injure.Draw.PixelConv;
 using Injure.Primitives;
 using Injure.Rendering;
+using StbImageSharp;
 
 namespace Injure.Assets.Builtin;
 

@@ -1,14 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-
 using Injure.Input;
 using Injure.Mods;
 using Injure.Sched.Coro;
 using Injure.Time;
-
 using CoroUpdatePhase = Injure.Sched.Coro.CoroUpdatePhase;
 
 namespace Injure.Layers;

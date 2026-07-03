@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Draw.Text;
-
 using static Injure.Internals.Tests.Draw.Text.Util;
 
 namespace Injure.Internals.Tests.Draw.Text;

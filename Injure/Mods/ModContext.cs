@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-
 using Injure.CodeAnalysis;
 using Injure.Mods.MonoMod;
 using Injure.Runtime;

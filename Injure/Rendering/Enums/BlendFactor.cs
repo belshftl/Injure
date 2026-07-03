@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Internals.Analyzers.Attributes;
+using WebGPU;
 
 namespace Injure.Rendering;
 
 [ClosedEnum]
-[ClosedEnumMirror(typeof(WebGPU.WGPUBlendFactor))]
+[ClosedEnumMirror(typeof(WGPUBlendFactor))]
 public readonly partial struct BlendFactor {
 	public enum Case {
 		Undefined = 0,

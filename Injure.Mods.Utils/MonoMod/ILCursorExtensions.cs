@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 using Mono.Cecil.Cil;
-
 using MonoMod.Cil;
 
 namespace Injure.Mods.Utils.MonoMod;

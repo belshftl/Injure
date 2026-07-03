@@ -1,12 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Linq;
+using System.Globalization;
 using System.Reflection;
-
 using Injure.Mods.MonoMod;
-
 using MonoMod.RuntimeDetour;
 
 namespace Injure.Mods.Runtime.MonoMod;
@@ -108,7 +105,7 @@ internal static class HookDiscoverer<TGameApi> {
 		if (patchMethod.DeclaringType?.FullName is null)
 			throw new InvalidOperationException("expected patch method to have a declaring type with a fully-qualified name");
 		string domain = string.IsNullOrWhiteSpace(orderDomain) ? ownerID : ownerID + "::" + orderDomain;
-		string localID = prefix + ":" + patchMethod.DeclaringType.FullName + "." + patchMethod.Name + "#" + ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		string localID = prefix + ":" + patchMethod.DeclaringType.FullName + "." + patchMethod.Name + "#" + ordinal.ToString(CultureInfo.InvariantCulture);
 		return new HookOrder(domain, localID, localPriority);
 	}
 

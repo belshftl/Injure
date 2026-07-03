@@ -1,13 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
-using Injure.Mods;
-
 namespace Injure.Mods.Runtime;
 
 internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {

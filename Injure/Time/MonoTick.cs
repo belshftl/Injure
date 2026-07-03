@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Runtime.CompilerServices;
-
 using Injure.Internals.Analyzers.Attributes;
 using Injure.Runtime;
 

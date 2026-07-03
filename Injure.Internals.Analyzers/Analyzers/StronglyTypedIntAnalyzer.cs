@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
-
+using Injure.Internals.Analyzers.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-
-using Injure.Internals.Analyzers.Shared;
 
 namespace Injure.Internals.Analyzers.Analyzers;
 

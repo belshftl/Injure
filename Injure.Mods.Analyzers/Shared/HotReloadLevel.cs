@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
+using Injure.Mods.Analyzers.Core;
 using Microsoft.CodeAnalysis;
 
 namespace Injure.Mods.Analyzers.Shared;
@@ -16,7 +15,7 @@ internal enum ModAssemblyHotReloadLevelMirror {
 
 internal static class HotReloadModel {
 	public static bool TryGetHotReloadLevel(Compilation compilation, out ModAssemblyHotReloadLevelMirror lv) {
-		var m = Core.Model.Create(compilation);
+		var m = Model.Create(compilation);
 		if (m.ModAssembly is null || !Enum.IsDefined(typeof(ModAssemblyHotReloadLevelMirror), m.ModAssembly.HotReloadRawValue)) {
 			lv = default;
 			return false;

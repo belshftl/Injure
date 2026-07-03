@@ -1,13 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Diagnostics.CodeAnalysis;
-
 using Hexa.NET.SDL3;
-
 using Injure.Time;
-
 using static Injure.Runtime.SDLException;
 
 namespace Injure.Runtime;

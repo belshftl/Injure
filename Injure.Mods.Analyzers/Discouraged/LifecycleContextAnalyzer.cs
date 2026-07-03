@@ -2,14 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
-using System.Linq;
-
+using Injure.Mods.Analyzers.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-
-using Injure.Mods.Analyzers.Shared;
 
 namespace Injure.Mods.Analyzers.Discouraged;
 

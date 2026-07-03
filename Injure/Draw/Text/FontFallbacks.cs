@@ -1,16 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.Hashing;
-using System.Linq;
-using System.Threading;
-
 using HarfBuzzSharp;
-
 using Injure.Assets;
 
 namespace Injure.Draw.Text;

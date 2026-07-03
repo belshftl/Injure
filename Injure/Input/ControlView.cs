@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 namespace Injure.Input;
 
 public readonly ref struct ControlView(ActionStateView actions, ReadOnlySpan<ControlEvent> events, PointerState pointer) {

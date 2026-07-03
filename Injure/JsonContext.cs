@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Text.Json.Serialization;
-
 using Injure.Assets.Builtin;
 
 namespace Injure;

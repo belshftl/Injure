@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System;
-
 namespace Injure.Draw.PixelConv;
 
 using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte*, byte*, nuint, void>;
