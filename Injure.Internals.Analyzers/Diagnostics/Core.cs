@@ -19,7 +19,7 @@ internal static class Core {
 	public static readonly DiagnosticDescriptor OpenClassMarkerNotAllowed = new(
 		id: "IJDEV0002",
 		title: "Open class marker not allowed here",
-		messageFormat: "The `/* open */` marker is only allowed on non-{static/abstract/sealed} classes or non-{abstract/sealed} records",
+		messageFormat: "The `/* open */` marker is only allowed on non-{{static/abstract/sealed}} classes or non-{{abstract/sealed}} records",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true

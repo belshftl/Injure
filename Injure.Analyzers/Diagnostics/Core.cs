@@ -9,8 +9,8 @@ internal static class Core {
 #pragma warning disable RS2008 // enable analyzer release tracking
 	public static readonly DiagnosticDescriptor MissingOpenClassMarker = new(
 		id: "IJ0001",
-		title: "Every class should be sealed or explicitly marked open",
-		messageFormat: "For most classes, you should use `sealed class` and not plain `class`; if you do actually want a non-sealed class, mark it with `/* open */` (for example, `public /* open */ class MyClass`)",
+		title: "Every class should be sealed/abstract or explicitly marked open",
+		messageFormat: "For most classes, you should use `sealed class` (or sometimes `abstract class`) instead of plain `class`; if you do genuinely want an instantiatable AND openly inheritable class, mark it with `/* open */` (for example, `public /* open */ class MyClass`)",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
@@ -19,7 +19,7 @@ internal static class Core {
 	public static readonly DiagnosticDescriptor OpenClassMarkerNotAllowed = new(
 		id: "IJ0002",
 		title: "Open class marker not allowed here",
-		messageFormat: "The `/* open */` marker is only allowed on non-{static/abstract/sealed} classes or non-{abstract/sealed} records",
+		messageFormat: "The `/* open */` marker is only allowed on non-{{static/abstract/sealed}} classes or non-{{abstract/sealed}} records",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true

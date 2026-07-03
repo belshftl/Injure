@@ -157,9 +157,9 @@ internal static class Discouraged {
 
 	public static readonly DiagnosticDescriptor PreferRequireGoto = new(
 		id: "IJM0215",
-		title: "Use RequireGoto{Next,Prev} instead of plain Goto{Next,Prev}",
+		title: "Use RequireGoto{{Next,Prev}} instead of plain Goto{{Next,Prev}}",
 		messageFormat:
-		"Use ILCursor.RequireGoto{Next,Prev} from Injure.Mods.Utils instead of plain Goto{Next,Prev} as they provide much better exceptions/messages on match failure",
+		"Use ILCursor.RequireGoto{{Next,Prev}} from Injure.Mods.Utils instead of plain Goto{{Next,Prev}} as they provide much better exceptions/messages on match failure",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
