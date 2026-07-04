@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 namespace Injure.Mods.Runtime;
 
 internal readonly record struct NativeLibraryResolution(
-	string ProviderOwnerID,
+	string ProviderOwnerId,
 	string LibraryID,
 	string RuntimeIdentifier,
 	string FullPath
@@ -24,7 +24,7 @@ internal sealed class NativeLibraryRegistry(string currentRid) {
 		public required ReloadGeneration Generation;
 	}
 
-	private readonly Dictionary<(string OwnerID, string ID), NativeLibraryResolution> libraries = new();
+	private readonly Dictionary<(string OwnerId, string ID), NativeLibraryResolution> libraries = new();
 	private readonly Dictionary<string, IntPtr> loadedByPath = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 	private readonly ConditionalWeakTable<Assembly, ImporterInfo> importers = new();
 	private readonly Dictionary<ReloadGeneration, NativeImportPhase> phaseByGeneration = new();
@@ -38,8 +38,8 @@ internal sealed class NativeLibraryRegistry(string currentRid) {
 		foreach (ResolvedMod mod in graph.Mods.Values) {
 			HashSet<string> deps = new(StringComparer.Ordinal);
 			foreach (ModRelationshipManifest rel in mod.Manifest.Relationships)
-				deps.Add(rel.OwnerID);
-			dependenciesByOwner[mod.Manifest.OwnerID] = deps;
+				deps.Add(rel.OwnerId);
+			dependenciesByOwner[mod.Manifest.OwnerId] = deps;
 		}
 
 		foreach (StagedMod mod in staged) {
@@ -51,10 +51,10 @@ internal sealed class NativeLibraryRegistry(string currentRid) {
 
 				string path = Path.GetFullPath(Path.Combine(mod.StagedRoot, lib.Path));
 				if (!File.Exists(path))
-					throw new ModLoadException(mod.Manifest.OwnerID, $"native library '{lib.Path}' not found");
+					throw new ModLoadException(mod.Manifest.OwnerId, $"native library '{lib.Path}' not found");
 
-				if (!libraries.TryAdd((mod.Manifest.OwnerID, lib.ID), new NativeLibraryResolution(mod.Manifest.OwnerID, lib.ID, lib.RuntimeIdentifier, path)))
-					throw new ModLoadException(mod.Manifest.OwnerID, $"duplicate native library '{mod.Manifest.OwnerID}::{lib.ID}' for RID '{currentRid}'");
+				if (!libraries.TryAdd((mod.Manifest.OwnerId, lib.Id), new NativeLibraryResolution(mod.Manifest.OwnerId, lib.Id, lib.RuntimeIdentifier, path)))
+					throw new ModLoadException(mod.Manifest.OwnerId, $"duplicate native library '{mod.Manifest.OwnerId}::{lib.Id}' for RID '{currentRid}'");
 			}
 		}
 	}
@@ -78,15 +78,15 @@ internal sealed class NativeLibraryRegistry(string currentRid) {
 		if (libraryName.IndexOf("::", i + 2, StringComparison.Ordinal) >= 0)
 			throw new InvalidOperationException("mod native library name must contain exactly one occurrence of ::");
 		string provider = libraryName[..i];
-		if (!ModMetadataValidation.ValidateOwnerID(provider, out string? err))
+		if (!ModMetadataValidation.ValidateOwnerId(provider, out string? err))
 			throw new InvalidOperationException($"invalid mod native library provider ID: {err}");
 		string id = libraryName[(i + 2)..];
-		if (!ModMetadataValidation.ValidateLocalID(id, out err))
+		if (!ModMetadataValidation.ValidateLocalId(id, out err))
 			throw new InvalidOperationException($"invalid mod native library ID: {err}");
 
 		if (!importers.TryGetValue(importingAssembly, out ImporterInfo? ii))
 			return IntPtr.Zero;
-		string importer = ii.Generation.OwnerID;
+		string importer = ii.Generation.OwnerId;
 		if (importer != provider) {
 			if (!phaseByGeneration.TryGetValue(ii.Generation, out NativeImportPhase phase) || phase != NativeImportPhase.LinkOrLater)
 				throw new InvalidOperationException($"mod '{importer}' cannot use native library '{provider}::{id}' before LinkAsync");

@@ -17,7 +17,7 @@ public sealed class FontAssetData(
 public sealed class FontAssetResolver : IAssetResolver {
 	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
 		ct.ThrowIfCancellationRequested();
-		Stream stream = await info.FetchAsync(info.AssetID, ct).ConfigureAwait(false);
+		Stream stream = await info.FetchAsync(info.AssetId, ct).ConfigureAwait(false);
 		if (!looksLikeAFont(stream)) {
 			await stream.DisposeAsync().ConfigureAwait(false);
 			return AssetResolveResult.NotHandled();
@@ -25,9 +25,9 @@ public sealed class FontAssetResolver : IAssetResolver {
 		return AssetResolveResult.Success(
 			new FontAssetData(
 				stream,
-				info.AssetID.ToString(),
-				Path.GetExtension(info.AssetID.Path),
-				info.AssetID
+				info.AssetId.ToString(),
+				Path.GetExtension(info.AssetId.Path),
+				info.AssetId
 			)
 		);
 	}
@@ -61,7 +61,7 @@ public sealed class FontAssetCreator(TextSystem text) : IAssetCreator<Font> {
 		await using Stream stream = data.Stream;
 		byte[] bytes = await readAllBytesAsync(stream, ct).ConfigureAwait(false);
 		if (bytes.Length < 4)
-			throw new AssetLoadException(info.AssetID, typeof(Font), "font file is too small");
+			throw new AssetLoadException(info.AssetId, typeof(Font), "font file is too small");
 		return AssetCreateResult<Font>.Success(text.LoadFont(bytes, data.DebugName)); // XXX: pretty sure LoadFont isn't thread safe yet
 	}
 

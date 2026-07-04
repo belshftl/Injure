@@ -15,24 +15,24 @@ public sealed record KeyEvent(
 
 public sealed record GamepadAddedEvent(
 	MonoTick Tick,
-	GamepadID Gamepad
+	GamepadId Gamepad
 ) : InputEvent(Tick);
 
 public sealed record GamepadRemovedEvent(
 	MonoTick Tick,
-	GamepadID Gamepad
+	GamepadId Gamepad
 ) : InputEvent(Tick);
 
 public sealed record GamepadAxisEvent(
 	MonoTick Tick,
-	GamepadID Gamepad,
+	GamepadId Gamepad,
 	GamepadAxis Axis,
 	float Value // [-1, 1] for sticks, [0, 1] for triggers
 ) : InputEvent(Tick);
 
 public sealed record GamepadButtonEvent(
 	MonoTick Tick,
-	GamepadID Gamepad,
+	GamepadId Gamepad,
 	GamepadButton Button,
 	EdgeType Edge
 ) : InputEvent(Tick);

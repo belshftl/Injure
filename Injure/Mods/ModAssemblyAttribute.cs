@@ -49,18 +49,18 @@ public enum ModAssemblyHotReloadLevel {
 /// <paramref name="lifetimeIdentityType"/> must be a struct implementing
 /// <see cref="IModLifetimeIdentity"/> and marked with a
 /// <see cref="ModLifetimeIdentityBelongsToAttribute"/> whose owner ID matches
-/// <paramref name="ownerID"/>.
+/// <paramref name="ownerId"/>.
 /// </para>
 /// <para>
 /// The lifetime identity may be declared in a referenced shared contract assembly.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
-public sealed class ModAssemblyAttribute(string ownerID, ModAssemblyHotReloadLevel hotReloadLevel, Type lifetimeIdentityType) : Attribute {
+public sealed class ModAssemblyAttribute(string ownerId, ModAssemblyHotReloadLevel hotReloadLevel, Type lifetimeIdentityType) : Attribute {
 	/// <summary>
 	/// Owner ID of the mod that the assembly belongs to.
 	/// </summary>
-	public string OwnerID { get; } = ownerID;
+	public string OwnerId { get; } = ownerId;
 
 	/// <summary>
 	/// Highest reload capability supported by the mod.

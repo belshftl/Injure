@@ -9,7 +9,7 @@ namespace Injure.Internals.Tests.Draw.PixelConv;
 public sealed class BasicConversionTests {
 	[Fact]
 	public void BasicShufflingWorks() {
-		PixelConversionPlan plan = PixelConverter.CreatePlan(PixelFormat.RGBA32_UNorm, PixelFormat.BGRA32_UNorm);
+		PixelConversionPlan plan = PixelConverter.CreatePlan(PixelFormat.Rgba32_Unorm, PixelFormat.Bgra32_Unorm);
 		byte[] src = [0x10, 0x20, 0x30, 0x40, 0xa0, 0xb0, 0xc0, 0xd0];
 		byte[] dst = new byte[src.Length];
 		plan.ConvertRow(src, dst, pxCount: 2);
@@ -19,9 +19,9 @@ public sealed class BasicConversionTests {
 	[Fact]
 	public void AlphaOverrideWorks() {
 		PixelConversionPlan plan = PixelConverter.CreatePlan(
-			PixelFormat.RGBA32_UNorm,
-			PixelFormat.BGRA32_UNorm,
-			new PixelConvertOptions(Alpha16UNorm: 0x8080, OverrideAlpha: true)
+			PixelFormat.Rgba32_Unorm,
+			PixelFormat.Bgra32_Unorm,
+			new PixelConvertOptions(Alpha16Unorm: 0x8080, OverrideAlpha: true)
 		);
 		byte[] src = [
 			0x01, 0x02, 0x03, 0x04,
@@ -46,7 +46,7 @@ public sealed class BasicConversionTests {
 
 	[Fact]
 	public void FillingMissingChannelsWorks() {
-		PixelConversionPlan plan = PixelConverter.CreatePlan(PixelFormat.R8_UNorm, PixelFormat.RGBA32_UNorm);
+		PixelConversionPlan plan = PixelConverter.CreatePlan(PixelFormat.R8_Unorm, PixelFormat.Rgba32_Unorm);
 		byte[] src = [0x10, 0x20];
 		byte[] dst = new byte[src.Length * 4];
 		plan.ConvertRow(src, dst, pxCount: 2);
@@ -55,14 +55,14 @@ public sealed class BasicConversionTests {
 
 	[Fact]
 	public void DroppingAndNarrowingWorks() {
-		Assert.Throws<InvalidOperationException>(() => _ = PixelConverter.CreatePlan(PixelFormat.RGBA64_UNorm_LE, PixelFormat.R8_UNorm));
+		Assert.Throws<InvalidOperationException>(() => _ = PixelConverter.CreatePlan(PixelFormat.Rgba64_Unorm_Le, PixelFormat.R8_Unorm));
 
 		PixelConversionPlan plan = PixelConverter.CreatePlan(
-			PixelFormat.RGBA64_UNorm_LE,
-			PixelFormat.R8_UNorm,
+			PixelFormat.Rgba64_Unorm_Le,
+			PixelFormat.R8_Unorm,
 			new PixelConvertOptions(Flags: ConversionFlags.AllowNarrowing | ConversionFlags.AllowDroppingChannels)
 		);
-		byte[] src = Rgba64LE((0x1111, 0x2222, 0x3333, 0x4444), (0xaaaa, 0xbbbb, 0xcccc, 0xdddd));
+		byte[] src = Rgba64Le((0x1111, 0x2222, 0x3333, 0x4444), (0xaaaa, 0xbbbb, 0xcccc, 0xdddd));
 		byte[] dst = new byte[2];
 		plan.ConvertRow(src, dst, pxCount: 2);
 		Assert.Equal([0x11, 0xaa], dst);
@@ -78,10 +78,10 @@ public sealed class BasicConversionTests {
 		PixelConverter.Convert(
 			src,
 			srcStride: 6,
-			srcFmt: PixelFormat.RGBA32_UNorm,
+			srcFmt: PixelFormat.Rgba32_Unorm,
 			dst,
 			dstStride: 4,
-			dstFmt: PixelFormat.RGBA32_UNorm,
+			dstFmt: PixelFormat.Rgba32_Unorm,
 			width: 1,
 			height: 2
 		);

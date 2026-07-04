@@ -12,7 +12,7 @@ namespace Injure.Assets;
 public sealed class DirectoryEngineResourceSource(string root) : IEngineResourceSource {
 	private readonly string root = !string.IsNullOrWhiteSpace(root) ? root : throw new ArgumentException("root must be non-null/empty/whitespace");
 
-	public EngineResourceSourceResult TryCreate(EngineResourceID id) {
+	public EngineResourceSourceResult TryCreate(EngineResourceId id) {
 		string path = Path.Combine(root, id.Path.Replace('/', Path.DirectorySeparatorChar));
 		if (!File.Exists(path))
 			return EngineResourceSourceResult.NotHandled();
@@ -35,11 +35,11 @@ public sealed class DirectoryEngineResourceSource(string root) : IEngineResource
 /// The resource ID path is used as the manifest resource name. The explicit ID set is used instead of
 /// reflection-based discovery so this source remains simple and NativeAOT-friendly.
 /// </remarks>
-public sealed class EmbeddedEngineResourceSource(Assembly assembly, HashSet<EngineResourceID> ids) : IEngineResourceSource {
+public sealed class EmbeddedEngineResourceSource(Assembly assembly, HashSet<EngineResourceId> ids) : IEngineResourceSource {
 	private readonly Assembly assembly = assembly ?? throw new ArgumentNullException(nameof(assembly));
-	private readonly HashSet<EngineResourceID> ids = ids ?? throw new ArgumentNullException(nameof(ids));
+	private readonly HashSet<EngineResourceId> ids = ids ?? throw new ArgumentNullException(nameof(ids));
 
-	public EngineResourceSourceResult TryCreate(EngineResourceID id) {
+	public EngineResourceSourceResult TryCreate(EngineResourceId id) {
 		if (!ids.Contains(id))
 			return EngineResourceSourceResult.NotHandled();
 

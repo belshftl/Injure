@@ -275,7 +275,7 @@ internal static unsafe class TextAnalysis {
 		return l.ToArray();
 	}
 
-	public static TextItem[] ItemizeByScript(ReadOnlySpan<char> text, int sourceStart, Direction direction, string? languageBCP47) {
+	public static TextItem[] ItemizeByScript(ReadOnlySpan<char> text, int sourceStart, Direction direction, string? languageBcp47) {
 		static void add(
 			List<TextItem> dst,
 			ReadOnlySpan<char> text,
@@ -284,7 +284,7 @@ internal static unsafe class TextAnalysis {
 			int runLength,
 			Direction direction,
 			Script? script,
-			string? languageBCP47
+			string? languageBcp47
 		) {
 			if (runLength <= 0)
 				return;
@@ -292,7 +292,7 @@ internal static unsafe class TextAnalysis {
 				new TextItem(
 					SourceStart: sourceStart + runStart,
 					Text: new string(text.Slice(runStart, runLength)),
-					Properties: new TextSegmentProperties(direction, script, languageBCP47),
+					Properties: new TextSegmentProperties(direction, script, languageBcp47),
 					GuessSegmentProperties: false
 				)
 			);
@@ -317,7 +317,7 @@ internal static unsafe class TextAnalysis {
 				pendingPrefixStart = -1;
 				currentScript = script;
 			} else if (currentScript is null || currentScript.Value != script) {
-				add(items, text, sourceStart, currentRunStart, index - currentRunStart, direction, currentScript, languageBCP47);
+				add(items, text, sourceStart, currentRunStart, index - currentRunStart, direction, currentScript, languageBcp47);
 				currentRunStart = index;
 				currentScript = script;
 			}
@@ -332,7 +332,7 @@ internal static unsafe class TextAnalysis {
 			text.Length - finalStart,
 			direction,
 			currentRunStart >= 0 ? currentScript : Script.Common,
-			languageBCP47
+			languageBcp47
 		);
 		return items.ToArray();
 	}

@@ -2,39 +2,37 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
-using System.Runtime.Intrinsics.Arm;
-using System.Runtime.Intrinsics.X86;
 
 namespace Injure.Draw.PixelConv;
 
 using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte*, byte*, nuint, void>;
 
-internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, Kernel sse2, Kernel advSIMD, Kernel scalar, bool sentinel = false) {
-	public readonly Kernel AVX2 = avx2;
-	public readonly Kernel SSSE3 = ssse3;
-	public readonly Kernel SSE2 = sse2;
-	public readonly Kernel AdvSIMD = advSIMD;
+internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, Kernel sse2, Kernel advSimd, Kernel scalar, bool sentinel = false) {
+	public readonly Kernel Avx2 = avx2;
+	public readonly Kernel Ssse3 = ssse3;
+	public readonly Kernel Sse2 = sse2;
+	public readonly Kernel AdvSimd = advSimd;
 	public readonly Kernel Scalar = scalar;
 	public readonly bool Sentinel = sentinel;
 
 	public Kernel Pick(out PlanBackend chosen) {
 		if (Sentinel)
 			throw new InternalStateException("this KernelFallbackChain is a sentinel value");
-		if (Avx2.IsSupported && AVX2 is not null) {
-			chosen = PlanBackend.AVX2;
-			return AVX2;
+		if (System.Runtime.Intrinsics.X86.Avx2.IsSupported && Avx2 is not null) {
+			chosen = PlanBackend.Avx2;
+			return Avx2;
 		}
-		if (Ssse3.IsSupported && SSSE3 is not null) {
-			chosen = PlanBackend.SSSE3;
-			return SSSE3;
+		if (System.Runtime.Intrinsics.X86.Ssse3.IsSupported && Ssse3 is not null) {
+			chosen = PlanBackend.Ssse3;
+			return Ssse3;
 		}
-		if (Sse2.IsSupported && SSE2 is not null) {
-			chosen = PlanBackend.SSE2;
-			return SSE2;
+		if (System.Runtime.Intrinsics.X86.Sse2.IsSupported && Sse2 is not null) {
+			chosen = PlanBackend.Sse2;
+			return Sse2;
 		}
-		if (AdvSimd.Arm64.IsSupported && AdvSIMD is not null) {
-			chosen = PlanBackend.AdvSIMD;
-			return AdvSIMD;
+		if (System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && AdvSimd is not null) {
+			chosen = PlanBackend.AdvSimd;
+			return AdvSimd;
 		}
 		if (Scalar is not null) {
 			chosen = PlanBackend.Scalar;
@@ -46,27 +44,27 @@ internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, K
 	public bool TryPickSpecific(PlanBackend selected, out Kernel kernel) {
 		kernel = null;
 		switch (selected.Tag) {
-		case PlanBackend.Case.AVX2:
-			if (Avx2.IsSupported && AVX2 is not null) {
-				kernel = AVX2;
+		case PlanBackend.Case.Avx2:
+			if (System.Runtime.Intrinsics.X86.Avx2.IsSupported && Avx2 is not null) {
+				kernel = Avx2;
 				return true;
 			}
 			return false;
-		case PlanBackend.Case.SSSE3:
-			if (Ssse3.IsSupported && SSSE3 is not null) {
-				kernel = SSSE3;
+		case PlanBackend.Case.Ssse3:
+			if (System.Runtime.Intrinsics.X86.Ssse3.IsSupported && Ssse3 is not null) {
+				kernel = Ssse3;
 				return true;
 			}
 			return false;
-		case PlanBackend.Case.SSE2:
-			if (Sse2.IsSupported && SSE2 is not null) {
-				kernel = SSE2;
+		case PlanBackend.Case.Sse2:
+			if (System.Runtime.Intrinsics.X86.Sse2.IsSupported && Sse2 is not null) {
+				kernel = Sse2;
 				return true;
 			}
 			return false;
-		case PlanBackend.Case.AdvSIMD:
-			if (AdvSimd.Arm64.IsSupported && AdvSIMD is not null) {
-				kernel = AdvSIMD;
+		case PlanBackend.Case.AdvSimd:
+			if (System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && AdvSimd is not null) {
+				kernel = AdvSimd;
 				return true;
 			}
 			return false;
@@ -85,12 +83,12 @@ internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, K
 internal static unsafe class KernelRegistry {
 	public static readonly ImmutableArray<KernelFallbackChain> Kernels = [
 		new(null, null, null, null, null, sentinel: true), // Memcpy
-		new(&AVX2Kernels.Copy32SetAlpha, null, &SSE2Kernels.Copy32SetAlpha, &AdvSIMDKernels.Copy32SetAlpha, &ScalarKernels.Copy32SetAlpha),
-		new(&AVX2Kernels.Copy64SetAlpha, null, &SSE2Kernels.Copy64SetAlpha, &AdvSIMDKernels.Copy64SetAlpha, &ScalarKernels.Copy64SetAlpha),
+		new(&Avx2Kernels.Copy32SetAlpha, null, &Sse2Kernels.Copy32SetAlpha, &AdvSimdKernels.Copy32SetAlpha, &ScalarKernels.Copy32SetAlpha),
+		new(&Avx2Kernels.Copy64SetAlpha, null, &Sse2Kernels.Copy64SetAlpha, &AdvSimdKernels.Copy64SetAlpha, &ScalarKernels.Copy64SetAlpha),
 
-		new(&AVX2Kernels.Shuffle32, &SSSE3Kernels.Shuffle32, null, &AdvSIMDKernels.Shuffle32, &ScalarKernels.Shuffle32),
-		new(&AVX2Kernels.Expand24To32, &SSSE3Kernels.Expand24To32, null, &AdvSIMDKernels.Expand24To32, &ScalarKernels.Expand24To32),
-		new(&AVX2Kernels.Contract32To24, null, null, null, &ScalarKernels.Contract32To24),
+		new(&Avx2Kernels.Shuffle32, &Ssse3Kernels.Shuffle32, null, &AdvSimdKernels.Shuffle32, &ScalarKernels.Shuffle32),
+		new(&Avx2Kernels.Expand24To32, &Ssse3Kernels.Expand24To32, null, &AdvSimdKernels.Expand24To32, &ScalarKernels.Expand24To32),
+		new(&Avx2Kernels.Contract32To24, null, null, null, &ScalarKernels.Contract32To24),
 
 		new(null, null, null, null, &ScalarKernels.Shuffle64),
 		new(null, null, null, null, &ScalarKernels.Widen32To64),

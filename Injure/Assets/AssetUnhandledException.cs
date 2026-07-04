@@ -8,9 +8,9 @@ namespace Injure.Assets;
 /// source/resolver/creator has been found.
 /// </summary>
 public sealed class AssetUnhandledException : AssetLoadException {
-	public AssetUnhandledException(AssetID id, Type type, string message) : base(id, type, message) {
+	public AssetUnhandledException(AssetId id, Type type, string message) : base(id, type, message) {
 	}
 
-	public AssetUnhandledException(AssetID id, Type type, string message, Exception ex) : base(id, type, message, ex) {
+	public AssetUnhandledException(AssetId id, Type type, string message, Exception ex) : base(id, type, message, ex) {
 	}
 }

@@ -4,12 +4,12 @@
 namespace Injure.Mods;
 
 public sealed class ModLoadException : Exception {
-	public string? ModOwnerID { get; }
+	public string? ModOwnerId { get; }
 
 	public ModLoadException(string message) : base(message) {
 	}
 
-	public ModLoadException(string modOwnerID, string message) : base($"while loading mod '{modOwnerID}': {message}") {
-		ModOwnerID = modOwnerID;
+	public ModLoadException(string modOwnerId, string message) : base($"while loading mod '{modOwnerId}': {message}") {
+		ModOwnerId = modOwnerId;
 	}
 }

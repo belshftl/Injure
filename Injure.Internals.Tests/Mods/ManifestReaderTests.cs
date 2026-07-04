@@ -65,7 +65,7 @@ public sealed class ManifestReaderTests {
 	public void ParsesCodeManifest() {
 		ModManifest manifest = parse(validCodeManifest());
 		CodeModManifest code = Assert.IsType<CodeModManifest>(manifest);
-		Assert.Equal("jdoe.test-mod", code.OwnerID);
+		Assert.Equal("jdoe.test-mod", code.OwnerId);
 		Assert.Equal(Semver.Parse("1.2.3"), code.Version);
 		Assert.True(code.Reloadable);
 		Assert.True(code.LiveReloadable);
@@ -85,7 +85,7 @@ public sealed class ManifestReaderTests {
 	public void ParsesContentManifest() {
 		ModManifest manifest = parse(validContentManifest());
 		ContentModManifest content = Assert.IsType<ContentModManifest>(manifest);
-		Assert.Equal("jdoe.content-mod", content.OwnerID);
+		Assert.Equal("jdoe.content-mod", content.OwnerId);
 		Assert.Equal(Semver.Parse("1.2.3"), content.Version);
 		Assert.False(content.Reloadable);
 		Assert.Equal("Content Mod", content.DisplayName);
@@ -136,7 +136,7 @@ public sealed class ManifestReaderTests {
 }
 """;
 		ContentModManifest manifest = Assert.IsType<ContentModManifest>(parse(json));
-		Assert.Equal("jdoe.comments", manifest.OwnerID);
+		Assert.Equal("jdoe.comments", manifest.OwnerId);
 	}
 
 	[Theory]
@@ -206,7 +206,7 @@ public sealed class ManifestReaderTests {
 	[InlineData("")]
 	[InlineData("foo@bar")]
 	[InlineData("Foo Bar")]
-	public void RejectsInvalidOwnerID(string id) {
+	public void RejectsInvalidOwnerId(string id) {
 		string json = $$"""
 {
 	"schema": 0,
@@ -431,19 +431,19 @@ public sealed class ManifestReaderTests {
 		Assert.Collection(
 			manifest.Relationships,
 			rel => {
-				Assert.Equal("other.required", rel.OwnerID);
+				Assert.Equal("other.required", rel.OwnerId);
 				Assert.Equal(ModRelationshipKind.RequiresSelfAfter, rel.Kind);
 				Assert.Equal(Semver.Parse("2.0.0"), rel.Version);
 				Assert.Equal("Required API.", rel.Description);
 			},
 			rel => {
-				Assert.Equal("other.optional", rel.OwnerID);
+				Assert.Equal("other.optional", rel.OwnerId);
 				Assert.Equal(ModRelationshipKind.IfPresentSelfBefore, rel.Kind);
 				Assert.Null(rel.Version);
 				Assert.Equal("Optional integration with feature XYZ.", rel.Description);
 			},
 			rel => {
-				Assert.Equal("other.conflict", rel.OwnerID);
+				Assert.Equal("other.conflict", rel.OwnerId);
 				Assert.Equal(ModRelationshipKind.Conflicts, rel.Kind);
 				Assert.Equal(Semver.Parse("3.0.0"), rel.Version);
 				Assert.Equal("Both replace system XYZ in conflicting ways.", rel.Description);
@@ -505,12 +505,12 @@ public sealed class ManifestReaderTests {
 		Assert.Collection(
 			manifest.NativeLibraries,
 			lib => {
-				Assert.Equal("libwebp", lib.ID);
+				Assert.Equal("libwebp", lib.Id);
 				Assert.Equal("native/linux-x64/libwebp.so", lib.Path);
 				Assert.Equal("linux-x64", lib.RuntimeIdentifier);
 			},
 			lib => {
-				Assert.Equal("libwebp", lib.ID);
+				Assert.Equal("libwebp", lib.Id);
 				Assert.Equal("native/win-x64/webp.dll", lib.Path);
 				Assert.Equal("win-x64", lib.RuntimeIdentifier);
 			}
@@ -534,7 +534,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsDuplicateNativeLibraryIDAndRid() {
+	public void RejectsDuplicateNativeLibraryIdAndRid() {
 		string nativeLibraries = """
 [
 	{
@@ -559,7 +559,7 @@ public sealed class ManifestReaderTests {
 	[InlineData("bad id")]
 	[InlineData("bad::id")]
 	[InlineData("@bad")]
-	public void RejectsInvalidNativeLibraryID(string id) {
+	public void RejectsInvalidNativeLibraryId(string id) {
 		string nativeLibraries = $$"""
 [
 	{

@@ -47,7 +47,7 @@ public readonly record struct FontOptions(
 
 internal readonly record struct ResolvedFontKey(
 	FontSourceKind SourceKind,
-	ulong ID,
+	ulong Id,
 	int FaceIndex,
 	FontOptions Options
 );
@@ -79,7 +79,7 @@ internal sealed class ResolvedDirectFont(TextSystem owner, Font source, int face
 		return state;
 	}
 
-	public FontCacheToken GetCacheToken() => new(new ResolvedFontKey(FontSourceKind.Direct, source.ID, faceIndex, opts), Version);
+	public FontCacheToken GetCacheToken() => new(new ResolvedFontKey(FontSourceKind.Direct, source.Id, faceIndex, opts), Version);
 
 	public void Dispose() => state?.Dispose();
 }
@@ -114,7 +114,7 @@ internal sealed class ResolvedAssetSourcedFont(TextSystem owner, AssetRef<Font> 
 
 	public FontCacheToken GetCacheToken() {
 		ensureCurrent();
-		return new FontCacheToken(new ResolvedFontKey(FontSourceKind.Asset, source.SlotID, faceIndex, opts), loadedVersion);
+		return new FontCacheToken(new ResolvedFontKey(FontSourceKind.Asset, source.SlotId, faceIndex, opts), loadedVersion);
 	}
 
 	public void Dispose() => state?.Dispose();
@@ -292,21 +292,21 @@ internal sealed unsafe class ResolvedFontState : IDisposable {
 		return FT_Get_Char_Index(FtFace, codepoint) != 0;
 	}
 
-	private bool hbTryGetNominalGlyph(HarfBuzzSharp.Font font, object fontData, uint unicode, out uint glyphID) {
+	private bool hbTryGetNominalGlyph(HarfBuzzSharp.Font font, object fontData, uint unicode, out uint glyphId) {
 		ObjectDisposedException.ThrowIf(disposed, this);
-		return (glyphID = FT_Get_Char_Index(FtFace, unicode)) != 0;
+		return (glyphId = FT_Get_Char_Index(FtFace, unicode)) != 0;
 	}
 
-	private int hbGetHorizontalGlyphAdvance(HarfBuzzSharp.Font font, object fontData, uint glyphID) {
+	private int hbGetHorizontalGlyphAdvance(HarfBuzzSharp.Font font, object fontData, uint glyphId) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		nint advance16_16 = 0;
-		FTException.Check(FT_Get_Advance(FtFace, glyphID, Options.LoadFlags, &advance16_16));
+		FTException.Check(FT_Get_Advance(FtFace, glyphId, Options.LoadFlags, &advance16_16));
 		return (int)(advance16_16 + 0x200 >> 10);
 	}
 
-	private bool hbTryGetGlyphExtents(HarfBuzzSharp.Font font, object fontData, uint glyphID, out GlyphExtents extents) {
+	private bool hbTryGetGlyphExtents(HarfBuzzSharp.Font font, object fontData, uint glyphId, out GlyphExtents extents) {
 		ObjectDisposedException.ThrowIf(disposed, this);
-		FTException.Check(FT_Load_Glyph(FtFace, glyphID, Options.LoadFlags));
+		FTException.Check(FT_Load_Glyph(FtFace, glyphId, Options.LoadFlags));
 		FT_Glyph_Metrics_ m = FtFace->glyph->metrics;
 		extents = new GlyphExtents {
 			XBearing = checked((int)m.horiBearingX),

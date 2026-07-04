@@ -17,7 +17,7 @@ public readonly struct AssetNamespace {
 	internal AssetNamespace(AssetStore store, string ns) {
 		ArgumentNullException.ThrowIfNull(store);
 		ArgumentNullException.ThrowIfNull(ns);
-		AssetID.ValidateNamespaceOrThrow(ns);
+		AssetId.ValidateNamespaceOrThrow(ns);
 		this.store = store;
 		Namespace = ns;
 	}
@@ -26,12 +26,12 @@ public readonly struct AssetNamespace {
 	/// Gets a stable handle for the specified asset in the namespace.
 	/// </summary>
 	/// <remarks>
-	/// See <see cref="AssetStore.GetAsset{T}(AssetID)"/>; this is a tiny wrapper over it.
+	/// See <see cref="AssetStore.GetAsset{T}(AssetId)"/>; this is a tiny wrapper over it.
 	/// </remarks>
-	public AssetRef<T> Get<T>(string path) where T : class => store.GetAsset<T>(new AssetID(Namespace, path));
+	public AssetRef<T> Get<T>(string path) where T : class => store.GetAsset<T>(new AssetId(Namespace, path));
 
 	/// <summary>
-	/// Creates an <see cref="AssetID"/> from this <see cref="AssetNamespace"/>'s namespace and the provided path.
+	/// Creates an <see cref="AssetId"/> from this <see cref="AssetNamespace"/>'s namespace and the provided path.
 	/// </summary>
-	public AssetID ID(string path) => new(Namespace, path);
+	public AssetId Id(string path) => new(Namespace, path);
 }

@@ -6,7 +6,7 @@ using Injure.Assets;
 namespace Injure.Internals.Tests.Assets;
 
 public sealed class AssetStoreThreadContextTests {
-	private const string ownerID = "test";
+	private const string ownerId = "test";
 
 	[Fact]
 	public void SameThreadCanAttachToMultipleStores() {
@@ -25,11 +25,11 @@ public sealed class AssetStoreThreadContextTests {
 	public void RetiredVerIsReclaimedOnlyAfterSafeBoundary() {
 		AssetStore store = new();
 		using AssetThreadContext mainCtx = store.AttachCurrentThread();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		TestAsset v = asset.Borrow().Value;
 
 		ThreadCheckpoint first = new();
@@ -58,7 +58,7 @@ public sealed class AssetStoreThreadContextTests {
 		store.AtSafeBoundary();
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
-		Assert.Equal($"{ownerID}::asset", v.Val);
+		Assert.Equal($"{ownerId}::asset", v.Val);
 
 		store.AtSafeBoundary();
 		first.Proceed();
@@ -77,11 +77,11 @@ public sealed class AssetStoreThreadContextTests {
 	public void DisposingContextAllowsReclamation() {
 		AssetStore store = new();
 		using AssetThreadContext mainCtx = store.AttachCurrentThread();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		TestAsset v = asset.Borrow().Value;
 
 		ThreadCheckpoint ckp = new();
@@ -106,7 +106,7 @@ public sealed class AssetStoreThreadContextTests {
 		store.AtSafeBoundary();
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
-		Assert.Equal($"{ownerID}::asset", v.Val);
+		Assert.Equal($"{ownerId}::asset", v.Val);
 
 		store.AtSafeBoundary();
 		ckp.Proceed();

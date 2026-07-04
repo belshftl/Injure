@@ -10,7 +10,7 @@ namespace Injure.Draw.Text;
 internal readonly record struct TextSegmentProperties(
 	Direction? Direction = null,
 	Script? Script = null,
-	string? LanguageBCP47 = null
+	string? LanguageBcp47 = null
 );
 
 internal readonly record struct TextItem(
@@ -21,7 +21,7 @@ internal readonly record struct TextItem(
 );
 
 internal readonly record struct ShapedGlyph(
-	uint GlyphID,
+	uint GlyphId,
 	uint Cluster,
 	float XOffset,
 	float YOffset,
@@ -54,12 +54,12 @@ internal sealed class ShapedRun {
 }
 
 internal interface ITextItemizer {
-	TextItem[] Itemize(ReadOnlySpan<char> text, int sourceStart, Direction direction, string? languageBCP47);
+	TextItem[] Itemize(ReadOnlySpan<char> text, int sourceStart, Direction direction, string? languageBcp47);
 }
 
 internal sealed class DefaultTextItemizer : ITextItemizer {
-	public TextItem[] Itemize(ReadOnlySpan<char> text, int sourceStart, Direction direction, string? languageBCP47) =>
-		TextAnalysis.ItemizeByScript(text, sourceStart, direction, languageBCP47);
+	public TextItem[] Itemize(ReadOnlySpan<char> text, int sourceStart, Direction direction, string? languageBcp47) =>
+		TextAnalysis.ItemizeByScript(text, sourceStart, direction, languageBcp47);
 }
 
 internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimatedCost) : IDisposable {
@@ -124,10 +124,10 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 				buf.Direction = d;
 			if (item.Properties.Script is Script s)
 				buf.Script = s;
-			if (!string.IsNullOrWhiteSpace(item.Properties.LanguageBCP47)) {
-				if (!langs.TryGetValue(item.Properties.LanguageBCP47, out Language? l)) {
-					l = new Language(item.Properties.LanguageBCP47);
-					langs.Add(item.Properties.LanguageBCP47, l);
+			if (!string.IsNullOrWhiteSpace(item.Properties.LanguageBcp47)) {
+				if (!langs.TryGetValue(item.Properties.LanguageBcp47, out Language? l)) {
+					l = new Language(item.Properties.LanguageBcp47);
+					langs.Add(item.Properties.LanguageBcp47, l);
 				}
 				buf.Language = l;
 			}
@@ -139,7 +139,7 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 		float w = 0f;
 		for (int i = 0; i < buf.Length; i++) {
 			glyphs[i] = new ShapedGlyph(
-				GlyphID: infos[i].Codepoint,
+				GlyphId: infos[i].Codepoint,
 				Cluster: infos[i].Cluster,
 				XOffset: positions[i].XOffset / 64.0f,
 				YOffset: positions[i].YOffset / 64.0f,
@@ -208,14 +208,14 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 		Array.Copy(glyphOrderArray, sourceOrderArray, glyphOrderArray.Length);
 		Array.Sort(
 			sourceOrderArray,
-			static (ShapedCluster a, ShapedCluster b) => {
+			static (a, b) => {
 				int n = a.SourceStart.CompareTo(b.SourceStart);
 				return n != 0 ? n : a.GlyphStart.CompareTo(b.GlyphStart);
 			}
 		);
 		TextSegmentProperties props = !item.GuessSegmentProperties
 			? item.Properties
-			: new TextSegmentProperties(Direction: buf.Direction, Script: buf.Script, LanguageBCP47: item.Properties.LanguageBCP47);
+			: new TextSegmentProperties(Direction: buf.Direction, Script: buf.Script, LanguageBcp47: item.Properties.LanguageBcp47);
 		return (props, sourceOrderArray, glyphOrderArray);
 	}
 

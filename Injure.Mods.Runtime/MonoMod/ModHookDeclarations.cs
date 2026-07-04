@@ -34,8 +34,8 @@ internal sealed class ModHookDeclarations<TGameApi, L>(
 		};
 		set.Add(
 			new HookDeclaration(
-				mod.Staged.Manifest.OwnerID,
-				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, hookMethod, 0, "decl-load-hook"),
+				mod.Staged.Manifest.OwnerId,
+				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerId, config.OrderDomain, config.LocalPriority, hookMethod, 0, "decl-load-hook"),
 				detourConfigFrom(in config),
 				target.Method,
 				hookMethod
@@ -53,8 +53,8 @@ internal sealed class ModHookDeclarations<TGameApi, L>(
 		};
 		set.Add(
 			new HookDeclaration(
-				mod.Staged.Manifest.OwnerID,
-				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, hookMethod, 0, "decl-load-hook"),
+				mod.Staged.Manifest.OwnerId,
+				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerId, config.OrderDomain, config.LocalPriority, hookMethod, 0, "decl-load-hook"),
 				detourConfigFrom(in config),
 				targetMethod,
 				hookMethod
@@ -73,8 +73,8 @@ internal sealed class ModHookDeclarations<TGameApi, L>(
 		};
 		set.Add(
 			new ILHookDeclaration(
-				mod.Staged.Manifest.OwnerID,
-				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, manipulatorMethod, 0, "decl-load-hook"),
+				mod.Staged.Manifest.OwnerId,
+				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerId, config.OrderDomain, config.LocalPriority, manipulatorMethod, 0, "decl-load-hook"),
 				detourConfigFrom(in config),
 				target.Method,
 				manipulatorMethod
@@ -92,8 +92,8 @@ internal sealed class ModHookDeclarations<TGameApi, L>(
 		};
 		set.Add(
 			new ILHookDeclaration(
-				mod.Staged.Manifest.OwnerID,
-				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerID, config.OrderDomain, config.LocalPriority, manipulatorMethod, 0, "decl-load-hook"),
+				mod.Staged.Manifest.OwnerId,
+				HookDiscoverer<TGameApi>.CreateOrder(mod.Staged.Manifest.OwnerId, config.OrderDomain, config.LocalPriority, manipulatorMethod, 0, "decl-load-hook"),
 				detourConfigFrom(in config),
 				targetMethod,
 				manipulatorMethod

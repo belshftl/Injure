@@ -28,7 +28,7 @@ public readonly partial struct TextureInterpretation {
 		/// <summary>
 		/// Interprets the texture's red channel as a coverage mask.
 		/// </summary>
-		RMask,
+		Rmask,
 
 		/// <summary>
 		/// Interprets the texture as a signed distance field.
@@ -38,7 +38,7 @@ public readonly partial struct TextureInterpretation {
 		/// parameter will also expose some way to pass in a <see cref="SdfParams"/> struct,
 		/// as setting those parameters is required for this interpretation mode.
 		/// </remarks>
-		SDF,
+		Sdf,
 	}
 }
 
@@ -61,7 +61,7 @@ public struct TexturedBatchLocalsUniformPlain {
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public struct TexturedBatchLocalsUniformSDF {
+public struct TexturedBatchLocalsUniformSdf {
 	public required Matrix4x4 Transform;
 	public float DistanceRangeTexels;
 	public float EdgeValue;
@@ -69,37 +69,37 @@ public struct TexturedBatchLocalsUniformSDF {
 	public float OutlineWidthPixels;
 	public Vector4 OutlineColor;
 
-	public static readonly int Size = Unsafe.SizeOf<TexturedBatchLocalsUniformSDF>();
+	public static readonly int Size = Unsafe.SizeOf<TexturedBatchLocalsUniformSdf>();
 }
 
 public sealed class TexturedBatchSharedState : IDisposable {
 	public readonly TextureInterpretation TextureInterpretation;
 	public readonly TextureFormat ColorTargetFormat;
-	private readonly GPUShaderModule shader;
-	private readonly GPUBindGroupLayout localsBindGroupLayout;
-	private readonly GPUPipelineLayout pipelineLayout;
-	private readonly GPURenderPipeline pipeline;
+	private readonly GpuShaderModule shader;
+	private readonly GpuBindGroupLayout localsBindGroupLayout;
+	private readonly GpuPipelineLayout pipelineLayout;
+	private readonly GpuRenderPipeline pipeline;
 	private bool disposed = false;
 
-	public GPUShaderModule Shader {
+	public GpuShaderModule Shader {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return shader;
 		}
 	}
-	public GPUBindGroupLayoutRef LocalsBindGroupLayout {
+	public GpuBindGroupLayoutRef LocalsBindGroupLayout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return localsBindGroupLayout.AsRef();
 		}
 	}
-	public GPUPipelineLayout PipelineLayout {
+	public GpuPipelineLayout PipelineLayout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return pipelineLayout;
 		}
 	}
-	public GPURenderPipeline Pipeline {
+	public GpuRenderPipeline Pipeline {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return pipeline;
@@ -107,7 +107,7 @@ public sealed class TexturedBatchSharedState : IDisposable {
 	}
 
 	public TexturedBatchSharedState(
-		WebGPUDevice device,
+		WebGpuDevice device,
 		EngineResourceStore engineResources,
 		BlendState? blend,
 		ColorWriteMask colorWriteMask,
@@ -117,32 +117,32 @@ public sealed class TexturedBatchSharedState : IDisposable {
 		TextureInterpretation = interp;
 		ColorTargetFormat = colorTargetFormat;
 		BuiltinShaderInfo shaderInfo = interp.Tag switch {
-			TextureInterpretation.Case.Color => BuiltinShaders.Textured2DColor,
-			TextureInterpretation.Case.RMask => BuiltinShaders.Textured2DRMask,
-			TextureInterpretation.Case.SDF => BuiltinShaders.Textured2DSDF,
+			TextureInterpretation.Case.Color => BuiltinShaders.Textured2dColor,
+			TextureInterpretation.Case.Rmask => BuiltinShaders.Textured2dRmask,
+			TextureInterpretation.Case.Sdf => BuiltinShaders.Textured2dSdf,
 			_ => throw new UnreachableException(),
 		};
-		shader = device.CreateShaderModuleWGSL(engineResources.GetText(shaderInfo.ResourceID));
-		if (interp != TextureInterpretation.SDF)
+		shader = device.CreateShaderModuleWGSL(engineResources.GetText(shaderInfo.ResourceId));
+		if (interp != TextureInterpretation.Sdf)
 			localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)TexturedBatchLocalsUniformPlain.Size);
 		else
-			localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex | ShaderStage.Fragment, (ulong)TexturedBatchLocalsUniformSDF.Size);
+			localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex | ShaderStage.Fragment, (ulong)TexturedBatchLocalsUniformSdf.Size);
 		pipelineLayout = device.CreatePipelineLayout(
 			[
 				device.StdGlobalsUniformLayout,
 				localsBindGroupLayout,
-				device.StdColorTexture2DLayout,
+				device.StdColorTexture2dLayout,
 			]
 		);
 		pipeline = device.CreateRenderPipeline(
-			new GPURenderPipelineCreateParams(
+			new GpuRenderPipelineCreateParams(
 				Layout: PipelineLayout,
 				Vertex: new VertexState(
 					ShaderModule: Shader,
-					EntryPoint: shaderInfo.VSEntry,
+					EntryPoint: shaderInfo.VsEntry,
 					Buffers: [
 						new VertexBufferLayout(
-							ArrayStride: (ulong)Vertex2DTextureColor.Size,
+							ArrayStride: (ulong)Vertex2dTextureColor.Size,
 							StepMode: VertexStepMode.Vertex,
 							Attributes: [
 								new VertexAttribute(
@@ -166,7 +166,7 @@ public sealed class TexturedBatchSharedState : IDisposable {
 				),
 				Fragment: new FragmentState(
 					ShaderModule: Shader,
-					EntryPoint: shaderInfo.FSEntry,
+					EntryPoint: shaderInfo.FsEntry,
 					Targets: [
 						new ColorTargetState(
 							Format: colorTargetFormat,
@@ -204,24 +204,24 @@ public readonly record struct TexturedBatchParams(
 public sealed class TexturedBatch : IDisposable {
 	private struct Run {
 		public object Identity;
-		public GPUBindGroupRef BindGroup;
+		public GpuBindGroupRef BindGroup;
 		public uint FirstIndex;
 		public uint IndexCount;
 	}
 
-	private readonly WebGPUDevice device;
+	private readonly WebGpuDevice device;
 	private readonly ViewGlobals globals;
 	private readonly RenderFrame frame;
 	private readonly RenderPass pass;
 	private readonly TexturedBatchSharedState shared;
-	private readonly GPUBuffer localsUniformBuffer;
-	private readonly GPUBindGroup localsUniformBindGroup;
+	private readonly GpuBuffer localsUniformBuffer;
+	private readonly GpuBindGroup localsUniformBindGroup;
 
-	private Vertex2DTextureColor[] verts;
+	private Vertex2dTextureColor[] verts;
 	private uint[] idxs;
 	private Run[] runs;
-	private GPUBuffer vbuffer;
-	private GPUBuffer ibuffer;
+	private GpuBuffer vbuffer;
+	private GpuBuffer ibuffer;
 
 	private int vcount = 0;
 	private int icount = 0;
@@ -231,7 +231,7 @@ public sealed class TexturedBatch : IDisposable {
 	private bool disposed = false;
 
 	public TexturedBatch(
-		WebGPUDevice device,
+		WebGpuDevice device,
 		ViewGlobals globals,
 		RenderFrame frame,
 		RenderPass pass,
@@ -247,7 +247,7 @@ public sealed class TexturedBatch : IDisposable {
 		this.pass = pass;
 		this.shared = shared;
 
-		if (shared.TextureInterpretation != TextureInterpretation.SDF) {
+		if (shared.TextureInterpretation != TextureInterpretation.Sdf) {
 			TexturedBatchLocalsUniformPlain l = new() {
 				Transform = MatrixUtil.To4x4(@params.Transform),
 			};
@@ -255,8 +255,8 @@ public sealed class TexturedBatch : IDisposable {
 			device.WriteToBuffer(localsUniformBuffer, 0, in l);
 		} else {
 			if (@params.SdfParams is not SdfParams p)
-				throw new ArgumentNullException(nameof(@params), "TexturedBatchSharedState has SDF texture interpretation but SdfParams is null");
-			TexturedBatchLocalsUniformSDF l = new() {
+				throw new ArgumentNullException(nameof(@params), "TexturedBatchSharedState has Sdf texture interpretation but SdfParams is null");
+			TexturedBatchLocalsUniformSdf l = new() {
 				Transform = MatrixUtil.To4x4(@params.Transform),
 				DistanceRangeTexels = p.DistanceRangeTexels,
 				EdgeValue = p.EdgeValue,
@@ -264,14 +264,14 @@ public sealed class TexturedBatch : IDisposable {
 				OutlineWidthPixels = p.OutlineWidthPixels,
 				OutlineColor = p.OutlineColor.ToVector4(),
 			};
-			localsUniformBuffer = device.CreateBuffer((ulong)TexturedBatchLocalsUniformSDF.Size, BufferUsage.Uniform | BufferUsage.CopyDst);
+			localsUniformBuffer = device.CreateBuffer((ulong)TexturedBatchLocalsUniformSdf.Size, BufferUsage.Uniform | BufferUsage.CopyDst);
 			device.WriteToBuffer(localsUniformBuffer, 0, in l);
 		}
 		localsUniformBindGroup = device.CreateUniformBufferBindGroup(shared.LocalsBindGroupLayout, localsUniformBuffer);
-		verts = new Vertex2DTextureColor[initialVertCapacity];
+		verts = new Vertex2dTextureColor[initialVertCapacity];
 		idxs = new uint[initialIndexCapacity];
 		runs = new Run[initialRunCapacity];
-		vbuffer = device.CreateBuffer((ulong)(initialVertCapacity * Vertex2DTextureColor.Size), BufferUsage.Vertex | BufferUsage.CopyDst);
+		vbuffer = device.CreateBuffer((ulong)(initialVertCapacity * Vertex2dTextureColor.Size), BufferUsage.Vertex | BufferUsage.CopyDst);
 		ibuffer = device.CreateBuffer((ulong)(initialIndexCapacity * sizeof(uint)), BufferUsage.Index | BufferUsage.CopyDst);
 	}
 
@@ -286,7 +286,7 @@ public sealed class TexturedBatch : IDisposable {
 			int sz = Math.Max(vcount + needVerts, verts.Length * 2);
 			Array.Resize(ref verts, sz);
 			vbuffer.Dispose();
-			vbuffer = device.CreateBuffer((ulong)(sz * Vertex2DTextureColor.Size), BufferUsage.Vertex | BufferUsage.CopyDst);
+			vbuffer = device.CreateBuffer((ulong)(sz * Vertex2dTextureColor.Size), BufferUsage.Vertex | BufferUsage.CopyDst);
 		}
 		if (icount + needIdxs > idxs.Length) {
 			int sz = Math.Max(icount + needIdxs, idxs.Length * 2);
@@ -298,7 +298,7 @@ public sealed class TexturedBatch : IDisposable {
 			Array.Resize(ref runs, Math.Max(rcount + needRuns, runs.Length * 2));
 	}
 
-	private uint addvert(in Vertex2DTextureColor v) {
+	private uint addvert(in Vertex2dTextureColor v) {
 		verts[vcount] = v;
 		return (uint)vcount++;
 	}
@@ -331,10 +331,10 @@ public sealed class TexturedBatch : IDisposable {
 		chk();
 		ensure(4, 6, 1);
 		startrun(tex, 6);
-		uint i0 = addvert(new Vertex2DTextureColor(dst.X, dst.Y, uv.X, uv.Y, color));
-		uint i1 = addvert(new Vertex2DTextureColor(dst.X + dst.Width, dst.Y, uv.X + uv.Width, uv.Y, color));
-		uint i2 = addvert(new Vertex2DTextureColor(dst.X, dst.Y + dst.Height, uv.X, uv.Y + uv.Height, color));
-		uint i3 = addvert(new Vertex2DTextureColor(dst.X + dst.Width, dst.Y + dst.Height, uv.X + uv.Width, uv.Y + uv.Height, color));
+		uint i0 = addvert(new Vertex2dTextureColor(dst.X, dst.Y, uv.X, uv.Y, color));
+		uint i1 = addvert(new Vertex2dTextureColor(dst.X + dst.Width, dst.Y, uv.X + uv.Width, uv.Y, color));
+		uint i2 = addvert(new Vertex2dTextureColor(dst.X, dst.Y + dst.Height, uv.X, uv.Y + uv.Height, color));
+		uint i3 = addvert(new Vertex2dTextureColor(dst.X + dst.Width, dst.Y + dst.Height, uv.X + uv.Width, uv.Y + uv.Height, color));
 		add3idxs(i0, i2, i1);
 		add3idxs(i3, i1, i2);
 	}
@@ -345,7 +345,7 @@ public sealed class TexturedBatch : IDisposable {
 
 		if (icount == 0)
 			return;
-		ulong vbytes = (ulong)(vcount * Vertex2DTextureColor.Size);
+		ulong vbytes = (ulong)(vcount * Vertex2dTextureColor.Size);
 		ulong ibytes = (ulong)(icount * sizeof(uint));
 		device.WriteToBuffer(vbuffer, 0, verts.AsSpan(0, vcount));
 		device.WriteToBuffer(ibuffer, 0, idxs.AsSpan(0, icount));

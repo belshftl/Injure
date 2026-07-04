@@ -20,31 +20,31 @@ public struct PrimitiveBatchLocalsUniform {
 
 public sealed class PrimitiveBatchSharedState : IDisposable {
 	public readonly TextureFormat ColorTargetFormat;
-	private readonly GPUShaderModule shader;
-	private readonly GPUBindGroupLayout localsBindGroupLayout;
-	private readonly GPUPipelineLayout pipelineLayout;
-	private readonly GPURenderPipeline pipeline;
+	private readonly GpuShaderModule shader;
+	private readonly GpuBindGroupLayout localsBindGroupLayout;
+	private readonly GpuPipelineLayout pipelineLayout;
+	private readonly GpuRenderPipeline pipeline;
 	private bool disposed = false;
 
-	public GPUShaderModule Shader {
+	public GpuShaderModule Shader {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return shader;
 		}
 	}
-	public GPUBindGroupLayoutRef LocalsBindGroupLayout {
+	public GpuBindGroupLayoutRef LocalsBindGroupLayout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return localsBindGroupLayout.AsRef();
 		}
 	}
-	public GPUPipelineLayout PipelineLayout {
+	public GpuPipelineLayout PipelineLayout {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return pipelineLayout;
 		}
 	}
-	public GPURenderPipeline Pipeline {
+	public GpuRenderPipeline Pipeline {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return pipeline;
@@ -52,14 +52,14 @@ public sealed class PrimitiveBatchSharedState : IDisposable {
 	}
 
 	public PrimitiveBatchSharedState(
-		WebGPUDevice device,
+		WebGpuDevice device,
 		EngineResourceStore engineResources,
 		BlendState? blend,
 		ColorWriteMask colorWriteMask,
 		TextureFormat colorTargetFormat
 	) {
 		ColorTargetFormat = colorTargetFormat;
-		shader = device.CreateShaderModuleWGSL(engineResources.GetText(BuiltinShaders.Primitive2D.ResourceID));
+		shader = device.CreateShaderModuleWGSL(engineResources.GetText(BuiltinShaders.Primitive2d.ResourceId));
 		localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)PrimitiveBatchLocalsUniform.Size);
 		pipelineLayout = device.CreatePipelineLayout(
 			[
@@ -68,14 +68,14 @@ public sealed class PrimitiveBatchSharedState : IDisposable {
 			]
 		);
 		pipeline = device.CreateRenderPipeline(
-			new GPURenderPipelineCreateParams(
+			new GpuRenderPipelineCreateParams(
 				Layout: PipelineLayout,
 				Vertex: new VertexState(
 					ShaderModule: Shader,
-					EntryPoint: BuiltinShaders.Primitive2D.VSEntry,
+					EntryPoint: BuiltinShaders.Primitive2d.VsEntry,
 					Buffers: [
 						new VertexBufferLayout(
-							ArrayStride: (ulong)Vertex2DColor.Size,
+							ArrayStride: (ulong)Vertex2dColor.Size,
 							StepMode: VertexStepMode.Vertex,
 							Attributes: [
 								new VertexAttribute(
@@ -94,7 +94,7 @@ public sealed class PrimitiveBatchSharedState : IDisposable {
 				),
 				Fragment: new FragmentState(
 					ShaderModule: Shader,
-					EntryPoint: BuiltinShaders.Primitive2D.FSEntry,
+					EntryPoint: BuiltinShaders.Primitive2d.FsEntry,
 					Targets: [
 						new ColorTargetState(
 							Format: colorTargetFormat,
@@ -129,18 +129,18 @@ public readonly record struct PrimitiveBatchParams(
 
 // policy: ccw winding for generated geometry, preserve existing order for user-passed geometry
 public sealed class PrimitiveBatch : IDisposable {
-	private readonly WebGPUDevice device;
+	private readonly WebGpuDevice device;
 	private readonly ViewGlobals globals;
 	private readonly RenderFrame frame;
 	private readonly RenderPass pass;
 	private readonly PrimitiveBatchSharedState shared;
-	private readonly GPUBuffer localsUniformBuffer;
-	private readonly GPUBindGroup localsUniformBindGroup;
+	private readonly GpuBuffer localsUniformBuffer;
+	private readonly GpuBindGroup localsUniformBindGroup;
 
-	private Vertex2DColor[] verts;
+	private Vertex2dColor[] verts;
 	private uint[] idxs;
-	private GPUBuffer vbuffer;
-	private GPUBuffer ibuffer;
+	private GpuBuffer vbuffer;
+	private GpuBuffer ibuffer;
 
 	private int vcount = 0;
 	private int icount = 0;
@@ -149,7 +149,7 @@ public sealed class PrimitiveBatch : IDisposable {
 	private bool disposed = false;
 
 	public PrimitiveBatch(
-		WebGPUDevice device,
+		WebGpuDevice device,
 		ViewGlobals globals,
 		RenderFrame frame,
 		RenderPass pass,
@@ -171,9 +171,9 @@ public sealed class PrimitiveBatch : IDisposable {
 		device.WriteToBuffer(localsUniformBuffer, 0, in l);
 		localsUniformBindGroup = device.CreateUniformBufferBindGroup(shared.LocalsBindGroupLayout, localsUniformBuffer);
 
-		verts = new Vertex2DColor[initialVertCapacity];
+		verts = new Vertex2dColor[initialVertCapacity];
 		idxs = new uint[initialIndexCapacity];
-		vbuffer = device.CreateBuffer((ulong)(initialVertCapacity * Vertex2DColor.Size), BufferUsage.Vertex | BufferUsage.CopyDst);
+		vbuffer = device.CreateBuffer((ulong)(initialVertCapacity * Vertex2dColor.Size), BufferUsage.Vertex | BufferUsage.CopyDst);
 		ibuffer = device.CreateBuffer((ulong)(initialIndexCapacity * sizeof(uint)), BufferUsage.Index | BufferUsage.CopyDst);
 	}
 
@@ -188,7 +188,7 @@ public sealed class PrimitiveBatch : IDisposable {
 			int sz = Math.Max(vcount + needVerts, verts.Length * 2);
 			Array.Resize(ref verts, sz);
 			vbuffer.Dispose();
-			vbuffer = device.CreateBuffer((ulong)(sz * Vertex2DColor.Size), BufferUsage.Vertex | BufferUsage.CopyDst);
+			vbuffer = device.CreateBuffer((ulong)(sz * Vertex2dColor.Size), BufferUsage.Vertex | BufferUsage.CopyDst);
 		}
 		if (icount + needIdxs > idxs.Length) {
 			int sz = Math.Max(icount + needIdxs, idxs.Length * 2);
@@ -198,12 +198,12 @@ public sealed class PrimitiveBatch : IDisposable {
 		}
 	}
 
-	private uint addvert(in Vertex2DColor v) {
+	private uint addvert(in Vertex2dColor v) {
 		verts[vcount] = v;
 		return (uint)vcount++;
 	}
 
-	private void addverts(ReadOnlySpan<Vertex2DColor> verts) {
+	private void addverts(ReadOnlySpan<Vertex2dColor> verts) {
 		for (int i = 0; i < verts.Length; i++)
 			addvert(verts[i]);
 	}
@@ -222,7 +222,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		// ortho projection and +Y in clip space coords points up so >0 = ccw / <0 = cw
 		(b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
 
-	public void Triangle(Vertex2DColor a, Vertex2DColor b, Vertex2DColor c) {
+	public void Triangle(Vertex2dColor a, Vertex2dColor b, Vertex2dColor c) {
 		chk();
 		ensure(3, 3);
 		uint i0 = addvert(a);
@@ -231,9 +231,9 @@ public sealed class PrimitiveBatch : IDisposable {
 		add3idxs(i0, i1, i2);
 	}
 	public void Triangle(Vector2 a, Vector2 b, Vector2 c, Color32 color) =>
-		Triangle(new Vertex2DColor(a, color), new Vertex2DColor(b, color), new Vertex2DColor(c, color));
+		Triangle(new Vertex2dColor(a, color), new Vertex2dColor(b, color), new Vertex2dColor(c, color));
 
-	public void Quad(Vertex2DColor topleft, Vertex2DColor topright, Vertex2DColor bottomleft, Vertex2DColor bottomright) {
+	public void Quad(Vertex2dColor topleft, Vertex2dColor topright, Vertex2dColor bottomleft, Vertex2dColor bottomright) {
 		chk();
 		ensure(4, 6);
 		uint i0 = addvert(topleft);
@@ -245,23 +245,23 @@ public sealed class PrimitiveBatch : IDisposable {
 	}
 	public void Quad(Vector2 topleft, Vector2 topright, Vector2 bottomleft, Vector2 bottomright, Color32 color) =>
 		Quad(
-			new Vertex2DColor(topleft, color),
-			new Vertex2DColor(topright, color),
-			new Vertex2DColor(bottomleft, color),
-			new Vertex2DColor(bottomright, color)
+			new Vertex2dColor(topleft, color),
+			new Vertex2dColor(topright, color),
+			new Vertex2dColor(bottomleft, color),
+			new Vertex2dColor(bottomright, color)
 		);
 
 	public void Rect(RectF rect, Color32 cTopleft, Color32 cTopright, Color32 cBottomleft, Color32 cBottomright) =>
 		Quad(
-			new Vertex2DColor(rect.X, rect.Y, cTopleft),
-			new Vertex2DColor(rect.X + rect.Width, rect.Y, cTopright),
-			new Vertex2DColor(rect.X, rect.Y + rect.Height, cBottomleft),
-			new Vertex2DColor(rect.X + rect.Width, rect.Y + rect.Height, cBottomright)
+			new Vertex2dColor(rect.X, rect.Y, cTopleft),
+			new Vertex2dColor(rect.X + rect.Width, rect.Y, cTopright),
+			new Vertex2dColor(rect.X, rect.Y + rect.Height, cBottomleft),
+			new Vertex2dColor(rect.X + rect.Width, rect.Y + rect.Height, cBottomright)
 		);
 	public void Rect(RectF rect, Color32 color) =>
 		Rect(rect, color, color, color, color);
 
-	public void Line(Vertex2DColor a, Vertex2DColor b, float thickness = 1f) {
+	public void Line(Vertex2dColor a, Vertex2dColor b, float thickness = 1f) {
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(thickness);
 		chk();
 
@@ -279,10 +279,10 @@ public sealed class PrimitiveBatch : IDisposable {
 		Vector2 p3 = (Vector2)a - normal;
 
 		ensure(4, 6);
-		uint i0 = addvert(new Vertex2DColor(p0.X, p0.Y, a.Color));
-		uint i1 = addvert(new Vertex2DColor(p1.X, p1.Y, b.Color));
-		uint i2 = addvert(new Vertex2DColor(p2.X, p2.Y, b.Color));
-		uint i3 = addvert(new Vertex2DColor(p3.X, p3.Y, a.Color));
+		uint i0 = addvert(new Vertex2dColor(p0.X, p0.Y, a.Color));
+		uint i1 = addvert(new Vertex2dColor(p1.X, p1.Y, b.Color));
+		uint i2 = addvert(new Vertex2dColor(p2.X, p2.Y, b.Color));
+		uint i3 = addvert(new Vertex2dColor(p3.X, p3.Y, a.Color));
 		if (winding(p0, p1, p2) > 0f) {
 			add3idxs(i0, i2, i1);
 			add3idxs(i0, i3, i2);
@@ -292,25 +292,25 @@ public sealed class PrimitiveBatch : IDisposable {
 		}
 	}
 	public void Line(Vector2 a, Vector2 b, Color32 color, float thickness = 1f) =>
-		Line(new Vertex2DColor(a, color), new Vertex2DColor(b, color), thickness);
+		Line(new Vertex2dColor(a, color), new Vertex2dColor(b, color), thickness);
 
-	private void flatcolor(Action<ReadOnlySpan<Vertex2DColor>> draw, ReadOnlySpan<Vector2> points, Color32 color) {
+	private void flatcolor(Action<ReadOnlySpan<Vertex2dColor>> draw, ReadOnlySpan<Vector2> points, Color32 color) {
 		const int maxstack = 256;
-		Span<Vertex2DColor> verts = points.Length <= maxstack ? stackalloc Vertex2DColor[points.Length] : new Vertex2DColor[points.Length];
+		Span<Vertex2dColor> verts = points.Length <= maxstack ? stackalloc Vertex2dColor[points.Length] : new Vertex2dColor[points.Length];
 		for (int i = 0; i < points.Length; i++)
-			verts[i] = new Vertex2DColor(points[i], color);
+			verts[i] = new Vertex2dColor(points[i], color);
 		draw(verts);
 	}
 
-	private void flatcolor(Action<ReadOnlySpan<Vertex2DColor>, float> draw, ReadOnlySpan<Vector2> points, Color32 color, float thickness) {
+	private void flatcolor(Action<ReadOnlySpan<Vertex2dColor>, float> draw, ReadOnlySpan<Vector2> points, Color32 color, float thickness) {
 		const int maxstack = 256;
-		Span<Vertex2DColor> verts = points.Length <= maxstack ? stackalloc Vertex2DColor[points.Length] : new Vertex2DColor[points.Length];
+		Span<Vertex2dColor> verts = points.Length <= maxstack ? stackalloc Vertex2dColor[points.Length] : new Vertex2dColor[points.Length];
 		for (int i = 0; i < points.Length; i++)
-			verts[i] = new Vertex2DColor(points[i], color);
+			verts[i] = new Vertex2dColor(points[i], color);
 		draw(verts, thickness);
 	}
 
-	public void ConvexPoly(ReadOnlySpan<Vertex2DColor> verts) {
+	public void ConvexPoly(ReadOnlySpan<Vertex2dColor> verts) {
 		// basic triangle fan from vert 0
 		chk();
 		if (verts.Length < 3)
@@ -324,7 +324,7 @@ public sealed class PrimitiveBatch : IDisposable {
 	public void ConvexPoly(ReadOnlySpan<Vector2> points, Color32 color) =>
 		flatcolor(ConvexPoly, points, color);
 
-	public void TriangleList(ReadOnlySpan<Vertex2DColor> verts) {
+	public void TriangleList(ReadOnlySpan<Vertex2dColor> verts) {
 		chk();
 		if (verts.Length == 0)
 			return;
@@ -339,7 +339,7 @@ public sealed class PrimitiveBatch : IDisposable {
 	public void TriangleList(ReadOnlySpan<Vector2> points, Color32 color) =>
 		flatcolor(TriangleList, points, color);
 
-	public void TriangleStrip(ReadOnlySpan<Vertex2DColor> verts) {
+	public void TriangleStrip(ReadOnlySpan<Vertex2dColor> verts) {
 		chk();
 		if (verts.Length < 3)
 			return;
@@ -356,7 +356,7 @@ public sealed class PrimitiveBatch : IDisposable {
 	public void TriangleStrip(ReadOnlySpan<Vector2> points, Color32 color) =>
 		flatcolor(TriangleStrip, points, color);
 
-	public void LineList(ReadOnlySpan<Vertex2DColor> verts, float thickness = 1f) {
+	public void LineList(ReadOnlySpan<Vertex2dColor> verts, float thickness = 1f) {
 		chk();
 		if (verts.Length == 0)
 			return;
@@ -368,7 +368,7 @@ public sealed class PrimitiveBatch : IDisposable {
 	public void LineList(ReadOnlySpan<Vector2> points, Color32 color, float thickness = 1f) =>
 		flatcolor(LineList, points, color, thickness);
 
-	public void LineStrip(ReadOnlySpan<Vertex2DColor> verts, float thickness = 1f) {
+	public void LineStrip(ReadOnlySpan<Vertex2dColor> verts, float thickness = 1f) {
 		chk();
 		if (verts.Length < 2)
 			return;
@@ -384,7 +384,7 @@ public sealed class PrimitiveBatch : IDisposable {
 
 		if (icount == 0)
 			return;
-		ulong vbytes = (ulong)(vcount * Vertex2DColor.Size);
+		ulong vbytes = (ulong)(vcount * Vertex2dColor.Size);
 		ulong ibytes = (ulong)(icount * sizeof(uint));
 		device.WriteToBuffer(vbuffer, 0, verts.AsSpan(0, vcount));
 		device.WriteToBuffer(ibuffer, 0, idxs.AsSpan(0, icount));

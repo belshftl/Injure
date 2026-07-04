@@ -20,7 +20,7 @@ public readonly partial struct ReloadTeardownReason {
 }
 
 public readonly record struct ReloadTeardownContext(
-	string OwnerID,
+	string OwnerId,
 	ReloadGeneration OldGeneration,
 	ReloadTeardownReason Reason
 );

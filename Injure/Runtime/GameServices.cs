@@ -55,9 +55,9 @@ public sealed class HostServices {
 
 public sealed class GraphicsServices {
 	private readonly GameServiceLifetime lifetime;
-	public WebGPUDevice Device => Alive(lifetime, field);
+	public WebGpuDevice Device => Alive(lifetime, field);
 
-	internal GraphicsServices(GameServiceLifetime lifetime, WebGPUDevice device) {
+	internal GraphicsServices(GameServiceLifetime lifetime, WebGpuDevice device) {
 		this.lifetime = lifetime;
 		Device = device;
 	}
@@ -111,7 +111,7 @@ public sealed class GameServices {
 		IWindowController windowController,
 		IRenderController renderController,
 		ITimingController timingController,
-		WebGPUDevice gpuDevice,
+		WebGpuDevice gpuDevice,
 		IInputSource rawInput,
 		ActionRegistry actionRegistry,
 		EngineResourceStore engineResources,

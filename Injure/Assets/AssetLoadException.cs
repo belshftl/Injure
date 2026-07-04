@@ -15,23 +15,23 @@ public /* open */ class AssetLoadException : Exception {
 	/// <summary>
 	/// ID of the asset involved in the failed operation.
 	/// </summary>
-	public AssetID AssetID { get; }
+	public AssetId AssetId { get; }
 
 	/// <summary>
 	/// Type of the asset involved in the failed operation.
 	/// </summary>
 	public Type AssetType { get; }
 
-	public AssetLoadException(AssetID id, Type type, string message) : base(fmt(id, type, message)) {
-		AssetID = id;
+	public AssetLoadException(AssetId id, Type type, string message) : base(fmt(id, type, message)) {
+		AssetId = id;
 		AssetType = type;
 	}
 
-	public AssetLoadException(AssetID id, Type type, string message, Exception ex) : base(fmt(id, type, message), ex) {
-		AssetID = id;
+	public AssetLoadException(AssetId id, Type type, string message, Exception ex) : base(fmt(id, type, message), ex) {
+		AssetId = id;
 		AssetType = type;
 	}
 
-	private static string fmt(AssetID id, Type type, string message) =>
+	private static string fmt(AssetId id, Type type, string message) =>
 		type is null ? $"{id}: {message}" : $"{type.Name}({id}): {message}";
 }

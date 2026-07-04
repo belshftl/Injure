@@ -52,22 +52,22 @@ public readonly partial struct PlanBackend {
 		/// <summary>
 		/// The conversion uses an AVX2 implementation.
 		/// </summary>
-		AVX2,
+		Avx2,
 
 		/// <summary>
 		/// The conversion uses an SSSE3 implementation.
 		/// </summary>
-		SSSE3,
+		Ssse3,
 
 		/// <summary>
 		/// The conversion uses an SSE2 implementation.
 		/// </summary>
-		SSE2,
+		Sse2,
 
 		/// <summary>
 		/// The conversion uses an ARM64 Advanced SIMD implementation.
 		/// </summary>
-		AdvSIMD,
+		AdvSimd,
 
 		/// <summary>
 		/// The conversion uses a non-hardware-vectorized, scalar implementation.

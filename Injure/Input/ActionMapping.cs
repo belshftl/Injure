@@ -40,10 +40,10 @@ public sealed class ActionMapSnapshot {
 
 	private static ImmutableArray<TBinding> validate<TBinding, TSource>(
 		ReadOnlySpan<TBinding> bindings,
-		Func<TBinding, (ActionID, TSource)> getData,
+		Func<TBinding, (ActionId, TSource)> getData,
 		string kind
 	) {
-		HashSet<(ActionID, TSource)> seen = new();
+		HashSet<(ActionId, TSource)> seen = new();
 		foreach (TBinding b in bindings)
 			if (!seen.Add(getData(b)))
 				throw new ArgumentException($"{kind} bindings must not contain duplicate action/source pairs");
@@ -78,7 +78,7 @@ public sealed class ActionMapBuilder {
 		return b;
 	}
 
-	public void BindButton(ActionID action, InputButtonSource source) {
+	public void BindButton(ActionId action, InputButtonSource source) {
 		ensureValid(action);
 		foreach (ButtonBinding b in buttonBindings)
 			if (b.Action == action && b.Source == source)
@@ -86,7 +86,7 @@ public sealed class ActionMapBuilder {
 		buttonBindings.Add(new ButtonBinding(action, source));
 	}
 
-	public void BindStateAxis(ActionID action, InputStateAxisSource source, AxisDeadzone deadzone, float scale = 1f) {
+	public void BindStateAxis(ActionId action, InputStateAxisSource source, AxisDeadzone deadzone, float scale = 1f) {
 		ensureValid(action);
 		foreach (StateAxisBinding b in stateAxisBindings)
 			if (b.Action == action && b.Source == source)
@@ -94,7 +94,7 @@ public sealed class ActionMapBuilder {
 		stateAxisBindings.Add(new StateAxisBinding(action, source, deadzone, scale));
 	}
 
-	public void BindStateAxis2D(ActionID action, InputStateAxis2DSource source, Axis2DDeadzone deadzone) {
+	public void BindStateAxis2D(ActionId action, InputStateAxis2DSource source, Axis2DDeadzone deadzone) {
 		ensureValid(action);
 		foreach (StateAxis2DBinding b in stateAxis2DBindings)
 			if (b.Action == action && b.Source == source)
@@ -102,7 +102,7 @@ public sealed class ActionMapBuilder {
 		stateAxis2DBindings.Add(new StateAxis2DBinding(action, source, deadzone, Vector2.One));
 	}
 
-	public void BindStateAxis2D(ActionID action, InputStateAxis2DSource source, Axis2DDeadzone deadzone, Vector2 scale) {
+	public void BindStateAxis2D(ActionId action, InputStateAxis2DSource source, Axis2DDeadzone deadzone, Vector2 scale) {
 		ensureValid(action);
 		foreach (StateAxis2DBinding b in stateAxis2DBindings)
 			if (b.Action == action && b.Source == source)
@@ -110,7 +110,7 @@ public sealed class ActionMapBuilder {
 		stateAxis2DBindings.Add(new StateAxis2DBinding(action, source, deadzone, scale));
 	}
 
-	public void BindImpulseAxis(ActionID action, InputImpulseAxisSource source, float scale = 1f) {
+	public void BindImpulseAxis(ActionId action, InputImpulseAxisSource source, float scale = 1f) {
 		ensureValid(action);
 		foreach (ImpulseAxisBinding b in impulseAxisBindings)
 			if (b.Action == action && b.Source == source)
@@ -118,17 +118,17 @@ public sealed class ActionMapBuilder {
 		impulseAxisBindings.Add(new ImpulseAxisBinding(action, source, scale));
 	}
 
-	public void ClearBindingsFor(ActionID action) {
+	public void ClearBindingsFor(ActionId action) {
 		buttonBindings.RemoveAll(b => b.Action == action);
 		stateAxisBindings.RemoveAll(b => b.Action == action);
 		impulseAxisBindings.RemoveAll(b => b.Action == action);
 		stateAxis2DBindings.RemoveAll(b => b.Action == action);
 	}
 
-	public void ClearButtonBindings(ActionID action) => buttonBindings.RemoveAll(b => b.Action == action);
-	public void ClearStateAxisBindings(ActionID action) => stateAxisBindings.RemoveAll(b => b.Action == action);
-	public void ClearImpulseAxisBindings(ActionID action) => impulseAxisBindings.RemoveAll(b => b.Action == action);
-	public void ClearStateAxis2DBindings(ActionID action) => stateAxis2DBindings.RemoveAll(b => b.Action == action);
+	public void ClearButtonBindings(ActionId action) => buttonBindings.RemoveAll(b => b.Action == action);
+	public void ClearStateAxisBindings(ActionId action) => stateAxisBindings.RemoveAll(b => b.Action == action);
+	public void ClearImpulseAxisBindings(ActionId action) => impulseAxisBindings.RemoveAll(b => b.Action == action);
+	public void ClearStateAxis2DBindings(ActionId action) => stateAxis2DBindings.RemoveAll(b => b.Action == action);
 
 	public void Clear() {
 		buttonBindings.Clear();
@@ -147,7 +147,7 @@ public sealed class ActionMapBuilder {
 	);
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void ensureValid(ActionID action) {
+	private static void ensureValid(ActionId action) {
 		if (!action.IsValid)
 			throw new ArgumentException("action ID must be valid", nameof(action));
 	}

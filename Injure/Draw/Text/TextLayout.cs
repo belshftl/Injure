@@ -88,7 +88,7 @@ internal readonly record struct LogicalLine(
 
 internal readonly record struct PlannedGlyph(
 	IResolvedFont Font,
-	uint GlyphID,
+	uint GlyphId,
 	uint Cluster,
 	float X,
 	float Y
@@ -138,7 +138,7 @@ internal static class TextLayouter {
 			if (!isParaBreak)
 				continue;
 			string paraText = new(text[paraStart..i]);
-			ParagraphRun[] paraRuns = BuildParaRuns(itemizer, fallbackResolver, fonts, paraText, paraStart, style.Locale, style.LanguageBCP47);
+			ParagraphRun[] paraRuns = BuildParaRuns(itemizer, fallbackResolver, fonts, paraText, paraStart, style.Locale, style.LanguageBcp47);
 			ParagraphCluster[] logiClusters = FlattenSourceOrderClusters(paraRuns);
 			LogicalLine[] logiLines = WrapParaLogicalLines(logiClusters, paraStart, paraText.Length, style.LayoutOptions.MaxWidth, style.LayoutOptions.WrapMode);
 			foreach (LogicalLine logiLine in logiLines) {
@@ -226,7 +226,7 @@ internal static class TextLayouter {
 		string paraText,
 		int paraAbsoluteStart,
 		string locale,
-		string? languageBCP47
+		string? languageBcp47
 	) {
 		LineBreakOpportunity[] brklist = TextAnalysis.GetLineBreaks(paraText, locale);
 		Dictionary<int, LineBreakKind> breaks = BuildBreaksDict(brklist);
@@ -234,7 +234,7 @@ internal static class TextLayouter {
 		List<ParagraphRun> paraRuns = new();
 		foreach (LogicalBidiRun bidiRun in bidiRuns) {
 			ReadOnlySpan<char> bidiRunText = paraText.AsSpan(bidiRun.Start, bidiRun.Length);
-			TextItem[] items = itemizer.Itemize(bidiRunText, paraAbsoluteStart + bidiRun.Start, bidiRun.Direction, languageBCP47);
+			TextItem[] items = itemizer.Itemize(bidiRunText, paraAbsoluteStart + bidiRun.Start, bidiRun.Direction, languageBcp47);
 			foreach (TextItem item in items) {
 				ResolvedItem[] resolvedItems = fallbackResolver.ResolveItems(fonts, item);
 				foreach (ResolvedItem resolved in resolvedItems)
@@ -435,7 +435,7 @@ internal static class TextLayouter {
 				dst.Add(
 					new PlannedGlyph(
 						Font: run.Font,
-						GlyphID: shaped.GlyphID,
+						GlyphId: shaped.GlyphId,
 						Cluster: shaped.Cluster,
 						X: penX + shaped.XOffset,
 						Y: baselineY - shaped.YOffset
@@ -459,7 +459,7 @@ internal readonly record struct TextGlyph(
 	RectI SrcPixels,
 	RectF DstPixels,
 	Color32 Color,
-	uint GlyphID,
+	uint GlyphId,
 	uint Cluster
 );
 
@@ -510,7 +510,7 @@ public sealed class TextLayout : IDisposable {
 		foreach (TextGlyph glyph in Glyphs) {
 			RectF dst = new(glyph.DstPixels.X + at.X, glyph.DstPixels.Y + at.Y, glyph.DstPixels.Width, glyph.DstPixels.Height);
 			RectF src = new(glyph.SrcPixels.X, glyph.SrcPixels.Y, glyph.SrcPixels.Width, glyph.SrcPixels.Height);
-			using (cv.PushParams(Material: CanvasMaterials.RMask))
+			using (cv.PushParams(Material: CanvasMaterials.Rmask))
 				cv.TexWithSourceRect(glyph.Page.Texture, dst, src, glyph.Color);
 		}
 	}

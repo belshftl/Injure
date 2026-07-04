@@ -144,7 +144,7 @@ public readonly struct GamepadState {
 }
 
 public readonly record struct GamepadStateEntry(
-	GamepadID ID,
+	GamepadId Id,
 	GamepadState State
 );
 
@@ -158,18 +158,18 @@ public readonly struct GamepadStateSet : IReadOnlyList<GamepadStateEntry> {
 
 	public GamepadStateSet(ReadOnlySpan<GamepadStateEntry> gamepads) {
 		entriesBacking = gamepads.ToArray();
-		if (entriesBacking.Length != entriesBacking.DistinctBy(static e => e.ID).Count())
+		if (entriesBacking.Length != entriesBacking.DistinctBy(static e => e.Id).Count())
 			throw new ArgumentException("entry list must not have duplicate gamepad IDs", nameof(gamepads));
 	}
 
 	public GamepadStateSet(params GamepadStateEntry[] gamepads) : this(gamepads.AsSpan()) {
 	}
 
-	public bool Contains(GamepadID gamepadID) => TryGetState(gamepadID, out _);
+	public bool Contains(GamepadId gamepadID) => TryGetState(gamepadID, out _);
 
-	public bool TryGetState(GamepadID gamepadID, out GamepadState state) {
+	public bool TryGetState(GamepadId gamepadID, out GamepadState state) {
 		foreach (GamepadStateEntry ent in entries)
-			if (ent.ID == gamepadID) {
+			if (ent.Id == gamepadID) {
 				state = ent.State;
 				return true;
 			}
@@ -177,7 +177,7 @@ public readonly struct GamepadStateSet : IReadOnlyList<GamepadStateEntry> {
 		return false;
 	}
 
-	public GamepadState GetStateOrRest(GamepadID gamepadID) => TryGetState(gamepadID, out GamepadState state) ? state : GamepadState.Rest;
+	public GamepadState GetStateOrRest(GamepadId gamepadID) => TryGetState(gamepadID, out GamepadState state) ? state : GamepadState.Rest;
 
 	public ReadOnlySpan<GamepadStateEntry>.Enumerator GetEnumerator() => entries.GetEnumerator();
 	IEnumerator IEnumerable.GetEnumerator() => (entriesBacking ?? []).GetEnumerator();

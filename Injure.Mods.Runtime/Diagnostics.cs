@@ -37,28 +37,28 @@ public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput) 
 		lock (outputLock) {
 			if (colorOutput)
 				output.WriteLine(
-					$"{TimestampColor}({timestamp}){resetColor} {OwnerColor}[{d.SourceOwnerID}{resetColor}{GenerationColor}@{genText}{resetColor}{OwnerColor}]{resetColor} {severityColor}{severityMarker}{resetColor} {d.Message}"
+					$"{TimestampColor}({timestamp}){resetColor} {OwnerColor}[{d.SourceOwnerId}{resetColor}{GenerationColor}@{genText}{resetColor}{OwnerColor}]{resetColor} {severityColor}{severityMarker}{resetColor} {d.Message}"
 				);
 			else
-				output.WriteLine($"({timestamp}) [{d.SourceOwnerID}@{genText}] {severityMarker} {d.Message}");
+				output.WriteLine($"({timestamp}) [{d.SourceOwnerId}@{genText}] {severityMarker} {d.Message}");
 		}
 	}
 }
 
 internal sealed class OwnerDiagnostics : IOwnerDiagnostics {
-	private readonly string ownerID;
+	private readonly string ownerId;
 	private readonly IDiagnosticsSink sink;
 	private readonly ReloadGeneration? generation;
 
-	internal OwnerDiagnostics(string ownerID, IDiagnosticsSink sink, ReloadGeneration? generation) {
-		this.ownerID = ownerID;
+	internal OwnerDiagnostics(string ownerId, IDiagnosticsSink sink, ReloadGeneration? generation) {
+		this.ownerId = ownerId;
 		this.sink = sink;
 		this.generation = generation;
 	}
 
-	public void Log(DiagnosticSeverity severity, string message) => sink.Report(new DiagnosticEvent(ownerID, severity, message, generation));
-	public void Debug(string message) => sink.Report(new DiagnosticEvent(ownerID, DiagnosticSeverity.Debug, message, generation));
-	public void Info(string message) => sink.Report(new DiagnosticEvent(ownerID, DiagnosticSeverity.Info, message, generation));
-	public void Warning(string message) => sink.Report(new DiagnosticEvent(ownerID, DiagnosticSeverity.Warning, message, generation));
-	public void Error(string message) => sink.Report(new DiagnosticEvent(ownerID, DiagnosticSeverity.Error, message, generation));
+	public void Log(DiagnosticSeverity severity, string message) => sink.Report(new DiagnosticEvent(ownerId, severity, message, generation));
+	public void Debug(string message) => sink.Report(new DiagnosticEvent(ownerId, DiagnosticSeverity.Debug, message, generation));
+	public void Info(string message) => sink.Report(new DiagnosticEvent(ownerId, DiagnosticSeverity.Info, message, generation));
+	public void Warning(string message) => sink.Report(new DiagnosticEvent(ownerId, DiagnosticSeverity.Warning, message, generation));
+	public void Error(string message) => sink.Report(new DiagnosticEvent(ownerId, DiagnosticSeverity.Error, message, generation));
 }

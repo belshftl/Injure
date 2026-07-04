@@ -7,26 +7,26 @@ using Injure.Internals.Analyzers.Attributes;
 namespace Injure.Input;
 
 public readonly record struct ButtonBinding(
-	ActionID Action,
+	ActionId Action,
 	InputButtonSource Source
 );
 
 public readonly record struct StateAxisBinding(
-	ActionID Action,
+	ActionId Action,
 	InputStateAxisSource Source,
 	AxisDeadzone Deadzone,
 	float Scale
 );
 
 public readonly record struct StateAxis2DBinding(
-	ActionID Action,
+	ActionId Action,
 	InputStateAxis2DSource Source,
 	Axis2DDeadzone Deadzone,
 	Vector2 Scale
 );
 
 public readonly record struct ImpulseAxisBinding(
-	ActionID Action,
+	ActionId Action,
 	InputImpulseAxisSource Source,
 	float Scale
 );

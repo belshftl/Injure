@@ -6,14 +6,14 @@ using System.Reflection;
 namespace Injure.Mods.Runtime;
 
 internal readonly record struct UntypedLoadedDepInfo(
-	string OwnerID,
+	string OwnerId,
 	Semver Version,
 	ReloadGeneration Generation,
 	UntypedBoundedScopeImpl Scope
 );
 
 internal readonly record struct UntypedUntypedLoadedCodeDepInfo(
-	string OwnerID,
+	string OwnerId,
 	Semver Version,
 	ReloadGeneration Generation,
 	UntypedBoundedScopeImpl Scope,

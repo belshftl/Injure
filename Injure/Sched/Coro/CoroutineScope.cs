@@ -17,17 +17,17 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 	public CoroutineScheduler Scheduler => scheduler;
 	public CoroutineScope? Parent => parent;
 	public string Name { get; }
-	public string OwnerID { get; }
+	public string OwnerId { get; }
 	public bool Cancelled => Volatile.Read(ref cancelled) != 0;
 
-	private CoroutineScope(CoroutineScheduler scheduler, CoroutineScope? parent, string name, string ownerID) {
+	private CoroutineScope(CoroutineScheduler scheduler, CoroutineScope? parent, string name, string ownerId) {
 		ArgumentNullException.ThrowIfNull(scheduler);
 		ArgumentNullException.ThrowIfNull(name);
-		ModMetadataValidation.ValidateOwnerIDOrThrow(ownerID);
+		ModMetadataValidation.ValidateOwnerIdOrThrow(ownerId);
 		this.scheduler = scheduler;
 		this.parent = parent;
 		Name = name;
-		OwnerID = ownerID;
+		OwnerId = ownerId;
 		if (parent is not null) {
 			if (!ReferenceEquals(parent.scheduler, scheduler))
 				throw new ArgumentException("parent scope belongs to a different scheduler", nameof(parent));
@@ -37,9 +37,9 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 		}
 	}
 
-	public static CoroutineScope CreateRoot(CoroutineScheduler scheduler, string name, string ownerID) => new(scheduler, null, name, ownerID);
-	public CoroutineScope CreateChild(string name, string ownerID) => !Cancelled
-		? new CoroutineScope(scheduler, this, name, ownerID)
+	public static CoroutineScope CreateRoot(CoroutineScheduler scheduler, string name, string ownerId) => new(scheduler, null, name, ownerId);
+	public CoroutineScope CreateChild(string name, string ownerId) => !Cancelled
+		? new CoroutineScope(scheduler, this, name, ownerId)
 		: throw new InvalidOperationException("cannot create a child from a cancelled scope");
 
 	internal void Cancel(CoroCancellationReason reason) {

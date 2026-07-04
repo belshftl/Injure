@@ -186,7 +186,7 @@ public sealed unsafe class BootDraw {
 
 	// TODO: something that doesn't involve making an entire new surface every time
 	private static void sdlpresent(Color32[] buffer, int width, int height) {
-		SDLSurface* dst = SDL.GetWindowSurface(SDLOwner.Window);
+		SDLSurface* dst = SDL.GetWindowSurface(SdlOwner.Window);
 		if (dst is null)
 			throw new InvalidOperationException($"SDL_GetWindowSurface: {SDL.GetErrorS()}");
 		fixed (Color32* p = buffer) {
@@ -204,7 +204,7 @@ public sealed unsafe class BootDraw {
 				SDL.DestroySurface(src);
 			}
 		}
-		if (!SDL.UpdateWindowSurface(SDLOwner.Window))
+		if (!SDL.UpdateWindowSurface(SdlOwner.Window))
 			throw new InvalidOperationException($"SDL_UpdateWindowSurface: {SDL.GetErrorS()}");
 	}
 

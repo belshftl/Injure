@@ -20,7 +20,7 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	public LayerRuntime() {
 		Time = new LayerTimeDomain();
 		Coroutines = new CoroutineScheduler();
-		CoroutineScope = CoroutineScope.CreateRoot(Coroutines, "Layer", EngineInfo.OwnerID); // TODO think about what owner ID this should use
+		CoroutineScope = CoroutineScope.CreateRoot(Coroutines, "Layer", EngineInfo.OwnerId); // TODO think about what owner ID this should use
 		toUpdate = new List<IMonoTickReceiver>();
 	}
 

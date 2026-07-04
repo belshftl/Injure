@@ -46,9 +46,9 @@ public readonly record struct AssetSourceResult(
 /// <summary>
 /// Information passed to an asset source.
 /// </summary>
-/// <param name="AssetID">Asset ID being requested.</param>
+/// <param name="AssetId">Asset ID being requested.</param>
 public readonly record struct AssetSourceInfo(
-	AssetID AssetID
+	AssetId AssetId
 );
 
 /// <summary>
@@ -110,7 +110,7 @@ public readonly record struct AssetResolveResult(
 /// <summary>
 /// Information and source-fetch helpers passed to an asset resolver.
 /// </summary>
-/// <param name="AssetID">Asset ID being resolved.</param>
+/// <param name="AssetId">Asset ID being resolved.</param>
 /// <param name="FetchAsync">Fetches required source data for another asset ID.</param>
 /// <param name="TryFetchAsync">Fetches optional source data for another asset ID, or returns <see langword="null"/> if no source handles it.</param>
 /// <remarks>
@@ -118,9 +118,9 @@ public readonly record struct AssetResolveResult(
 /// each stream they fetch.
 /// </remarks>
 public readonly record struct AssetResolveInfo(
-	AssetID AssetID,
-	Func<AssetID, CancellationToken, ValueTask<Stream>> FetchAsync,
-	Func<AssetID, CancellationToken, ValueTask<Stream?>> TryFetchAsync
+	AssetId AssetId,
+	Func<AssetId, CancellationToken, ValueTask<Stream>> FetchAsync,
+	Func<AssetId, CancellationToken, ValueTask<Stream?>> TryFetchAsync
 );
 
 /// <summary>
@@ -179,10 +179,10 @@ public readonly record struct AssetCreateResult<T>(
 /// <summary>
 /// Information passed to an asset creator.
 /// </summary>
-/// <param name="AssetID">Asset ID being created.</param>
+/// <param name="AssetId">Asset ID being created.</param>
 /// <param name="Data">Resolved asset data.</param>
 public readonly record struct AssetCreateInfo(
-	AssetID AssetID,
+	AssetId AssetId,
 	AssetData Data
 );
 
@@ -210,10 +210,10 @@ public interface IAssetCreator<T> where T : class {
 /// Information passed to the finalize stage of a staged asset creator.
 /// </summary>
 /// <typeparam name="TPrepared">Prepared-data type consumed by finalization.</typeparam>
-/// <param name="AssetID">Asset ID being finalized.</param>
+/// <param name="AssetId">Asset ID being finalized.</param>
 /// <param name="Prepared">Prepared data produced by the finalize stage.</param>
 public readonly record struct AssetFinalizeInfo<TPrepared>(
-	AssetID AssetID,
+	AssetId AssetId,
 	TPrepared Prepared
 ) where TPrepared : AssetPreparedData;
 

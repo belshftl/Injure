@@ -11,7 +11,7 @@ namespace Injure.Input;
 
 internal sealed class InputSystem : IInputSource {
 	private struct MutableGamepadState {
-		public GamepadID ID;
+		public GamepadId Id;
 		public uint Buttons;
 		public float LeftX;
 		public float LeftY;
@@ -38,8 +38,8 @@ internal sealed class InputSystem : IInputSource {
 	private bool pointerCaptured;
 
 	private readonly List<MutableGamepadState> gamepads = new();
-	private readonly Dictionary<uint, GamepadID> gamepadBySdlInstanceID = new();
-	private uint nextGamepadID = 0; // first will be 1 since this gets incremented upfront
+	private readonly Dictionary<uint, GamepadId> gamepadBySdlInstanceId = new();
+	private uint nextGamepadId = 0; // first will be 1 since this gets incremented upfront
 
 	public InputSystem(int maxBufferedEvents) {
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferedEvents);
@@ -157,7 +157,7 @@ internal sealed class InputSystem : IInputSource {
 			break;
 		case GamepadAddedEvent gaddEv:
 			if (!tryFindGamepad(gaddEv.Gamepad, out _))
-				gamepads.Add(new MutableGamepadState { ID = gaddEv.Gamepad });
+				gamepads.Add(new MutableGamepadState { Id = gaddEv.Gamepad });
 			break;
 		case GamepadRemovedEvent gremEv:
 			removeGamepad(gremEv.Gamepad);
@@ -179,9 +179,9 @@ internal sealed class InputSystem : IInputSource {
 		}
 	}
 
-	private bool tryFindGamepad(GamepadID id, out int idx) {
+	private bool tryFindGamepad(GamepadId id, out int idx) {
 		for (int i = 0; i < gamepads.Count; i++) {
-			if (gamepads[i].ID != id)
+			if (gamepads[i].Id != id)
 				continue;
 			idx = i;
 			return true;
@@ -190,9 +190,9 @@ internal sealed class InputSystem : IInputSource {
 		return false;
 	}
 
-	private void removeGamepad(GamepadID id) {
+	private void removeGamepad(GamepadId id) {
 		for (int i = 0; i < gamepads.Count; i++) {
-			if (gamepads[i].ID != id)
+			if (gamepads[i].Id != id)
 				continue;
 			gamepads.RemoveAt(i);
 			return;
@@ -206,7 +206,7 @@ internal sealed class InputSystem : IInputSource {
 		for (int i = 0; i < gamepads.Count; i++) {
 			MutableGamepadState g = gamepads[i];
 			arr[i] = new GamepadStateEntry(
-				g.ID,
+				g.Id,
 				new GamepadState(g.Buttons, g.LeftX, g.LeftY, g.RightX, g.RightY, g.LeftTrigger, g.RightTrigger)
 			);
 		}
@@ -293,14 +293,14 @@ internal sealed class InputSystem : IInputSource {
 			for (int bit = 0; bit < 32; bit++) {
 				if ((g.Buttons & 1u << bit) == 0)
 					continue;
-				Push(new GamepadButtonEvent(tick, g.ID, GamepadButton.Enum.FromTag((GamepadButton.Case)bit), EdgeType.Release));
+				Push(new GamepadButtonEvent(tick, g.Id, GamepadButton.Enum.FromTag((GamepadButton.Case)bit), EdgeType.Release));
 			}
-			if (g.LeftX != 0f) Push(new GamepadAxisEvent(tick, g.ID, GamepadAxis.LeftX, 0f));
-			if (g.LeftY != 0f) Push(new GamepadAxisEvent(tick, g.ID, GamepadAxis.LeftY, 0f));
-			if (g.RightX != 0f) Push(new GamepadAxisEvent(tick, g.ID, GamepadAxis.RightX, 0f));
-			if (g.RightY != 0f) Push(new GamepadAxisEvent(tick, g.ID, GamepadAxis.RightY, 0f));
-			if (g.LeftTrigger != 0f) Push(new GamepadAxisEvent(tick, g.ID, GamepadAxis.LeftTrigger, 0f));
-			if (g.RightTrigger != 0f) Push(new GamepadAxisEvent(tick, g.ID, GamepadAxis.RightTrigger, 0f));
+			if (g.LeftX != 0f) Push(new GamepadAxisEvent(tick, g.Id, GamepadAxis.LeftX, 0f));
+			if (g.LeftY != 0f) Push(new GamepadAxisEvent(tick, g.Id, GamepadAxis.LeftY, 0f));
+			if (g.RightX != 0f) Push(new GamepadAxisEvent(tick, g.Id, GamepadAxis.RightX, 0f));
+			if (g.RightY != 0f) Push(new GamepadAxisEvent(tick, g.Id, GamepadAxis.RightY, 0f));
+			if (g.LeftTrigger != 0f) Push(new GamepadAxisEvent(tick, g.Id, GamepadAxis.LeftTrigger, 0f));
+			if (g.RightTrigger != 0f) Push(new GamepadAxisEvent(tick, g.Id, GamepadAxis.RightTrigger, 0f));
 		}
 	}
 
@@ -315,21 +315,21 @@ internal sealed class InputSystem : IInputSource {
 			return true;
 		} else if (t == SDLEventType.GamepadAdded) {
 			uint instance = checked((uint)ev.Gdevice.Which);
-			if (gamepadBySdlInstanceID.ContainsKey(instance))
+			if (gamepadBySdlInstanceId.ContainsKey(instance))
 				return true;
-			GamepadID id = new(++nextGamepadID);
-			gamepadBySdlInstanceID.Add(instance, id);
+			GamepadId id = new(++nextGamepadId);
+			gamepadBySdlInstanceId.Add(instance, id);
 			Push(new GamepadAddedEvent((MonoTick)ev.Gdevice.Timestamp, id));
 			return true;
 		} else if (t == SDLEventType.GamepadRemoved) {
 			uint instance = checked((uint)ev.Gdevice.Which);
-			if (!gamepadBySdlInstanceID.Remove(instance, out GamepadID id))
+			if (!gamepadBySdlInstanceId.Remove(instance, out GamepadId id))
 				return true;
 			Push(new GamepadRemovedEvent((MonoTick)ev.Gdevice.Timestamp, id));
 			return true;
 		} else if (t == SDLEventType.GamepadAxisMotion) {
 			uint instance = checked((uint)ev.Gdevice.Which);
-			if (!gamepadBySdlInstanceID.TryGetValue(instance, out GamepadID id))
+			if (!gamepadBySdlInstanceId.TryGetValue(instance, out GamepadId id))
 				return true;
 			GamepadAxis axis = TranslateGamepadAxis((SDLGamepadAxis)ev.Gaxis.Axis);
 			if (axis != GamepadAxis.Unknown) {
@@ -339,7 +339,7 @@ internal sealed class InputSystem : IInputSource {
 			return true;
 		} else if (t is SDLEventType.GamepadButtonDown or SDLEventType.GamepadButtonUp) {
 			uint instance = checked((uint)ev.Gdevice.Which);
-			if (!gamepadBySdlInstanceID.TryGetValue(instance, out GamepadID id))
+			if (!gamepadBySdlInstanceId.TryGetValue(instance, out GamepadId id))
 				return true;
 			GamepadButton btn = TranslateGamepadButton((SDLGamepadButton)ev.Gbutton.Button);
 			if (btn != GamepadButton.Unknown)

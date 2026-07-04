@@ -25,118 +25,118 @@ public readonly partial struct PixelFormat {
 		/// <summary>
 		/// RGBA stored as four 8-bit unsigned normalized channels.
 		/// </summary>
-		RGBA32_UNorm = 1,
+		Rgba32_Unorm = 1,
 
 		/// <summary>
 		/// BGRA stored as four 8-bit unsigned normalized channels.
 		/// </summary>
-		BGRA32_UNorm,
+		Bgra32_Unorm,
 
 		/// <summary>
 		/// ARGB stored as four 8-bit unsigned normalized channels.
 		/// </summary>
-		ARGB32_UNorm,
+		Argb32_Unorm,
 
 		/// <summary>
 		/// ABGR stored as four 8-bit unsigned normalized channels.
 		/// </summary>
-		ABGR32_UNorm,
+		Abgr32_Unorm,
 
 		/// <summary>
 		/// RGBA stored as four 16-bit unsigned normalized channels in little-endian channel byte order.
 		/// </summary>
-		RGBA64_UNorm_LE,
+		Rgba64_Unorm_Le,
 
 		/// <summary>
 		/// RGBA stored as four 16-bit unsigned normalized channels in big-endian channel byte order.
 		/// </summary>
-		RGBA64_UNorm_BE,
+		Rgba64_Unorm_Be,
 
 		/// <summary>
 		/// BGRA stored as four 16-bit unsigned normalized channels in little-endian channel byte order.
 		/// </summary>
-		BGRA64_UNorm_LE,
+		Bgra64_Unorm_Le,
 
 		/// <summary>
 		/// BGRA stored as four 16-bit unsigned normalized channels in big-endian channel byte order.
 		/// </summary>
-		BGRA64_UNorm_BE,
+		Bgra64_Unorm_Be,
 
 		/// <summary>
 		/// ARGB stored as four 16-bit unsigned normalized channels in little-endian channel byte order.
 		/// </summary>
-		ARGB64_UNorm_LE,
+		Argb64_Unorm_Le,
 
 		/// <summary>
 		/// ARGB stored as four 16-bit unsigned normalized channels in big-endian channel byte order.
 		/// </summary>
-		ARGB64_UNorm_BE,
+		Argb64_Unorm_Be,
 
 		/// <summary>
 		/// ABGR stored as four 16-bit unsigned normalized channels in little-endian channel byte order.
 		/// </summary>
-		ABGR64_UNorm_LE,
+		Abgr64_Unorm_Le,
 
 		/// <summary>
 		/// ABGR stored as four 16-bit unsigned normalized channels in big-endian channel byte order.
 		/// </summary>
-		ABGR64_UNorm_BE,
+		Abgr64_Unorm_Be,
 
 		/// <summary>
 		/// A single 8-bit unsigned normalized red channel.
 		/// </summary>
-		R8_UNorm,
+		R8_Unorm,
 
 		/// <summary>
 		/// Red + green stored as two 8-bit unsigned normalized channels.
 		/// </summary>
-		RG16_UNorm,
+		Rg16_Unorm,
 
 		/// <summary>
 		/// RGB stored as three 8-bit unsigned normalized channels.
 		/// </summary>
-		RGB24_UNorm,
+		Rgb24_Unorm,
 
 		/// <summary>
 		/// BGR stored as three 8-bit unsigned normalized channels.
 		/// </summary>
-		BGR24_UNorm,
+		Bgr24_Unorm,
 
 		/// <summary>
 		/// BGR stored as three 5:6:5 unsigned normalized channels packed into
 		/// 16 bits in little-endian byte order.
 		/// </summary>
-		BGR565_UNormPack16_LE,
+		Bgr565_UnormPack16_Le,
 
 		/// <summary>
 		/// BGR stored as three 5:6:5 unsigned normalized channels packed into
 		/// 16 bits in big-endian byte order.
 		/// </summary>
-		BGR565_UNormPack16_BE,
+		Bgr565_UnormPack16_Be,
 
 		/// <summary>
 		/// RGBA stored as four 4-bit unsigned normalized channels packed into
 		/// 16 bits in little-endian byte order.
 		/// </summary>
-		RGBA4444_UNormPack16_LE,
+		Rgba4444_UnormPack16_Le,
 
 		/// <summary>
 		/// RGBA stored as four 4-bit unsigned normalized channels packed into
 		/// 16 bits in big-endian byte order.
 		/// </summary>
-		RGBA4444_UNormPack16_BE,
+		Rgba4444_UnormPack16_Be,
 
 		/// <summary>
 		/// RGBA stored as four 5:5:5:1 unsigned normalized channels packed into
 		/// 16 bits in little-endian byte order.
 		/// </summary>
-		RGBA5551_UNormPack16_LE,
+		Rgba5551_UnormPack16_Le,
 
 		/// <summary>
 		/// RGBA stored as four 5:5:5:1 unsigned normalized channels packed into
 		/// 16 bits in big-endian byte order.
 		/// </summary>
-		RGBA5551_UNormPack16_BE,
+		Rgba5551_UnormPack16_Be,
 	}
 }
 
@@ -150,7 +150,7 @@ internal enum PixelFormatFamily : byte {
 }
 
 internal enum PixelNumericKind : byte {
-	UNorm,
+	Unorm,
 }
 
 internal enum PixelByteOrder : byte {

@@ -64,7 +64,7 @@ public readonly partial struct RenderTimingMode {
 
 public readonly struct TimingSettings {
 	public required RenderTimingMode RenderMode { get; init; }
-	public required double TargetFPS { get; init; }
+	public required double TargetFps { get; init; }
 	public double TargetLoopHz { get; init; } = 480.0;
 	public int MaxLoopDeadlineMissByLoopDurations { get; init; } = 4;
 

@@ -7,11 +7,11 @@ using System.Text;
 using Hexa.NET.SDL3;
 using Injure.Rendering;
 using Injure.Time;
-using static Injure.Runtime.SDLException;
+using static Injure.Runtime.SdlException;
 
 namespace Injure.Runtime;
 
-public sealed unsafe class SDLWindowController : IWindowController {
+public sealed unsafe class SdlWindowController : IWindowController {
 	private readonly SDLWindow* window;
 
 	private WindowSettings settings;
@@ -20,7 +20,7 @@ public sealed unsafe class SDLWindowController : IWindowController {
 	public WindowSettings Settings => settings;
 	public WindowState State => state;
 
-	public SDLWindowController(SDLWindow* window, WindowSettings initialSettings) {
+	public SdlWindowController(SDLWindow* window, WindowSettings initialSettings) {
 		ArgumentNullException.ThrowIfNull(window);
 		this.window = window;
 		if (!tryNormalize(initialSettings, out WindowSettings normalized, out string? err))

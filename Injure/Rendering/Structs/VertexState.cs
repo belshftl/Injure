@@ -12,7 +12,7 @@ namespace Injure.Rendering;
 /// <param name="EntryPoint">Vertex entry point name.</param>
 /// <param name="Buffers">Vertex buffer layouts used by the vertex stage.</param>
 public readonly record struct VertexState(
-	GPUShaderModuleHandle ShaderModule,
+	GpuShaderModuleHandle ShaderModule,
 	string EntryPoint,
 	ImmutableArray<VertexBufferLayout> Buffers = default
 );

@@ -12,7 +12,7 @@ public readonly struct ServiceConfig {
 
 public readonly struct WindowConfig {
 	public required WindowSettings Settings { get; init; }
-	public bool AllowHighDPI { get; init; } = true;
+	public bool AllowHighDpi { get; init; } = true;
 
 	public WindowConfig() {}
 }

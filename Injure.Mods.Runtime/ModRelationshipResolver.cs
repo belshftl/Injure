@@ -9,9 +9,9 @@ internal static class ModRelationshipResolver {
 	public static ResolvedModGraph Resolve(IReadOnlyList<DiscoveredMod> discovered) {
 		Dictionary<string, ResolvedMod> mods = new();
 		foreach (DiscoveredMod mod in discovered) {
-			if (mods.ContainsKey(mod.Manifest.OwnerID))
-				throw new ModLoadException(mod.Manifest.OwnerID, "duplicate owner id");
-			mods.Add(mod.Manifest.OwnerID, new ResolvedMod(mod.Manifest, mod.Source));
+			if (mods.ContainsKey(mod.Manifest.OwnerId))
+				throw new ModLoadException(mod.Manifest.OwnerId, "duplicate owner id");
+			mods.Add(mod.Manifest.OwnerId, new ResolvedMod(mod.Manifest, mod.Source));
 		}
 
 		Dictionary<string, HashSet<string>> outgoing = createEmptyEdgeMap(mods.Keys);
@@ -20,34 +20,34 @@ internal static class ModRelationshipResolver {
 		foreach (ResolvedMod declarer in mods.Values) {
 			foreach (ModRelationshipManifest relationship in declarer.Manifest.Relationships) {
 				if (relationship.Kind == ModRelationshipKind.Conflicts) {
-					if (mods.ContainsKey(relationship.OwnerID))
-						throw new ModLoadException(declarer.Manifest.OwnerID, $"conflicts with present owner '{relationship.OwnerID}'");
+					if (mods.ContainsKey(relationship.OwnerId))
+						throw new ModLoadException(declarer.Manifest.OwnerId, $"conflicts with present owner '{relationship.OwnerId}'");
 					continue;
 				}
 
-				bool targetPresent = mods.TryGetValue(relationship.OwnerID, out ResolvedMod target);
+				bool targetPresent = mods.TryGetValue(relationship.OwnerId, out ResolvedMod target);
 				if (!targetPresent) {
 					if (relationship.Kind.Tag is ModRelationshipKind.Case.RequiresSelfAfter or ModRelationshipKind.Case.RequiresSelfBefore)
-						throw new ModLoadException(declarer.Manifest.OwnerID, $"required owner '{relationship.OwnerID}' is not present");
+						throw new ModLoadException(declarer.Manifest.OwnerId, $"required owner '{relationship.OwnerId}' is not present");
 					continue;
 				}
 
 				if (relationship.Version is Semver required && !target.Manifest.Version.CompatibleWithMinimum(required))
 					throw new ModLoadException(
-						declarer.Manifest.OwnerID,
-						$"owner '{relationship.OwnerID}' version '{target.Manifest.Version}' is not compatible with required minimum '{required}'"
+						declarer.Manifest.OwnerId,
+						$"owner '{relationship.OwnerId}' version '{target.Manifest.Version}' is not compatible with required minimum '{required}'"
 					);
 
-				reloadDependents[relationship.OwnerID].Add(declarer.Manifest.OwnerID);
+				reloadDependents[relationship.OwnerId].Add(declarer.Manifest.OwnerId);
 
 				switch (relationship.Kind.Tag) {
 				case ModRelationshipKind.Case.RequiresSelfAfter:
 				case ModRelationshipKind.Case.IfPresentSelfAfter:
-					addEdge(outgoing, relationship.OwnerID, declarer.Manifest.OwnerID);
+					addEdge(outgoing, relationship.OwnerId, declarer.Manifest.OwnerId);
 					break;
 				case ModRelationshipKind.Case.RequiresSelfBefore:
 				case ModRelationshipKind.Case.IfPresentSelfBefore:
-					addEdge(outgoing, declarer.Manifest.OwnerID, relationship.OwnerID);
+					addEdge(outgoing, declarer.Manifest.OwnerId, relationship.OwnerId);
 					break;
 				}
 			}

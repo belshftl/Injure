@@ -65,7 +65,7 @@ public sealed class TestSource(TestDependency? dep = null) : IAssetSource {
 	private readonly TestDependency? dep = dep;
 	public ValueTask<AssetSourceResult> TrySourceAsync(AssetSourceInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
 		ct.ThrowIfCancellationRequested();
-		byte[] bytes = Encoding.UTF8.GetBytes(info.AssetID.ToString());
+		byte[] bytes = Encoding.UTF8.GetBytes(info.AssetId.ToString());
 		if (dep is not null)
 			coll.Add(dep);
 		return ValueTask.FromResult(AssetSourceResult.Success(new MemoryStream(bytes, writable: false)));
@@ -73,13 +73,13 @@ public sealed class TestSource(TestDependency? dep = null) : IAssetSource {
 }
 
 public sealed class DictionarySource : IAssetSource {
-	private readonly ConcurrentDictionary<AssetID, string> dict = new();
+	private readonly ConcurrentDictionary<AssetId, string> dict = new();
 
-	public void Set(AssetID id, string s) => dict[id] = s;
-	public void Remove(AssetID id) => dict.TryRemove(id, out _);
+	public void Set(AssetId id, string s) => dict[id] = s;
+	public void Remove(AssetId id) => dict.TryRemove(id, out _);
 
 	public ValueTask<AssetSourceResult> TrySourceAsync(AssetSourceInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
-		if (!dict.TryGetValue(info.AssetID, out string? s))
+		if (!dict.TryGetValue(info.AssetId, out string? s))
 			return ValueTask.FromResult(AssetSourceResult.NotHandled());
 		byte[] bytes = Encoding.UTF8.GetBytes(s);
 		return ValueTask.FromResult(AssetSourceResult.Success(new MemoryStream(bytes, writable: false)));
@@ -109,7 +109,7 @@ public sealed class NonSeekableMemoryStream(byte[] data) : Stream {
 public sealed class NonSeekableSource : IAssetSource {
 	public NonSeekableMemoryStream? LastStream { get; private set; }
 	public ValueTask<AssetSourceResult> TrySourceAsync(AssetSourceInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
-		LastStream = new NonSeekableMemoryStream(Encoding.UTF8.GetBytes(info.AssetID.ToString()));
+		LastStream = new NonSeekableMemoryStream(Encoding.UTF8.GetBytes(info.AssetId.ToString()));
 		return ValueTask.FromResult(AssetSourceResult.Success(LastStream));
 	}
 }
@@ -121,56 +121,56 @@ public sealed class TestAssetData(Stream stream, string debugName) : AssetData(d
 public sealed class TestResolver(TestDependency? dep = null) : IAssetResolver {
 	private readonly TestDependency? dep = dep;
 	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
-		Stream stream = await info.FetchAsync(info.AssetID, ct);
+		Stream stream = await info.FetchAsync(info.AssetId, ct);
 		if (dep is not null)
 			coll.Add(dep);
-		return AssetResolveResult.Success(new TestAssetData(stream, info.AssetID.ToString()));
+		return AssetResolveResult.Success(new TestAssetData(stream, info.AssetId.ToString()));
 	}
 }
 
 public sealed class FetchThenNotHandledResolver(TestDependency? dep = null) : IAssetResolver {
 	private readonly TestDependency? dep = dep;
 	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
-		await using Stream _ = await info.FetchAsync(info.AssetID, ct);
+		await using Stream _ = await info.FetchAsync(info.AssetId, ct);
 		if (dep is not null)
 			coll.Add(dep);
 		return AssetResolveResult.NotHandled();
 	}
 }
 
-public sealed class OptionalExtraFetchResolver(AssetID optionalID) : IAssetResolver {
-	private readonly AssetID optionalID = optionalID;
+public sealed class OptionalExtraFetchResolver(AssetId optionalID) : IAssetResolver {
+	private readonly AssetId optionalID = optionalID;
 	public bool SawOptionalStream { get; private set; }
 
 	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
-		await using Stream main = await info.FetchAsync(info.AssetID, ct);
+		await using Stream main = await info.FetchAsync(info.AssetId, ct);
 		Stream? optional = await info.TryFetchAsync(optionalID, ct);
 		SawOptionalStream = optional is not null;
 		optional?.Dispose();
-		return AssetResolveResult.Success(new TestAssetData(new MemoryStream(main.ReadAll(), writable: false), info.AssetID.ToString()));
+		return AssetResolveResult.Success(new TestAssetData(new MemoryStream(main.ReadAll(), writable: false), info.AssetId.ToString()));
 	}
 }
 
-public sealed class RequiredExtraFetchResolver(AssetID extraID) : IAssetResolver {
-	private readonly AssetID extraID = extraID;
+public sealed class RequiredExtraFetchResolver(AssetId extraID) : IAssetResolver {
+	private readonly AssetId extraID = extraID;
 	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
-		await using Stream main = await info.FetchAsync(info.AssetID, ct);
+		await using Stream main = await info.FetchAsync(info.AssetId, ct);
 		await using Stream extra = await info.FetchAsync(extraID, ct);
-		return AssetResolveResult.Success(new TestAssetData(new MemoryStream(main.ReadAll(), writable: false), info.AssetID.ToString()));
+		return AssetResolveResult.Success(new TestAssetData(new MemoryStream(main.ReadAll(), writable: false), info.AssetId.ToString()));
 	}
 }
 
-public sealed class AssetLoadingResolver(AssetStore store, IReadOnlyDictionary<AssetID, AssetID> map) : IAssetResolver {
+public sealed class AssetLoadingResolver(AssetStore store, IReadOnlyDictionary<AssetId, AssetId> map) : IAssetResolver {
 	private readonly AssetStore store = store;
-	public IReadOnlyDictionary<AssetID, AssetID> Map = map;
+	public IReadOnlyDictionary<AssetId, AssetId> Map = map;
 
 	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
-		Stream stream = await info.FetchAsync(info.AssetID, ct);
-		if (Map.TryGetValue(info.AssetID, out AssetID toLoad)) {
+		Stream stream = await info.FetchAsync(info.AssetId, ct);
+		if (Map.TryGetValue(info.AssetId, out AssetId toLoad)) {
 			AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(toLoad);
 			asset.Warm(ct);
 		}
-		return AssetResolveResult.Success(new TestAssetData(stream, $"{info.AssetID} + load {toLoad}"));
+		return AssetResolveResult.Success(new TestAssetData(stream, $"{info.AssetId} + load {toLoad}"));
 	}
 }
 
@@ -180,13 +180,13 @@ public sealed class TestCreatorPreparedData(byte[] data) : AssetPreparedData {
 
 public sealed class TestCreator(Func<AssetCreateInfo, CancellationToken, Task>? onPrepareAsync = null) : IAssetStagedCreator<TestAsset, TestCreatorPreparedData> {
 	private readonly Func<AssetCreateInfo, CancellationToken, Task>? onPrepareAsync = onPrepareAsync;
-	private int _prepareCalls;
-	private int _finalizeCalls;
-	public int PrepareCalls => _prepareCalls;
-	public int FinalizeCalls => _finalizeCalls;
+	private int prepareCalls;
+	private int finalizeCalls;
+	public int PrepareCalls => prepareCalls;
+	public int FinalizeCalls => finalizeCalls;
 
 	public async ValueTask<AssetPrepareResult<TestCreatorPreparedData>> TryPrepareAsync(AssetCreateInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
-		Interlocked.Increment(ref _prepareCalls);
+		Interlocked.Increment(ref prepareCalls);
 		ct.ThrowIfCancellationRequested();
 
 		if (onPrepareAsync is not null)
@@ -199,7 +199,7 @@ public sealed class TestCreator(Func<AssetCreateInfo, CancellationToken, Task>? 
 	}
 
 	public TestAsset Finalize(AssetFinalizeInfo<TestCreatorPreparedData> info) {
-		Interlocked.Increment(ref _finalizeCalls);
+		Interlocked.Increment(ref finalizeCalls);
 		return new TestAsset(Encoding.UTF8.GetString(info.Prepared.Data));
 	}
 }
@@ -231,14 +231,14 @@ public sealed class SteppingCreator(params Step[] steps) : IAssetCreator<TestAss
 }
 
 public sealed class TaskCheckpoint {
-	private readonly TaskCompletionSource<bool> _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-	private readonly TaskCompletionSource<bool> _continue = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	private readonly TaskCompletionSource<bool> entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	private readonly TaskCompletionSource<bool> @continue = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-	public Task Entered => _entered.Task;
-	public void Proceed() => _continue.TrySetResult(true);
+	public Task Entered => entered.Task;
+	public void Proceed() => @continue.TrySetResult(true);
 	public async Task WaitAsync(CancellationToken ct = default) {
-		_entered.TrySetResult(true);
-		await _continue.Task.WaitAsync(ct).ConfigureAwait(false);
+		entered.TrySetResult(true);
+		await @continue.Task.WaitAsync(ct).ConfigureAwait(false);
 	}
 }
 
@@ -246,17 +246,17 @@ public sealed class CountingTaskCheckpoint(int target) {
 	private readonly int target = target;
 	private int count;
 
-	private readonly TaskCompletionSource<bool> _targetReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
-	private readonly TaskCompletionSource<bool> _continue = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	private readonly TaskCompletionSource<bool> targetReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+	private readonly TaskCompletionSource<bool> @continue = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 	public int EnteredCount => count;
-	public Task TargetReached => _targetReached.Task;
-	public void Proceed() => _continue.TrySetResult(true);
+	public Task TargetReached => targetReached.Task;
+	public void Proceed() => @continue.TrySetResult(true);
 	public async Task WaitAsync(CancellationToken ct = default) {
 		int n = Interlocked.Increment(ref count);
 		if (n >= target)
-			_targetReached.TrySetResult(true);
-		await _continue.Task.WaitAsync(ct).ConfigureAwait(false);
+			targetReached.TrySetResult(true);
+		await @continue.Task.WaitAsync(ct).ConfigureAwait(false);
 	}
 }
 
@@ -274,16 +274,16 @@ public sealed class BlockingOnNthPrepare(int n) {
 }
 
 public sealed class ThreadCheckpoint {
-	private readonly ManualResetEventSlim _entered = new(false);
-	private readonly ManualResetEventSlim _continue = new(false);
+	private readonly ManualResetEventSlim entered = new(false);
+	private readonly ManualResetEventSlim @continue = new(false);
 
-	public ManualResetEventSlim Entered => _entered;
-	public void Proceed() => _continue.Set();
+	public ManualResetEventSlim Entered => entered;
+	public void Proceed() => @continue.Set();
 	public void Wait() {
-		_entered.Set();
-		_continue.Wait();
+		entered.Set();
+		@continue.Wait();
 	}
-	public void ForceSet() => _entered.Set();
+	public void ForceSet() => entered.Set();
 }
 
 public static class AssetTestWait {

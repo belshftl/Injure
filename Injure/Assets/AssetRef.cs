@@ -16,7 +16,7 @@ public interface IUntypedAssetRef {
 	Type AssetType { get; }
 
 	/// <summary>The asset ID.</summary>
-	AssetID AssetID { get; }
+	AssetId AssetId { get; }
 
 	/// <summary>Whether a live version currently exists.</summary>
 	bool IsLoaded { get; }
@@ -59,7 +59,7 @@ public interface IUntypedAssetRef {
 /// </remarks>
 public sealed class AssetRef<T> : IUntypedAssetRef where T : class {
 	internal readonly AssetStore.AssetSlot<T> Slot;
-	internal ulong SlotID => Slot.SlotID;
+	internal ulong SlotId => Slot.SlotId;
 	internal AssetRef(AssetStore.AssetSlot<T> slot) {
 		Slot = slot;
 	}
@@ -72,7 +72,7 @@ public sealed class AssetRef<T> : IUntypedAssetRef where T : class {
 	/// <summary>
 	/// The asset ID.
 	/// </summary>
-	public AssetID AssetID => Slot.AssetID;
+	public AssetId AssetId => Slot.AssetId;
 
 	/// <summary>
 	/// Whether a live version currently exists.

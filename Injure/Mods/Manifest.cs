@@ -42,7 +42,7 @@ public readonly record struct GameCompatibilityManifest {
 }
 
 public readonly record struct ModRelationshipManifest {
-	public required string OwnerID { get; init; }
+	public required string OwnerId { get; init; }
 	public required ModRelationshipKind Kind { get; init; }
 	public required Semver? Version { get; init; }
 	public required string? Description { get; init; }
@@ -54,13 +54,13 @@ public readonly record struct ModAssetsManifest {
 }
 
 public readonly record struct ModNativeLibraryManifest {
-	public required string ID { get; init; }
+	public required string Id { get; init; }
 	public required string Path { get; init; }
 	public required string RuntimeIdentifier { get; init; }
 }
 
 public abstract record ModManifest {
-	public required string OwnerID { get; init; }
+	public required string OwnerId { get; init; }
 	public required Semver Version { get; init; }
 	public required bool Reloadable { get; init; }
 

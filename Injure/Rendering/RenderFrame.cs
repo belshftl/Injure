@@ -27,16 +27,16 @@ namespace Injure.Rendering;
 /// </para>
 /// </remarks>
 public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
-	private readonly WebGPUDevice device;
+	private readonly WebGpuDevice device;
 	private readonly WGPUSurfaceTexture primaryTex;
-	private readonly GPUTextureView primaryView;
+	private readonly GpuTextureView primaryView;
 	private readonly WGPUCommandEncoder encoder;
 	private readonly Action presentCallback;
 	private readonly List<IDisposable> deferred = new();
 	private bool activepass = false;
 	private bool done = false;
 
-	internal RenderFrame(WebGPUDevice device, WGPUSurfaceTexture primaryTex, GPUTextureView primaryView, WGPUCommandEncoder encoder, Action presentCallback) {
+	internal RenderFrame(WebGpuDevice device, WGPUSurfaceTexture primaryTex, GpuTextureView primaryView, WGPUCommandEncoder encoder, Action presentCallback) {
 		this.device = device;
 		this.primaryTex = primaryTex;
 		this.primaryView = primaryView;
@@ -52,7 +52,7 @@ public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 	/// The primary output is color-only. Passes that require depth/stencil
 	/// should use an offscreen render target instead.
 	/// </remarks>
-	public GPUTextureViewRef PrimaryView => done ? throw new InvalidOperationException("frame already submitted/disposed") : field;
+	public GpuTextureViewRef PrimaryView => done ? throw new InvalidOperationException("frame already submitted/disposed") : field;
 
 	private void onPassFinished() {
 		if (!activepass)
@@ -111,13 +111,13 @@ public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 			desc.depthStencilAttachment = depthStencilAttachment;
 		}
 
-		WGPURenderPassEncoder passEnc = WebGPUException.Check(wgpuCommandEncoderBeginRenderPass(enc, &desc));
+		WGPURenderPassEncoder passEnc = WebGpuException.Check(wgpuCommandEncoderBeginRenderPass(enc, &desc));
 		activepass = true;
 		return new RenderPass(passEnc, onPassFinished);
 	}
 
 	[StackTraceHidden]
-	private static void validateView(GPUTextureViewHandle view, string paramName) {
+	private static void validateView(GpuTextureViewHandle view, string paramName) {
 		ArgumentNullException.ThrowIfNull(view);
 		if (view.Usage.HasNone(TextureUsage.RenderAttachment))
 			throw new ArgumentException("view must have RenderAttachment set in its usages", paramName);
@@ -126,7 +126,7 @@ public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 	}
 
 	[StackTraceHidden]
-	private static void validateColorView(GPUTextureViewHandle colorView, string paramName) {
+	private static void validateColorView(GpuTextureViewHandle colorView, string paramName) {
 		validateView(colorView, paramName);
 		if (colorView.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float
 			or TextureFormat.Case.Depth24PlusStencil8 or TextureFormat.Case.Depth32FloatStencil8 or TextureFormat.Case.Stencil8)
@@ -134,21 +134,21 @@ public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 	}
 
 	[StackTraceHidden]
-	private static void validateDepthView(GPUTextureViewHandle depthView, string paramName) {
+	private static void validateDepthView(GpuTextureViewHandle depthView, string paramName) {
 		validateView(depthView, paramName);
 		if (!(depthView.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float))
 			throw new ArgumentException("depth view must be a depth-only format (no stencil)", paramName);
 	}
 
 	[StackTraceHidden]
-	private static void validateDepthStencilView(GPUTextureViewHandle depthStencilView, string paramName) {
+	private static void validateDepthStencilView(GpuTextureViewHandle depthStencilView, string paramName) {
 		validateView(depthStencilView, paramName);
 		if (!(depthStencilView.Format.Tag is TextureFormat.Case.Depth24PlusStencil8 or TextureFormat.Case.Depth32FloatStencil8))
 			throw new ArgumentException("depth+stencil view must be a depth+stencil format", paramName);
 	}
 
 	[StackTraceHidden]
-	private static void validateCompatibleAttachments(GPUTextureViewHandle a, GPUTextureViewHandle b) {
+	private static void validateCompatibleAttachments(GpuTextureViewHandle a, GpuTextureViewHandle b) {
 		if (a.Width != b.Width || a.Height != b.Height)
 			throw new ArgumentException("attachment views must have equal dimensions");
 		if (a.SampleCount != b.SampleCount)
@@ -176,9 +176,9 @@ public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 	/// Thrown if the frame has already been submitted/disposed, or if another
 	/// render pass is already active.
 	/// </exception>
-	public RenderPass BeginColorPass(GPUTextureViewHandle colorView, in ColorAttachmentOps colorOps) {
+	public RenderPass BeginColorPass(GpuTextureViewHandle colorView, in ColorAttachmentOps colorOps) {
 		validateColorView(colorView, nameof(colorView));
-		return beginPass(encoder, colorView.WGPUTextureView, default, in colorOps, null, null);
+		return beginPass(encoder, colorView.WgpuTextureView, default, in colorOps, null, null);
 	}
 
 	/// <summary>
@@ -198,17 +198,17 @@ public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 	/// unequal dimensions/sample counts, if <paramref name="colorView"/> is a non-color
 	/// format, or if <paramref name="depthView"/> is a non-depth-only format.
 	/// </exception>
-	/// <inheritdoc cref="BeginColorPass(GPUTextureViewHandle, in ColorAttachmentOps)"/>
+	/// <inheritdoc cref="BeginColorPass(GpuTextureViewHandle, in ColorAttachmentOps)"/>
 	public RenderPass BeginColorDepthPass(
-		GPUTextureViewHandle colorView,
+		GpuTextureViewHandle colorView,
 		in ColorAttachmentOps colorOps,
-		GPUTextureViewHandle depthView,
+		GpuTextureViewHandle depthView,
 		in DepthAttachmentOps depthOps
 	) {
 		validateColorView(colorView, nameof(colorView));
 		validateDepthView(depthView, nameof(depthView));
 		validateCompatibleAttachments(colorView, depthView);
-		return beginPass(encoder, colorView.WGPUTextureView, depthView.WGPUTextureView, in colorOps, depthOps, null);
+		return beginPass(encoder, colorView.WgpuTextureView, depthView.WgpuTextureView, in colorOps, depthOps, null);
 	}
 
 	/// <summary>
@@ -229,26 +229,26 @@ public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 	/// unequal dimensions/sample counts, if <paramref name="colorView"/> is a non-color
 	/// format, or <paramref name="depthStencilView"/> is a non-depth+stencil format.
 	/// </exception>
-	/// <inheritdoc cref="BeginColorPass(GPUTextureViewHandle, in ColorAttachmentOps)"/>
+	/// <inheritdoc cref="BeginColorPass(GpuTextureViewHandle, in ColorAttachmentOps)"/>
 	public RenderPass BeginColorDepthStencilPass(
-		GPUTextureViewHandle colorView,
+		GpuTextureViewHandle colorView,
 		in ColorAttachmentOps colorOps,
-		GPUTextureViewHandle depthStencilView,
+		GpuTextureViewHandle depthStencilView,
 		in DepthAttachmentOps depthOps,
 		in StencilAttachmentOps stencilOps
 	) {
 		validateColorView(colorView, nameof(colorView));
 		validateDepthStencilView(depthStencilView, nameof(depthStencilView));
 		validateCompatibleAttachments(colorView, depthStencilView);
-		return beginPass(encoder, colorView.WGPUTextureView, depthStencilView.WGPUTextureView, in colorOps, depthOps, stencilOps);
+		return beginPass(encoder, colorView.WgpuTextureView, depthStencilView.WgpuTextureView, in colorOps, depthOps, stencilOps);
 	}
 
 	/// <summary>
 	/// Convenience method to open a render pass targeting the primary output,
-	/// equivalent to <see cref="BeginColorPass(GPUTextureViewHandle, in ColorAttachmentOps)"/>
+	/// equivalent to <see cref="BeginColorPass(GpuTextureViewHandle, in ColorAttachmentOps)"/>
 	/// with <see cref="PrimaryView"/>.
 	/// </summary>
-	/// <inheritdoc cref="BeginColorPass(GPUTextureViewHandle, in ColorAttachmentOps)"/>
+	/// <inheritdoc cref="BeginColorPass(GpuTextureViewHandle, in ColorAttachmentOps)"/>
 	public RenderPass BeginPrimaryPass(in ColorAttachmentOps colorOps) =>
 		BeginColorPass(PrimaryView, in colorOps);
 
@@ -294,7 +294,7 @@ public sealed unsafe class RenderFrame : IDisposable, IDisposalScope {
 			throw new InvalidOperationException("frame still has an active render pass");
 
 		WGPUCommandBufferDescriptor desc;
-		WGPUCommandBuffer cmdbuf = WebGPUException.Check(wgpuCommandEncoderFinish(encoder, &desc));
+		WGPUCommandBuffer cmdbuf = WebGpuException.Check(wgpuCommandEncoderFinish(encoder, &desc));
 
 		device.Submit(cmdbuf);
 		presentCallback();

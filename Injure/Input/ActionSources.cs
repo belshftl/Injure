@@ -80,22 +80,22 @@ public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
 public readonly struct DigitalAxisSource : IEquatable<DigitalAxisSource> {
 	public InputButtonSource Negative { get; }
 	public InputButtonSource Positive { get; }
-	public SOCDPolicy SOCD { get; }
+	public SocdPolicy Socd { get; }
 
-	public DigitalAxisSource(InputButtonSource negative, InputButtonSource positive) : this(negative, positive, SOCDPolicy.Last) {
+	public DigitalAxisSource(InputButtonSource negative, InputButtonSource positive) : this(negative, positive, SocdPolicy.Last) {
 	}
 
-	public DigitalAxisSource(InputButtonSource negative, InputButtonSource positive, SOCDPolicy socd) {
+	public DigitalAxisSource(InputButtonSource negative, InputButtonSource positive, SocdPolicy socd) {
 		if (negative == positive)
 			throw new ArgumentException("negative and positive sources must be different");
 		Negative = negative;
 		Positive = positive;
-		SOCD = socd;
+		Socd = socd;
 	}
 
-	public bool Equals(DigitalAxisSource other) => Negative == other.Negative && Positive == other.Positive && SOCD == other.SOCD;
+	public bool Equals(DigitalAxisSource other) => Negative == other.Negative && Positive == other.Positive && Socd == other.Socd;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is DigitalAxisSource other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine(Negative, Positive, SOCD);
+	public override int GetHashCode() => HashCode.Combine(Negative, Positive, Socd);
 	public static bool operator ==(DigitalAxisSource left, DigitalAxisSource right) => left.Equals(right);
 	public static bool operator !=(DigitalAxisSource left, DigitalAxisSource right) => !left.Equals(right);
 }
@@ -128,8 +128,8 @@ public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource> {
 	public static InputStateAxisSource GamepadAxis(GamepadAxis axis) =>
 		new(InputStateAxisSourceKind.GamepadAxis, axis, default);
 	public static InputStateAxisSource DigitalPair(InputButtonSource negative, InputButtonSource positive) =>
-		DigitalPair(negative, positive, SOCDPolicy.Last);
-	public static InputStateAxisSource DigitalPair(InputButtonSource negative, InputButtonSource positive, SOCDPolicy socd) =>
+		DigitalPair(negative, positive, SocdPolicy.Last);
+	public static InputStateAxisSource DigitalPair(InputButtonSource negative, InputButtonSource positive, SocdPolicy socd) =>
 		new(InputStateAxisSourceKind.DigitalPair, default, new DigitalAxisSource(negative, positive, socd));
 
 	public bool Equals(InputStateAxisSource other) => Kind == other.Kind && gamepadAxis == other.gamepadAxis && digital.Equals(other.digital);
@@ -161,11 +161,11 @@ public readonly struct DigitalAxis2DSource : IEquatable<DigitalAxis2DSource> {
 	public InputButtonSource Right { get; }
 	public InputButtonSource Up { get; }
 	public InputButtonSource Down { get; }
-	public SOCDPolicy XSOCD { get; }
-	public SOCDPolicy YSOCD { get; }
+	public SocdPolicy XSocd { get; }
+	public SocdPolicy YSocd { get; }
 
 	public DigitalAxis2DSource(InputButtonSource left, InputButtonSource right, InputButtonSource up, InputButtonSource down) :
-		this(left, right, up, down, SOCDPolicy.Last, SOCDPolicy.Last) {
+		this(left, right, up, down, SocdPolicy.Last, SocdPolicy.Last) {
 	}
 
 	public DigitalAxis2DSource(
@@ -173,8 +173,8 @@ public readonly struct DigitalAxis2DSource : IEquatable<DigitalAxis2DSource> {
 		InputButtonSource right,
 		InputButtonSource up,
 		InputButtonSource down,
-		SOCDPolicy xSOCD,
-		SOCDPolicy ySOCD
+		SocdPolicy xSocd,
+		SocdPolicy ySocd
 	) {
 		if (left == right)
 			throw new ArgumentException("left and right sources must be different");
@@ -184,15 +184,15 @@ public readonly struct DigitalAxis2DSource : IEquatable<DigitalAxis2DSource> {
 		Right = right;
 		Up = up;
 		Down = down;
-		XSOCD = xSOCD;
-		YSOCD = ySOCD;
+		XSocd = xSocd;
+		YSocd = ySocd;
 	}
 
 	public bool Equals(DigitalAxis2DSource other) =>
 		Left == other.Left && Right == other.Right && Up == other.Up && Down == other.Down &&
-		XSOCD == other.XSOCD && YSOCD == other.YSOCD;
+		XSocd == other.XSocd && YSocd == other.YSocd;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is DigitalAxis2DSource other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine(Left, Right, Up, Down, XSOCD, YSOCD);
+	public override int GetHashCode() => HashCode.Combine(Left, Right, Up, Down, XSocd, YSocd);
 	public static bool operator ==(DigitalAxis2DSource left, DigitalAxis2DSource right) => left.Equals(right);
 	public static bool operator !=(DigitalAxis2DSource left, DigitalAxis2DSource right) => !left.Equals(right);
 }
@@ -240,15 +240,15 @@ public readonly struct InputStateAxis2DSource : IEquatable<InputStateAxis2DSourc
 		InputButtonSource right,
 		InputButtonSource up,
 		InputButtonSource down
-	) => DigitalButtons(left, right, up, down, SOCDPolicy.Last, SOCDPolicy.Last);
+	) => DigitalButtons(left, right, up, down, SocdPolicy.Last, SocdPolicy.Last);
 	public static InputStateAxis2DSource DigitalButtons(
 		InputButtonSource left,
 		InputButtonSource right,
 		InputButtonSource up,
 		InputButtonSource down,
-		SOCDPolicy xSOCD,
-		SOCDPolicy ySOCD
-	) => new(InputStateAxis2DSourceKind.DigitalButtons, default, new DigitalAxis2DSource(left, right, up, down, xSOCD, ySOCD), default);
+		SocdPolicy xSocd,
+		SocdPolicy ySocd
+	) => new(InputStateAxis2DSourceKind.DigitalButtons, default, new DigitalAxis2DSource(left, right, up, down, xSocd, ySocd), default);
 	public static InputStateAxis2DSource Pair(InputStateAxisSource x, InputStateAxisSource y) =>
 		new(InputStateAxis2DSourceKind.Pair, default, default, new StateAxis2DPairSource(x, y));
 

@@ -50,7 +50,7 @@ public readonly partial struct DiagnosticSeverity {
 /// <summary>
 /// Describes one diagnostic event emitted by the engine, the game, or a mod.
 /// </summary>
-/// <param name="SourceOwnerID">Owner ID of the component that emitted the diagnostic.</param>
+/// <param name="SourceOwnerId">Owner ID of the component that emitted the diagnostic.</param>
 /// <param name="Severity">Severity of the diagnostic.</param>
 /// <param name="Message">Diagnostic message, as reported by the component.</param>
 /// <param name="Generation">
@@ -61,7 +61,7 @@ public readonly partial struct DiagnosticSeverity {
 /// <see langword="default"/> produces an invalid value of this type.
 /// </remarks>
 public readonly record struct DiagnosticEvent(
-	string SourceOwnerID,
+	string SourceOwnerId,
 	DiagnosticSeverity Severity,
 	string Message,
 	ReloadGeneration? Generation = null
@@ -70,23 +70,23 @@ public readonly record struct DiagnosticEvent(
 	/// Throws if this <see cref="DiagnosticEvent"/> is invalid/malformed.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <see cref="SourceOwnerID"/> or <see cref="Message"/> is <see langword="null"/>,
+	/// Thrown if <see cref="SourceOwnerId"/> or <see cref="Message"/> is <see langword="null"/>,
 	/// or if <see cref="Generation"/> is non-null but its owner ID is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <see cref="SourceOwnerID"/> is not a valid owner ID, or if
+	/// Thrown if <see cref="SourceOwnerId"/> is not a valid owner ID, or if
 	/// <see cref="Generation"/> is non-null and has a mismatched owner ID.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <see cref="Severity"/> is not a validly constructed closed-enum value.
 	/// </exception>
 	public void Validate() {
-		ModMetadataValidation.ValidateOwnerIDOrThrow(SourceOwnerID);
+		ModMetadataValidation.ValidateOwnerIdOrThrow(SourceOwnerId);
 		ArgumentNullException.ThrowIfNull(Message);
 		if (Generation is ReloadGeneration g) {
-			ArgumentNullException.ThrowIfNull(g.OwnerID);
-			if (g.OwnerID != SourceOwnerID)
-				throw new ArgumentException("SourceOwnerID doesn't match reload generation owner");
+			ArgumentNullException.ThrowIfNull(g.OwnerId);
+			if (g.OwnerId != SourceOwnerId)
+				throw new ArgumentException("SourceOwnerId doesn't match reload generation owner");
 		}
 		_ = Severity.Tag;
 	}

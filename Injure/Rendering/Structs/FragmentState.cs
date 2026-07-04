@@ -12,7 +12,7 @@ namespace Injure.Rendering;
 /// <param name="EntryPoint">Fragment entry point name.</param>
 /// <param name="Targets">Color targets written by the fragment stage.</param>
 public readonly record struct FragmentState(
-	GPUShaderModuleHandle ShaderModule,
+	GpuShaderModuleHandle ShaderModule,
 	string EntryPoint,
 	ImmutableArray<ColorTargetState> Targets
 );

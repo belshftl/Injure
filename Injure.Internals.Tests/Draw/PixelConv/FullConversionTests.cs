@@ -7,16 +7,16 @@ using static Injure.Internals.Tests.Draw.PixelConv.Util;
 namespace Injure.Internals.Tests.Draw.PixelConv;
 
 public sealed class FullConversionTests {
-	private const byte SrcGuard = 0xc7;
-	private const byte DstGuard = 0x97;
-	private const int PrefixPad = 11;
-	private const int SuffixPad = 19;
+	private const byte srcGuard = 0xc7;
+	private const byte dstGuard = 0x97;
+	private const int prefixPad = 11;
+	private const int suffixPad = 19;
 
-	private static readonly PlanBackend[] Backends = [
-		PlanBackend.AVX2,
-		PlanBackend.SSSE3,
-		PlanBackend.SSE2,
-		PlanBackend.AdvSIMD,
+	private static readonly PlanBackend[] backends = [
+		PlanBackend.Avx2,
+		PlanBackend.Ssse3,
+		PlanBackend.Sse2,
+		PlanBackend.AdvSimd,
 		PlanBackend.Scalar,
 	];
 
@@ -32,131 +32,131 @@ public sealed class FullConversionTests {
 
 	public static readonly TheoryData<ConversionCase> Cases = new() {
 		new ConversionCase(
-			"Copy32SetAlpha_RGBA",
+			"Copy32SetAlpha_Rgba",
 			ReferenceFamily.Copy32SetAlpha,
-			PixelFormat.RGBA32_UNorm,
-			PixelFormat.RGBA32_UNorm,
-			new PixelConvertOptions { Alpha16UNorm = 0x1234, OverrideAlpha = true },
+			PixelFormat.Rgba32_Unorm,
+			PixelFormat.Rgba32_Unorm,
+			new PixelConvertOptions { Alpha16Unorm = 0x1234, OverrideAlpha = true },
 			257,
 			7
 		),
 		new ConversionCase(
-			"Copy32SetAlpha_ABGR",
+			"Copy32SetAlpha_Abgr",
 			ReferenceFamily.Copy32SetAlpha,
-			PixelFormat.ABGR32_UNorm,
-			PixelFormat.ABGR32_UNorm,
-			new PixelConvertOptions { Alpha16UNorm = 0xbeef, OverrideAlpha = true },
+			PixelFormat.Abgr32_Unorm,
+			PixelFormat.Abgr32_Unorm,
+			new PixelConvertOptions { Alpha16Unorm = 0xbeef, OverrideAlpha = true },
 			255,
 			7
 		),
 		new ConversionCase(
-			"Copy64SetAlpha_RGBA64_LE",
+			"Copy64SetAlpha_Rgba64_Le",
 			ReferenceFamily.Copy64SetAlpha,
-			PixelFormat.RGBA64_UNorm_LE,
-			PixelFormat.RGBA64_UNorm_LE,
-			new PixelConvertOptions { Alpha16UNorm = 0x2468, OverrideAlpha = true },
+			PixelFormat.Rgba64_Unorm_Le,
+			PixelFormat.Rgba64_Unorm_Le,
+			new PixelConvertOptions { Alpha16Unorm = 0x2468, OverrideAlpha = true },
 			129,
 			5
 		),
 		new ConversionCase(
-			"Copy64SetAlpha_ARGB64_BE",
+			"Copy64SetAlpha_Argb64_Be",
 			ReferenceFamily.Copy64SetAlpha,
-			PixelFormat.ARGB64_UNorm_BE,
-			PixelFormat.ARGB64_UNorm_BE,
-			new PixelConvertOptions { Alpha16UNorm = 0xc39a, OverrideAlpha = true },
+			PixelFormat.Argb64_Unorm_Be,
+			PixelFormat.Argb64_Unorm_Be,
+			new PixelConvertOptions { Alpha16Unorm = 0xc39a, OverrideAlpha = true },
 			131,
 			5
 		),
-		new ConversionCase("Shuffle32_RGBA_to_BGRA", ReferenceFamily.Shuffle32, PixelFormat.RGBA32_UNorm, PixelFormat.BGRA32_UNorm, new PixelConvertOptions(), 257, 7),
-		new ConversionCase("Shuffle32_ARGB_to_ABGR", ReferenceFamily.Shuffle32, PixelFormat.ARGB32_UNorm, PixelFormat.ABGR32_UNorm, new PixelConvertOptions(), 259, 5),
+		new ConversionCase("Shuffle32_Rgba_to_Bgra", ReferenceFamily.Shuffle32, PixelFormat.Rgba32_Unorm, PixelFormat.Bgra32_Unorm, new PixelConvertOptions(), 257, 7),
+		new ConversionCase("Shuffle32_Argb_to_Abgr", ReferenceFamily.Shuffle32, PixelFormat.Argb32_Unorm, PixelFormat.Abgr32_Unorm, new PixelConvertOptions(), 259, 5),
 		new ConversionCase(
-			"Expand24To32_RGB_to_BGRA",
+			"Expand24To32_Rgb_to_Bgra",
 			ReferenceFamily.Expand24To32,
-			PixelFormat.RGB24_UNorm,
-			PixelFormat.BGRA32_UNorm,
-			new PixelConvertOptions { Alpha16UNorm = 0x5aa5 },
+			PixelFormat.Rgb24_Unorm,
+			PixelFormat.Bgra32_Unorm,
+			new PixelConvertOptions { Alpha16Unorm = 0x5aa5 },
 			263,
 			6
 		),
 		new ConversionCase(
-			"Expand24To32_BGR_to_ARGB",
+			"Expand24To32_Bgr_to_Argb",
 			ReferenceFamily.Expand24To32,
-			PixelFormat.BGR24_UNorm,
-			PixelFormat.ARGB32_UNorm,
-			new PixelConvertOptions { Alpha16UNorm = 0x1337 },
+			PixelFormat.Bgr24_Unorm,
+			PixelFormat.Argb32_Unorm,
+			new PixelConvertOptions { Alpha16Unorm = 0x1337 },
 			261,
 			6
 		),
 		new ConversionCase(
-			"Contract32To24_RGBA_to_RGB",
+			"Contract32To24_Rgba_to_Rgb",
 			ReferenceFamily.Contract32To24,
-			PixelFormat.RGBA32_UNorm,
-			PixelFormat.RGB24_UNorm,
+			PixelFormat.Rgba32_Unorm,
+			PixelFormat.Rgb24_Unorm,
 			new PixelConvertOptions { Flags = ConversionFlags.AllowDroppingAlpha },
 			263,
 			6
 		),
 		new ConversionCase(
-			"Contract32To24_ABGR_to_BGR",
+			"Contract32To24_Abgr_to_Bgr",
 			ReferenceFamily.Contract32To24,
-			PixelFormat.ABGR32_UNorm,
-			PixelFormat.BGR24_UNorm,
+			PixelFormat.Abgr32_Unorm,
+			PixelFormat.Bgr24_Unorm,
 			new PixelConvertOptions { Flags = ConversionFlags.AllowDroppingAlpha },
 			259,
 			6
 		),
-		new ConversionCase("Widen32To64_BGRA_to_ARGB64_LE", ReferenceFamily.Widen32To64, PixelFormat.BGRA32_UNorm, PixelFormat.ARGB64_UNorm_LE, new PixelConvertOptions(), 173, 5),
-		new ConversionCase("Widen32To64_ARGB_to_RGBA64_BE", ReferenceFamily.Widen32To64, PixelFormat.ARGB32_UNorm, PixelFormat.RGBA64_UNorm_BE, new PixelConvertOptions(), 171, 5),
+		new ConversionCase("Widen32To64_Bgra_to_Argb64_Le", ReferenceFamily.Widen32To64, PixelFormat.Bgra32_Unorm, PixelFormat.Argb64_Unorm_Le, new PixelConvertOptions(), 173, 5),
+		new ConversionCase("Widen32To64_Argb_to_Rgba64_Be", ReferenceFamily.Widen32To64, PixelFormat.Argb32_Unorm, PixelFormat.Rgba64_Unorm_Be, new PixelConvertOptions(), 171, 5),
 		new ConversionCase(
-			"Narrow64To32_RGBA64_LE_to_BGRA",
+			"Narrow64To32_Rgba64_Le_to_Bgra",
 			ReferenceFamily.Narrow64To32,
-			PixelFormat.RGBA64_UNorm_LE,
-			PixelFormat.BGRA32_UNorm,
+			PixelFormat.Rgba64_Unorm_Le,
+			PixelFormat.Bgra32_Unorm,
 			new PixelConvertOptions { Flags = ConversionFlags.AllowNarrowing },
 			173,
 			5
 		),
 		new ConversionCase(
-			"Narrow64To32_ABGR64_BE_to_ARGB",
+			"Narrow64To32_Abgr64_Be_to_Argb",
 			ReferenceFamily.Narrow64To32,
-			PixelFormat.ABGR64_UNorm_BE,
-			PixelFormat.ARGB32_UNorm,
+			PixelFormat.Abgr64_Unorm_Be,
+			PixelFormat.Argb32_Unorm,
 			new PixelConvertOptions { Flags = ConversionFlags.AllowNarrowing },
 			169,
 			5
 		),
 		new ConversionCase(
-			"Packed16To32_RGBA4444_LE_to_BGRA",
+			"Packed16To32_Rgba4444_Le_to_Bgra",
 			ReferenceFamily.Packed16To32,
-			PixelFormat.RGBA4444_UNormPack16_LE,
-			PixelFormat.BGRA32_UNorm,
+			PixelFormat.Rgba4444_UnormPack16_Le,
+			PixelFormat.Bgra32_Unorm,
 			new PixelConvertOptions(),
 			257,
 			6
 		),
 		new ConversionCase(
-			"Packed16To32_BGR565_BE_to_ARGB",
+			"Packed16To32_Bgr565_Be_to_Argb",
 			ReferenceFamily.Packed16To32,
-			PixelFormat.BGR565_UNormPack16_BE,
-			PixelFormat.ARGB32_UNorm,
-			new PixelConvertOptions { Alpha16UNorm = 0x8181 },
+			PixelFormat.Bgr565_UnormPack16_Be,
+			PixelFormat.Argb32_Unorm,
+			new PixelConvertOptions { Alpha16Unorm = 0x8181 },
 			255,
 			6
 		),
 		new ConversionCase(
-			"Unpacked32ToPacked16_BGRA_to_RGBA4444_BE",
+			"Unpacked32ToPacked16_Bgra_to_Rgba4444_Be",
 			ReferenceFamily.Unpacked32ToPacked16,
-			PixelFormat.BGRA32_UNorm,
-			PixelFormat.RGBA4444_UNormPack16_BE,
+			PixelFormat.Bgra32_Unorm,
+			PixelFormat.Rgba4444_UnormPack16_Be,
 			new PixelConvertOptions { Flags = ConversionFlags.AllowNarrowing },
 			257,
 			6
 		),
 		new ConversionCase(
-			"Unpacked32ToPacked16_ARGB_to_BGR565_LE",
+			"Unpacked32ToPacked16_Argb_to_Bgr565_Le",
 			ReferenceFamily.Unpacked32ToPacked16,
-			PixelFormat.ARGB32_UNorm,
-			PixelFormat.BGR565_UNormPack16_LE,
+			PixelFormat.Argb32_Unorm,
+			PixelFormat.Bgr565_UnormPack16_Le,
 			new PixelConvertOptions { Flags = ConversionFlags.AllowNarrowing | ConversionFlags.AllowDroppingAlpha },
 			255,
 			6
@@ -183,30 +183,30 @@ public sealed class FullConversionTests {
 
 		int srcBytes = checked(srcStride * c.Height);
 		int dstBytes = checked(dstStride * c.Height);
-		byte[] srcBuf = new byte[PrefixPad + srcBytes + SuffixPad];
-		byte[] dstBuf = new byte[PrefixPad + dstBytes + SuffixPad];
-		srcBuf.AsSpan().Fill(SrcGuard);
-		dstBuf.AsSpan().Fill(DstGuard);
-		patfill(srcBuf.AsSpan(PrefixPad, srcBytes), fnv(c.Name));
+		byte[] srcBuf = new byte[prefixPad + srcBytes + suffixPad];
+		byte[] dstBuf = new byte[prefixPad + dstBytes + suffixPad];
+		srcBuf.AsSpan().Fill(srcGuard);
+		dstBuf.AsSpan().Fill(dstGuard);
+		patfill(srcBuf.AsSpan(prefixPad, srcBytes), fnv(c.Name));
 
-		ReadOnlySpan<byte> src = srcBuf.AsSpan(PrefixPad, srcBytes);
+		ReadOnlySpan<byte> src = srcBuf.AsSpan(prefixPad, srcBytes);
 		byte[] reference = ReferenceConverter.Convert(c.Reference, src, srcStride, c.SourceFormat, c.DestinationFormat, c.Width, c.Height, c.Options);
 		int referenceStride = dstRowBytes;
 
 		bool sawAnything = false;
-		foreach (PlanBackend backend in Backends) {
+		foreach (PlanBackend backend in backends) {
 			if (!PixelConverter.TryCreatePlanWithBackend(c.SourceFormat, c.DestinationFormat, backend, out PixelConversionPlan plan, c.Options))
 				continue;
 			sawAnything = true;
 			Assert.Equal(backend, plan.Info.Backend);
 			Assert.Equal(PlanExecutionPath.DedicatedKernel, plan.Info.ExecutionPath);
 
-			dstBuf.AsSpan().Fill(DstGuard);
-			Span<byte> result = dstBuf.AsSpan(PrefixPad, dstBytes);
+			dstBuf.AsSpan().Fill(dstGuard);
+			Span<byte> result = dstBuf.AsSpan(prefixPad, dstBytes);
 			plan.Convert(src, srcStride, result, dstStride, c.Width, c.Height);
 			assertPxEqual(reference, result, referenceStride, dstStride, dstRowBytes, c.Height, c.Name, backend);
-			assertGuards(srcBuf, SrcGuard, c.Name, backend, "src");
-			assertGuards(dstBuf, DstGuard, c.Name, backend, "dst");
+			assertGuards(srcBuf, srcGuard, c.Name, backend, "src");
+			assertGuards(dstBuf, dstGuard, c.Name, backend, "dst");
 		}
 		Assert.True(sawAnything, $"couldn't create any plans for case '{c.Name}'");
 	}
@@ -229,9 +229,9 @@ public sealed class FullConversionTests {
 	}
 
 	private static void assertGuards(byte[] buf, byte expected, string caseName, PlanBackend backend, string which) {
-		for (int i = 0; i < PrefixPad; i++)
+		for (int i = 0; i < prefixPad; i++)
 			Assert.True(buf[i] == expected, $"{which} prefix guard corrupted in case '{caseName}' backend {backend} index {i}");
-		for (int i = buf.Length - SuffixPad; i < buf.Length; i++)
+		for (int i = buf.Length - suffixPad; i < buf.Length; i++)
 			Assert.True(buf[i] == expected, $"{which} suffix guard corrupted in case '{caseName}' backend {backend} index {i}");
 	}
 

@@ -16,7 +16,7 @@ namespace Injure.Draw;
 /// </summary>
 /// <remarks>
 /// A target is either the sentinel <see cref="Primary"/> or an
-/// offscreen <see cref="RenderTarget2D"/>. <see cref="RenderTarget2D"/> has an
+/// offscreen <see cref="RenderTarget2d"/>. <see cref="RenderTarget2d"/> has an
 /// implicit cast to <see cref="CanvasTarget"/> for convenience.
 /// </remarks>
 public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
@@ -32,19 +32,19 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 	public bool IsPrimary => rtBacking is null;
 
 	/// <summary>
-	/// Gets the <see cref="RenderTarget2D"/> wrapped by this canvas target.
+	/// Gets the <see cref="RenderTarget2d"/> wrapped by this canvas target.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if this target represents the primary target.
 	/// </exception>
-	public readonly RenderTarget2D RenderTarget => rtBacking ?? throw new InvalidOperationException("primary target has no RenderTarget2D");
-	private readonly RenderTarget2D? rtBacking;
+	public readonly RenderTarget2d RenderTarget => rtBacking ?? throw new InvalidOperationException("primary target has no RenderTarget2d");
+	private readonly RenderTarget2d? rtBacking;
 
 	/// <summary>
 	/// Creates a canvas target from an offscreen render target.
 	/// </summary>
 	/// <param name="renderTarget">Target to draw into.</param>
-	public CanvasTarget(RenderTarget2D renderTarget) {
+	public CanvasTarget(RenderTarget2d renderTarget) {
 		ArgumentNullException.ThrowIfNull(renderTarget);
 		rtBacking = renderTarget;
 	}
@@ -55,7 +55,7 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 	public static bool operator ==(CanvasTarget left, CanvasTarget right) => left.Equals(right);
 	public static bool operator !=(CanvasTarget left, CanvasTarget right) => !left.Equals(right);
 
-	public static implicit operator CanvasTarget(RenderTarget2D target) => new(target);
+	public static implicit operator CanvasTarget(RenderTarget2d target) => new(target);
 }
 
 /// <summary>
@@ -199,7 +199,7 @@ public readonly struct CanvasMaterial : IEquatable<CanvasMaterial> {
 
 	/// <summary>
 	/// Parameters used when <see cref="TextureInterpretation"/> is
-	/// <see cref="TextureInterpretation.SDF"/>.
+	/// <see cref="TextureInterpretation.Sdf"/>.
 	/// </summary>
 	public SdfParams? SdfParams { get; init; }
 
@@ -225,16 +225,16 @@ public static class CanvasMaterials {
 	/// A material that interprets textures' red channels as coverage masks and
 	/// ignores the other channels.
 	/// </summary>
-	public static readonly CanvasMaterial RMask = new() {
-		TextureInterpretation = TextureInterpretation.RMask,
+	public static readonly CanvasMaterial Rmask = new() {
+		TextureInterpretation = TextureInterpretation.Rmask,
 	};
 
 	/// <summary>
 	/// Creates a material that interprets textures as signed distance fields
 	/// using the specified <see cref="SdfParams"/>.
 	/// </summary>
-	public static CanvasMaterial SDF(SdfParams @params) => new() {
-		TextureInterpretation = TextureInterpretation.SDF,
+	public static CanvasMaterial Sdf(SdfParams @params) => new() {
+		TextureInterpretation = TextureInterpretation.Sdf,
 		SdfParams = @params,
 	};
 }
@@ -346,7 +346,7 @@ public readonly record struct CanvasParamsOverride(
 ///
 /// Batch state is stored per format as pipelines are color-target-format-specific.
 /// </remarks>
-public sealed class CanvasSharedResources(WebGPUDevice device, EngineResourceStore engineResources) : IDisposable {
+public sealed class CanvasSharedResources(WebGpuDevice device, EngineResourceStore engineResources) : IDisposable {
 	public readonly record struct PrimBatchKey(
 		BlendState? BlendState,
 		ColorWriteMask ColorWriteMask,
@@ -360,7 +360,7 @@ public sealed class CanvasSharedResources(WebGPUDevice device, EngineResourceSto
 		TextureFormat ColorTargetFormat
 	);
 
-	private readonly WebGPUDevice device = device;
+	private readonly WebGpuDevice device = device;
 	private readonly EngineResourceStore engineResources = engineResources;
 	private readonly Dictionary<PrimBatchKey, PrimitiveBatchSharedState> primState = new();
 	private readonly Dictionary<TexBatchKey, TexturedBatchSharedState> texState = new();
@@ -466,7 +466,7 @@ public sealed class Canvas : IDisposable {
 
 	// ==========================================================================
 	// internal objects / properties
-	private readonly WebGPUDevice device;
+	private readonly WebGpuDevice device;
 	private readonly ViewGlobals globals;
 	private readonly RenderFrame frame;
 	private readonly CanvasSharedResources shared;
@@ -524,7 +524,7 @@ public sealed class Canvas : IDisposable {
 	/// Thrown if <paramref name="baseParams"/> is invalid or contains a scissor
 	/// of kind <see cref="CanvasScissorKind.Intersect"/>.
 	/// </exception>
-	public Canvas(WebGPUDevice device, ViewGlobals globals, RenderFrame frame, CanvasSharedResources shared, in CanvasParams baseParams) {
+	public Canvas(WebGpuDevice device, ViewGlobals globals, RenderFrame frame, CanvasSharedResources shared, in CanvasParams baseParams) {
 		this.device = device;
 		this.globals = globals;
 		this.frame = frame;
@@ -545,7 +545,7 @@ public sealed class Canvas : IDisposable {
 	/// <param name="a">First vertex of the triangle, in pixel coordinates.</param>
 	/// <param name="b">Second vertex of the triangle, in pixel coordinates.</param>
 	/// <param name="c">Third vertex of the triangle, in pixel coordinates.</param>
-	public void Triangle(Vertex2DColor a, Vertex2DColor b, Vertex2DColor c) {
+	public void Triangle(Vertex2dColor a, Vertex2dColor b, Vertex2dColor c) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.Triangle(a, b, c);
@@ -574,7 +574,7 @@ public sealed class Canvas : IDisposable {
 	/// <remarks>
 	/// Concave or self-intersecting quads are invalid inputs and will produce incorrect visual output.
 	/// </remarks>
-	public void Quad(Vertex2DColor topleft, Vertex2DColor topright, Vertex2DColor bottomleft, Vertex2DColor bottomright) {
+	public void Quad(Vertex2dColor topleft, Vertex2dColor topright, Vertex2dColor bottomleft, Vertex2dColor bottomright) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.Quad(topleft, topright, bottomleft, bottomright);
@@ -631,7 +631,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is negative or zero.
 	/// </exception>
-	public void Line(Vertex2DColor a, Vertex2DColor b, float thickness = 1f) {
+	public void Line(Vertex2dColor a, Vertex2dColor b, float thickness = 1f) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.Line(a, b, thickness);
@@ -660,7 +660,7 @@ public sealed class Canvas : IDisposable {
 	/// <remarks>
 	/// The polygon must be convex and will otherwise produce incorrect visual input.
 	/// </remarks>
-	public void ConvexPoly(ReadOnlySpan<Vertex2DColor> verts) {
+	public void ConvexPoly(ReadOnlySpan<Vertex2dColor> verts) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.ConvexPoly(verts);
@@ -687,7 +687,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="ArgumentException">
 	/// Thrown if the amount of vertices in <paramref name="verts"/> is not a multiple of 3.
 	/// </exception>
-	public void TriangleList(ReadOnlySpan<Vertex2DColor> verts) {
+	public void TriangleList(ReadOnlySpan<Vertex2dColor> verts) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.TriangleList(verts);
@@ -711,7 +711,7 @@ public sealed class Canvas : IDisposable {
 	/// Draws a filled triangle strip with interpolated per-vertex colors.
 	/// </summary>
 	/// <param name="verts">Vertices forming the triangle strip, in pixel coordinates.</param>
-	public void TriangleStrip(ReadOnlySpan<Vertex2DColor> verts) {
+	public void TriangleStrip(ReadOnlySpan<Vertex2dColor> verts) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.TriangleStrip(verts);
@@ -739,7 +739,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is negative or zero.
 	/// </exception>
-	public void LineList(ReadOnlySpan<Vertex2DColor> verts, float thickness = 1f) {
+	public void LineList(ReadOnlySpan<Vertex2dColor> verts, float thickness = 1f) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.LineList(verts, thickness);
@@ -771,7 +771,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is negative or zero.
 	/// </exception>
-	public void LineStrip(ReadOnlySpan<Vertex2DColor> verts, float thickness = 1f) {
+	public void LineStrip(ReadOnlySpan<Vertex2dColor> verts, float thickness = 1f) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.LineStrip(verts, thickness);
@@ -1128,7 +1128,7 @@ public sealed class Canvas : IDisposable {
 		if ((p.Scissor.Kind == CanvasScissorKind.Set || p.Scissor.Kind == CanvasScissorKind.Intersect) &&
 			(p.Scissor.Rect.Width < 0 || p.Scissor.Rect.Height < 0))
 			throw new ArgumentException("scissor rect cannot have negative width/height");
-		if (p.Material.TextureInterpretation == TextureInterpretation.SDF && p.Material.SdfParams is null)
+		if (p.Material.TextureInterpretation == TextureInterpretation.Sdf && p.Material.SdfParams is null)
 			throw new ArgumentException("CanvasParams.Material.SdfParams must be set if the texture interpretation of the material is SDF");
 	}
 

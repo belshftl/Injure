@@ -74,7 +74,7 @@ public sealed class OwnerOrderingTests {
 			new("x2", "owner", "dup"),
 		];
 		OwnerOrderingException ex = Assert.Throws<OwnerOrderingException>(() => OwnerOrderedSorter.Sort(entries));
-		Assert.Contains("duplicate LocalID", ex.Message, StringComparison.Ordinal);
+		Assert.Contains("duplicate LocalId", ex.Message, StringComparison.Ordinal);
 	}
 
 	[Fact]

@@ -12,7 +12,7 @@ namespace Injure.Assets;
 /// Informally speaking, honestly, you probably shouldn't even be loading full assets
 /// inside an asset pipeline component.
 /// </remarks>
-public sealed class AssetLoadCycleException(AssetID id, Type type, string message, ImmutableArray<AssetKey> cycle) :
+public sealed class AssetLoadCycleException(AssetId id, Type type, string message, ImmutableArray<AssetKey> cycle) :
 	AssetLoadException(id, type, message) {
 	/// <summary>
 	/// The detected cycle, in traversal order.

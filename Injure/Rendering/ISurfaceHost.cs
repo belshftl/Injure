@@ -21,7 +21,7 @@ namespace Injure.Rendering;
 /// </remarks>
 public struct WGPUSurfaceDescriptorContainer {
 	public WGPUSurfaceDescriptor Desc;
-	internal WGPUSurfaceSourceWindowsHWND WindowsHWND;
+	internal WGPUSurfaceSourceWindowsHWND WindowsHwnd;
 	internal WGPUSurfaceSourceMetalLayer MetalLayer;
 	internal WGPUSurfaceSourceXlibWindow XlibWindow;
 	internal WGPUSurfaceSourceWaylandSurface WaylandSurface;

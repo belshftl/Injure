@@ -8,16 +8,16 @@ namespace Injure.Assets;
 /// reclamation tracking.
 /// </summary>
 public sealed class AssetThreadContext : IDisposable {
-	private static ulong nextID = 0;
+	private static ulong nextId = 0;
 	private readonly AssetStore owner;
 	private int disposed = 0;
 
-	internal ulong ID { get; }
+	internal ulong Id { get; }
 	internal ulong QuiescentEpoch; // owner writes to here
 
 	internal AssetThreadContext(AssetStore owner) {
 		this.owner = owner;
-		ID = Interlocked.Increment(ref nextID);
+		Id = Interlocked.Increment(ref nextId);
 	}
 
 	/// <summary>

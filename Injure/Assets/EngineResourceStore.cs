@@ -56,7 +56,7 @@ public sealed class EngineResourceStore {
 	/// if any of them provided it.
 	/// </summary>
 	/// <param name="id">Resource ID.</param>
-	public bool Exists(EngineResourceID id) => TryGetData(id, out _);
+	public bool Exists(EngineResourceId id) => TryGetData(id, out _);
 
 	/// <summary>
 	/// Attempts to get metadata/opening data for an engine resource.
@@ -64,7 +64,7 @@ public sealed class EngineResourceStore {
 	/// <param name="id">Resource ID.</param>
 	/// <param name="data">On success, resource data.</param>
 	/// <returns><see langword="true"/> if a source provided the resource; otherwise, <see langword="false"/>.</returns>
-	public bool TryGetData(EngineResourceID id, [NotNullWhen(true)] out EngineResourceData? data) {
+	public bool TryGetData(EngineResourceId id, [NotNullWhen(true)] out EngineResourceData? data) {
 		SourceEntry[] snapshot = Volatile.Read(ref sources);
 		foreach (SourceEntry ent in snapshot) {
 			EngineResourceSourceResult res = ent.Source.TryCreate(id);
@@ -87,7 +87,7 @@ public sealed class EngineResourceStore {
 	/// </summary>
 	/// <param name="id">Resource ID.</param>
 	/// <exception cref="EngineResourceException">Thrown if no source managed to provide the resource.</exception>
-	public EngineResourceData GetData(EngineResourceID id) {
+	public EngineResourceData GetData(EngineResourceId id) {
 		if (TryGetData(id, out EngineResourceData? data))
 			return data;
 		throw new EngineResourceException(id, "no registered engine resource source managed to provide the resource");
@@ -99,7 +99,7 @@ public sealed class EngineResourceStore {
 	/// <param name="id">Resource ID.</param>
 	/// <param name="stream">On success, a fresh readable stream owned by the caller.</param>
 	/// <returns><see langword="true"/> if a source provided the resource; otherwise, <see langword="false"/>.</returns>
-	public bool TryOpenRead(EngineResourceID id, [NotNullWhen(true)] out Stream? stream) {
+	public bool TryOpenRead(EngineResourceId id, [NotNullWhen(true)] out Stream? stream) {
 		if (!TryGetData(id, out EngineResourceData? data)) {
 			stream = null;
 			return false;
@@ -113,7 +113,7 @@ public sealed class EngineResourceStore {
 	/// </summary>
 	/// <param name="id">Resource ID.</param>
 	/// <exception cref="EngineResourceException">Thrown if no source managed to provide the resource.</exception>
-	public Stream OpenRead(EngineResourceID id) => GetData(id).OpenRead();
+	public Stream OpenRead(EngineResourceId id) => GetData(id).OpenRead();
 
 	/// <summary>
 	/// Reads an entire engine resource as bytes if it exists.
@@ -121,7 +121,7 @@ public sealed class EngineResourceStore {
 	/// <param name="id">Resource ID.</param>
 	/// <param name="data">On success, the read data.</param>
 	/// <returns><see langword="true"/> if a source provided the resource; otherwise, <see langword="false"/>.</returns>
-	public bool TryGetBytes(EngineResourceID id, [NotNullWhen(true)] out byte[]? data) {
+	public bool TryGetBytes(EngineResourceId id, [NotNullWhen(true)] out byte[]? data) {
 		if (!TryGetData(id, out EngineResourceData? resource)) {
 			data = null;
 			return false;
@@ -138,7 +138,7 @@ public sealed class EngineResourceStore {
 	/// </summary>
 	/// <param name="id">Resource ID.</param>
 	/// <exception cref="EngineResourceException">Thrown if no source managed to provide the resource.</exception>
-	public byte[] GetBytes(EngineResourceID id) {
+	public byte[] GetBytes(EngineResourceId id) {
 		if (TryGetBytes(id, out byte[]? data))
 			return data;
 		throw new EngineResourceException(id, "no registered engine resource source managed to provide the resource");
@@ -151,7 +151,7 @@ public sealed class EngineResourceStore {
 	/// <param name="text">On success, the read text.</param>
 	/// <param name="encoding">Encoding to use, or <see langword="null"/> for UTF-8.</param>
 	/// <returns><see langword="true"/> if a source provided the resource; otherwise, <see langword="false"/>.</returns>
-	public bool TryGetText(EngineResourceID id, [NotNullWhen(true)] out string? text, Encoding? encoding = null) {
+	public bool TryGetText(EngineResourceId id, [NotNullWhen(true)] out string? text, Encoding? encoding = null) {
 		if (!TryGetData(id, out EngineResourceData? resource)) {
 			text = null;
 			return false;
@@ -169,7 +169,7 @@ public sealed class EngineResourceStore {
 	/// <param name="id">Resource ID.</param>
 	/// <param name="encoding">Encoding to use, or <see langword="null"/> for UTF-8.</param>
 	/// <exception cref="EngineResourceException">Thrown if no source managed to provide the resource.</exception>
-	public string GetText(EngineResourceID id, Encoding? encoding = null) {
+	public string GetText(EngineResourceId id, Encoding? encoding = null) {
 		if (TryGetText(id, out string? text, encoding))
 			return text;
 		throw new EngineResourceException(id, "no registered engine resource source managed to provide the resource");

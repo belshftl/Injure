@@ -20,22 +20,22 @@ public readonly record struct StateAxis2DActionState(Vector2 Value, Vector2 Prev
 }
 
 public readonly record struct ImpulseAxisActionState(float Amount);
-public readonly record struct ButtonActionStateEntry(ActionID Action, ButtonActionState State);
-public readonly record struct StateAxisActionStateEntry(ActionID Action, StateAxisActionState State);
-public readonly record struct StateAxis2DActionStateEntry(ActionID Action, StateAxis2DActionState State);
-public readonly record struct ImpulseAxisActionStateEntry(ActionID Action, ImpulseAxisActionState State);
+public readonly record struct ButtonActionStateEntry(ActionId Action, ButtonActionState State);
+public readonly record struct StateAxisActionStateEntry(ActionId Action, StateAxisActionState State);
+public readonly record struct StateAxis2DActionStateEntry(ActionId Action, StateAxis2DActionState State);
+public readonly record struct ImpulseAxisActionStateEntry(ActionId Action, ImpulseAxisActionState State);
 
 public sealed class ActionStateSnapshot {
-	public ImmutableDictionary<ActionID, ButtonActionState> Buttons { get; }
-	public ImmutableDictionary<ActionID, StateAxisActionState> StateAxes { get; }
-	public ImmutableDictionary<ActionID, StateAxis2DActionState> StateAxes2D { get; }
-	public ImmutableDictionary<ActionID, ImpulseAxisActionState> ImpulseAxes { get; }
+	public ImmutableDictionary<ActionId, ButtonActionState> Buttons { get; }
+	public ImmutableDictionary<ActionId, StateAxisActionState> StateAxes { get; }
+	public ImmutableDictionary<ActionId, StateAxis2DActionState> StateAxes2D { get; }
+	public ImmutableDictionary<ActionId, ImpulseAxisActionState> ImpulseAxes { get; }
 
 	public static readonly ActionStateSnapshot Empty = new(
-		ImmutableDictionary<ActionID, ButtonActionState>.Empty,
-		ImmutableDictionary<ActionID, StateAxisActionState>.Empty,
-		ImmutableDictionary<ActionID, StateAxis2DActionState>.Empty,
-		ImmutableDictionary<ActionID, ImpulseAxisActionState>.Empty
+		ImmutableDictionary<ActionId, ButtonActionState>.Empty,
+		ImmutableDictionary<ActionId, StateAxisActionState>.Empty,
+		ImmutableDictionary<ActionId, StateAxis2DActionState>.Empty,
+		ImmutableDictionary<ActionId, ImpulseAxisActionState>.Empty
 	);
 
 	public ActionStateSnapshot(
@@ -44,15 +44,15 @@ public sealed class ActionStateSnapshot {
 		ReadOnlySpan<StateAxis2DActionStateEntry> stateAxes2D,
 		ReadOnlySpan<ImpulseAxisActionStateEntry> impulseAxes
 	) {
-		static ImmutableDictionary<ActionID, TValue> copy<TEntry, TValue>(
+		static ImmutableDictionary<ActionId, TValue> copy<TEntry, TValue>(
 			ReadOnlySpan<TEntry> entries,
-			Func<TEntry, ActionID> getAction,
+			Func<TEntry, ActionId> getAction,
 			Func<TEntry, TValue> getValue,
 			string paramName
 		) {
-			Dictionary<ActionID, TValue> ret = new(entries.Length);
+			Dictionary<ActionId, TValue> ret = new(entries.Length);
 			foreach (TEntry entry in entries) {
-				ActionID action = getAction(entry);
+				ActionId action = getAction(entry);
 				if (!ret.TryAdd(action, getValue(entry)))
 					throw new ArgumentException("action state entries must not contain duplicate actions", paramName);
 			}
@@ -66,10 +66,10 @@ public sealed class ActionStateSnapshot {
 	}
 
 	public ActionStateSnapshot(
-		ImmutableDictionary<ActionID, ButtonActionState> buttons,
-		ImmutableDictionary<ActionID, StateAxisActionState> stateAxes,
-		ImmutableDictionary<ActionID, StateAxis2DActionState> stateAxes2D,
-		ImmutableDictionary<ActionID, ImpulseAxisActionState> impulseAxes
+		ImmutableDictionary<ActionId, ButtonActionState> buttons,
+		ImmutableDictionary<ActionId, StateAxisActionState> stateAxes,
+		ImmutableDictionary<ActionId, StateAxis2DActionState> stateAxes2D,
+		ImmutableDictionary<ActionId, ImpulseAxisActionState> impulseAxes
 	) {
 		Buttons = buttons ?? throw new ArgumentNullException(nameof(buttons));
 		StateAxes = stateAxes ?? throw new ArgumentNullException(nameof(stateAxes));
@@ -77,10 +77,10 @@ public sealed class ActionStateSnapshot {
 		ImpulseAxes = impulseAxes ?? throw new ArgumentNullException(nameof(impulseAxes));
 	}
 
-	public ButtonActionState GetButton(ActionID action) => Buttons.TryGetValue(action, out ButtonActionState state) ? state : default;
-	public StateAxisActionState GetStateAxis(ActionID action) => StateAxes.TryGetValue(action, out StateAxisActionState state) ? state : default;
-	public StateAxis2DActionState GetStateAxis2D(ActionID action) => StateAxes2D.TryGetValue(action, out StateAxis2DActionState state) ? state : default;
-	public ImpulseAxisActionState GetImpulseAxis(ActionID action) => ImpulseAxes.TryGetValue(action, out ImpulseAxisActionState state) ? state : default;
+	public ButtonActionState GetButton(ActionId action) => Buttons.TryGetValue(action, out ButtonActionState state) ? state : default;
+	public StateAxisActionState GetStateAxis(ActionId action) => StateAxes.TryGetValue(action, out StateAxisActionState state) ? state : default;
+	public StateAxis2DActionState GetStateAxis2D(ActionId action) => StateAxes2D.TryGetValue(action, out StateAxis2DActionState state) ? state : default;
+	public ImpulseAxisActionState GetImpulseAxis(ActionId action) => ImpulseAxes.TryGetValue(action, out ImpulseAxisActionState state) ? state : default;
 
 	public ActionStateView AsView() => new(
 		new ButtonActionStateView(Buttons),
@@ -91,35 +91,35 @@ public sealed class ActionStateSnapshot {
 }
 
 public readonly ref struct ButtonActionStateView {
-	internal readonly IReadOnlyDictionary<ActionID, ButtonActionState> States;
-	internal ButtonActionStateView(IReadOnlyDictionary<ActionID, ButtonActionState> states) {
+	internal readonly IReadOnlyDictionary<ActionId, ButtonActionState> States;
+	internal ButtonActionStateView(IReadOnlyDictionary<ActionId, ButtonActionState> states) {
 		States = states;
 	}
-	public ButtonActionState this[ActionID action] => States.TryGetValue(action, out ButtonActionState state) ? state : default;
+	public ButtonActionState this[ActionId action] => States.TryGetValue(action, out ButtonActionState state) ? state : default;
 }
 
 public readonly ref struct StateAxisActionStateView {
-	internal readonly IReadOnlyDictionary<ActionID, StateAxisActionState> States;
-	internal StateAxisActionStateView(IReadOnlyDictionary<ActionID, StateAxisActionState> states) {
+	internal readonly IReadOnlyDictionary<ActionId, StateAxisActionState> States;
+	internal StateAxisActionStateView(IReadOnlyDictionary<ActionId, StateAxisActionState> states) {
 		States = states;
 	}
-	public StateAxisActionState this[ActionID action] => States.TryGetValue(action, out StateAxisActionState state) ? state : default;
+	public StateAxisActionState this[ActionId action] => States.TryGetValue(action, out StateAxisActionState state) ? state : default;
 }
 
 public readonly ref struct StateAxis2DActionStateView {
-	internal readonly IReadOnlyDictionary<ActionID, StateAxis2DActionState> States;
-	internal StateAxis2DActionStateView(IReadOnlyDictionary<ActionID, StateAxis2DActionState> states) {
+	internal readonly IReadOnlyDictionary<ActionId, StateAxis2DActionState> States;
+	internal StateAxis2DActionStateView(IReadOnlyDictionary<ActionId, StateAxis2DActionState> states) {
 		States = states;
 	}
-	public StateAxis2DActionState this[ActionID action] => States.TryGetValue(action, out StateAxis2DActionState state) ? state : default;
+	public StateAxis2DActionState this[ActionId action] => States.TryGetValue(action, out StateAxis2DActionState state) ? state : default;
 }
 
 public readonly ref struct ImpulseAxisActionStateView {
-	internal readonly IReadOnlyDictionary<ActionID, ImpulseAxisActionState> States;
-	internal ImpulseAxisActionStateView(IReadOnlyDictionary<ActionID, ImpulseAxisActionState> states) {
+	internal readonly IReadOnlyDictionary<ActionId, ImpulseAxisActionState> States;
+	internal ImpulseAxisActionStateView(IReadOnlyDictionary<ActionId, ImpulseAxisActionState> states) {
 		States = states;
 	}
-	public ImpulseAxisActionState this[ActionID action] => States.TryGetValue(action, out ImpulseAxisActionState state) ? state : default;
+	public ImpulseAxisActionState this[ActionId action] => States.TryGetValue(action, out ImpulseAxisActionState state) ? state : default;
 }
 
 public readonly ref struct ActionStateView {

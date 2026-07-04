@@ -226,7 +226,7 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 		if (items.Length == 0)
 			return;
 
-		ReloadTeardownContext ctx = new(Generation.OwnerID, Generation, reason);
+		ReloadTeardownContext ctx = new(Generation.OwnerId, Generation, reason);
 
 		Lock failureLock = new();
 		int nextIndex = -1;

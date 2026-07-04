@@ -21,15 +21,15 @@ public enum ReferenceFamily {
 }
 
 public static class ReferenceConverter {
-	private readonly struct RGB24Layout(int rIndex, int gIndex, int bIndex) {
+	private readonly struct Rgb24Layout(int rIndex, int gIndex, int bIndex) {
 		public readonly int RIndex = rIndex, GIndex = gIndex, BIndex = bIndex;
 	}
 
-	private readonly struct RGBA32Layout(int rIndex, int gIndex, int bIndex, int aIndex) {
+	private readonly struct Rgba32Layout(int rIndex, int gIndex, int bIndex, int aIndex) {
 		public readonly int RIndex = rIndex, GIndex = gIndex, BIndex = bIndex, AIndex = aIndex;
 	}
 
-	private readonly struct RGBA64Layout(int rIndex, int gIndex, int bIndex, int aIndex, bool isBigEndian) {
+	private readonly struct Rgba64Layout(int rIndex, int gIndex, int bIndex, int aIndex, bool isBigEndian) {
 		public readonly int RIndex = rIndex, GIndex = gIndex, BIndex = bIndex, AIndex = aIndex;
 		public readonly bool IsBigEndian = isBigEndian;
 	}
@@ -68,15 +68,15 @@ public static class ReferenceConverter {
 		in PixelConvertOptions opts
 	) {
 		return family switch {
-			ReferenceFamily.Copy32SetAlpha => Copy32SetAlpha(src, srcStride, srcFmt, width, height, opts.Alpha16UNorm),
-			ReferenceFamily.Copy64SetAlpha => Copy64SetAlpha(src, srcStride, srcFmt, width, height, opts.Alpha16UNorm),
-			ReferenceFamily.Shuffle32 => Shuffle32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16UNorm, opts.OverrideAlpha),
-			ReferenceFamily.Expand24To32 => Expand24To32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16UNorm),
+			ReferenceFamily.Copy32SetAlpha => Copy32SetAlpha(src, srcStride, srcFmt, width, height, opts.Alpha16Unorm),
+			ReferenceFamily.Copy64SetAlpha => Copy64SetAlpha(src, srcStride, srcFmt, width, height, opts.Alpha16Unorm),
+			ReferenceFamily.Shuffle32 => Shuffle32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
+			ReferenceFamily.Expand24To32 => Expand24To32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm),
 			ReferenceFamily.Contract32To24 => Contract32To24(src, srcStride, srcFmt, dstFmt, width, height),
-			ReferenceFamily.Widen32To64 => Widen32To64(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16UNorm, opts.OverrideAlpha),
-			ReferenceFamily.Narrow64To32 => Narrow64To32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16UNorm, opts.OverrideAlpha),
-			ReferenceFamily.Packed16To32 => Packed16To32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16UNorm, opts.OverrideAlpha),
-			ReferenceFamily.Unpacked32ToPacked16 => Unpacked32ToPacked16(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16UNorm, opts.OverrideAlpha),
+			ReferenceFamily.Widen32To64 => Widen32To64(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
+			ReferenceFamily.Narrow64To32 => Narrow64To32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
+			ReferenceFamily.Packed16To32 => Packed16To32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
+			ReferenceFamily.Unpacked32ToPacked16 => Unpacked32ToPacked16(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
 			_ => throw new UnreachableException(),
 		};
 	}
@@ -89,7 +89,7 @@ public static class ReferenceConverter {
 		int height,
 		ushort a16unorm
 	) {
-		RGBA32Layout sl = rgba32LayoutFor(fmt);
+		Rgba32Layout sl = rgba32LayoutFor(fmt);
 		int rowBytes = checked(width * 4);
 		validate(src, srcStride, rowBytes, width, height);
 
@@ -113,7 +113,7 @@ public static class ReferenceConverter {
 		int height,
 		ushort a16unorm
 	) {
-		RGBA64Layout sl = rgba64LayoutFor(fmt);
+		Rgba64Layout sl = rgba64LayoutFor(fmt);
 		int rowBytes = checked(width * 8);
 		validate(src, srcStride, rowBytes, width, height);
 
@@ -138,8 +138,8 @@ public static class ReferenceConverter {
 		ushort a16unorm,
 		bool overrideAlpha
 	) {
-		RGBA32Layout sl = rgba32LayoutFor(srcFmt);
-		RGBA32Layout dl = rgba32LayoutFor(dstFmt);
+		Rgba32Layout sl = rgba32LayoutFor(srcFmt);
+		Rgba32Layout dl = rgba32LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 4);
 		int dstRowBytes = checked(width * 4);
 		validate(src, srcStride, srcRowBytes, width, height);
@@ -177,8 +177,8 @@ public static class ReferenceConverter {
 		int height,
 		ushort a16unorm
 	) {
-		RGB24Layout sl = rgb24LayoutFor(srcFmt);
-		RGBA32Layout dl = rgba32LayoutFor(dstFmt);
+		Rgb24Layout sl = rgb24LayoutFor(srcFmt);
+		Rgba32Layout dl = rgba32LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 3);
 		int dstRowBytes = checked(width * 4);
 		validate(src, srcStride, srcRowBytes, width, height);
@@ -210,8 +210,8 @@ public static class ReferenceConverter {
 		int width,
 		int height
 	) {
-		RGBA32Layout sl = rgba32LayoutFor(srcFmt);
-		RGB24Layout dl = rgb24LayoutFor(dstFmt);
+		Rgba32Layout sl = rgba32LayoutFor(srcFmt);
+		Rgb24Layout dl = rgb24LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 4);
 		int dstRowBytes = checked(width * 3);
 		validate(src, srcStride, srcRowBytes, width, height);
@@ -243,8 +243,8 @@ public static class ReferenceConverter {
 		ushort a16unorm,
 		bool overrideAlpha
 	) {
-		RGBA32Layout sl = rgba32LayoutFor(srcFmt);
-		RGBA64Layout dl = rgba64LayoutFor(dstFmt);
+		Rgba32Layout sl = rgba32LayoutFor(srcFmt);
+		Rgba64Layout dl = rgba64LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 4);
 		int dstRowBytes = checked(width * 8);
 		validate(src, srcStride, srcRowBytes, width, height);
@@ -282,8 +282,8 @@ public static class ReferenceConverter {
 		ushort a16unorm,
 		bool overrideAlpha
 	) {
-		RGBA64Layout sl = rgba64LayoutFor(srcFmt);
-		RGBA32Layout dl = rgba32LayoutFor(dstFmt);
+		Rgba64Layout sl = rgba64LayoutFor(srcFmt);
+		Rgba32Layout dl = rgba32LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 8);
 		int dstRowBytes = checked(width * 4);
 		validate(src, srcStride, srcRowBytes, width, height);
@@ -322,7 +322,7 @@ public static class ReferenceConverter {
 		bool overrideAlpha
 	) {
 		Packed16Layout sl = packed16LayoutFor(srcFmt);
-		RGBA32Layout dl = rgba32LayoutFor(dstFmt);
+		Rgba32Layout dl = rgba32LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 2);
 		int dstRowBytes = checked(width * 4);
 		validate(src, srcStride, srcRowBytes, width, height);
@@ -360,7 +360,7 @@ public static class ReferenceConverter {
 		ushort a16unorm,
 		bool overrideAlpha
 	) {
-		RGBA32Layout sl = rgba32LayoutFor(srcFmt);
+		Rgba32Layout sl = rgba32LayoutFor(srcFmt);
 		Packed16Layout dl = packed16LayoutFor(dstFmt);
 		int srcRowBytes = checked(width * 4);
 		int dstRowBytes = checked(width * 2);
@@ -392,44 +392,44 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
-	private static RGB24Layout rgb24LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.RGB24_UNorm => new RGB24Layout(0, 1, 2),
-		PixelFormat.Case.BGR24_UNorm => new RGB24Layout(2, 1, 0),
+	private static Rgb24Layout rgb24LayoutFor(PixelFormat fmt) => fmt.Tag switch {
+		PixelFormat.Case.Rgb24_Unorm => new Rgb24Layout(0, 1, 2),
+		PixelFormat.Case.Bgr24_Unorm => new Rgb24Layout(2, 1, 0),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
-	private static RGBA32Layout rgba32LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.RGBA32_UNorm => new RGBA32Layout(0, 1, 2, 3),
-		PixelFormat.Case.BGRA32_UNorm => new RGBA32Layout(2, 1, 0, 3),
-		PixelFormat.Case.ARGB32_UNorm => new RGBA32Layout(1, 2, 3, 0),
-		PixelFormat.Case.ABGR32_UNorm => new RGBA32Layout(3, 2, 1, 0),
+	private static Rgba32Layout rgba32LayoutFor(PixelFormat fmt) => fmt.Tag switch {
+		PixelFormat.Case.Rgba32_Unorm => new Rgba32Layout(0, 1, 2, 3),
+		PixelFormat.Case.Bgra32_Unorm => new Rgba32Layout(2, 1, 0, 3),
+		PixelFormat.Case.Argb32_Unorm => new Rgba32Layout(1, 2, 3, 0),
+		PixelFormat.Case.Abgr32_Unorm => new Rgba32Layout(3, 2, 1, 0),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
-	private static RGBA64Layout rgba64LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.RGBA64_UNorm_LE => new RGBA64Layout(0, 1, 2, 3, false),
-		PixelFormat.Case.BGRA64_UNorm_LE => new RGBA64Layout(2, 1, 0, 3, false),
-		PixelFormat.Case.ARGB64_UNorm_LE => new RGBA64Layout(1, 2, 3, 0, false),
-		PixelFormat.Case.ABGR64_UNorm_LE => new RGBA64Layout(3, 2, 1, 0, false),
+	private static Rgba64Layout rgba64LayoutFor(PixelFormat fmt) => fmt.Tag switch {
+		PixelFormat.Case.Rgba64_Unorm_Le => new Rgba64Layout(0, 1, 2, 3, false),
+		PixelFormat.Case.Bgra64_Unorm_Le => new Rgba64Layout(2, 1, 0, 3, false),
+		PixelFormat.Case.Argb64_Unorm_Le => new Rgba64Layout(1, 2, 3, 0, false),
+		PixelFormat.Case.Abgr64_Unorm_Le => new Rgba64Layout(3, 2, 1, 0, false),
 
-		PixelFormat.Case.RGBA64_UNorm_BE => new RGBA64Layout(0, 1, 2, 3, true),
-		PixelFormat.Case.BGRA64_UNorm_BE => new RGBA64Layout(2, 1, 0, 3, true),
-		PixelFormat.Case.ARGB64_UNorm_BE => new RGBA64Layout(1, 2, 3, 0, true),
-		PixelFormat.Case.ABGR64_UNorm_BE => new RGBA64Layout(3, 2, 1, 0, true),
+		PixelFormat.Case.Rgba64_Unorm_Be => new Rgba64Layout(0, 1, 2, 3, true),
+		PixelFormat.Case.Bgra64_Unorm_Be => new Rgba64Layout(2, 1, 0, 3, true),
+		PixelFormat.Case.Argb64_Unorm_Be => new Rgba64Layout(1, 2, 3, 0, true),
+		PixelFormat.Case.Abgr64_Unorm_Be => new Rgba64Layout(3, 2, 1, 0, true),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
 	private static Packed16Layout packed16LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.BGR565_UNormPack16_LE => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, false),
-		PixelFormat.Case.RGBA4444_UNormPack16_LE => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, false),
-		PixelFormat.Case.RGBA5551_UNormPack16_LE => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, false),
+		PixelFormat.Case.Bgr565_UnormPack16_Le => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, false),
+		PixelFormat.Case.Rgba4444_UnormPack16_Le => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, false),
+		PixelFormat.Case.Rgba5551_UnormPack16_Le => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, false),
 
-		PixelFormat.Case.BGR565_UNormPack16_BE => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, true),
-		PixelFormat.Case.RGBA4444_UNormPack16_BE => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, true),
-		PixelFormat.Case.RGBA5551_UNormPack16_BE => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, true),
+		PixelFormat.Case.Bgr565_UnormPack16_Be => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, true),
+		PixelFormat.Case.Rgba4444_UnormPack16_Be => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, true),
+		PixelFormat.Case.Rgba5551_UnormPack16_Be => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, true),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};

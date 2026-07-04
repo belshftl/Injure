@@ -10,13 +10,13 @@ namespace Injure.Input;
 
 public sealed class ActionContext(ActionProfile profile) {
 	private sealed class Lookup {
-		public readonly Dictionary<InputButtonSource, List<ActionID>> ButtonActionsBySource = new();
+		public readonly Dictionary<InputButtonSource, List<ActionId>> ButtonActionsBySource = new();
 		public readonly Dictionary<InputImpulseAxisSource, List<ImpulseAxisBinding>> ImpulseAxesBySource = new();
 		public readonly HashSet<InputButtonSource> TrackedButtonSources = new();
-		public readonly HashSet<ActionID> ButtonActions = new();
-		public readonly HashSet<ActionID> StateAxisActions = new();
-		public readonly HashSet<ActionID> StateAxis2DActions = new();
-		public readonly HashSet<ActionID> ImpulseAxisActions = new();
+		public readonly HashSet<ActionId> ButtonActions = new();
+		public readonly HashSet<ActionId> StateAxisActions = new();
+		public readonly HashSet<ActionId> StateAxis2DActions = new();
+		public readonly HashSet<ActionId> ImpulseAxisActions = new();
 	}
 
 	private readonly ActionProfile profile = profile ?? throw new ArgumentNullException(nameof(profile));
@@ -29,18 +29,18 @@ public sealed class ActionContext(ActionProfile profile) {
 
 	private readonly Dictionary<InputButtonSource, bool> buttonSourceDown = new();
 	private readonly Dictionary<InputButtonSource, ulong> buttonSourcePressedAt = new();
-	private readonly Dictionary<ActionID, int> buttonHeldCounts = new();
-	private readonly Dictionary<ActionID, bool> previousButtonDown = new();
+	private readonly Dictionary<ActionId, int> buttonHeldCounts = new();
+	private readonly Dictionary<ActionId, bool> previousButtonDown = new();
 
-	private readonly Dictionary<ActionID, float> stateAxisValues = new();
-	private readonly Dictionary<ActionID, Vector2> stateAxis2DValues = new();
+	private readonly Dictionary<ActionId, float> stateAxisValues = new();
+	private readonly Dictionary<ActionId, Vector2> stateAxis2DValues = new();
 
-	private readonly Dictionary<ActionID, ButtonActionState> buttonStates = new();
-	private readonly Dictionary<ActionID, StateAxisActionState> stateAxisStates = new();
-	private readonly Dictionary<ActionID, StateAxis2DActionState> stateAxis2DStates = new();
-	private readonly Dictionary<ActionID, ImpulseAxisActionState> impulseAxisStates = new();
+	private readonly Dictionary<ActionId, ButtonActionState> buttonStates = new();
+	private readonly Dictionary<ActionId, StateAxisActionState> stateAxisStates = new();
+	private readonly Dictionary<ActionId, StateAxis2DActionState> stateAxis2DStates = new();
+	private readonly Dictionary<ActionId, ImpulseAxisActionState> impulseAxisStates = new();
 
-	private readonly Dictionary<ActionID, float> stepImpulseAmounts = new();
+	private readonly Dictionary<ActionId, float> stepImpulseAmounts = new();
 
 	private readonly List<ControlEvent> events = new();
 
@@ -102,13 +102,13 @@ public sealed class ActionContext(ActionProfile profile) {
 	}
 
 	private void synthesizeResetEvents(MonoTick tick) {
-		foreach ((ActionID action, bool down) in previousButtonDown)
+		foreach ((ActionId action, bool down) in previousButtonDown)
 			if (down)
 				events.Add(new ButtonActionEvent(tick, action, EdgeType.Release));
-		foreach ((ActionID action, float val) in stateAxisValues)
+		foreach ((ActionId action, float val) in stateAxisValues)
 			if (val != 0f)
 				events.Add(new StateAxisActionEvent(tick, action, 0f));
-		foreach ((ActionID action, Vector2 val) in stateAxis2DValues)
+		foreach ((ActionId action, Vector2 val) in stateAxis2DValues)
 			if (val != Vector2.Zero)
 				events.Add(new StateAxis2DActionEvent(tick, action, Vector2.Zero));
 	}
@@ -121,10 +121,10 @@ public sealed class ActionContext(ActionProfile profile) {
 			buttonSourceDown[source] = true;
 			buttonSourcePressedAt[source] = nextPressStamp++;
 
-			if (!lookup.ButtonActionsBySource.TryGetValue(source, out List<ActionID>? actions))
+			if (!lookup.ButtonActionsBySource.TryGetValue(source, out List<ActionId>? actions))
 				continue;
 
-			foreach (ActionID action in actions) {
+			foreach (ActionId action in actions) {
 				int held = buttonHeldCounts.TryGetValue(action, out int h) ? h : 0;
 				buttonHeldCounts[action] = held + 1;
 				events.Add(new ButtonActionEvent(tick, action, EdgeType.Press));
@@ -136,8 +136,8 @@ public sealed class ActionContext(ActionProfile profile) {
 		Lookup ret = new();
 
 		foreach (ButtonBinding b in map.ButtonBindings) {
-			if (!ret.ButtonActionsBySource.TryGetValue(b.Source, out List<ActionID>? list)) {
-				list = new List<ActionID>();
+			if (!ret.ButtonActionsBySource.TryGetValue(b.Source, out List<ActionId>? list)) {
+				list = new List<ActionId>();
 				ret.ButtonActionsBySource.Add(b.Source, list);
 			}
 			list.Add(b.Action);
@@ -230,10 +230,10 @@ public sealed class ActionContext(ActionProfile profile) {
 		else
 			buttonSourcePressedAt.Remove(source);
 
-		if (!lookup.ButtonActionsBySource.TryGetValue(source, out List<ActionID>? actions))
+		if (!lookup.ButtonActionsBySource.TryGetValue(source, out List<ActionId>? actions))
 			return;
 
-		foreach (ActionID action in actions) {
+		foreach (ActionId action in actions) {
 			int held = buttonHeldCounts.TryGetValue(action, out int h) ? h : 0;
 			if (nowDown) {
 				// multibind: press fires for every newly pressed bound source
@@ -281,11 +281,11 @@ public sealed class ActionContext(ActionProfile profile) {
 	}
 
 	private void evaluateButtonsFinal() {
-		HashSet<ActionID> actions = new(lookup.ButtonActions);
-		foreach (ActionID action in previousButtonDown.Keys)
+		HashSet<ActionId> actions = new(lookup.ButtonActions);
+		foreach (ActionId action in previousButtonDown.Keys)
 			actions.Add(action);
 
-		foreach (ActionID action in actions) {
+		foreach (ActionId action in actions) {
 			bool previous = previousButtonDown.TryGetValue(action, out bool p) && p;
 			bool down = buttonHeldCounts.TryGetValue(action, out int held) && held > 0;
 			buttonStates[action] = new ButtonActionState(down, previous);
@@ -297,7 +297,7 @@ public sealed class ActionContext(ActionProfile profile) {
 	}
 
 	private void evaluateStateAxesFinal(MonoTick tick, InputSnapshot raw) {
-		Dictionary<ActionID, float> nextValues = [];
+		Dictionary<ActionId, float> nextValues = [];
 
 		foreach (StateAxisBinding b in map.StateAxisBindings) {
 			float val = getStateAxisValue(raw, b.Source) * b.Scale;
@@ -305,11 +305,11 @@ public sealed class ActionContext(ActionProfile profile) {
 			nextValues[b.Action] = mergeStateAxis(current, val, map.StateAxisMergePolicy);
 		}
 
-		HashSet<ActionID> actions = new(lookup.StateAxisActions);
-		foreach (ActionID action in stateAxisValues.Keys)
+		HashSet<ActionId> actions = new(lookup.StateAxisActions);
+		foreach (ActionId action in stateAxisValues.Keys)
 			actions.Add(action);
 
-		foreach (ActionID action in actions) {
+		foreach (ActionId action in actions) {
 			float old = stateAxisValues.TryGetValue(action, out float o) ? o : 0f;
 			float next = nextValues.TryGetValue(action, out float n) ? n : 0f;
 			stateAxisStates[action] = new StateAxisActionState(next, old);
@@ -325,7 +325,7 @@ public sealed class ActionContext(ActionProfile profile) {
 	}
 
 	private void evaluateStateAxes2DFinal(MonoTick tick, InputSnapshot raw) {
-		Dictionary<ActionID, Vector2> nextValues = [];
+		Dictionary<ActionId, Vector2> nextValues = [];
 
 		foreach (StateAxis2DBinding b in map.StateAxis2DBindings) {
 			Vector2 v = getStateAxis2DValue(raw, b.Source);
@@ -337,11 +337,11 @@ public sealed class ActionContext(ActionProfile profile) {
 			nextValues[b.Action] = mergeStateAxis2D(current, v, map.StateAxis2DMergePolicy);
 		}
 
-		HashSet<ActionID> actions = new(lookup.StateAxis2DActions);
-		foreach (ActionID action in stateAxis2DValues.Keys)
+		HashSet<ActionId> actions = new(lookup.StateAxis2DActions);
+		foreach (ActionId action in stateAxis2DValues.Keys)
 			actions.Add(action);
 
-		foreach (ActionID action in actions) {
+		foreach (ActionId action in actions) {
 			stateAxis2DValues.TryGetValue(action, out Vector2 old);
 			nextValues.TryGetValue(action, out Vector2 next);
 
@@ -357,7 +357,7 @@ public sealed class ActionContext(ActionProfile profile) {
 	}
 
 	private void evaluateImpulseAxesFinal() {
-		foreach ((ActionID action, float amount) in stepImpulseAmounts)
+		foreach ((ActionId action, float amount) in stepImpulseAmounts)
 			if (amount != 0f)
 				impulseAxisStates[action] = new ImpulseAxisActionState(amount);
 	}
@@ -385,13 +385,13 @@ public sealed class ActionContext(ActionProfile profile) {
 	);
 
 	private Vector2 getDigital2D(DigitalAxis2DSource source) {
-		float x = getDigitalAxisValue(source.Left, source.Right, source.XSOCD);
-		float y = getDigitalAxisValue(source.Up, source.Down, source.YSOCD);
+		float x = getDigitalAxisValue(source.Left, source.Right, source.XSocd);
+		float y = getDigitalAxisValue(source.Up, source.Down, source.YSocd);
 		return clampMag1(new Vector2(x, y));
 	}
 
-	private float getDigitalAxisValue(DigitalAxisSource source) => getDigitalAxisValue(source.Negative, source.Positive, source.SOCD);
-	private float getDigitalAxisValue(InputButtonSource negative, InputButtonSource positive, SOCDPolicy socd) {
+	private float getDigitalAxisValue(DigitalAxisSource source) => getDigitalAxisValue(source.Negative, source.Positive, source.Socd);
+	private float getDigitalAxisValue(InputButtonSource negative, InputButtonSource positive, SocdPolicy socd) {
 		bool neg = buttonSourceDown.TryGetValue(negative, out bool n) && n;
 		bool pos = buttonSourceDown.TryGetValue(positive, out bool p) && p;
 
@@ -403,11 +403,11 @@ public sealed class ActionContext(ActionProfile profile) {
 			return 0.0f;
 
 		return socd.Tag switch {
-			SOCDPolicy.Case.Last => socdLast(negative, positive),
-			SOCDPolicy.Case.First => socdFirst(negative, positive),
-			SOCDPolicy.Case.Neutral => 0f,
-			SOCDPolicy.Case.Positive => 1f,
-			SOCDPolicy.Case.Negative => -1f,
+			SocdPolicy.Case.Last => socdLast(negative, positive),
+			SocdPolicy.Case.First => socdFirst(negative, positive),
+			SocdPolicy.Case.Neutral => 0f,
+			SocdPolicy.Case.Positive => 1f,
+			SocdPolicy.Case.Negative => -1f,
 			_ => throw new UnreachableException(),
 		};
 	}

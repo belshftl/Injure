@@ -4,5 +4,5 @@
 namespace Injure.Mods;
 
 public static class EngineInfo {
-	public const string OwnerID = "Injure";
+	public const string OwnerId = "Injure";
 }

@@ -43,7 +43,7 @@ public readonly partial struct HostEvent {
 }
 
 public interface IGame {
-	static abstract string OwnerID { get; }
+	static abstract string OwnerId { get; }
 
 	void Init(GameServices sv);
 	void Render(Canvas cv);

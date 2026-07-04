@@ -34,7 +34,7 @@ public static unsafe class Runner {
 		public TimingSettings Settings { get; private set; } = initialSettings;
 		public bool Changed; // check this flag at the end of every loop
 		public bool TrySet(in TimingSettings settings, [NotNullWhen(false)] out string? err) {
-			if (settings.RenderMode == RenderTimingMode.Capped && settings.TargetFPS <= 0.0) {
+			if (settings.RenderMode == RenderTimingMode.Capped && settings.TargetFps <= 0.0) {
 				err = "TargetFPS must be non-zero/negative if RenderMode == RenderTimingMode.Capped";
 				return false;
 			}
@@ -42,7 +42,7 @@ public static unsafe class Runner {
 				err = "TargetLoopHz must be non-zero/negative";
 				return false;
 			}
-			if (settings.TargetFPS > settings.TargetLoopHz) {
+			if (settings.TargetFps > settings.TargetLoopHz) {
 				err = "TargetFPS cannot be higher than TargetLoopHz; if you want to go higher, increase TargetLoopHz";
 				return false;
 			}
@@ -62,10 +62,10 @@ public static unsafe class Runner {
 		Material: CanvasMaterials.Color
 	);
 
-	private static WebGPUDevice gpuDevice = null!;
+	private static WebGpuDevice gpuDevice = null!;
 	private static SurfaceRenderOutput sfOutput = null!;
 	private static ViewGlobals viewGlobals = null!;
-	private static SDLWindowController winControl = null!;
+	private static SdlWindowController winControl = null!;
 
 	private static GameServices services = null!;
 	private static CanvasSharedResources canvasResources = null!;
@@ -101,7 +101,7 @@ public static unsafe class Runner {
 		if (s.Resizable) SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, true);
 		if (s.Borderless) SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN, true);
 		if (s.Fullscreen) SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, true);
-		if (conf.AllowHighDPI) SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true);
+		if (conf.AllowHighDpi) SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true);
 		switch (s.Mode.Tag) {
 		case WindowMode.Case.Minimized: SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_MINIMIZED_BOOLEAN, true); break;
 		case WindowMode.Case.Maximized: SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_MAXIMIZED_BOOLEAN, true); break;
@@ -118,7 +118,7 @@ public static unsafe class Runner {
 		}
 		SDL.SetNumberProperty(props, SDL.SDL_PROP_WINDOW_CREATE_X_NUMBER, x);
 		SDL.SetNumberProperty(props, SDL.SDL_PROP_WINDOW_CREATE_Y_NUMBER, y);
-		SDLOwner.InitSDL(props);
+		SdlOwner.InitSdl(props);
 	}
 
 	private static SurfacePresentModePolicy presentModeToSfPolicy(PresentMode presentMode) => presentMode.Tag switch {
@@ -140,15 +140,15 @@ public static unsafe class Runner {
 		if (iconf.MaxBufferedEvents <= 0)
 			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(iconf.MaxBufferedEvents);
 		if (tmst.RenderMode == RenderTimingMode.Capped)
-			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetFPS);
+			ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetFps);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tmst.TargetLoopHz);
-		if (tmst.TargetFPS > tmst.TargetLoopHz)
+		if (tmst.TargetFps > tmst.TargetLoopHz)
 			throw new ArgumentException("TargetFPS cannot be higher than TargetLoopHz; if you want to go higher, increase TargetLoopHz");
 
 		if (Interlocked.Exchange(ref running, 1) != 0)
 			throw new InvalidOperationException("an IGame instance is already running");
 
-		double renderStep = tmst.TargetFPS > 0.0 ? 1.0 / tmst.TargetFPS : 0.0;
+		double renderStep = tmst.TargetFps > 0.0 ? 1.0 / tmst.TargetFps : 0.0;
 		var loopStep = MonoTick.PeriodFromHz(tmst.TargetLoopHz);
 
 		var t1_5ms = MonoTick.FromSeconds(0.0015);
@@ -161,7 +161,7 @@ public static unsafe class Runner {
 		var loadingStartTick = MonoTick.GetCurrent();
 
 		// webgpu bootstrap
-		var bootstrap = Task.Run(() => new WebGPUDevice());
+		var bootstrap = Task.Run(() => new WebGpuDevice());
 
 		// basic loading-time event loop
 		SDLEvent ev;
@@ -172,7 +172,7 @@ public static unsafe class Runner {
 				while (SDL.PollEvent(&ev)) {
 					switch ((SDLEventType)ev.Type) {
 					case SDLEventType.Quit:
-						SDL.HideWindow(SDLOwner.Window);
+						SDL.HideWindow(SdlOwner.Window);
 						cancelled = true;
 						goto bootstrapCancelled;
 					case SDLEventType.WindowExposed:
@@ -197,11 +197,11 @@ public static unsafe class Runner {
 
 		// webgpu setup
 		gpuDevice = bootstrap.Result;
-		sfOutput = new SurfaceRenderOutput(gpuDevice, SDLOwner.SurfaceHost!, presentModeToSfPolicy(rconf.Settings.PresentMode));
+		sfOutput = new SurfaceRenderOutput(gpuDevice, SdlOwner.SurfaceHost!, presentModeToSfPolicy(rconf.Settings.PresentMode));
 		viewGlobals = new ViewGlobals(gpuDevice, sfOutput.Width, sfOutput.Height);
 
 		// controllers
-		winControl = new SDLWindowController(SDLOwner.Window, winconf.Settings);
+		winControl = new SdlWindowController(SdlOwner.Window, winconf.Settings);
 		RenderController renderControl = new(rconf.Settings, sfOutput);
 		TimingController timingControl = new(tmst);
 
@@ -218,12 +218,12 @@ public static unsafe class Runner {
 		eresources.RegisterSource(
 			new EmbeddedEngineResourceSource(
 				typeof(Runner).Assembly,
-				new HashSet<EngineResourceID>(
+				new HashSet<EngineResourceId>(
 					[
-						BuiltinShaders.Primitive2D.ResourceID,
-						BuiltinShaders.Textured2DColor.ResourceID,
-						BuiltinShaders.Textured2DRMask.ResourceID,
-						BuiltinShaders.Textured2DSDF.ResourceID,
+						BuiltinShaders.Primitive2d.ResourceId,
+						BuiltinShaders.Textured2dColor.ResourceId,
+						BuiltinShaders.Textured2dRmask.ResourceId,
+						BuiltinShaders.Textured2dSdf.ResourceId,
 					]
 				)
 			)
@@ -288,7 +288,7 @@ public static unsafe class Runner {
 				timingControl.Changed = false;
 				tmst = timingControl.Settings;
 
-				renderStep = tmst.TargetFPS > 0.0 ? 1.0 / tmst.TargetFPS : 0.0;
+				renderStep = tmst.TargetFps > 0.0 ? 1.0 / tmst.TargetFps : 0.0;
 				renderAccum = 0.0;
 
 				loopStep = MonoTick.PeriodFromHz(tmst.TargetLoopHz);
@@ -376,7 +376,7 @@ public static unsafe class Runner {
 		gpuDevice.Dispose();
 
 	earlyquit:
-		SDLOwner.ShutdownSDL();
+		SdlOwner.ShutdownSdl();
 		Volatile.Write(ref running, 0);
 	}
 }

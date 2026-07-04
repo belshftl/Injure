@@ -23,7 +23,7 @@ public readonly record struct TextStyle(
 	Color32 Color,
 	TextLayoutOptions LayoutOptions,
 	string Locale = "und",
-	string? LanguageBCP47 = null
+	string? LanguageBcp47 = null
 ) {
 	public TextStyle(int fontSize, Color32 color, TextLayoutOptions? layoutOptions = null) : this(
 		new FontOptions(fontSize),
@@ -49,7 +49,7 @@ public sealed class TextCacheOptions {
 }
 
 public sealed unsafe class TextSystem : IDisposable {
-	private readonly record struct LoadedFaceKey(FontSourceKind SourceKind, ulong SourceID, ulong Version, int FaceIndex);
+	private readonly record struct LoadedFaceKey(FontSourceKind SourceKind, ulong SourceId, ulong Version, int FaceIndex);
 
 	private readonly FT_LibraryRec_* ftLibrary;
 	private readonly Dictionary<ResolvedFontKey, IResolvedFont> fonts = new();
@@ -71,7 +71,7 @@ public sealed unsafe class TextSystem : IDisposable {
 		}
 	}
 
-	internal TextSystem(WebGPUDevice gpuDevice, ITextItemizer? itemizer = null, TextCacheOptions? cacheOptions = null) {
+	internal TextSystem(WebGpuDevice gpuDevice, ITextItemizer? itemizer = null, TextCacheOptions? cacheOptions = null) {
 		fixed (FT_LibraryRec_** l = &ftLibrary)
 			FTException.Check(FT_Init_FreeType(l));
 		this.itemizer = itemizer ?? new DefaultTextItemizer();
@@ -93,7 +93,7 @@ public sealed unsafe class TextSystem : IDisposable {
 		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
 		if (opts.PixelSize <= 0)
 			throw new ArgumentOutOfRangeException(nameof(opts), "PixelSize must be > 0");
-		ResolvedFontKey key = new(FontSourceKind.Direct, font.ID, faceIndex, opts);
+		ResolvedFontKey key = new(FontSourceKind.Direct, font.Id, faceIndex, opts);
 		if (!fonts.TryGetValue(key, out IResolvedFont? fnt)) {
 			fnt = new ResolvedDirectFont(this, font, faceIndex, opts);
 			fonts.Add(key, fnt);
@@ -105,7 +105,7 @@ public sealed unsafe class TextSystem : IDisposable {
 		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
 		if (opts.PixelSize <= 0)
 			throw new ArgumentOutOfRangeException(nameof(opts), "PixelSize must be > 0");
-		ResolvedFontKey key = new(FontSourceKind.Asset, font.SlotID, faceIndex, opts);
+		ResolvedFontKey key = new(FontSourceKind.Asset, font.SlotId, faceIndex, opts);
 		if (!fonts.TryGetValue(key, out IResolvedFont? fnt)) {
 			fnt = new ResolvedAssetSourcedFont(this, font, faceIndex, opts);
 			fonts.Add(key, fnt);
@@ -123,7 +123,7 @@ public sealed unsafe class TextSystem : IDisposable {
 
 	internal ResolvedFontFallbackChain ResolveFallbackChain(FontFallbackChain fonts, FontOptions opts) {
 		return new ResolvedFontFallbackChain(
-			fonts.ID,
+			fonts.Id,
 			ResolveFont(fonts.Primary, opts),
 			fonts.Fallbacks.Select(f => ResolveFont(f, opts))
 		);
@@ -133,7 +133,7 @@ public sealed unsafe class TextSystem : IDisposable {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
 		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(faceIndex, font.FaceCount);
-		LoadedFaceKey key = new(FontSourceKind.Direct, font.ID, ResolvedDirectFont.Version, faceIndex);
+		LoadedFaceKey key = new(FontSourceKind.Direct, font.Id, ResolvedDirectFont.Version, faceIndex);
 		if (!loadedFaces.TryGetValue(key, out LoadedFontFace? face)) {
 			face = new LoadedFontFace(font, faceIndex);
 			loadedFaces.Add(key, face);
@@ -145,7 +145,7 @@ public sealed unsafe class TextSystem : IDisposable {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
 		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(faceIndex, lease.Value.FaceCount);
-		LoadedFaceKey key = new(FontSourceKind.Asset, font.SlotID, lease.Version, faceIndex);
+		LoadedFaceKey key = new(FontSourceKind.Asset, font.SlotId, lease.Version, faceIndex);
 		if (!loadedFaces.TryGetValue(key, out LoadedFontFace? face)) {
 			face = new LoadedFontFace(lease.Value, faceIndex);
 			loadedFaces.Add(key, face);
@@ -177,7 +177,7 @@ public sealed unsafe class TextSystem : IDisposable {
 			int materializedStart = glyphs.Count;
 			for (int i = plannedLine.GlyphStart; i < plannedLine.GlyphStart + plannedLine.GlyphCount; i++) {
 				PlannedGlyph planned = plan.Glyphs[i];
-				if (!atlas.TryGetOrCreate(planned.Font, planned.GlyphID, out GlyphAtlasEntry atlasEntry))
+				if (!atlas.TryGetOrCreate(planned.Font, planned.GlyphId, out GlyphAtlasEntry atlasEntry))
 					continue;
 				float x = planned.X + atlasEntry.BitmapLeft;
 				float y = planned.Y - atlasEntry.BitmapTop;
@@ -187,7 +187,7 @@ public sealed unsafe class TextSystem : IDisposable {
 						SrcPixels: atlasEntry.SrcPixels,
 						DstPixels: new RectF(x, y, atlasEntry.Width, atlasEntry.Height),
 						Color: style.Color,
-						GlyphID: planned.GlyphID,
+						GlyphId: planned.GlyphId,
 						Cluster: planned.Cluster
 					)
 				);

@@ -22,7 +22,7 @@ public readonly partial struct MonoTick : IRealTimeScalar<MonoTick> {
 	/// <summary>
 	/// The current tick value.
 	/// </summary>
-	public static MonoTick GetCurrent() => SDLOwner.MonoTickGetCurrent();
+	public static MonoTick GetCurrent() => SdlOwner.MonoTickGetCurrent();
 
 	/// <summary>
 	/// Converts this <see cref="MonoTick"/> value to seconds.

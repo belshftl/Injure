@@ -24,7 +24,7 @@ internal enum AssetRegistrationKind {
 /// </summary>
 public sealed class AssetStoreRegistration : IReloadTeardown {
 	private AssetStore? store;
-	private readonly ulong storeID;
+	private readonly ulong storeId;
 	private readonly AssetRegistrationKind kind;
 	private readonly ulong id;
 	private Type? type;
@@ -32,7 +32,7 @@ public sealed class AssetStoreRegistration : IReloadTeardown {
 
 	internal AssetStoreRegistration(AssetStore store, AssetRegistrationKind kind, ulong id, Type? type) {
 		this.store = store;
-		storeID = store.StoreID;
+		storeId = store.StoreId;
 		this.kind = kind;
 		this.id = id;
 		this.type = type;
@@ -45,7 +45,7 @@ public sealed class AssetStoreRegistration : IReloadTeardown {
 	public void Remove() {
 		if (Interlocked.Exchange(ref removed, 1) != 0)
 			return;
-		(store ?? throw new InternalStateException("is the flag guard above broken..?")).UnregisterRegistration(storeID, kind, id, type);
+		(store ?? throw new InternalStateException("is the flag guard above broken..?")).UnregisterRegistration(storeId, kind, id, type);
 		store = null;
 		type = null;
 	}
@@ -97,7 +97,7 @@ public sealed class AssetStore {
 	// ==========================================================================
 	// versions/slots
 	private interface IPendingAssetValue : IDisposable {
-		object FinalizeValue(AssetID id);
+		object FinalizeValue(AssetId id);
 	}
 
 	private sealed class PendingPrepared(
@@ -123,7 +123,7 @@ public sealed class AssetStore {
 	internal interface IAssetSlot {
 		AssetStore Store { get; }
 		Type AssetType { get; }
-		AssetID AssetID { get; }
+		AssetId AssetId { get; }
 		bool HasCurrent { get; }
 		bool HasQueuedReload { get; }
 		ExceptionSnapshot? LastLoadException { get; }
@@ -144,7 +144,7 @@ public sealed class AssetStore {
 		public readonly ImmutableArray<IAssetDependency> Dependencies = deps;
 	}
 
-	internal sealed class AssetSlot<T>(ulong slotID, AssetStore store, AssetID id) : IAssetSlot where T : class {
+	internal sealed class AssetSlot<T>(ulong slotId, AssetStore store, AssetId id) : IAssetSlot where T : class {
 		private readonly Lock @lock = new();
 
 		private AssetVersion<T>? curr;
@@ -162,10 +162,10 @@ public sealed class AssetStore {
 		private AssetReloadRequestOrigin newestReloadOrigin;
 		private AssetDependencySnapshot? newestReloadTrigger;
 
-		public readonly ulong SlotID = slotID;
+		public readonly ulong SlotId = slotId;
 		public AssetStore Store { get; } = store;
 		public Type AssetType => typeof(T);
-		public AssetID AssetID { get; } = id;
+		public AssetId AssetId { get; } = id;
 
 		public bool HasCurrent => Volatile.Read(ref curr) is not null;
 		internal bool HasPendingPrepared => Volatile.Read(ref pending) is not null;
@@ -301,12 +301,12 @@ public sealed class AssetStore {
 
 			AssetVersion<T> newver;
 			try {
-				T newval = finalizePrepared<T>(AssetID, pprep.Prepared);
+				T newval = finalizePrepared<T>(AssetId, pprep.Prepared);
 				newver = new AssetVersion<T>(newval, pprep.Version, pprep.Dependencies);
 			} catch (Exception caught) {
 				pprep.Dispose();
 				AssetReloadFailure f = new(
-					new AssetKey(AssetID, typeof(T)),
+					new AssetKey(AssetId, typeof(T)),
 					pprep.Version,
 					AssetReloadFailureStage.Finalize,
 					pprep.Origin,
@@ -387,13 +387,13 @@ public sealed class AssetStore {
 					PendingPrepared prepared;
 					try {
 						(IPendingAssetValue pendingAssetValue, ImmutableArray<IAssetDependency> deps) =
-							await Store.tryPrepareValueAsync<T>(AssetID).ConfigureAwait(false);
+							await Store.tryPrepareValueAsync<T>(AssetId).ConfigureAwait(false);
 						prepared = new PendingPrepared(pendingAssetValue, deps, targetVersion, targetOrigin, targetTrigger);
 					} catch (Exception caught) when (!ExceptionPolicy.IsInternalState(caught)) {
 						lock (@lock) {
 							if (targetVersion == newestRequestedVersion) {
 								AssetReloadFailure f = new(
-									new AssetKey(AssetID, typeof(T)),
+									new AssetKey(AssetId, typeof(T)),
 									targetVersion,
 									AssetReloadFailureStage.Prepare,
 									targetOrigin,
@@ -440,8 +440,8 @@ public sealed class AssetStore {
 					version = newestRequestedVersion;
 
 				(pendingValue, ImmutableArray<IAssetDependency> deps) =
-					await Store.tryPrepareValueAsync<T>(AssetID).ConfigureAwait(false);
-				newval = finalizePrepared<T>(AssetID, pendingValue);
+					await Store.tryPrepareValueAsync<T>(AssetId).ConfigureAwait(false);
+				newval = finalizePrepared<T>(AssetId, pendingValue);
 				AssetVersion<T> newver = new(newval, version, deps);
 
 				lock (@lock) {
@@ -486,7 +486,7 @@ public sealed class AssetStore {
 				return Task.CompletedTask;
 			if (materializeTask is not null) {
 				// if we waited here from inside the same load chain it'd deadlock
-				checkCycle(new AssetKey(AssetID, typeof(T)));
+				checkCycle(new AssetKey(AssetId, typeof(T)));
 				return materializeTask;
 			}
 			startMaterialize = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -500,7 +500,7 @@ public sealed class AssetStore {
 	private sealed class DirectPendingAssetValue<T>(T val) : IPendingAssetValue where T : class {
 		private T? val = val;
 
-		public object FinalizeValue(AssetID id) {
+		public object FinalizeValue(AssetId id) {
 			T ret = val ?? throw new InternalStateException("direct asset value finalized twice");
 			val = null;
 			return ret;
@@ -517,7 +517,7 @@ public sealed class AssetStore {
 		private readonly IAssetStagedCreator<T, TPrepared> creator = creator;
 		private TPrepared? prepared = prepared;
 
-		public object FinalizeValue(AssetID id) {
+		public object FinalizeValue(AssetId id) {
 			TPrepared p = prepared ?? throw new InternalStateException("staged asset value finalized twice");
 			prepared = null;
 			try {
@@ -555,7 +555,7 @@ public sealed class AssetStore {
 				AssetCreateResultKind.Case.NotHandled => UntypedCreateResult.NotHandled(),
 				AssetCreateResultKind.Case.Success => UntypedCreateResult.Success(
 					new DirectPendingAssetValue<T>(
-						result.Value ?? throw new AssetLoadException(info.AssetID, typeof(T), "asset creator returned Success but didn't set Value")
+						result.Value ?? throw new AssetLoadException(info.AssetId, typeof(T), "asset creator returned Success but didn't set Value")
 					)
 				),
 				_ => throw new UnreachableException(),
@@ -574,7 +574,7 @@ public sealed class AssetStore {
 				AssetCreateResultKind.Case.Success => UntypedCreateResult.Success(
 					new StagedPendingAssetValue<T, TPrepared>(
 						creator,
-						result.Prepared ?? throw new AssetLoadException(info.AssetID, typeof(T), "asset staged creator returned Success but didn't set Prepared")
+						result.Prepared ?? throw new AssetLoadException(info.AssetId, typeof(T), "asset staged creator returned Success but didn't set Prepared")
 					)
 				),
 				_ => throw new UnreachableException(),
@@ -626,8 +626,8 @@ public sealed class AssetStore {
 
 	// ==========================================================================
 	// identification
-	private static ulong nextStoreID = 0; // first ID will be 1 since this gets incremented upfront
-	internal readonly ulong StoreID = Interlocked.Increment(ref nextStoreID);
+	private static ulong nextStoreId = 0; // first ID will be 1 since this gets incremented upfront
+	internal readonly ulong StoreId = Interlocked.Increment(ref nextStoreId);
 
 	// ==========================================================================
 	// load cycle tracking
@@ -641,7 +641,7 @@ public sealed class AssetStore {
 	// ==========================================================================
 	// general bookkeeping
 	private readonly ConcurrentDictionary<AssetKey, IAssetSlot> slots = new();
-	private ulong nextSlotID = 0; // first ID will be 1 since this gets incremented upfront
+	private ulong nextSlotId = 0; // first ID will be 1 since this gets incremented upfront
 
 	// ==========================================================================
 	// creation pipeline bookkeeping
@@ -656,8 +656,8 @@ public sealed class AssetStore {
 	private ulong publishedEpoch = 0;
 	internal ulong GetPublishedEpoch() => Volatile.Read(ref publishedEpoch);
 
-	[ThreadStatic] private static Dictionary<ulong, AssetThreadContext>? tlsContextsByStoreID;
-	private readonly ConcurrentDictionary<ulong, AssetThreadContext> attachedContextsByCtxID = new();
+	[ThreadStatic] private static Dictionary<ulong, AssetThreadContext>? tlsContextsByStoreId;
+	private readonly ConcurrentDictionary<ulong, AssetThreadContext> attachedContextsByCtxId = new();
 
 	// ==========================================================================
 	// dependency bookkeeping
@@ -689,10 +689,10 @@ public sealed class AssetStore {
 	/// <typeparam name="T">Expected asset type. Determines what creators are tried.</typeparam>
 	/// <param name="id">Asset ID.</param>
 	/// <returns>An <see cref="AssetRef{T}"/> handle for the specified asset.</returns>
-	public AssetRef<T> GetAsset<T>(AssetID id) where T : class {
+	public AssetRef<T> GetAsset<T>(AssetId id) where T : class {
 		AssetKey key = new(id, typeof(T));
 		if (!slots.TryGetValue(key, out IAssetSlot? s)) {
-			IAssetSlot @new = new AssetSlot<T>(Interlocked.Increment(ref nextSlotID), this, id);
+			IAssetSlot @new = new AssetSlot<T>(Interlocked.Increment(ref nextSlotId), this, id);
 			s = slots.GetOrAdd(key, @new);
 		}
 		return new AssetRef<T>((AssetSlot<T>)s);
@@ -721,12 +721,12 @@ public sealed class AssetStore {
 	/// </exception>
 	public AssetThreadContext AttachCurrentThread() {
 		AssetThreadContext ctx = new(this);
-		tlsContextsByStoreID ??= new Dictionary<ulong, AssetThreadContext>();
-		if (tlsContextsByStoreID.ContainsKey(StoreID))
+		tlsContextsByStoreId ??= new Dictionary<ulong, AssetThreadContext>();
+		if (tlsContextsByStoreId.ContainsKey(StoreId))
 			throw new InvalidOperationException("current thread is already attached to this AssetStore");
-		if (!attachedContextsByCtxID.TryAdd(ctx.ID, ctx))
+		if (!attachedContextsByCtxId.TryAdd(ctx.Id, ctx))
 			throw new InternalStateException("duplicate asset thread context id");
-		tlsContextsByStoreID.Add(StoreID, ctx);
+		tlsContextsByStoreId.Add(StoreId, ctx);
 		Volatile.Write(ref ctx.QuiescentEpoch, Volatile.Read(ref publishedEpoch));
 		return ctx;
 	}
@@ -742,7 +742,7 @@ public sealed class AssetStore {
 	/// Thrown if the current thread is not attached to this store.
 	/// </exception>
 	public void AtSafeBoundary() {
-		if (tlsContextsByStoreID is null || !tlsContextsByStoreID.TryGetValue(StoreID, out AssetThreadContext? ctx))
+		if (tlsContextsByStoreId is null || !tlsContextsByStoreId.TryGetValue(StoreId, out AssetThreadContext? ctx))
 			throw new InvalidOperationException(
 				"the current thread is not attached to this AssetStore. if you're using Task/etc., crossing an await is not guaranteed to resume on the same physical thread, use a real Thread"
 			);
@@ -829,9 +829,9 @@ public sealed class AssetStore {
 	/// <summary>
 	/// Registers an asset source.
 	/// </summary>
-	/// <param name="ownerID">Owner ID to register the source under.</param>
+	/// <param name="ownerId">Owner ID to register the source under.</param>
 	/// <param name="source">Source to register.</param>
-	/// <param name="localID">Local ID for the source, used for deterministic ordering and tie-breaking.</param>
+	/// <param name="localId">Local ID for the source, used for deterministic ordering and tie-breaking.</param>
 	/// <param name="localPriority">
 	/// Owner-local priority; lower (closer to negative infinity) priority sources within the same owner are tried first.
 	/// </param>
@@ -847,16 +847,16 @@ public sealed class AssetStore {
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
-	/// <paramref name="localID"/> must be unique among all other sources registered in
-	/// this <see cref="AssetStore"/> instance under this <paramref name="ownerID"/>.
+	/// <paramref name="localId"/> must be unique among all other sources registered in
+	/// this <see cref="AssetStore"/> instance under this <paramref name="ownerId"/>.
 	/// </remarks>
 	/// <exception cref="OwnerOrderingException">
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
 	public AssetStoreRegistration RegisterSource(
-		string ownerID,
+		string ownerId,
 		IAssetSource source,
-		string localID,
+		string localId,
 		int localPriority = 0,
 		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
 		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
@@ -866,8 +866,8 @@ public sealed class AssetStore {
 			ulong id = sources.RegisterLocked(
 				new OwnerOrderedEntry<IAssetSource>(
 					source,
-					ownerID,
-					localID,
+					ownerId,
+					localId,
 					localPriority,
 					beforeOwners,
 					afterOwners
@@ -880,9 +880,9 @@ public sealed class AssetStore {
 	/// <summary>
 	/// Registers an asset resolver.
 	/// </summary>
-	/// <param name="ownerID">Owner ID to register the resolver under.</param>
+	/// <param name="ownerId">Owner ID to register the resolver under.</param>
 	/// <param name="resolver">Resolver to regiIf not <see langword="null"/>ster.</param>
-	/// <param name="localID">Local ID for the resolver, used for deterministic ordering and tie-breaking.</param>
+	/// <param name="localId">Local ID for the resolver, used for deterministic ordering and tie-breaking.</param>
 	/// <param name="localPriority">
 	/// Owner-local priority; lower (closer to negative infinity) priority resolvers within the same owner are tried first.
 	/// </param>
@@ -898,16 +898,16 @@ public sealed class AssetStore {
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
-	/// <paramref name="localID"/> must be unique among all other resolvers registered in
-	/// this <see cref="AssetStore"/> instance under this <paramref name="ownerID"/>.
+	/// <paramref name="localId"/> must be unique among all other resolvers registered in
+	/// this <see cref="AssetStore"/> instance under this <paramref name="ownerId"/>.
 	/// </remarks>
 	/// <exception cref="OwnerOrderingException">
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
 	public AssetStoreRegistration RegisterResolver(
-		string ownerID,
+		string ownerId,
 		IAssetResolver resolver,
-		string localID,
+		string localId,
 		int localPriority = 0,
 		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
 		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
@@ -917,8 +917,8 @@ public sealed class AssetStore {
 			ulong id = resolvers.RegisterLocked(
 				new OwnerOrderedEntry<IAssetResolver>(
 					resolver,
-					ownerID,
-					localID,
+					ownerId,
+					localId,
 					localPriority,
 					beforeOwners,
 					afterOwners
@@ -929,18 +929,18 @@ public sealed class AssetStore {
 	}
 
 	private AssetStoreRegistration registerCreatorLocked(
-		string ownerID,
+		string ownerId,
 		IUntypedAssetCreator creator,
 		Type type,
-		string localID,
+		string localId,
 		int localPriority = 0,
 		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
 		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
 	) {
 		OwnerOrderedEntry<IUntypedAssetCreator> ent = new(
 			creator,
-			ownerID,
-			localID,
+			ownerId,
+			localId,
 			localPriority,
 			beforeOwners,
 			afterOwners
@@ -961,9 +961,9 @@ public sealed class AssetStore {
 	/// Registers an asset creator of a specific asset type.
 	/// </summary>
 	/// <typeparam name="T">Asset type produced by the creator.</typeparam>
-	/// <param name="ownerID">Owner ID to register the creator under.</param>
+	/// <param name="ownerId">Owner ID to register the creator under.</param>
 	/// <param name="creator">Creator to register.</param>
-	/// <param name="localID">Local ID for the creator, used for deterministic ordering and tie-breaking.</param>
+	/// <param name="localId">Local ID for the creator, used for deterministic ordering and tie-breaking.</param>
 	/// <param name="localPriority">
 	/// Owner-local priority; lower (closer to negative infinity) priority creators within the same owner are tried first.
 	/// </param>
@@ -979,16 +979,16 @@ public sealed class AssetStore {
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
-	/// <paramref name="localID"/> must be unique among all other creators for the type <typeparamref name="T"/>
-	/// registered in this <see cref="AssetStore"/> instance under this <paramref name="ownerID"/>.
+	/// <paramref name="localId"/> must be unique among all other creators for the type <typeparamref name="T"/>
+	/// registered in this <see cref="AssetStore"/> instance under this <paramref name="ownerId"/>.
 	/// </remarks>
 	/// <exception cref="OwnerOrderingException">
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
 	public AssetStoreRegistration RegisterCreator<T>(
-		string ownerID,
+		string ownerId,
 		IAssetCreator<T> creator,
-		string localID,
+		string localId,
 		int localPriority = 0,
 		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
 		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
@@ -996,10 +996,10 @@ public sealed class AssetStore {
 		ArgumentNullException.ThrowIfNull(creator);
 		lock (registryLock) {
 			return registerCreatorLocked(
-				ownerID,
+				ownerId,
 				new UntypedDirectAssetCreator<T>(creator),
 				typeof(T),
-				localID,
+				localId,
 				localPriority,
 				beforeOwners,
 				afterOwners
@@ -1014,9 +1014,9 @@ public sealed class AssetStore {
 	/// <typeparam name="TPrepared">Prepared-data intermediate type used by the creator.</typeparam>
 	/// <inheritdoc cref="RegisterCreator{T}(string, IAssetCreator{T}, string, int, IEnumerable{OwnerOrderingConstraint}?, IEnumerable{OwnerOrderingConstraint}?)"/>
 	public AssetStoreRegistration RegisterStagedCreator<T, TPrepared>(
-		string ownerID,
+		string ownerId,
 		IAssetStagedCreator<T, TPrepared> creator,
-		string localID,
+		string localId,
 		int localPriority = 0,
 		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
 		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
@@ -1024,10 +1024,10 @@ public sealed class AssetStore {
 		ArgumentNullException.ThrowIfNull(creator);
 		lock (registryLock) {
 			return registerCreatorLocked(
-				ownerID,
+				ownerId,
 				new UntypedStagedAssetCreator<T, TPrepared>(creator),
 				typeof(T),
-				localID,
+				localId,
 				localPriority,
 				beforeOwners,
 				afterOwners
@@ -1039,9 +1039,9 @@ public sealed class AssetStore {
 	/// Registers a watcher for a specific dependency type.
 	/// </summary>
 	/// <typeparam name="TDependency">Dependency type handled by the watcher.</typeparam>
-	/// <param name="ownerID">Owner ID to register the watcher under.</param>
+	/// <param name="ownerId">Owner ID to register the watcher under.</param>
 	/// <param name="watcher">Watcher to register.</param>
-	/// <param name="localID">Local ID for the watcher, used for deterministic ordering and tie-breaking.</param>
+	/// <param name="localId">Local ID for the watcher, used for deterministic ordering and tie-breaking.</param>
 	/// <param name="localPriority">
 	/// Owner-local priority; lower (closer to negative infinity) priority watchers within the same owner will
 	/// be subscribed to new dependencies first.
@@ -1073,9 +1073,9 @@ public sealed class AssetStore {
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
 	public AssetStoreRegistration RegisterDependencyWatcher<TDependency>(
-		string ownerID,
+		string ownerId,
 		IAssetDependencyWatcher<TDependency> watcher,
-		string localID,
+		string localId,
 		int localPriority = 0,
 		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
 		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
@@ -1085,8 +1085,8 @@ public sealed class AssetStore {
 		lock (dependencyLock) {
 			OwnerOrderedEntry<IUntypedAssetDependencyWatcher> ent = new(
 				untyped,
-				ownerID,
-				localID,
+				ownerId,
+				localId,
 				localPriority,
 				beforeOwners,
 				afterOwners
@@ -1124,12 +1124,12 @@ public sealed class AssetStore {
 	/// The intended usecase is the handle being lost/unreachable but the registration needing to be removed.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID or <paramref name="localID"/> is
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID or <paramref name="localId"/> is
 	/// not a valid local ID.
 	/// </exception>
-	public bool DangerousUnregisterSourceByIDPair(string ownerID, string localID) {
+	public bool DangerousUnregisterSourceByIdPair(string ownerId, string localId) {
 		lock (registryLock)
-			return sources.UnregisterByOwnerAndLocalIDsLocked(ownerID, localID, out _);
+			return sources.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out _);
 	}
 
 	/// <summary>
@@ -1141,11 +1141,11 @@ public sealed class AssetStore {
 	/// The intended usecase is the owner being gone but not having properly cleaned up its registrations.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID.
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
 	/// </exception>
-	public int DangerousUnregisterAllSourcesFrom(string ownerID) {
+	public int DangerousUnregisterAllSourcesFrom(string ownerId) {
 		lock (registryLock)
-			return sources.UnregisterAllByOwnerIDLocked(ownerID).Length;
+			return sources.UnregisterAllByOwnerIdLocked(ownerId).Length;
 	}
 
 	/// <summary>
@@ -1161,12 +1161,12 @@ public sealed class AssetStore {
 	/// The intended usecase is the handle being lost/unreachable but the registration needing to be removed.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID or <paramref name="localID"/> is
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID or <paramref name="localId"/> is
 	/// not a valid local ID.
 	/// </exception>
-	public bool DangerousUnregisterResolverByIDPair(string ownerID, string localID) {
+	public bool DangerousUnregisterResolverByIdPair(string ownerId, string localId) {
 		lock (registryLock)
-			return resolvers.UnregisterByOwnerAndLocalIDsLocked(ownerID, localID, out _);
+			return resolvers.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out _);
 	}
 
 	/// <summary>
@@ -1181,11 +1181,11 @@ public sealed class AssetStore {
 	/// The intended usecase is the owner being gone but not having properly cleaned up its registrations.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID.
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
 	/// </exception>
-	public int DangerousUnregisterAllResolversFrom(string ownerID) {
+	public int DangerousUnregisterAllResolversFrom(string ownerId) {
 		lock (registryLock)
-			return resolvers.UnregisterAllByOwnerIDLocked(ownerID).Length;
+			return resolvers.UnregisterAllByOwnerIdLocked(ownerId).Length;
 	}
 
 	/// <summary>
@@ -1202,14 +1202,14 @@ public sealed class AssetStore {
 	/// The intended usecase is the handle being lost/unreachable but the registration needing to be removed.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID or <paramref name="localID"/> is
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID or <paramref name="localId"/> is
 	/// not a valid local ID.
 	/// </exception>
-	public bool DangerousUnregisterCreatorByIDPair<T>(string ownerID, string localID) {
+	public bool DangerousUnregisterCreatorByIdPair<T>(string ownerId, string localId) {
 		lock (registryLock) {
 			if (!creators.TryGetValue(typeof(T), out UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>? reg))
 				return false;
-			return reg.UnregisterByOwnerAndLocalIDsLocked(ownerID, localID, out _);
+			return reg.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out _);
 		}
 	}
 
@@ -1225,13 +1225,13 @@ public sealed class AssetStore {
 	/// The intended usecase is the owner being gone but not having properly cleaned up its registrations.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID.
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
 	/// </exception>
-	public int DangerousUnregisterAllCreatorsFrom(string ownerID) {
+	public int DangerousUnregisterAllCreatorsFrom(string ownerId) {
 		lock (registryLock) {
 			int removed = 0;
 			foreach (UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>? reg in creators.Values)
-				removed += reg.UnregisterAllByOwnerIDLocked(ownerID).Length;
+				removed += reg.UnregisterAllByOwnerIdLocked(ownerId).Length;
 			return removed;
 		}
 	}
@@ -1250,14 +1250,14 @@ public sealed class AssetStore {
 	/// The intended usecase is the handle being lost/unreachable but the registration needing to be removed.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID or <paramref name="localID"/> is
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID or <paramref name="localId"/> is
 	/// not a valid local ID.
 	/// </exception>
-	public bool DangerousUnregisterDependencyWatcherByIDPair<TDependency>(string ownerID, string localID) where TDependency : IAssetDependency {
+	public bool DangerousUnregisterDependencyWatcherByIdPair<TDependency>(string ownerId, string localId) where TDependency : IAssetDependency {
 		lock (registryLock) {
 			if (!watchers.TryGetValue(typeof(TDependency), out UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg))
 				return false;
-			bool ret = reg.UnregisterByOwnerAndLocalIDsLocked(ownerID, localID, out OwnerOrderedEntry<IUntypedAssetDependencyWatcher>? ent);
+			bool ret = reg.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out OwnerOrderedEntry<IUntypedAssetDependencyWatcher>? ent);
 			ent?.Item.Dispose();
 			return ret;
 		}
@@ -1275,13 +1275,13 @@ public sealed class AssetStore {
 	/// The intended usecase is the owner being gone but not having properly cleaned up its registrations.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID.
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
 	/// </exception>
-	public int DangerousUnregisterAllDependencyWatchersFrom(string ownerID) {
+	public int DangerousUnregisterAllDependencyWatchersFrom(string ownerId) {
 		lock (registryLock) {
 			int removed = 0;
 			foreach (UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg in watchers.Values) {
-				OwnerOrderedEntry<IUntypedAssetDependencyWatcher>[] ents = reg.UnregisterAllByOwnerIDLocked(ownerID);
+				OwnerOrderedEntry<IUntypedAssetDependencyWatcher>[] ents = reg.UnregisterAllByOwnerIdLocked(ownerId);
 				foreach (OwnerOrderedEntry<IUntypedAssetDependencyWatcher> ent in ents)
 					ent.Item.Dispose();
 				removed += ents.Length;
@@ -1293,8 +1293,8 @@ public sealed class AssetStore {
 	// ==========================================================================
 	// internal api
 	internal void DetachThread(AssetThreadContext ctx) {
-		attachedContextsByCtxID.TryRemove(ctx.ID, out _);
-		if (tlsContextsByStoreID is null || !tlsContextsByStoreID.Remove(StoreID))
+		attachedContextsByCtxId.TryRemove(ctx.Id, out _);
+		if (tlsContextsByStoreId is null || !tlsContextsByStoreId.Remove(StoreId))
 			throw new InvalidOperationException(
 				"tried to detach a thread that is not attached to this AssetStore. if you're using Task/etc., crossing an await is not guaranteed to resume on the same physical thread, use a real Thread"
 			);
@@ -1314,7 +1314,7 @@ public sealed class AssetStore {
 
 	internal void TryCollectRetired() {
 		ulong cutoff = ulong.MaxValue;
-		foreach (AssetThreadContext ctx in attachedContextsByCtxID.Values) {
+		foreach (AssetThreadContext ctx in attachedContextsByCtxId.Values) {
 			ulong e = Volatile.Read(ref ctx.QuiescentEpoch);
 			cutoff = Math.Min(e, cutoff);
 		}
@@ -1326,10 +1326,10 @@ public sealed class AssetStore {
 		}
 	}
 
-	internal void UnregisterRegistration(ulong registrationStoreID, AssetRegistrationKind kind, ulong id, Type? type) {
+	internal void UnregisterRegistration(ulong registrationStoreId, AssetRegistrationKind kind, ulong id, Type? type) {
 		if (id == 0)
 			throw new InternalStateException("registration ID 0 is not valid; did an AssetRegistration object somehow get corrupted?");
-		if (registrationStoreID != StoreID)
+		if (registrationStoreId != StoreId)
 			throw new InternalStateException("UnregisterRegistration() called on foreign handle");
 		switch (kind) {
 		case AssetRegistrationKind.Source:
@@ -1377,7 +1377,7 @@ public sealed class AssetStore {
 	}
 
 	private async ValueTask<(IPendingAssetValue Prepared, ImmutableArray<IAssetDependency> Dependencies)>
-		tryPrepareValueAsync<T>(AssetID id, CancellationToken ct = default) where T : class {
+		tryPrepareValueAsync<T>(AssetId id, CancellationToken ct = default) where T : class {
 		AssetKey key = new(id, typeof(T));
 		AssetLoadStackFrame? prev = loadStackTop.Value;
 		for (AssetLoadStackFrame? f = prev; f is not null; f = f.Prev)
@@ -1416,7 +1416,7 @@ public sealed class AssetStore {
 		}
 	}
 
-	private static T finalizePrepared<T>(AssetID id, IPendingAssetValue pv) where T : class {
+	private static T finalizePrepared<T>(AssetId id, IPendingAssetValue pv) where T : class {
 		object v = pv.FinalizeValue(id);
 		if (v is not T typed)
 			throw new InternalStateException($"pending asset value returned some value of type {v.GetType().FullName}, expected the {typeof(T).FullName} from the creator");
@@ -1441,7 +1441,7 @@ public sealed class AssetStore {
 		}
 	}
 
-	private async ValueTask<Stream?> tryAllSourcesAsyncOrNull(AssetID id, DependencyCollector parentColl, Type t, CancellationToken ct) {
+	private async ValueTask<Stream?> tryAllSourcesAsyncOrNull(AssetId id, DependencyCollector parentColl, Type t, CancellationToken ct) {
 		IReadOnlyList<IAssetSource> snapshot = sources.ReadSnapshot();
 		AssetSourceInfo info = new(id);
 		foreach (IAssetSource source in snapshot) {
@@ -1462,10 +1462,10 @@ public sealed class AssetStore {
 		return null;
 	}
 
-	private async ValueTask<Stream> tryAllSourcesAsync(AssetID id, DependencyCollector parentColl, Type t, CancellationToken ct) =>
+	private async ValueTask<Stream> tryAllSourcesAsync(AssetId id, DependencyCollector parentColl, Type t, CancellationToken ct) =>
 		await tryAllSourcesAsyncOrNull(id, parentColl, t, ct) ?? throw new AssetUnhandledException(id, t, "no registered asset source managed to provide the asset");
 
-	private async ValueTask<AssetData> tryAllResolversAsync(AssetID id, DependencyCollector parentColl, Type t, CancellationToken ct) {
+	private async ValueTask<AssetData> tryAllResolversAsync(AssetId id, DependencyCollector parentColl, Type t, CancellationToken ct) {
 		IReadOnlyList<IAssetResolver> snapshot = resolvers.ReadSnapshot();
 		foreach (IAssetResolver resolver in snapshot) {
 			DependencyCollector childColl = new();
@@ -1558,7 +1558,7 @@ public sealed class AssetStore {
 		for (int i = 0; i < cycle.Length; i++) {
 			if (i > 0)
 				sb.Append(" -> ");
-			sb.Append(cycle[i].AssetType.Name).Append('(').Append(cycle[i].AssetID).Append(')');
+			sb.Append(cycle[i].AssetType.Name).Append('(').Append(cycle[i].AssetId).Append(')');
 		}
 		return sb.ToString();
 	}
@@ -1573,6 +1573,6 @@ public sealed class AssetStore {
 		builder.Reverse();
 		builder.Add(repeated);
 		ImmutableArray<AssetKey> cycle = builder.ToImmutable();
-		return new AssetLoadCycleException(repeated.AssetID, repeated.AssetType, formatCycle(cycle), cycle);
+		return new AssetLoadCycleException(repeated.AssetId, repeated.AssetType, formatCycle(cycle), cycle);
 	}
 }

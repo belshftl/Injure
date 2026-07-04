@@ -16,17 +16,17 @@ using Injure.Runtime;
 namespace Injure.Mods.Runtime;
 
 public readonly struct ModApiFactoryContext {
-	internal ModApiFactoryContext(string forOwnerID, IUntypedBoundedScope ownerScope) {
-		ForOwnerID = forOwnerID;
+	internal ModApiFactoryContext(string forOwnerId, IUntypedBoundedScope ownerScope) {
+		ForOwnerId = forOwnerId;
 		OwnerScope = ownerScope;
 	}
 
-	public string ForOwnerID { get; }
+	public string ForOwnerId { get; }
 	public IUntypedBoundedScope OwnerScope { get; }
 }
 
 public sealed record ModRuntimeOptions<TGameApi> {
-	public required string GameOwnerID { get; init; }
+	public required string GameOwnerId { get; init; }
 	public required string ModDirectory { get; init; }
 	public required string CacheDirectory { get; init; }
 	public required Func<ModApiFactoryContext, TGameApi> ApiFactory { get; init; }
@@ -39,7 +39,7 @@ public sealed record ModRuntimeOptions<TGameApi> {
 }
 
 public readonly record struct ModWatchSpec(
-	string OwnerID,
+	string OwnerId,
 	bool Reloadable,
 	string ManifestPath,
 	string? EntryAssemblyPath
@@ -74,7 +74,7 @@ public sealed class ModRuntime<TGameApi> {
 	private readonly struct ContentLifetimeIdentity : IModLifetimeIdentity {
 	}
 
-	private readonly record struct ActiveDependent(string OwnerID, bool IsHard);
+	private readonly record struct ActiveDependent(string OwnerId, bool IsHard);
 
 	private sealed class BoundaryPlan {
 		public required ReloadBoundaryKind Boundary { get; init; }
@@ -144,7 +144,7 @@ public sealed class ModRuntime<TGameApi> {
 	private readonly record struct PendingOp(
 		ulong Seq,
 		OpKind Kind,
-		string OwnerID,
+		string OwnerId,
 		ReloadRequestKind? ReloadKind = null,
 		DisableRequestKind? DisableKind = null,
 		EnableRequestKind? EnableKind = null
@@ -167,7 +167,7 @@ public sealed class ModRuntime<TGameApi> {
 
 	// ==========================================================================
 	// state
-	private readonly string gameOwnerID;
+	private readonly string gameOwnerId;
 	private readonly string modDir;
 	private readonly string cacheDir;
 	private readonly Func<ModApiFactoryContext, TGameApi> apiFactory;
@@ -204,7 +204,7 @@ public sealed class ModRuntime<TGameApi> {
 	public IOwnerDiagnostics GameDiagnostics { get; }
 
 	public ModRuntime(ModRuntimeOptions<TGameApi> options) {
-		gameOwnerID = options.GameOwnerID ?? throw new ArgumentNullException(nameof(options), "GameOwnerID cannot be null");
+		gameOwnerId = options.GameOwnerId ?? throw new ArgumentNullException(nameof(options), "GameOwnerId cannot be null");
 		modDir = options.ModDirectory ?? throw new ArgumentNullException(nameof(options), "ModDirectory cannot be null");
 		cacheDir = options.CacheDirectory ?? throw new ArgumentNullException(nameof(options), "CacheDirectory cannot be null");
 		apiFactory = options.ApiFactory ?? throw new ArgumentNullException(nameof(options), "ApiFactory cannot be null");
@@ -216,8 +216,8 @@ public sealed class ModRuntime<TGameApi> {
 		maxLoadParallelism = Math.Max(1, options.MaxLoadParallelism);
 		maxScopeTeardownParallelism = Math.Max(1, options.MaxScopeTeardownParallelism);
 		codeLoadSem = new SemaphoreSlim(maxLoadParallelism, maxLoadParallelism);
-		diagnostics = new OwnerDiagnostics(EngineInfo.OwnerID, diagnosticsSinkRegistry, null);
-		GameDiagnostics = new OwnerDiagnostics(gameOwnerID, diagnosticsSinkRegistry, null);
+		diagnostics = new OwnerDiagnostics(EngineInfo.OwnerId, diagnosticsSinkRegistry, null);
+		GameDiagnostics = new OwnerDiagnostics(gameOwnerId, diagnosticsSinkRegistry, null);
 	}
 
 	// ==========================================================================
@@ -282,7 +282,7 @@ public sealed class ModRuntime<TGameApi> {
 					ModManifest manifest = ManifestReader.ManifestReader.Parse(manifestSource);
 					string root = Path.GetDirectoryName(manifestPath) ??
 						throw new InternalStateException("was expecting enumerateManifests yielded path to have a dirname");
-					result.Add(manifest.OwnerID, new DiscoveredMod(new ModSource(root, manifestPath), manifest));
+					result.Add(manifest.OwnerId, new DiscoveredMod(new ModSource(root, manifestPath), manifest));
 				} catch (ManifestReadException ex) {
 					diagnostics.Error("error parsing mod manifest:\n" + manifestSource.FormatDiagnostic(ex) + "\nskipping this mod");
 				}
@@ -290,21 +290,21 @@ public sealed class ModRuntime<TGameApi> {
 			discovered = result;
 			enabledOwners.Clear();
 
-			ILookup<string, DiscoveredMod> groups = discovered.Values.ToLookup(static m => m.Manifest.OwnerID, StringComparer.Ordinal);
+			ILookup<string, DiscoveredMod> groups = discovered.Values.ToLookup(static m => m.Manifest.OwnerId, StringComparer.Ordinal);
 			foreach (IGrouping<string, DiscoveredMod> g in groups) {
 				DiscoveredMod[] items = g.ToArray();
 				if (items.Length == 1) {
 					ref readonly DiscoveredMod mod = ref items[0];
-					if (mod.Manifest.OwnerID == EngineInfo.OwnerID)
+					if (mod.Manifest.OwnerId == EngineInfo.OwnerId)
 						diagnostics.Error(
-							$"mod manifest '{mod.Source.ManifestPath}' claims to have owner ID '{EngineInfo.OwnerID}', which is reserved for the engine; skipping it"
+							$"mod manifest '{mod.Source.ManifestPath}' claims to have owner ID '{EngineInfo.OwnerId}', which is reserved for the engine; skipping it"
 						);
-					else if (mod.Manifest.OwnerID == gameOwnerID)
+					else if (mod.Manifest.OwnerId == gameOwnerId)
 						diagnostics.Error(
-							$"mod manifest '{mod.Source.ManifestPath}' claims to have owner ID '{gameOwnerID}', which is already used by the game; skipping it"
+							$"mod manifest '{mod.Source.ManifestPath}' claims to have owner ID '{gameOwnerId}', which is already used by the game; skipping it"
 						);
 					else
-						enabledOwners.Add(mod.Manifest.OwnerID);
+						enabledOwners.Add(mod.Manifest.OwnerId);
 				} else {
 					StringBuilder sb = new($"the following mod manifests all claim to have the same owner ID ({g.Key}):\n");
 					foreach (DiscoveredMod mod in items)
@@ -324,7 +324,7 @@ public sealed class ModRuntime<TGameApi> {
 		requirePhase(RuntimePhase.Discovered, nameof(ResolveAsync));
 		ct.ThrowIfCancellationRequested();
 		try {
-			activeGraph = ModRelationshipResolver.Resolve(discovered.Values.Where(mod => enabledOwners.Contains(mod.Manifest.OwnerID)).ToArray());
+			activeGraph = ModRelationshipResolver.Resolve(discovered.Values.Where(mod => enabledOwners.Contains(mod.Manifest.OwnerId)).ToArray());
 			phase = RuntimePhase.Resolved;
 			return ValueTask.CompletedTask;
 		} catch {
@@ -373,9 +373,9 @@ public sealed class ModRuntime<TGameApi> {
 				foreach (string relativePath in c.ContractAssemblies) {
 					string path = Path.GetFullPath(Path.Combine(mod.StagedRoot, relativePath));
 					var name = AssemblyName.GetAssemblyName(path);
-					string simpleName = name.Name ?? throw new ModLoadException(mod.Manifest.OwnerID, $"contract assembly '{relativePath}' has no simple assembly name");
+					string simpleName = name.Name ?? throw new ModLoadException(mod.Manifest.OwnerId, $"contract assembly '{relativePath}' has no simple assembly name");
 					if (!pathsBySimpleName.TryAdd(simpleName, path))
-						throw new ModLoadException(mod.Manifest.OwnerID, $"contract assembly '{simpleName}' has already been defined");
+						throw new ModLoadException(mod.Manifest.OwnerId, $"contract assembly '{simpleName}' has already been defined");
 				}
 			}
 			contractsAlc = new ModContractsAlc(pathsBySimpleName);
@@ -394,9 +394,9 @@ public sealed class ModRuntime<TGameApi> {
 				ct.ThrowIfCancellationRequested();
 				if (mod.Manifest is CodeModManifest) {
 					LoadedCodeMod<TGameApi> loaded = await loadCodeModBoundedAsync(mod, ct).ConfigureAwait(false);
-					activeCode.Add(mod.Manifest.OwnerID, loaded);
+					activeCode.Add(mod.Manifest.OwnerId, loaded);
 				} else if (mod.Manifest is ContentModManifest) {
-					activeContent.Add(mod.Manifest.OwnerID, createLoadedContentMod(mod));
+					activeContent.Add(mod.Manifest.OwnerId, createLoadedContentMod(mod));
 				}
 			}
 			phase = RuntimePhase.CodeLoaded;
@@ -562,36 +562,36 @@ public sealed class ModRuntime<TGameApi> {
 
 	// ==========================================================================
 	// mod management
-	public void RequestReload(string ownerID) => RequestReload(ownerID, ReloadRequestKind.Any);
+	public void RequestReload(string ownerId) => RequestReload(ownerId, ReloadRequestKind.Any);
 
-	public void RequestReload(string ownerID, ReloadRequestKind kind) {
+	public void RequestReload(string ownerId, ReloadRequestKind kind) {
 		requirePhase(RuntimePhase.Active, nameof(RequestReload));
-		if (!activeGraph.Mods.TryGetValue(ownerID, out ResolvedMod mod))
-			throw new InvalidOperationException($"unknown mod '{ownerID}'");
+		if (!activeGraph.Mods.TryGetValue(ownerId, out ResolvedMod mod))
+			throw new InvalidOperationException($"unknown mod '{ownerId}'");
 		if (!mod.Manifest.Reloadable)
-			throw new InvalidOperationException($"cannot reload non-reloadable mod '{ownerID}'");
+			throw new InvalidOperationException($"cannot reload non-reloadable mod '{ownerId}'");
 		lock (opLock)
-			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Reload, OwnerID: ownerID, ReloadKind: kind));
+			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Reload, OwnerId: ownerId, ReloadKind: kind));
 	}
 
-	public void RequestDisable(string ownerID, DisableRequestKind kind) {
+	public void RequestDisable(string ownerId, DisableRequestKind kind) {
 		requirePhase(RuntimePhase.Active, nameof(RequestDisable));
-		if (!activeGraph.Mods.TryGetValue(ownerID, out ResolvedMod mod))
-			throw new InvalidOperationException($"unknown mod '{ownerID}'");
+		if (!activeGraph.Mods.TryGetValue(ownerId, out ResolvedMod mod))
+			throw new InvalidOperationException($"unknown mod '{ownerId}'");
 		if (!mod.Manifest.Reloadable)
-			throw new InvalidOperationException($"cannot enable/disable non-reloadable mod '{ownerID}'");
+			throw new InvalidOperationException($"cannot enable/disable non-reloadable mod '{ownerId}'");
 		lock (opLock)
-			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Disable, OwnerID: ownerID, DisableKind: kind));
+			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Disable, OwnerId: ownerId, DisableKind: kind));
 	}
 
-	public void RequestEnable(string ownerID, EnableRequestKind kind) {
+	public void RequestEnable(string ownerId, EnableRequestKind kind) {
 		requirePhase(RuntimePhase.Active, nameof(RequestEnable));
-		if (!discovered.TryGetValue(ownerID, out DiscoveredMod mod))
-			throw new InvalidOperationException($"unknown mod '{ownerID}'");
+		if (!discovered.TryGetValue(ownerId, out DiscoveredMod mod))
+			throw new InvalidOperationException($"unknown mod '{ownerId}'");
 		if (!mod.Manifest.Reloadable)
-			throw new InvalidOperationException($"cannot enable/disable non-reloadable mod '{ownerID}'");
+			throw new InvalidOperationException($"cannot enable/disable non-reloadable mod '{ownerId}'");
 		lock (opLock)
-			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Enable, OwnerID: ownerID, EnableKind: kind));
+			pendingOps.Add(new PendingOp(Seq: ++nextOpSeq, Kind: OpKind.Enable, OwnerId: ownerId, EnableKind: kind));
 	}
 
 	public void AtSafeBoundaryBlocking(CancellationToken ct = default) => block(processBoundaryAsync(ReloadBoundaryKind.Safe, ct));
@@ -601,7 +601,7 @@ public sealed class ModRuntime<TGameApi> {
 
 	public ModWatchSpec[] GetWatchSpecs() =>
 		discovered.Values.Select(static mod => new ModWatchSpec(
-				mod.Manifest.OwnerID,
+				mod.Manifest.OwnerId,
 				mod.Manifest.Reloadable,
 				mod.Source.ManifestPath,
 				mod.Manifest is CodeModManifest code ? Path.Combine(mod.Source.RootDirectory, code.EntryAssembly) : null
@@ -672,12 +672,12 @@ public sealed class ModRuntime<TGameApi> {
 				try {
 					await invalidateScopesAsync(mod, ReloadTeardownReason.Abort, CancellationToken.None).ConfigureAwait(false);
 				} catch (Exception ex) {
-					diagnostics.Warning($"abort: error invalidating scope for '{mod.Staged.Manifest.OwnerID}', moving on: {ex}");
+					diagnostics.Warning($"abort: error invalidating scope for '{mod.Staged.Manifest.OwnerId}', moving on: {ex}");
 				}
 				try {
 					pendingUnloads.Add(detachForUnload(mod));
 				} catch (Exception ex) {
-					diagnostics.Warning($"abort: error detaching ALC for '{mod.Staged.Manifest.OwnerID}', moving on: {ex}");
+					diagnostics.Warning($"abort: error detaching ALC for '{mod.Staged.Manifest.OwnerId}', moving on: {ex}");
 				}
 			}
 
@@ -685,7 +685,7 @@ public sealed class ModRuntime<TGameApi> {
 				try {
 					await mod.Scope.InvalidateAsync(ReloadTeardownReason.Abort, CancellationToken.None).ConfigureAwait(false);
 				} catch (Exception ex) {
-					diagnostics.Warning($"abort: error invalidating content scope for '{mod.Staged.Manifest.OwnerID}', moving on: {ex}");
+					diagnostics.Warning($"abort: error invalidating content scope for '{mod.Staged.Manifest.OwnerId}', moving on: {ex}");
 				}
 
 			clearRuntimeStateAfterShutdown();
@@ -852,21 +852,21 @@ public sealed class ModRuntime<TGameApi> {
 		foreach (PendingOp op in batch)
 			switch (op.Kind) {
 			case OpKind.Reload:
-				if (!candidateEnabled.Contains(op.OwnerID))
+				if (!candidateEnabled.Contains(op.OwnerId))
 					break;
-				reloadRoots.Add(op.OwnerID);
+				reloadRoots.Add(op.OwnerId);
 				if (op.ReloadKind == ReloadRequestKind.Live)
 					hasExplicitLiveRequest = true;
 				break;
 			case OpKind.Disable:
 				hasStructuralOps = true;
 				DisableRequestKind drk = op.DisableKind ?? throw new InternalStateException("OpKind.Disable didn't set a disable request kind");
-				applyDisableToCandidateSet(op.OwnerID, drk, candidateEnabled, reloadRoots);
+				applyDisableToCandidateSet(op.OwnerId, drk, candidateEnabled, reloadRoots);
 				break;
 			case OpKind.Enable:
 				hasStructuralOps = true;
 				EnableRequestKind erk = op.EnableKind ?? throw new InternalStateException("OpKind.Enable didn't set an enable request kind");
-				applyEnableToCandidateSet(op.OwnerID, erk, candidateEnabled, reloadRoots);
+				applyEnableToCandidateSet(op.OwnerId, erk, candidateEnabled, reloadRoots);
 				break;
 			}
 
@@ -895,12 +895,12 @@ public sealed class ModRuntime<TGameApi> {
 		};
 	}
 
-	private void applyDisableToCandidateSet(string ownerID, DisableRequestKind kind, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
-		if (!candidateEnabled.Contains(ownerID))
+	private void applyDisableToCandidateSet(string ownerId, DisableRequestKind kind, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
+		if (!candidateEnabled.Contains(ownerId))
 			return;
 
 		Queue<string> queue = new();
-		queue.Enqueue(ownerID);
+		queue.Enqueue(ownerId);
 
 		while (queue.Count != 0) {
 			string target = queue.Dequeue();
@@ -909,21 +909,21 @@ public sealed class ModRuntime<TGameApi> {
 
 			List<ActiveDependent> dependents = findActiveDependentsTargeting(target, candidateEnabled);
 			foreach (ActiveDependent dependent in dependents) {
-				if (!candidateEnabled.Contains(dependent.OwnerID))
+				if (!candidateEnabled.Contains(dependent.OwnerId))
 					continue;
 
 				if (kind == DisableRequestKind.Strict)
-					throw new ModLoadException(target, $"cannot disable '{ownerID}' because enabled mod '{dependent.OwnerID}' depends on '{target}'");
+					throw new ModLoadException(target, $"cannot disable '{ownerId}' because enabled mod '{dependent.OwnerId}' depends on '{target}'");
 
 				if (dependent.IsHard) {
-					candidateEnabled.Remove(dependent.OwnerID);
-					queue.Enqueue(dependent.OwnerID);
+					candidateEnabled.Remove(dependent.OwnerId);
+					queue.Enqueue(dependent.OwnerId);
 				} else {
 					if (kind == DisableRequestKind.DisableDependents) {
-						candidateEnabled.Remove(dependent.OwnerID);
-						queue.Enqueue(dependent.OwnerID);
+						candidateEnabled.Remove(dependent.OwnerId);
+						queue.Enqueue(dependent.OwnerId);
 					} else if (kind == DisableRequestKind.DisableDependentsAndReloadOptionalDependents) {
-						reloadRoots.Add(dependent.OwnerID);
+						reloadRoots.Add(dependent.OwnerId);
 					}
 				}
 			}
@@ -932,17 +932,17 @@ public sealed class ModRuntime<TGameApi> {
 		}
 	}
 
-	private void applyEnableToCandidateSet(string ownerID, EnableRequestKind kind, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
-		if (candidateEnabled.Contains(ownerID))
+	private void applyEnableToCandidateSet(string ownerId, EnableRequestKind kind, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
+		if (candidateEnabled.Contains(ownerId))
 			return;
 
-		if (!discovered.ContainsKey(ownerID))
-			throw new ModLoadException(ownerID, $"unknown mod '{ownerID}'");
+		if (!discovered.ContainsKey(ownerId))
+			throw new ModLoadException(ownerId, $"unknown mod '{ownerId}'");
 
 		bool enableRequiredDependencies = kind.Tag is
 			EnableRequestKind.Case.EnableRequiredDependencies or
 			EnableRequestKind.Case.EnableRequiredDependenciesAndReloadOptionalDependents;
-		HashSet<string> newlyEnabled = computeRequiredEnableClosure(ownerID, enableRequiredDependencies, discovered);
+		HashSet<string> newlyEnabled = computeRequiredEnableClosure(ownerId, enableRequiredDependencies, discovered);
 		foreach (string id in newlyEnabled)
 			candidateEnabled.Add(id);
 
@@ -951,27 +951,27 @@ public sealed class ModRuntime<TGameApi> {
 				addOptionalDependentsTargeting(id, candidateEnabled, reloadRoots);
 	}
 
-	private List<ActiveDependent> findActiveDependentsTargeting(string targetOwnerID, HashSet<string> candidateEnabled) {
+	private List<ActiveDependent> findActiveDependentsTargeting(string targetOwnerId, HashSet<string> candidateEnabled) {
 		List<ActiveDependent> result = new();
-		foreach (string ownerID in enabledOwners) {
-			if (!candidateEnabled.Contains(ownerID))
+		foreach (string ownerId in enabledOwners) {
+			if (!candidateEnabled.Contains(ownerId))
 				continue;
 
-			if (!activeGraph.Mods.TryGetValue(ownerID, out ResolvedMod mod))
+			if (!activeGraph.Mods.TryGetValue(ownerId, out ResolvedMod mod))
 				continue;
 
 			foreach (ModRelationshipManifest relationship in mod.Manifest.Relationships) {
-				if (!StringComparer.Ordinal.Equals(relationship.OwnerID, targetOwnerID))
+				if (!StringComparer.Ordinal.Equals(relationship.OwnerId, targetOwnerId))
 					continue;
 
 				switch (relationship.Kind.Tag) {
 				case ModRelationshipKind.Case.RequiresSelfAfter:
 				case ModRelationshipKind.Case.RequiresSelfBefore:
-					result.Add(new ActiveDependent(ownerID, IsHard: true));
+					result.Add(new ActiveDependent(ownerId, IsHard: true));
 					break;
 				case ModRelationshipKind.Case.IfPresentSelfAfter:
 				case ModRelationshipKind.Case.IfPresentSelfBefore:
-					result.Add(new ActiveDependent(ownerID, IsHard: false));
+					result.Add(new ActiveDependent(ownerId, IsHard: false));
 					break;
 				}
 			}
@@ -979,49 +979,49 @@ public sealed class ModRuntime<TGameApi> {
 		return result;
 	}
 
-	private HashSet<string> computeRequiredEnableClosure(string rootOwnerID, bool enableRequiredDependencies, Dictionary<string, DiscoveredMod> discoveredMap) {
+	private HashSet<string> computeRequiredEnableClosure(string rootOwnerId, bool enableRequiredDependencies, Dictionary<string, DiscoveredMod> discoveredMap) {
 		HashSet<string> result = new(StringComparer.Ordinal);
 		Stack<string> stack = new();
 
-		result.Add(rootOwnerID);
-		stack.Push(rootOwnerID);
+		result.Add(rootOwnerId);
+		stack.Push(rootOwnerId);
 
 		while (stack.Count != 0) {
-			string ownerID = stack.Pop();
+			string ownerId = stack.Pop();
 
-			if (!discoveredMap.TryGetValue(ownerID, out DiscoveredMod mod))
-				throw new ModLoadException(ownerID, $"unknown mod '{ownerID}'");
+			if (!discoveredMap.TryGetValue(ownerId, out DiscoveredMod mod))
+				throw new ModLoadException(ownerId, $"unknown mod '{ownerId}'");
 
 			foreach (ModRelationshipManifest relationship in mod.Manifest.Relationships) {
 				if (!(relationship.Kind.Tag is ModRelationshipKind.Case.RequiresSelfAfter or ModRelationshipKind.Case.RequiresSelfBefore))
 					continue;
 
-				if (!discoveredMap.ContainsKey(relationship.OwnerID))
-					throw new ModLoadException(ownerID, $"required dependency '{relationship.OwnerID}' is missing");
+				if (!discoveredMap.ContainsKey(relationship.OwnerId))
+					throw new ModLoadException(ownerId, $"required dependency '{relationship.OwnerId}' is missing");
 
-				if (enabledOwners.Contains(relationship.OwnerID) || result.Contains(relationship.OwnerID))
+				if (enabledOwners.Contains(relationship.OwnerId) || result.Contains(relationship.OwnerId))
 					continue;
 
 				if (!enableRequiredDependencies)
-					throw new ModLoadException(ownerID, $"required dependency '{relationship.OwnerID}' is disabled");
-				result.Add(relationship.OwnerID);
-				stack.Push(relationship.OwnerID);
+					throw new ModLoadException(ownerId, $"required dependency '{relationship.OwnerId}' is disabled");
+				result.Add(relationship.OwnerId);
+				stack.Push(relationship.OwnerId);
 			}
 		}
 		return result;
 	}
 
-	private void addOptionalDependentsTargeting(string targetOwnerID, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
-		foreach (string ownerID in enabledOwners) {
-			if (!candidateEnabled.Contains(ownerID))
+	private void addOptionalDependentsTargeting(string targetOwnerId, HashSet<string> candidateEnabled, HashSet<string> reloadRoots) {
+		foreach (string ownerId in enabledOwners) {
+			if (!candidateEnabled.Contains(ownerId))
 				continue;
-			if (!activeGraph.Mods.TryGetValue(ownerID, out ResolvedMod mod))
+			if (!activeGraph.Mods.TryGetValue(ownerId, out ResolvedMod mod))
 				continue;
 			foreach (ModRelationshipManifest relationship in mod.Manifest.Relationships) {
-				if (!StringComparer.Ordinal.Equals(relationship.OwnerID, targetOwnerID))
+				if (!StringComparer.Ordinal.Equals(relationship.OwnerId, targetOwnerId))
 					continue;
 				if (relationship.Kind.Tag is ModRelationshipKind.Case.IfPresentSelfAfter or ModRelationshipKind.Case.IfPresentSelfBefore)
-					reloadRoots.Add(ownerID);
+					reloadRoots.Add(ownerId);
 			}
 		}
 	}
@@ -1044,8 +1044,8 @@ public sealed class ModRuntime<TGameApi> {
 		}
 
 		while (stack.Count != 0) {
-			string ownerID = stack.Pop();
-			if (!activeGraph.ReloadDependentsByTarget.TryGetValue(ownerID, out string[]? dependents))
+			string ownerId = stack.Pop();
+			if (!activeGraph.ReloadDependentsByTarget.TryGetValue(ownerId, out string[]? dependents))
 				continue;
 			foreach (string dependent in dependents) {
 				if (!enabledOwners.Contains(dependent))
@@ -1083,7 +1083,7 @@ public sealed class ModRuntime<TGameApi> {
 		}
 
 		ResolvedModGraph candidateGraph = ModRelationshipResolver.Resolve(
-			candidateDiscovered.Values.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Manifest.OwnerID)).ToArray()
+			candidateDiscovered.Values.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Manifest.OwnerId)).ToArray()
 		);
 		BoundaryPlanReadiness candidateReadiness = validateReloadCapabilitiesAtBoundary(
 			candidateGraph,
@@ -1097,7 +1097,7 @@ public sealed class ModRuntime<TGameApi> {
 
 		List<StagedMod> replacementStaged = new();
 		foreach (ResolvedMod resolved in candidateGraph.ModsInDeterministicOrder) {
-			if (!prepareSet.Contains(resolved.Manifest.OwnerID))
+			if (!prepareSet.Contains(resolved.Manifest.OwnerId))
 				continue;
 			replacementStaged.Add(await stageOneAsync(resolved.Source, resolved.Manifest, ct).ConfigureAwait(false));
 		}
@@ -1118,16 +1118,16 @@ public sealed class ModRuntime<TGameApi> {
 				if (stagedMod.Manifest is CodeModManifest) {
 					LoadedCodeMod<TGameApi> loaded = await loadCodeModBoundedAsync(stagedMod, ct).ConfigureAwait(false);
 					HookDiscoverer<TGameApi>.DiscoverLoadHooks(loaded, hookTargetResolver);
-					preparedCode.Add(stagedMod.Manifest.OwnerID, loaded);
+					preparedCode.Add(stagedMod.Manifest.OwnerId, loaded);
 				} else if (stagedMod.Manifest is ContentModManifest) {
-					preparedContent.Add(stagedMod.Manifest.OwnerID, createLoadedContentMod(stagedMod));
+					preparedContent.Add(stagedMod.Manifest.OwnerId, createLoadedContentMod(stagedMod));
 				}
 
 			IEnumerable<LoadedContentMod> candidateContent = activeContent.Values
-				.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Staged.Manifest.OwnerID) && !prepareSet.Contains(mod.Staged.Manifest.OwnerID))
+				.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Staged.Manifest.OwnerId) && !prepareSet.Contains(mod.Staged.Manifest.OwnerId))
 				.Concat(preparedContent.Values);
 			IEnumerable<LoadedCodeMod<TGameApi>> candidateCode = activeCode.Values
-				.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Staged.Manifest.OwnerID) && !prepareSet.Contains(mod.Staged.Manifest.OwnerID))
+				.Where(mod => plan.CandidateEnabledOwners.Contains(mod.Staged.Manifest.OwnerId) && !prepareSet.Contains(mod.Staged.Manifest.OwnerId))
 				.Concat(preparedCode.Values);
 
 			Dictionary<string, UntypedLoadedDepInfo> candidateOwnersInfo = buildOwnerInfo(
@@ -1323,17 +1323,17 @@ public sealed class ModRuntime<TGameApi> {
 		return r;
 	}
 
-	private ReloadGeneration nextReloadGeneration(string ownerID) {
-		ref ulong next = ref CollectionsMarshal.GetValueRefOrAddDefault(nextGenerationByOwner, ownerID, out _);
+	private ReloadGeneration nextReloadGeneration(string ownerId) {
+		ref ulong next = ref CollectionsMarshal.GetValueRefOrAddDefault(nextGenerationByOwner, ownerId, out _);
 		checked {
 			next++;
 		}
-		return new ReloadGeneration(ownerID, next);
+		return new ReloadGeneration(ownerId, next);
 	}
 
 	private async ValueTask<StagedMod> stageOneAsync(ModSource source, ModManifest manifest, CancellationToken ct) {
-		ReloadGeneration generation = nextReloadGeneration(manifest.OwnerID);
-		string target = Path.Combine(cacheDir, manifest.OwnerID, generation.Value.ToString("D4"));
+		ReloadGeneration generation = nextReloadGeneration(manifest.OwnerId);
+		string target = Path.Combine(cacheDir, manifest.OwnerId, generation.Value.ToString("D4"));
 		if (Directory.Exists(target))
 			Directory.Delete(target, recursive: true);
 		Directory.CreateDirectory(target);
@@ -1360,7 +1360,7 @@ public sealed class ModRuntime<TGameApi> {
 	private LoadedCodeMod<TGameApi> loadCodeMod(StagedMod stagedMod) {
 		var manifest = (CodeModManifest)stagedMod.Manifest;
 		if (stagedMod.EntryAssemblyPath is null || !File.Exists(stagedMod.EntryAssemblyPath))
-			throw new ModLoadException(manifest.OwnerID, $"entry assembly '{manifest.EntryAssembly}' not found");
+			throw new ModLoadException(manifest.OwnerId, $"entry assembly '{manifest.EntryAssembly}' not found");
 		if (contractsAlc is null)
 			throw new InternalStateException("contracts alc not made yet");
 
@@ -1531,7 +1531,7 @@ public sealed class ModRuntime<TGameApi> {
 			activeCode[kvp.Key] = kvp.Value;
 		foreach (KeyValuePair<string, LoadedContentMod> kvp in transaction.PreparedContent)
 			activeContent[kvp.Key] = kvp.Value;
-		staged = staged.Where(mod => !plan.OldTouchedSet.Contains(mod.Manifest.OwnerID)).Concat(transaction.ReplacementStaged).ToArray();
+		staged = staged.Where(mod => !plan.OldTouchedSet.Contains(mod.Manifest.OwnerId)).Concat(transaction.ReplacementStaged).ToArray();
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
@@ -1599,43 +1599,43 @@ public sealed class ModRuntime<TGameApi> {
 
 	private static ModAssemblyAttribute validateModAssemblyAttribute(CodeModManifest manifest, Assembly assembly) {
 		ModAssemblyAttribute attribute = assembly.GetCustomAttribute<ModAssemblyAttribute>() ??
-			throw new ModLoadException(manifest.OwnerID, "entry assembly is missing ModAssembly attribute");
-		if (!ModMetadataValidation.ValidateOwnerID(attribute.OwnerID, out string? err))
-			throw new ModLoadException(manifest.OwnerID, $"assembly attribute OwnerID '{attribute.OwnerID}' is invalid: {err}");
-		if (attribute.OwnerID != manifest.OwnerID)
-			throw new ModLoadException(manifest.OwnerID, $"manifest id '{manifest.OwnerID}' does not match assembly attribute OwnerID '{attribute.OwnerID}'");
+			throw new ModLoadException(manifest.OwnerId, "entry assembly is missing ModAssembly attribute");
+		if (!ModMetadataValidation.ValidateOwnerId(attribute.OwnerId, out string? err))
+			throw new ModLoadException(manifest.OwnerId, $"assembly attribute OwnerId '{attribute.OwnerId}' is invalid: {err}");
+		if (attribute.OwnerId != manifest.OwnerId)
+			throw new ModLoadException(manifest.OwnerId, $"manifest id '{manifest.OwnerId}' does not match assembly attribute OwnerId '{attribute.OwnerId}'");
 		if (attribute.HotReloadLevel != (ModAssemblyHotReloadLevel)manifest.Reloadability)
 			throw new ModLoadException(
-				manifest.OwnerID,
+				manifest.OwnerId,
 				$"manifest reloadability '{manifest.Reloadability}' does not match assembly attribute HotReloadLevel '{attribute.HotReloadLevel}'"
 			);
-		validateLifetimeIdentityType(manifest.OwnerID, attribute.LifetimeIdentityType);
+		validateLifetimeIdentityType(manifest.OwnerId, attribute.LifetimeIdentityType);
 		return attribute;
 	}
 
-	private static void validateLifetimeIdentityType(string ownerID, Type lifetimeIdentityType) {
+	private static void validateLifetimeIdentityType(string ownerId, Type lifetimeIdentityType) {
 		if (lifetimeIdentityType.ContainsGenericParameters || lifetimeIdentityType.IsGenericType)
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' must be a closed, non-generic type");
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' must be a closed, non-generic type");
 		if (!lifetimeIdentityType.IsValueType)
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' must be a struct");
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' must be a struct");
 		if (lifetimeIdentityType.IsEnum)
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' must be a struct, not an enum");
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' must be a struct, not an enum");
 		if (lifetimeIdentityType.IsByRefLike)
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' must be a regular struct, not a ref struct");
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' must be a regular struct, not a ref struct");
 		if (lifetimeIdentityType.IsNested)
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' must not be a nested type");
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' must not be a nested type");
 		if (lifetimeIdentityType.IsNotPublic)
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' must be public");
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' must be public");
 		if (!typeof(IModLifetimeIdentity).IsAssignableFrom(lifetimeIdentityType))
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' does not implement " + $"'{typeof(IModLifetimeIdentity)}'");
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' does not implement " + $"'{typeof(IModLifetimeIdentity)}'");
 		ModLifetimeIdentityBelongsToAttribute attribute = lifetimeIdentityType.GetCustomAttribute<ModLifetimeIdentityBelongsToAttribute>() ??
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' is not marked with [ModLifetimeIdentityBelongsTo(...)]");
-		if (!ModMetadataValidation.ValidateOwnerID(attribute.OwnerID, out string? err))
-			throw new ModLoadException(ownerID, $"lifetime identity type '{lifetimeIdentityType}' [ModLifetimeIdentityBelongsTo] attribute has an invalid owner ID: {err}");
-		if (ownerID != attribute.OwnerID)
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' is not marked with [ModLifetimeIdentityBelongsTo(...)]");
+		if (!ModMetadataValidation.ValidateOwnerId(attribute.OwnerId, out string? err))
+			throw new ModLoadException(ownerId, $"lifetime identity type '{lifetimeIdentityType}' [ModLifetimeIdentityBelongsTo] attribute has an invalid owner ID: {err}");
+		if (ownerId != attribute.OwnerId)
 			throw new ModLoadException(
-				ownerID,
-				$"lifetime identity type '{lifetimeIdentityType}' [ModLifetimeIdentityBelongsTo] mentions a different owner '{attribute.OwnerID}'"
+				ownerId,
+				$"lifetime identity type '{lifetimeIdentityType}' [ModLifetimeIdentityBelongsTo] mentions a different owner '{attribute.OwnerId}'"
 			);
 	}
 
@@ -1688,7 +1688,7 @@ public sealed class ModRuntime<TGameApi> {
 	}
 
 	private static async ValueTask invokeRestoreStateAsync(LoadedCodeMod<TGameApi> mod, object ctx, ModLiveStateBlob state, CancellationToken ct) {
-		object reloadEntrypoint = mod.ReloadEntrypoint ?? throw new InvalidOperationException($"mod '{mod.Staged.Manifest.OwnerID}' has no reload entrypoint instance");
+		object reloadEntrypoint = mod.ReloadEntrypoint ?? throw new InvalidOperationException($"mod '{mod.Staged.Manifest.OwnerId}' has no reload entrypoint instance");
 		Type reloadInterface = typeof(IModReloadEntrypoint<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType);
 		MethodInfo mi = reloadInterface.GetMethod(nameof(IModReloadEntrypoint<,>.RestoreStateAsync)) ??
 			throw new MissingMethodException(reloadInterface.FullName, nameof(IModReloadEntrypoint<,>.RestoreStateAsync));
@@ -1724,7 +1724,7 @@ public sealed class ModRuntime<TGameApi> {
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) => apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerID, mod.Scope));
+	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) => apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerId, mod.Scope));
 
 	private static object createLoadHookDeclarations(LoadedCodeMod<TGameApi> mod, HookTargetResolver resolver) => Activator.CreateInstance(
 		typeof(ModHookDeclarations<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
@@ -1743,10 +1743,10 @@ public sealed class ModRuntime<TGameApi> {
 		typeof(ModLoadContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
 		createLoadHookDeclarations(mod, resolver),
 		mod.Exports,
-		mod.Staged.Manifest.OwnerID,
+		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSinkRegistry, mod.Staged.Generation),
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerId, diagnosticsSinkRegistry, mod.Staged.Generation),
 		mod.Scope,
 		diagnosticsSinkRegistry
 	)!;
@@ -1761,10 +1761,10 @@ public sealed class ModRuntime<TGameApi> {
 		typeof(ModLinkContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
 		dependencies,
 		codeDependencies,
-		mod.Staged.Manifest.OwnerID,
+		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSinkRegistry, mod.Staged.Generation),
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerId, diagnosticsSinkRegistry, mod.Staged.Generation),
 		mod.Scope,
 		diagnosticsSinkRegistry
 	)!;
@@ -1778,10 +1778,10 @@ public sealed class ModRuntime<TGameApi> {
 		typeof(ModActivateContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
 		gameServices,
 		mod.ActivationScope ?? throw new InternalStateException("expected this LoadedCodeMod to have an ActivationScope"),
-		mod.Staged.Manifest.OwnerID,
+		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSinkRegistry, mod.Staged.Generation),
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerId, diagnosticsSinkRegistry, mod.Staged.Generation),
 		mod.Scope,
 		diagnosticsSinkRegistry
 	)!;
@@ -1796,10 +1796,10 @@ public sealed class ModRuntime<TGameApi> {
 		typeof(ModReloadContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
 		gameServices,
 		reloadSet,
-		mod.Staged.Manifest.OwnerID,
+		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerID, diagnosticsSinkRegistry, mod.Staged.Generation),
+		new OwnerDiagnostics(mod.Staged.Manifest.OwnerId, diagnosticsSinkRegistry, mod.Staged.Generation),
 		mod.Scope,
 		diagnosticsSinkRegistry
 	)!;
@@ -1807,9 +1807,9 @@ public sealed class ModRuntime<TGameApi> {
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Dictionary<string, UntypedLoadedDepInfo> buildOwnerInfo(IEnumerable<ILoadedMod> mods) =>
 		mods.ToDictionary(
-			static mod => mod.Staged.Manifest.OwnerID,
+			static mod => mod.Staged.Manifest.OwnerId,
 			static mod => new UntypedLoadedDepInfo(
-				mod.Staged.Manifest.OwnerID,
+				mod.Staged.Manifest.OwnerId,
 				mod.Staged.Manifest.Version,
 				mod.Staged.Generation,
 				mod.Scope
@@ -1820,9 +1820,9 @@ public sealed class ModRuntime<TGameApi> {
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Dictionary<string, UntypedUntypedLoadedCodeDepInfo> buildCodeOwnerInfo(IEnumerable<LoadedCodeMod<TGameApi>> mods) =>
 		mods.ToDictionary(
-			static mod => mod.Staged.Manifest.OwnerID,
+			static mod => mod.Staged.Manifest.OwnerId,
 			static mod => new UntypedUntypedLoadedCodeDepInfo(
-				mod.Staged.Manifest.OwnerID,
+				mod.Staged.Manifest.OwnerId,
 				mod.Staged.Manifest.Version,
 				mod.Staged.Generation,
 				mod.Scope,
@@ -1836,8 +1836,8 @@ public sealed class ModRuntime<TGameApi> {
 	private static Dictionary<string, TInfo> buildDeclaredDependencyInfo<TInfo>(ModManifest manifest, IReadOnlyDictionary<string, TInfo> loaded) where TInfo : struct {
 		Dictionary<string, TInfo> result = new(StringComparer.Ordinal);
 		foreach (ModRelationshipManifest relationship in manifest.Relationships)
-			if (loaded.TryGetValue(relationship.OwnerID, out TInfo info))
-				result[relationship.OwnerID] = info;
+			if (loaded.TryGetValue(relationship.OwnerId, out TInfo info))
+				result[relationship.OwnerId] = info;
 		return result;
 	}
 

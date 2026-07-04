@@ -6,13 +6,13 @@ The Injure asset system represents and manages logical asset objects, so an asse
 ```csharp
 string UIDirectory = Path.Combine(AppContext.BaseDirectory, "assets", "ui");
 Assets.RegisterSource("mygame", new DirectoryAssetSource("mygame.ui", UIDirectory), "UIDirectory");
-AssetRef<Texture2D> button = Assets.GetAsset<Texture2D>(new AssetID("mygame.ui", "tex/button.png"));
+AssetRef<Texture2d> button = Assets.GetAsset<Texture2d>(new AssetId("mygame.ui", "tex/button.png"));
 
 // a lot of engine APIs accept these directly:
 cv.Texture(button, Vector2.Zero);
 
 // if you want to get whatever value the asset currently holds, you borrow it:
-AssetLease<Texture2D> l = button.Borrow();
+AssetLease<Texture2d> l = button.Borrow();
 cv.Texture(l.Value, Vector2.Zero);
 
 // then hot reload is as simple as:
@@ -37,13 +37,13 @@ Current limitations (all of these are planned to be fixed before a stable releas
 
 Assets are managed by an `AssetStore`. Typically, the way you get one is by specifying `Assets: true` in your `ServiceConfig` at game startup, and use `GameServices.Assets`. You can get one yourself by making a `new AssetStore()` and attaching on the main thread, but more on that later.
 
-Assets have IDs, and an asset ID consists of a namespace and a path. An asset ID might look something like `new AssetID("mygame.ui", "tex/button.png")`; this one is for the asset `tex/button.png` in the namespace `mygame.ui`. Asset IDs have a canonical string form `namespace::path`, so this one is `mygame.ui::tex/button.png` when converted to a string.
+Assets have IDs, and an asset ID consists of a namespace and a path. An asset ID might look something like `new AssetId("mygame.ui", "tex/button.png")`; this one is for the asset `tex/button.png` in the namespace `mygame.ui`. Asset IDs have a canonical string form `namespace::path`, so this one is `mygame.ui::tex/button.png` when converted to a string.
 
 An asset is represented by an `AssetRef<T>` object, for example `AssetRef<Font>`. You get these like:
 ```csharp
-AssetRef<Font> somefont = Assets.GetAsset<Font>(new AssetID("mygame.ui", "fnt/somefont.ttf"));
+AssetRef<Font> somefont = Assets.GetAsset<Font>(new AssetId("mygame.ui", "fnt/somefont.ttf"));
 ```
-`AssetRef<T>` is a reference type with normal reference type equality, and `GetAsset<T>()` may return the same one multiple times or may return different ones for different asset IDs; compare `AssetRef<T>.AssetID`s if you want "are these the same asset".
+`AssetRef<T>` is a reference type with normal reference type equality, and `GetAsset<T>()` may return the same one multiple times or may return different ones for different asset IDs; compare `AssetRef<T>.AssetId`s if you want "are these the same asset".
 
 Many engine APIs accept `AssetRef<T>` directly, so you don't have to think about this much, but if you need to get a snapshot of the current underlying value, you borrow it:
 ```csharp
@@ -59,7 +59,7 @@ Font f = l.Value; // don't cache this; more on this later
 
 For borrowing without creating a first version if there isn't one, there's `TryPassiveBorrow`:
 ```csharp
-AssetRef<Font> somefont = Assets.GetAsset<Font>(new AssetID("mygame.ui", "fnt/somefont.ttf"));
+AssetRef<Font> somefont = Assets.GetAsset<Font>(new AssetId("mygame.ui", "fnt/somefont.ttf"));
 await somefont.WarmAsync();
 if (!somefont.TryPassiveBorrow(out AssetLease<Font> l))
     throw new InvalidOperationException("was expecting first asset version to be made");
@@ -68,7 +68,7 @@ if (!somefont.TryPassiveBorrow(out AssetLease<Font> l))
 
 `TryPassiveBorrow` is guaranteed to succeed after a successful warm. Since the manual `throw` may get cumbersome, there's also a throwing counterpart, `PassiveBorrow`:
 ```csharp
-AssetRef<Font> somefont = Assets.GetAsset<Font>(new AssetID("mygame.ui", "fnt/somefont.ttf"));
+AssetRef<Font> somefont = Assets.GetAsset<Font>(new AssetId("mygame.ui", "fnt/somefont.ttf"));
 await somefont.WarmAsync();
 AssetLease<Font> l = somefont.PassiveBorrow();
 ```

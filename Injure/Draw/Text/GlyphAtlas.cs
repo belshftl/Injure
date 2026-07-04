@@ -10,7 +10,7 @@ using static FreeTypeSharp.FT;
 namespace Injure.Draw.Text;
 
 internal sealed class GlyphAtlasPage : IDisposable {
-	public required Texture2D Texture;
+	public required Texture2d Texture;
 	public required int Width;
 	public required int Height;
 
@@ -39,7 +39,7 @@ internal sealed class GlyphAtlasPage : IDisposable {
 
 internal readonly record struct GlyphAtlasKey(
 	FontCacheToken FontCacheToken,
-	uint GlyphID
+	uint GlyphId
 );
 
 internal readonly record struct GlyphAtlasEntry(
@@ -51,8 +51,8 @@ internal readonly record struct GlyphAtlasEntry(
 	int Height
 );
 
-internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text, int pageWidth = 1024, int pageHeight = 1024, int padding = 1, int maxPages = 16) : IDisposable {
-	private readonly WebGPUDevice gpuDevice = gpuDevice;
+internal sealed unsafe class GlyphAtlas(WebGpuDevice gpuDevice, TextSystem text, int pageWidth = 1024, int pageHeight = 1024, int padding = 1, int maxPages = 16) : IDisposable {
+	private readonly WebGpuDevice gpuDevice = gpuDevice;
 	private readonly TextSystem text = text;
 	private readonly Dictionary<GlyphAtlasKey, GlyphAtlasEntry> entries = new();
 	private readonly List<GlyphAtlasPage> pages = new();
@@ -77,17 +77,17 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 		clear();
 	}
 
-	public bool TryGetOrCreate(IResolvedFont font, uint glyphID, out GlyphAtlasEntry entry) {
+	public bool TryGetOrCreate(IResolvedFont font, uint glyphId, out GlyphAtlasEntry entry) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		GlyphAtlasKey key = new(
 			FontCacheToken: font.GetCacheToken(),
-			GlyphID: glyphID
+			GlyphId: glyphId
 		);
 		if (entries.TryGetValue(key, out entry)) {
 			entry.Page.LastUseStamp = ++nextUseStamp;
 			return true;
 		}
-		if (tryRasterize(font, glyphID, out entry)) {
+		if (tryRasterize(font, glyphId, out entry)) {
 			entry.Page.Keys.Add(key);
 			entry.Page.LastUseStamp = +nextUseStamp;
 			entries.Add(key, entry);
@@ -98,9 +98,9 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 		return false;
 	}
 
-	private bool tryRasterize(IResolvedFont font, uint glyphID, out GlyphAtlasEntry entry) {
+	private bool tryRasterize(IResolvedFont font, uint glyphId, out GlyphAtlasEntry entry) {
 		ResolvedFontState st = font.GetState();
-		FTException.Check(FT_Load_Glyph(st.FtFace, glyphID, st.Options.LoadFlags));
+		FTException.Check(FT_Load_Glyph(st.FtFace, glyphId, st.Options.LoadFlags));
 		FTException.Check(FT_Render_Glyph(st.FtFace->glyph, st.Options.RenderMode));
 		FT_GlyphSlotRec_* slot = st.FtFace->glyph;
 		int bitmapLeft = slot->bitmap_left;
@@ -114,7 +114,7 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 
 		byte[] pixels = readbitmap(slot->bitmap);
 		GlyphAtlasPage page = alloc(w, h, out int x, out int y);
-		page.Texture.Upload(x, y, pixels, srcStride: w, PixelFormat.R8_UNorm, w, h);
+		page.Texture.Upload(x, y, pixels, srcStride: w, PixelFormat.R8_Unorm, w, h);
 		entry = new GlyphAtlasEntry(
 			Page: page,
 			SrcPixels: new RectI(x, y, w, h),
@@ -172,12 +172,12 @@ internal sealed unsafe class GlyphAtlas(WebGPUDevice gpuDevice, TextSystem text,
 
 	private GlyphAtlasPage newpage() {
 		GlyphAtlasPage page = new() {
-			Texture = new Texture2D(
+			Texture = new Texture2d(
 				gpuDevice,
-				new Texture2DCreateParams(
+				new Texture2dCreateParams(
 					Width: (uint)pageWidth,
 					Height: (uint)pageHeight,
-					Format: Texture2DFormat.R8_UNorm,
+					Format: Texture2dFormat.R8_Unorm,
 					SamplerParams: SamplerStates.LinearClamp
 				)
 			),

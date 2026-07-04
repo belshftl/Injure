@@ -8,21 +8,21 @@ using Injure.Mods.CodeAnalysis;
 namespace Injure.Layers;
 
 public readonly struct LayerTag : IEquatable<LayerTag> {
-	internal readonly ulong RegistryID; // IDs start at 1 so `default` isn't a valid tag
-	internal readonly ulong ID; // IDs start at 1 so `default` isn't a valid tag
-	internal LayerTag(ulong registryID, ulong id) {
-		RegistryID = registryID;
-		ID = id;
+	internal readonly ulong RegistryId; // IDs start at 1 so `default` isn't a valid tag
+	internal readonly ulong Id; // IDs start at 1 so `default` isn't a valid tag
+	internal LayerTag(ulong registryId, ulong id) {
+		RegistryId = registryId;
+		Id = id;
 	}
 
-	public bool Equals(LayerTag other) => RegistryID == other.RegistryID && ID == other.ID;
+	public bool Equals(LayerTag other) => RegistryId == other.RegistryId && Id == other.Id;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is LayerTag other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine(RegistryID, ID);
+	public override int GetHashCode() => HashCode.Combine(RegistryId, Id);
 	public static bool operator ==(LayerTag left, LayerTag right) => left.Equals(right);
 	public static bool operator !=(LayerTag left, LayerTag right) => !left.Equals(right);
 }
 
-internal readonly record struct TagKey(ulong NamespaceID, string Name);
+internal readonly record struct TagKey(ulong NamespaceId, string Name);
 
 public readonly struct LayerTagSet {
 	private readonly LayerTag[]? items;
@@ -86,24 +86,24 @@ public readonly struct LayerTagSet {
 
 [GameCentralized]
 public sealed class LayerTagRegistry {
-	private static ulong nextRegistryID = 0; // first ID will be 1 since this gets incremented upfront
-	internal readonly ulong RegistryID = Interlocked.Increment(ref nextRegistryID);
+	private static ulong nextRegistryId = 0; // first ID will be 1 since this gets incremented upfront
+	internal readonly ulong RegistryId = Interlocked.Increment(ref nextRegistryId);
 
 	private readonly TwoWayMap<string, ulong> namespaces = new(cmpLeft: StringComparer.Ordinal);
 	private readonly TwoWayMap<TagKey, LayerTag> tags = new();
 
 	// first will be 1 since these get incremented upfront
-	private ulong nextNamespaceID = 0;
-	private ulong nextTagID = 0;
+	private ulong nextNamespaceId = 0;
+	private ulong nextTagId = 0;
 
 	public LayerTag GetOrCreate(string ns, string name) {
 		validate(ns, nameof(ns), "layer tag namespace");
 		validate(name, nameof(name), "layer tag name");
-		ulong nsID = getOrCreateNs(ns);
-		TagKey key = new(nsID, name);
+		ulong nsId = getOrCreateNs(ns);
+		TagKey key = new(nsId, name);
 		if (tags.TryGetByLeft(key, out LayerTag tag))
 			return tag;
-		tag = new LayerTag(RegistryID, ++nextTagID);
+		tag = new LayerTag(RegistryId, ++nextTagId);
 		tags.Add(key, tag);
 		return tag;
 	}
@@ -111,7 +111,7 @@ public sealed class LayerTagRegistry {
 	public string GetQualifiedName(LayerTag tag) {
 		if (!tags.TryGetByRight(tag, out TagKey key))
 			throw new ArgumentException("unknown layer tag", nameof(tag));
-		if (!namespaces.TryGetByRight(key.NamespaceID, out string? ns))
+		if (!namespaces.TryGetByRight(key.NamespaceId, out string? ns))
 			throw new ArgumentException("unknown layer tag", nameof(tag));
 		return ns + "::" + key.Name;
 	}
@@ -119,7 +119,7 @@ public sealed class LayerTagRegistry {
 	private ulong getOrCreateNs(string ns) {
 		if (namespaces.TryGetByLeft(ns, out ulong id))
 			return id;
-		id = ++nextNamespaceID;
+		id = ++nextNamespaceId;
 		namespaces.Add(ns, id);
 		return id;
 	}

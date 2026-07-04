@@ -6,7 +6,7 @@ using Injure.Assets;
 namespace Injure.Internals.Tests.Assets;
 
 public sealed class AssetStoreWatcherTests {
-	private const string ownerID = "test";
+	private const string ownerId = "test";
 
 	[Fact]
 	public void WatchersRegisteredBeforeDependencyPublicationAllWatchIt() {
@@ -14,13 +14,13 @@ public sealed class AssetStoreWatcherTests {
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
 		TestDependencyWatcher watcherB = new();
-		store.RegisterSource(ownerID, new TestSource(dep), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
-		store.RegisterDependencyWatcher(ownerID, watcherA, "watcher-a");
-		store.RegisterDependencyWatcher(ownerID, watcherB, "watcher-b");
+		store.RegisterSource(ownerId, new TestSource(dep), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterDependencyWatcher(ownerId, watcherA, "watcher-a");
+		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm();
 
 		Assert.Equal(["watch:dep"], watcherA.Log);
@@ -35,15 +35,15 @@ public sealed class AssetStoreWatcherTests {
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
 		TestDependencyWatcher watcherB = new();
-		store.RegisterSource(ownerID, new TestSource(dep), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
-		store.RegisterDependencyWatcher(ownerID, watcherA, "watcher-a");
+		store.RegisterSource(ownerId, new TestSource(dep), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterDependencyWatcher(ownerId, watcherA, "watcher-a");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm();
 
-		store.RegisterDependencyWatcher(ownerID, watcherB, "watcher-b");
+		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
 
 		Assert.Equal(["watch:dep"], watcherB.Log);
 		Assert.Contains(dep, watcherB.Watched);
@@ -55,13 +55,13 @@ public sealed class AssetStoreWatcherTests {
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
 		TestDependencyWatcher watcherB = new();
-		store.RegisterSource(ownerID, new TestSource(dep), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
-		store.RegisterDependencyWatcher(ownerID, watcherA, "watcher-a");
-		store.RegisterDependencyWatcher(ownerID, watcherB, "watcher-b");
+		store.RegisterSource(ownerId, new TestSource(dep), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterDependencyWatcher(ownerId, watcherA, "watcher-a");
+		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync();
 		watcherB.Raise(dep);
 		await AssetTestWait.ForQueuedReloadAsync(asset);
@@ -76,19 +76,19 @@ public sealed class AssetStoreWatcherTests {
 		TestDependency depA = new("dep-a");
 		TestDependency depB = new("dep-b");
 		TestDependencyWatcher watcher = new();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
 		store.RegisterCreator(
-			ownerID,
+			ownerId,
 			new SteppingCreator(
 				new Step("step-a", Handled: true, depA),
 				new Step("step-b", Handled: true, depB)
 			),
 			"creator"
 		);
-		store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
+		store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm();
 		asset.QueueReload();
 		store.ApplyQueuedReloadsOrThrow();
@@ -103,12 +103,12 @@ public sealed class AssetStoreWatcherTests {
 		AssetStore store = new();
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcher = new();
-		store.RegisterSource(ownerID, new TestSource(dep), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
-		AssetStoreRegistration r = store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
+		store.RegisterSource(ownerId, new TestSource(dep), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		AssetStoreRegistration r = store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm();
 		r.Remove();
 

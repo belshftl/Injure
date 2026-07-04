@@ -17,24 +17,24 @@ public sealed unsafe class RenderPass : IDisposable {
 		this.onFinished = onFinished;
 	}
 
-	public void SetPipeline(GPURenderPipelineHandle pipeline) {
+	public void SetPipeline(GpuRenderPipelineHandle pipeline) {
 		ObjectDisposedException.ThrowIf(disposed, this);
-		wgpuRenderPassEncoderSetPipeline(passEnc, pipeline.WGPURenderPipeline);
+		wgpuRenderPassEncoderSetPipeline(passEnc, pipeline.WgpuRenderPipeline);
 	}
 
-	public void SetBindGroup(uint index, GPUBindGroupHandle bindGroup) {
+	public void SetBindGroup(uint index, GpuBindGroupHandle bindGroup) {
 		ObjectDisposedException.ThrowIf(disposed, this);
-		wgpuRenderPassEncoderSetBindGroup(passEnc, index, bindGroup.WGPUBindGroup, 0, null);
+		wgpuRenderPassEncoderSetBindGroup(passEnc, index, bindGroup.WgpuBindGroup, 0, null);
 	}
 
-	public void SetVertexBuffer(uint slot, GPUBufferHandle buffer, ulong offset = 0, ulong size = WholeSize) {
+	public void SetVertexBuffer(uint slot, GpuBufferHandle buffer, ulong offset = 0, ulong size = WholeSize) {
 		ObjectDisposedException.ThrowIf(disposed, this);
-		wgpuRenderPassEncoderSetVertexBuffer(passEnc, slot, buffer.WGPUBuffer, offset, size);
+		wgpuRenderPassEncoderSetVertexBuffer(passEnc, slot, buffer.WgpuBuffer, offset, size);
 	}
 
-	public void SetIndexBuffer(GPUBufferHandle buffer, IndexFormat format, ulong offset = 0, ulong size = WholeSize) {
+	public void SetIndexBuffer(GpuBufferHandle buffer, IndexFormat format, ulong offset = 0, ulong size = WholeSize) {
 		ObjectDisposedException.ThrowIf(disposed, this);
-		wgpuRenderPassEncoderSetIndexBuffer(passEnc, buffer.WGPUBuffer, format.ToWebGPUType(), offset, size);
+		wgpuRenderPassEncoderSetIndexBuffer(passEnc, buffer.WgpuBuffer, format.ToWebGPUType(), offset, size);
 	}
 
 	public void SetScissorRect(uint x, uint y, uint width, uint height) {

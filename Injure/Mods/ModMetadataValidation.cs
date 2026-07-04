@@ -15,13 +15,13 @@ public static class ModMetadataValidation {
 	/// </returns>
 	/// <param name="s">String to perform the check on.</param>
 	/// <param name="err">If the method returned <see langword="false"/>, an error string describing the invalidity.</param>
-	public static bool ValidateOwnerID(ReadOnlySpan<char> s, [NotNullWhen(false)] out string? err) {
+	public static bool ValidateOwnerId(ReadOnlySpan<char> s, [NotNullWhen(false)] out string? err) {
 		if (s.IsEmpty) {
 			err = "owner ID must not be empty";
 			return false;
 		}
-		if (s.Length > 128) {
-			err = "owner ID must be at most 128 characters long";
+		if (s.Length > 64) {
+			err = "owner ID must be at most 64 characters long";
 			return false;
 		}
 		if (!char.IsAsciiLetterOrDigit(s[0])) {
@@ -40,19 +40,19 @@ public static class ModMetadataValidation {
 	/// <summary>
 	/// Checks an owner ID for validity, throwing <see cref="ArgumentException"/> if it's invalid.
 	/// </summary>
-	/// <inheritdoc cref="ValidateOwnerID(ReadOnlySpan{char}, out string?)"/>
-	public static void ValidateOwnerIDOrThrow(ReadOnlySpan<char> s) {
-		if (!ValidateOwnerID(s, out string? err))
+	/// <inheritdoc cref="ValidateOwnerId(ReadOnlySpan{char}, out string?)"/>
+	public static void ValidateOwnerIdOrThrow(ReadOnlySpan<char> s) {
+		if (!ValidateOwnerId(s, out string? err))
 			throw new ArgumentException(err);
 	}
 
 	/// <summary>
 	/// Checks an owner ID for validity, throwing <see cref="ArgumentException"/> if it's invalid.
 	/// </summary>
-	/// <inheritdoc cref="ValidateOwnerID(ReadOnlySpan{char}, out string?)"/>
-	public static void ValidateOwnerIDOrThrow(string s) {
+	/// <inheritdoc cref="ValidateOwnerId(ReadOnlySpan{char}, out string?)"/>
+	public static void ValidateOwnerIdOrThrow(string s) {
 		ArgumentNullException.ThrowIfNull(s);
-		if (!ValidateOwnerID(s, out string? err))
+		if (!ValidateOwnerId(s, out string? err))
 			throw new ArgumentException(err);
 	}
 
@@ -65,7 +65,7 @@ public static class ModMetadataValidation {
 	/// </returns>
 	/// <param name="s">String to perform the check on.</param>
 	/// <param name="err">If the method returned <see langword="false"/>, an error string describing the invalidity.</param>
-	public static bool ValidateLocalID(ReadOnlySpan<char> s, [NotNullWhen(false)] out string? err) {
+	public static bool ValidateLocalId(ReadOnlySpan<char> s, [NotNullWhen(false)] out string? err) {
 		if (s.IsEmpty) {
 			err = "local ID must not be empty";
 			return false;
@@ -90,19 +90,19 @@ public static class ModMetadataValidation {
 	/// <summary>
 	/// Checks a local ID for validity, throwing <see cref="ArgumentException"/> if it's invalid.
 	/// </summary>
-	/// <inheritdoc cref="ValidateLocalID(ReadOnlySpan{char}, out string?)"/>
-	public static void ValidateLocalIDOrThrow(ReadOnlySpan<char> s) {
-		if (!ValidateLocalID(s, out string? err))
+	/// <inheritdoc cref="ValidateLocalId(ReadOnlySpan{char}, out string?)"/>
+	public static void ValidateLocalIdOrThrow(ReadOnlySpan<char> s) {
+		if (!ValidateLocalId(s, out string? err))
 			throw new ArgumentException(err);
 	}
 
 	/// <summary>
 	/// Checks a local ID for validity, throwing <see cref="ArgumentException"/> if it's invalid.
 	/// </summary>
-	/// <inheritdoc cref="ValidateLocalID(ReadOnlySpan{char}, out string?)"/>
-	public static void ValidateLocalIDOrThrow(string s) {
+	/// <inheritdoc cref="ValidateLocalId(ReadOnlySpan{char}, out string?)"/>
+	public static void ValidateLocalIdOrThrow(string s) {
 		ArgumentNullException.ThrowIfNull(s);
-		if (!ValidateLocalID(s, out string? err))
+		if (!ValidateLocalId(s, out string? err))
 			throw new ArgumentException(err);
 	}
 }

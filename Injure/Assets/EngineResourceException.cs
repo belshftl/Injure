@@ -10,13 +10,13 @@ public sealed class EngineResourceException : Exception {
 	/// <summary>
 	/// ID of the engine resource involved in the failed operation.
 	/// </summary>
-	public EngineResourceID ResourceID { get; }
+	public EngineResourceId ResourceId { get; }
 
-	public EngineResourceException(EngineResourceID resourceID, string message) : base($"{resourceID}: {message}") {
-		ResourceID = resourceID;
+	public EngineResourceException(EngineResourceId resourceId, string message) : base($"{resourceId}: {message}") {
+		ResourceId = resourceId;
 	}
 
-	public EngineResourceException(EngineResourceID resourceID, string message, Exception ex) : base($"{resourceID}: {message}", ex) {
-		ResourceID = resourceID;
+	public EngineResourceException(EngineResourceId resourceId, string message, Exception ex) : base($"{resourceId}: {message}", ex) {
+		ResourceId = resourceId;
 	}
 }

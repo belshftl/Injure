@@ -18,7 +18,7 @@ public readonly partial struct ConversionFlags {
 }
 
 public readonly record struct PixelConvertOptions(
-	ushort Alpha16UNorm = 0xffff,
+	ushort Alpha16Unorm = 0xffff,
 	bool OverrideAlpha = false,
 	ConversionFlags Flags = default
 ) {

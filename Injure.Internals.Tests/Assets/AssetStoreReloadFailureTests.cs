@@ -7,18 +7,18 @@ using Injure.Mods;
 namespace Injure.Internals.Tests.Assets;
 
 public sealed class AssetStoreReloadFailureTests {
-	private const string ownerID = "test";
+	private const string ownerId = "test";
 
 	[Fact]
 	public async Task ExplicitPrepareFailureThrowsAndRecordsFailure() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		InvalidOperationException ex = new("prepare failed");
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		ulong oldver = asset.Borrow().Version;
 
@@ -48,12 +48,12 @@ public sealed class AssetStoreReloadFailureTests {
 		TestDependency dep = new("somedep");
 		TestDependencyWatcher watcher = new();
 		InvalidOperationException ex = new("dependency reload failed");
-		store.RegisterSource(ownerID, new TestSource(dep), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
-		store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
+		store.RegisterSource(ownerId, new TestSource(dep), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		creator.PrepareException = ex;
 
@@ -82,11 +82,11 @@ public sealed class AssetStoreReloadFailureTests {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		InvalidOperationException ex = new("finalize failed");
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		TestAsset oldValue = asset.Borrow().Value;
 		creator.FinalizeException = ex;
@@ -118,11 +118,11 @@ public sealed class AssetStoreReloadFailureTests {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		InvalidOperationException ex = new("finalize failed");
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		creator.FinalizeException = ex;
 		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
@@ -139,11 +139,11 @@ public sealed class AssetStoreReloadFailureTests {
 	public async Task SuccessfulReloadAfterFailureClearsLastReloadFailure() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 
 		creator.PrepareException = new InvalidOperationException("prepare failed");

@@ -9,12 +9,12 @@ namespace Injure.Mods.Runtime.MonoMod;
 
 internal readonly record struct HookOrder(
 	string OrderDomain,
-	string LocalID,
+	string LocalId,
 	int LocalPriority
 );
 
-internal abstract class PatchDeclaration(string ownerID, HookOrder order, DetourConfig detourConfig) : IStrongRefDroppable {
-	public string OwnerID { get; } = ownerID;
+internal abstract class PatchDeclaration(string ownerId, HookOrder order, DetourConfig detourConfig) : IStrongRefDroppable {
+	public string OwnerId { get; } = ownerId;
 	public HookOrder Order { get; } = order;
 	public DetourConfig DetourConfig { get; } = detourConfig;
 
@@ -22,8 +22,8 @@ internal abstract class PatchDeclaration(string ownerID, HookOrder order, Detour
 	public abstract void DropStrongReferences();
 }
 
-internal sealed class HookDeclaration(string ownerID, HookOrder order, DetourConfig detourConfig, MethodBase target, MethodInfo replacement)
-	: PatchDeclaration(ownerID, order, detourConfig) {
+internal sealed class HookDeclaration(string ownerId, HookOrder order, DetourConfig detourConfig, MethodBase target, MethodInfo replacement)
+	: PatchDeclaration(ownerId, order, detourConfig) {
 	private MethodBase? target = target;
 	private MethodInfo? replacement = replacement;
 
@@ -47,8 +47,8 @@ internal sealed class HookDeclaration(string ownerID, HookOrder order, DetourCon
 	}
 }
 
-internal sealed class ILHookDeclaration(string ownerID, HookOrder order, DetourConfig detourConfig, MethodBase target, MethodInfo manipulator)
-	: PatchDeclaration(ownerID, order, detourConfig) {
+internal sealed class ILHookDeclaration(string ownerId, HookOrder order, DetourConfig detourConfig, MethodBase target, MethodInfo manipulator)
+	: PatchDeclaration(ownerId, order, detourConfig) {
 	private MethodBase? target = target;
 	private MethodInfo? manipulator = manipulator;
 

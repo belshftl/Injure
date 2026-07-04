@@ -32,9 +32,9 @@ public interface IModLifetimeIdentity {
 /// Declares the owner of a lifetime identity.
 /// </summary>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
-public sealed class ModLifetimeIdentityBelongsToAttribute(string ownerID) : Attribute {
+public sealed class ModLifetimeIdentityBelongsToAttribute(string ownerId) : Attribute {
 	/// <summary>
 	/// Owner ID of the mod that the lifetime identity belongs to.
 	/// </summary>
-	public string OwnerID { get; } = ownerID;
+	public string OwnerId { get; } = ownerId;
 }

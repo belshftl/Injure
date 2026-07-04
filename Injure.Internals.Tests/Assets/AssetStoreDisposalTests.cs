@@ -6,17 +6,17 @@ using Injure.Assets;
 namespace Injure.Internals.Tests.Assets;
 
 public sealed class AssetStoreDisposalTests {
-	private const string ownerID = "test";
+	private const string ownerId = "test";
 
 	[Fact]
 	public async Task PreparedDataIsDisposedAfterInitialMaterialize() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 
 		Assert.Equal(1, creator.PreparedDisposeCalls);
@@ -26,11 +26,11 @@ public sealed class AssetStoreDisposalTests {
 	public async Task PreparedDataIsDisposedAfterSuccessfulReload() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		store.ApplyQueuedReloadsOrThrow();
@@ -42,11 +42,11 @@ public sealed class AssetStoreDisposalTests {
 	public async Task PreparedDataIsDisposedWhenFinalizeFails() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		creator.FinalizeException = new InvalidOperationException("finalize failed");
 		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
@@ -59,11 +59,11 @@ public sealed class AssetStoreDisposalTests {
 	public async Task SupersededPendingReloadDisposesPreparedData() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, creator, "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, creator, "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
 		Assert.True(asset.HasQueuedReload);

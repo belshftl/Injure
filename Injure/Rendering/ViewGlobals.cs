@@ -4,9 +4,9 @@
 namespace Injure.Rendering;
 
 public sealed class ViewGlobals : IDisposable {
-	private readonly WebGPUDevice device;
-	private readonly GPUBuffer buffer;
-	private readonly GPUBindGroup bindGroup;
+	private readonly WebGpuDevice device;
+	private readonly GpuBuffer buffer;
+	private readonly GpuBindGroup bindGroup;
 
 	private uint width;
 	private uint height;
@@ -14,14 +14,14 @@ public sealed class ViewGlobals : IDisposable {
 
 	private bool disposed = false;
 
-	public GPUBindGroupRef BindGroup {
+	public GpuBindGroupRef BindGroup {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
 			return bindGroup.AsRef();
 		}
 	}
 
-	public ViewGlobals(WebGPUDevice device, uint w, uint h) {
+	public ViewGlobals(WebGpuDevice device, uint w, uint h) {
 		this.device = device;
 		buffer = device.CreateBuffer((ulong)GlobalsUniform.Size, BufferUsage.Uniform | BufferUsage.CopyDst);
 		bindGroup = device.CreateUniformBufferBindGroup(device.StdGlobalsUniformLayout, buffer);

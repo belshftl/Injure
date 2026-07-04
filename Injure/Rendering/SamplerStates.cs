@@ -4,7 +4,7 @@
 namespace Injure.Rendering;
 
 public static class SamplerStates {
-	public static readonly GPUSamplerCreateParams NearestClamp = new(
+	public static readonly GpuSamplerCreateParams NearestClamp = new(
 		AddressModeU: AddressMode.ClampToEdge,
 		AddressModeV: AddressMode.ClampToEdge,
 		AddressModeW: AddressMode.ClampToEdge,
@@ -13,7 +13,7 @@ public static class SamplerStates {
 		MipmapFilter: MipmapFilterMode.Nearest
 	);
 
-	public static readonly GPUSamplerCreateParams LinearClamp = new(
+	public static readonly GpuSamplerCreateParams LinearClamp = new(
 		AddressModeU: AddressMode.ClampToEdge,
 		AddressModeV: AddressMode.ClampToEdge,
 		AddressModeW: AddressMode.ClampToEdge,
@@ -22,7 +22,7 @@ public static class SamplerStates {
 		MipmapFilter: MipmapFilterMode.Linear
 	);
 
-	public static readonly GPUSamplerCreateParams NearestRepeat = new(
+	public static readonly GpuSamplerCreateParams NearestRepeat = new(
 		AddressModeU: AddressMode.Repeat,
 		AddressModeV: AddressMode.Repeat,
 		AddressModeW: AddressMode.Repeat,
@@ -31,7 +31,7 @@ public static class SamplerStates {
 		MipmapFilter: MipmapFilterMode.Nearest
 	);
 
-	public static readonly GPUSamplerCreateParams LinearRepeat = new(
+	public static readonly GpuSamplerCreateParams LinearRepeat = new(
 		AddressModeU: AddressMode.Repeat,
 		AddressModeV: AddressMode.Repeat,
 		AddressModeW: AddressMode.Repeat,

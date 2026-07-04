@@ -48,5 +48,5 @@ public readonly record struct EngineResourceSourceResult(
 public interface IEngineResourceSource {
 	/// <summary>Attempts to create an engine resource.</summary>
 	/// <param name="id">Resource ID.</param>
-	EngineResourceSourceResult TryCreate(EngineResourceID id);
+	EngineResourceSourceResult TryCreate(EngineResourceId id);
 }

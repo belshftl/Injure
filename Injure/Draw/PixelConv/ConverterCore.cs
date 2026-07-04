@@ -11,155 +11,155 @@ namespace Injure.Draw.PixelConv;
 internal static unsafe class ConverterCore {
 	// @formatter:off
 	public static readonly FrozenDictionary<PixelFormat, PixelFormatDesc> FormatDescs = new Dictionary<PixelFormat, PixelFormatDesc> {
-		[PixelFormat.RGBA32_UNorm] = new(
-			PixelFormatFamily.ByteAligned4x8, PixelNumericKind.UNorm, PixelByteOrder.NotApplicable, bytesPerPixel: 4,
+		[PixelFormat.Rgba32_Unorm] = new(
+			PixelFormatFamily.ByteAligned4x8, PixelNumericKind.Unorm, PixelByteOrder.NotApplicable, bytesPerPixel: 4,
 			true, true, true, true,
 			8, 8, 8, 8,
 			0, 0, 0, 0,
 			0, 1, 2, 3
 		),
-		[PixelFormat.BGRA32_UNorm] = new(
-			PixelFormatFamily.ByteAligned4x8, PixelNumericKind.UNorm, PixelByteOrder.NotApplicable, bytesPerPixel: 4,
+		[PixelFormat.Bgra32_Unorm] = new(
+			PixelFormatFamily.ByteAligned4x8, PixelNumericKind.Unorm, PixelByteOrder.NotApplicable, bytesPerPixel: 4,
 			true, true, true, true,
 			8, 8, 8, 8,
 			0, 0, 0, 0,
 			2, 1, 0, 3
 		),
-		[PixelFormat.ARGB32_UNorm] = new(
-			PixelFormatFamily.ByteAligned4x8, PixelNumericKind.UNorm, PixelByteOrder.NotApplicable, bytesPerPixel: 4,
+		[PixelFormat.Argb32_Unorm] = new(
+			PixelFormatFamily.ByteAligned4x8, PixelNumericKind.Unorm, PixelByteOrder.NotApplicable, bytesPerPixel: 4,
 			true, true, true, true,
 			8, 8, 8, 8,
 			0, 0, 0, 0,
 			1, 2, 3, 0
 		),
-		[PixelFormat.ABGR32_UNorm] = new(
-			PixelFormatFamily.ByteAligned4x8, PixelNumericKind.UNorm, PixelByteOrder.NotApplicable, bytesPerPixel: 4,
+		[PixelFormat.Abgr32_Unorm] = new(
+			PixelFormatFamily.ByteAligned4x8, PixelNumericKind.Unorm, PixelByteOrder.NotApplicable, bytesPerPixel: 4,
 			true, true, true, true,
 			8, 8, 8, 8,
 			0, 0, 0, 0,
 			3, 2, 1, 0
 		),
-		[PixelFormat.RGBA64_UNorm_LE] = new(
-			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.UNorm, PixelByteOrder.LittleEndian, bytesPerPixel: 8,
+		[PixelFormat.Rgba64_Unorm_Le] = new(
+			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.Unorm, PixelByteOrder.LittleEndian, bytesPerPixel: 8,
 			true, true, true, true,
 			16, 16, 16, 16,
 			0, 0, 0, 0,
 			0, 1, 2, 3
 		),
-		[PixelFormat.RGBA64_UNorm_BE] = new(
-			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.UNorm, PixelByteOrder.BigEndian, bytesPerPixel: 8,
+		[PixelFormat.Rgba64_Unorm_Be] = new(
+			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.Unorm, PixelByteOrder.BigEndian, bytesPerPixel: 8,
 			true, true, true, true,
 			16, 16, 16, 16,
 			0, 0, 0, 0,
 			0, 1, 2, 3
 		),
-		[PixelFormat.BGRA64_UNorm_LE] = new(
-			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.UNorm, PixelByteOrder.LittleEndian, bytesPerPixel: 8,
+		[PixelFormat.Bgra64_Unorm_Le] = new(
+			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.Unorm, PixelByteOrder.LittleEndian, bytesPerPixel: 8,
 			true, true, true, true,
 			16, 16, 16, 16,
 			0, 0, 0, 0,
 			2, 1, 0, 3
 		),
-		[PixelFormat.BGRA64_UNorm_BE] = new(
-			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.UNorm, PixelByteOrder.BigEndian, bytesPerPixel: 8,
+		[PixelFormat.Bgra64_Unorm_Be] = new(
+			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.Unorm, PixelByteOrder.BigEndian, bytesPerPixel: 8,
 			true, true, true, true,
 			16, 16, 16, 16,
 			0, 0, 0, 0,
 			2, 1, 0, 3
 		),
-		[PixelFormat.ARGB64_UNorm_LE] = new(
-			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.UNorm, PixelByteOrder.LittleEndian, bytesPerPixel: 8,
+		[PixelFormat.Argb64_Unorm_Le] = new(
+			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.Unorm, PixelByteOrder.LittleEndian, bytesPerPixel: 8,
 			true, true, true, true,
 			16, 16, 16, 16,
 			0, 0, 0, 0,
 			1, 2, 3, 0
 		),
-		[PixelFormat.ARGB64_UNorm_BE] = new(
-			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.UNorm, PixelByteOrder.BigEndian, bytesPerPixel: 8,
+		[PixelFormat.Argb64_Unorm_Be] = new(
+			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.Unorm, PixelByteOrder.BigEndian, bytesPerPixel: 8,
 			true, true, true, true,
 			16, 16, 16, 16,
 			0, 0, 0, 0,
 			1, 2, 3, 0
 		),
-		[PixelFormat.ABGR64_UNorm_LE] = new(
-			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.UNorm, PixelByteOrder.LittleEndian, bytesPerPixel: 8,
+		[PixelFormat.Abgr64_Unorm_Le] = new(
+			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.Unorm, PixelByteOrder.LittleEndian, bytesPerPixel: 8,
 			true, true, true, true,
 			16, 16, 16, 16,
 			0, 0, 0, 0,
 			3, 2, 1, 0
 		),
-		[PixelFormat.ABGR64_UNorm_BE] = new(
-			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.UNorm, PixelByteOrder.BigEndian, bytesPerPixel: 8,
+		[PixelFormat.Abgr64_Unorm_Be] = new(
+			PixelFormatFamily.ByteAligned4x16, PixelNumericKind.Unorm, PixelByteOrder.BigEndian, bytesPerPixel: 8,
 			true, true, true, true,
 			16, 16, 16, 16,
 			0, 0, 0, 0,
 			3, 2, 1, 0
 		),
-		[PixelFormat.R8_UNorm] = new(
-			PixelFormatFamily.ByteAligned1x8, PixelNumericKind.UNorm, PixelByteOrder.NotApplicable, bytesPerPixel: 1,
+		[PixelFormat.R8_Unorm] = new(
+			PixelFormatFamily.ByteAligned1x8, PixelNumericKind.Unorm, PixelByteOrder.NotApplicable, bytesPerPixel: 1,
 			true, false, false, false,
 			8, 0, 0, 0,
 			0, 0, 0, 0,
 			0, -1, -1, -1
 		),
-		[PixelFormat.RG16_UNorm] = new(
-			PixelFormatFamily.ByteAligned2x8, PixelNumericKind.UNorm, PixelByteOrder.NotApplicable, bytesPerPixel: 2,
+		[PixelFormat.Rg16_Unorm] = new(
+			PixelFormatFamily.ByteAligned2x8, PixelNumericKind.Unorm, PixelByteOrder.NotApplicable, bytesPerPixel: 2,
 			true, true, false, false,
 			8, 8, 0, 0,
 			0, 0, 0, 0,
 			0, 1, -1, -1
 		),
-		[PixelFormat.RGB24_UNorm] = new(
-			PixelFormatFamily.ByteAligned3x8, PixelNumericKind.UNorm, PixelByteOrder.NotApplicable, bytesPerPixel: 3,
+		[PixelFormat.Rgb24_Unorm] = new(
+			PixelFormatFamily.ByteAligned3x8, PixelNumericKind.Unorm, PixelByteOrder.NotApplicable, bytesPerPixel: 3,
 			true, true, true, false,
 			8, 8, 8, 0,
 			0, 0, 0, 0,
 			0, 1, 2, -1
 		),
-		[PixelFormat.BGR24_UNorm] = new(
-			PixelFormatFamily.ByteAligned3x8, PixelNumericKind.UNorm, PixelByteOrder.NotApplicable, bytesPerPixel: 3,
+		[PixelFormat.Bgr24_Unorm] = new(
+			PixelFormatFamily.ByteAligned3x8, PixelNumericKind.Unorm, PixelByteOrder.NotApplicable, bytesPerPixel: 3,
 			true, true, true, false,
 			8, 8, 8, 0,
 			0, 0, 0, 0,
 			2, 1, 0, -1
 		),
-		[PixelFormat.BGR565_UNormPack16_LE] = new(
-			PixelFormatFamily.Packed16, PixelNumericKind.UNorm, PixelByteOrder.LittleEndian, bytesPerPixel: 2,
+		[PixelFormat.Bgr565_UnormPack16_Le] = new(
+			PixelFormatFamily.Packed16, PixelNumericKind.Unorm, PixelByteOrder.LittleEndian, bytesPerPixel: 2,
 			true, true, true, false,
 			5, 6, 5, 0,
 			11, 5, 0, 0,
 			-1, -1, -1, -1
 		),
-		[PixelFormat.BGR565_UNormPack16_BE] = new(
-			PixelFormatFamily.Packed16, PixelNumericKind.UNorm, PixelByteOrder.BigEndian, bytesPerPixel: 2,
+		[PixelFormat.Bgr565_UnormPack16_Be] = new(
+			PixelFormatFamily.Packed16, PixelNumericKind.Unorm, PixelByteOrder.BigEndian, bytesPerPixel: 2,
 			true, true, true, false,
 			5, 6, 5, 0,
 			11, 5, 0, 0,
 			-1, -1, -1, -1
 		),
-		[PixelFormat.RGBA4444_UNormPack16_LE] = new(
-			PixelFormatFamily.Packed16, PixelNumericKind.UNorm, PixelByteOrder.LittleEndian, bytesPerPixel: 2,
+		[PixelFormat.Rgba4444_UnormPack16_Le] = new(
+			PixelFormatFamily.Packed16, PixelNumericKind.Unorm, PixelByteOrder.LittleEndian, bytesPerPixel: 2,
 			true, true, true, true,
 			4, 4, 4, 4,
 			12, 8, 4, 0,
 			-1, -1, -1, -1
 		),
-		[PixelFormat.RGBA4444_UNormPack16_BE] = new(
-			PixelFormatFamily.Packed16, PixelNumericKind.UNorm, PixelByteOrder.BigEndian, bytesPerPixel: 2,
+		[PixelFormat.Rgba4444_UnormPack16_Be] = new(
+			PixelFormatFamily.Packed16, PixelNumericKind.Unorm, PixelByteOrder.BigEndian, bytesPerPixel: 2,
 			true, true, true, true,
 			4, 4, 4, 4,
 			12, 8, 4, 0,
 			-1, -1, -1, -1
 		),
-		[PixelFormat.RGBA5551_UNormPack16_LE] = new(
-			PixelFormatFamily.Packed16, PixelNumericKind.UNorm, PixelByteOrder.LittleEndian, bytesPerPixel: 2,
+		[PixelFormat.Rgba5551_UnormPack16_Le] = new(
+			PixelFormatFamily.Packed16, PixelNumericKind.Unorm, PixelByteOrder.LittleEndian, bytesPerPixel: 2,
 			true, true, true, true,
 			5, 5, 5, 1,
 			11, 6, 1, 0,
 			-1, -1, -1, -1
 		),
-		[PixelFormat.RGBA5551_UNormPack16_BE] = new(
-			PixelFormatFamily.Packed16, PixelNumericKind.UNorm, PixelByteOrder.BigEndian, bytesPerPixel: 2,
+		[PixelFormat.Rgba5551_UnormPack16_Be] = new(
+			PixelFormatFamily.Packed16, PixelNumericKind.Unorm, PixelByteOrder.BigEndian, bytesPerPixel: 2,
 			true, true, true, true,
 			5, 5, 5, 1,
 			11, 6, 1, 0,
@@ -236,7 +236,7 @@ internal static unsafe class ConverterCore {
 		Debug.Assert(dst.HasA);
 
 		byte byteIndex = checked((byte)dst.AIndex);
-		byte a8 = Narrow16To8(opts.Alpha16UNorm);
+		byte a8 = Narrow16To8(opts.Alpha16Unorm);
 		byte* keep = stackalloc byte[16];
 		byte* fill = stackalloc byte[16];
 		Unsafe.InitBlockUnaligned(keep, 0xff, 16);
@@ -255,7 +255,7 @@ internal static unsafe class ConverterCore {
 		Debug.Assert(dst.HasA);
 
 		byte byteOffsetInPixel = checked((byte)(dst.AIndex * 2));
-		ushort a16 = opts.Alpha16UNorm;
+		ushort a16 = opts.Alpha16Unorm;
 		byte byte0;
 		byte byte1;
 		switch (dst.ByteOrder) {
@@ -292,7 +292,7 @@ internal static unsafe class ConverterCore {
 		Debug.Assert(dst.HasR && dst.HasG && dst.HasB && dst.HasA);
 
 		bool hasFill = false;
-		byte a8 = Narrow16To8(opts.Alpha16UNorm);
+		byte a8 = Narrow16To8(opts.Alpha16Unorm);
 		byte* shuf = stackalloc byte[16];
 		byte* fill = stackalloc byte[16];
 		for (int i = 0; i < 16; i += 4) {
@@ -318,7 +318,7 @@ internal static unsafe class ConverterCore {
 		Debug.Assert(src.HasR && src.HasG && src.HasB && !src.HasA);
 		Debug.Assert(dst.HasR && dst.HasG && dst.HasB && dst.HasA);
 
-		byte a8 = Narrow16To8(opts.Alpha16UNorm);
+		byte a8 = Narrow16To8(opts.Alpha16Unorm);
 		byte* shuf = stackalloc byte[16];
 		byte* fill = stackalloc byte[16];
 		Unsafe.InitBlockUnaligned(shuf, 0x80, 16);

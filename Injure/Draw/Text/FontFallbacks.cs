@@ -10,10 +10,10 @@ using Injure.Assets;
 namespace Injure.Draw.Text;
 
 public sealed class FontFallbackChain {
-	private static int nextID = 0;
+	private static int nextId = 0;
 	private readonly FontSpec[] allFonts;
 
-	public int ID { get; } = Interlocked.Increment(ref nextID);
+	public int Id { get; } = Interlocked.Increment(ref nextId);
 	public FontSpec Primary { get; }
 	public IReadOnlyList<FontSpec> Fallbacks { get; }
 	public ReadOnlySpan<FontSpec> AllFonts => allFonts;
@@ -39,14 +39,14 @@ public sealed class FontFallbackChain {
 			i += 4;
 			switch (fnt.SourceKind) {
 			case FontSourceKind.Direct:
-				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Direct.ID);
+				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Direct.Id);
 				i += 8;
 				break;
 			case FontSourceKind.Asset:
 				ulong ver = 0;
 				if (fnt.Asset.TryPassiveBorrow(out AssetLease<Font> lease))
 					ver = lease.Version;
-				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Asset.SlotID);
+				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Asset.SlotId);
 				i += 8;
 				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], ver);
 				i += 8;
@@ -64,13 +64,13 @@ public sealed class FontFallbackChain {
 internal sealed class ResolvedFontFallbackChain {
 	private readonly IResolvedFont[] allFonts;
 
-	public int ID { get; }
+	public int Id { get; }
 	public IResolvedFont Primary { get; }
 	public IReadOnlyList<IResolvedFont> Fallbacks { get; }
 	public ReadOnlySpan<IResolvedFont> AllFonts => allFonts;
 
 	public ResolvedFontFallbackChain(int id, IResolvedFont primary, IEnumerable<IResolvedFont>? fallbacks) {
-		ID = id;
+		Id = id;
 		Primary = primary;
 		Fallbacks = fallbacks?.ToArray() ?? Array.Empty<IResolvedFont>();
 		allFonts = new IResolvedFont[Fallbacks.Count + 1];
@@ -88,7 +88,7 @@ internal sealed class ResolvedFontFallbackChain {
 			int i = 0;
 			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.SourceKind);
 			i += 4;
-			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.Key.ID);
+			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.Key.Id);
 			i += 8;
 			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)t.Key.FaceIndex));
 			i += 4;
@@ -108,12 +108,12 @@ internal sealed class ResolvedFontFallbackChain {
 }
 
 internal readonly record struct FallbackProbeKey(
-	int FallbackChainID,
+	int FallbackChainId,
 	ulong FallbackChainHash,
 	string Text,
 	Direction Direction,
 	Script? Script,
-	string? LanguageBCP47
+	string? LanguageBcp47
 );
 
 internal sealed class FallbackProbeCache(TextSystem text, int maxEntries, int maxEstimatedCost) {
@@ -234,12 +234,12 @@ internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache
 
 	private int resolveFontIndex(ResolvedFontFallbackChain fonts, TextItem parentItem, GraphemeSpan grapheme) {
 		FallbackProbeKey key = new(
-			FallbackChainID: fonts.ID,
+			FallbackChainId: fonts.Id,
 			FallbackChainHash: fonts.Hash(),
 			Text: parentItem.Text.Substring(grapheme.Start, grapheme.Length),
 			Direction: parentItem.Properties.Direction ?? throw new InternalStateException("fallback probing requires an explicit direction"),
 			Script: parentItem.Properties.Script,
-			LanguageBCP47: parentItem.Properties.LanguageBCP47
+			LanguageBcp47: parentItem.Properties.LanguageBcp47
 		);
 		if (probeCache.TryGet(key, out int fontidx))
 			return fontidx;
@@ -258,7 +258,7 @@ internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache
 
 	private static bool noNotdefs(ShapedRun shaped) {
 		foreach (ShapedGlyph glyph in shaped.Glyphs)
-			if (glyph.GlyphID == 0)
+			if (glyph.GlyphId == 0)
 				return false;
 		return true;
 	}

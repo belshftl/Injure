@@ -53,7 +53,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		DeviceLost,
 	}
 
-	private readonly WebGPUDevice device;
+	private readonly WebGpuDevice device;
 	private readonly ISurfaceHost surfaceHost;
 	private SurfacePresentModePolicy presentPolicy;
 
@@ -85,7 +85,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		}
 	}
 
-	public SurfaceRenderOutput(WebGPUDevice device, ISurfaceHost surfaceHost, SurfacePresentModePolicy presentPolicy) {
+	public SurfaceRenderOutput(WebGpuDevice device, ISurfaceHost surfaceHost, SurfacePresentModePolicy presentPolicy) {
 		this.device = device;
 		this.surfaceHost = surfaceHost;
 		this.presentPolicy = presentPolicy;
@@ -110,7 +110,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		wgpuSurfaceGetCapabilities(surface, device.Adapter, &caps);
 		try {
 			if (caps.formatCount == 0)
-				throw new WebGPUException("SurfaceGetCapabilities", "surface doesn't report any supported formats");
+				throw new WebGpuException("SurfaceGetCapabilities", "surface doesn't report any supported formats");
 			// wgpu says the first format is the most preferred one
 			return caps.formats[0];
 		} finally {
@@ -123,7 +123,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		wgpuSurfaceGetCapabilities(surface, device.Adapter, &caps);
 		try {
 			if (caps.presentModeCount == 0)
-				throw new WebGPUException("SurfaceGetCapabilities", "surface doesn't report any supported present modes");
+				throw new WebGpuException("SurfaceGetCapabilities", "surface doesn't report any supported present modes");
 			ReadOnlySpan<WGPUPresentMode> modes = new(caps.presentModes, (int)caps.presentModeCount);
 			bool haverelaxed = modes.Contains(WGPUPresentMode.FifoRelaxed);
 			bool havemailbox = modes.Contains(WGPUPresentMode.Mailbox);
@@ -178,7 +178,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 				WGPUSurfaceGetCurrentTextureStatus.Lost => AcquireStatus.SkipFrame,
 				WGPUSurfaceGetCurrentTextureStatus.DeviceLost => AcquireStatus.DeviceLost,
 				WGPUSurfaceGetCurrentTextureStatus.OutOfMemory => throw new OutOfMemoryException("WebGPU: wgpuSurfaceGetCurrentTexture: out of memory"),
-				_ => throw new WebGPUException("wgpuSurfaceGetCurrentTexture", st.ToString()),
+				_ => throw new WebGpuException("wgpuSurfaceGetCurrentTexture", st.ToString()),
 			};
 		}
 
@@ -216,7 +216,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		case WGPUSurfaceGetCurrentTextureStatus.OutOfMemory:
 			throw new OutOfMemoryException("WebGPU: wgpuSurfaceGetCurrentTexture out of memory");
 		default:
-			throw new WebGPUException("wgpuSurfaceGetCurrentTexture", tex.status.ToString());
+			throw new WebGpuException("wgpuSurfaceGetCurrentTexture", tex.status.ToString());
 		}
 	}
 
@@ -261,16 +261,16 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		WGPUTextureView backbufferView = wgpuTextureCreateView(currTex.texture, &tvdesc);
 		if (backbufferView.IsNull) {
 			wgpuTextureRelease(currTex.texture);
-			throw new WebGPUException("wgpuTextureCreateView", "WebGPU call returned null");
+			throw new WebGpuException("wgpuTextureCreateView", "WebGPU call returned null");
 		}
 		WGPUCommandEncoderDescriptor encDesc = default;
 		WGPUCommandEncoder enc = wgpuDeviceCreateCommandEncoder(device.Device, &encDesc);
 		if (enc.IsNull) {
 			wgpuTextureViewRelease(backbufferView);
 			wgpuTextureRelease(currTex.texture);
-			throw new WebGPUException("wgpuDeviceCreateCommandEncoder", "WebGPU call returned null");
+			throw new WebGpuException("wgpuDeviceCreateCommandEncoder", "WebGPU call returned null");
 		}
-		GPUTextureView v = new(
+		GpuTextureView v = new(
 			backbufferView,
 			tvdesc.format.FromWebGPUType(),
 			tvdesc.dimension.FromWebGPUType(),

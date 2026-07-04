@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.IO;
+using Injure.Io;
 
 namespace Injure.Mods.Runtime;
 
 public readonly record struct ModFileChange(
-	string OwnerID,
+	string OwnerId,
 	bool Reloadable,
 	string Path
 );
@@ -35,7 +35,7 @@ public sealed class ModFileWatcher : IDisposable {
 	}
 
 	public void Watch(ModWatchSpec spec) {
-		ArgumentException.ThrowIfNullOrWhiteSpace(spec.OwnerID);
+		ArgumentException.ThrowIfNullOrWhiteSpace(spec.OwnerId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(spec.ManifestPath);
 
 		string manifestPath = Path.GetFullPath(spec.ManifestPath);
@@ -45,34 +45,34 @@ public sealed class ModFileWatcher : IDisposable {
 		lock (@lock) {
 			ObjectDisposedException.ThrowIf(disposed, this);
 
-			if (!ownersByID.TryGetValue(spec.OwnerID, out WatchedOwner? owner)) {
+			if (!ownersByID.TryGetValue(spec.OwnerId, out WatchedOwner? owner)) {
 				owner = new WatchedOwner(spec.Reloadable);
-				ownersByID.Add(spec.OwnerID, owner);
+				ownersByID.Add(spec.OwnerId, owner);
 			} else {
 				owner.Reloadable = spec.Reloadable;
 			}
-			addPathLocked(spec.OwnerID, owner, manifestPath, pathsToWatch);
+			addPathLocked(spec.OwnerId, owner, manifestPath, pathsToWatch);
 			if (entryAssemblyPath is not null)
-				addPathLocked(spec.OwnerID, owner, entryAssemblyPath, pathsToWatch);
+				addPathLocked(spec.OwnerId, owner, entryAssemblyPath, pathsToWatch);
 		}
 
 		foreach (string path in pathsToWatch)
 			monitor.WatchFile(path);
 	}
 
-	public void Unwatch(string ownerID) {
-		ArgumentException.ThrowIfNullOrWhiteSpace(ownerID);
+	public void Unwatch(string ownerId) {
+		ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
 		List<string> pathsToUnwatch = new();
 
 		lock (@lock) {
 			ObjectDisposedException.ThrowIf(disposed, this);
 
-			if (!ownersByID.Remove(ownerID, out WatchedOwner? owner))
+			if (!ownersByID.Remove(ownerId, out WatchedOwner? owner))
 				return;
 			foreach (string path in owner.Paths) {
 				if (!ownersByPath.TryGetValue(path, out HashSet<string>? owners))
 					continue;
-				owners.Remove(ownerID);
+				owners.Remove(ownerId);
 				if (owners.Count == 0) {
 					ownersByPath.Remove(path);
 					pathsToUnwatch.Add(path);
@@ -94,20 +94,20 @@ public sealed class ModFileWatcher : IDisposable {
 			oldOwners = ownersByID.Keys.ToArray();
 		}
 
-		foreach (string ownerID in oldOwners)
-			Unwatch(ownerID);
+		foreach (string ownerId in oldOwners)
+			Unwatch(ownerId);
 		foreach (ModWatchSpec spec in snapshot)
 			Watch(spec);
 	}
 
-	private void addPathLocked(string ownerID, WatchedOwner owner, string fullPath, List<string> pathsToWatch) {
+	private void addPathLocked(string ownerId, WatchedOwner owner, string fullPath, List<string> pathsToWatch) {
 		if (owner.Paths.Add(fullPath)) {
 			if (!ownersByPath.TryGetValue(fullPath, out HashSet<string>? owners)) {
 				owners = new HashSet<string>(StringComparer.Ordinal);
 				ownersByPath.Add(fullPath, owners);
 				pathsToWatch.Add(fullPath);
 			}
-			owners.Add(ownerID);
+			owners.Add(ownerId);
 		}
 	}
 
@@ -124,13 +124,13 @@ public sealed class ModFileWatcher : IDisposable {
 			if (disposed)
 				return;
 
-			if (!ownersByPath.TryGetValue(fullPath, out HashSet<string>? ownerIDs))
+			if (!ownersByPath.TryGetValue(fullPath, out HashSet<string>? ownerIds))
 				return;
-			List<ModFileChange> result = new(ownerIDs.Count);
-			foreach (string ownerID in ownerIDs) {
-				if (!ownersByID.TryGetValue(ownerID, out WatchedOwner? owner))
+			List<ModFileChange> result = new(ownerIds.Count);
+			foreach (string ownerId in ownerIds) {
+				if (!ownersByID.TryGetValue(ownerId, out WatchedOwner? owner))
 					continue;
-				result.Add(new ModFileChange(OwnerID: ownerID, Reloadable: owner.Reloadable, Path: fullPath));
+				result.Add(new ModFileChange(OwnerId: ownerId, Reloadable: owner.Reloadable, Path: fullPath));
 			}
 			changes = result.ToArray();
 		}

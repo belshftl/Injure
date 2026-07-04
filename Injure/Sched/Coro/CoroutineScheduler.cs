@@ -562,18 +562,18 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerID"/> is not a valid owner ID.
+	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
 	/// </exception>
 	/// <exception cref="AggregateException">
 	/// Thrown if cancelling one or more coroutines throws, containing all of the caught exceptions.
 	/// </exception>
-	public int DangerousCancelAllFrom(string ownerID) {
-		ModMetadataValidation.ValidateOwnerIDOrThrow(ownerID);
+	public int DangerousCancelAllFrom(string ownerId) {
+		ModMetadataValidation.ValidateOwnerIdOrThrow(ownerId);
 		List<Exception> failures = new();
 		int cancelled = 0;
 		foreach (int slotidx in activeSlots) {
 			CoroutineInstance? inst = slots[slotidx].Instance;
-			if (inst?.Scope?.OwnerID == ownerID)
+			if (inst?.Scope?.OwnerId == ownerId)
 				try {
 					if (TryCancel(inst.Handle, CoroCancellationReason.OwnerRemoved))
 						cancelled++;
@@ -648,7 +648,7 @@ public sealed class CoroutineScheduler : IDisposable {
 		return new CoroutineInfo {
 			Handle = inst.Handle,
 			Name = name,
-			OwnerID = inst.Scope?.OwnerID,
+			OwnerId = inst.Scope?.OwnerId,
 			ScopeName = inst.Scope?.Name,
 			Status = inst.Status,
 			LastPhase = inst.LastPhase,

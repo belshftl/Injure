@@ -34,9 +34,9 @@ public sealed class DirectoryAssetSource(string matchNamespace, string root, Fil
 
 	public ValueTask<AssetSourceResult> TrySourceAsync(AssetSourceInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
 		ct.ThrowIfCancellationRequested();
-		if (info.AssetID.Namespace != matchNamespace)
+		if (info.AssetId.Namespace != matchNamespace)
 			return ValueTask.FromResult(AssetSourceResult.NotHandled());
-		string path = Path.Combine(root, info.AssetID.Path.Replace('/', Path.DirectorySeparatorChar));
+		string path = Path.Combine(root, info.AssetId.Path.Replace('/', Path.DirectorySeparatorChar));
 
 		try {
 			Stream stream = new FileStream(path, fileOpenOptions);
@@ -57,18 +57,18 @@ public sealed class DirectoryAssetSource(string matchNamespace, string root, Fil
 /// The asset ID path is used as the manifest resource name. The explicit ID set is used instead of
 /// reflection-based discovery so this source remains simple and NativeAOT-friendly.
 /// </remarks>
-public sealed class EmbeddedAssetSource(Assembly assembly, HashSet<AssetID> ids) : IAssetSource {
+public sealed class EmbeddedAssetSource(Assembly assembly, HashSet<AssetId> ids) : IAssetSource {
 	private readonly Assembly assembly = assembly ?? throw new ArgumentNullException(nameof(assembly));
-	private readonly HashSet<AssetID> ids = ids ?? throw new ArgumentNullException(nameof(ids));
+	private readonly HashSet<AssetId> ids = ids ?? throw new ArgumentNullException(nameof(ids));
 
 	public ValueTask<AssetSourceResult> TrySourceAsync(AssetSourceInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
 		ct.ThrowIfCancellationRequested();
-		if (!ids.Contains(info.AssetID))
+		if (!ids.Contains(info.AssetId))
 			return ValueTask.FromResult(AssetSourceResult.NotHandled());
 
-		Stream stream = assembly.GetManifestResourceStream(info.AssetID.Path) ??
-			throw new FileNotFoundException("failed to open embedded asset stream", info.AssetID.Path);
-		coll.Add(new EmbeddedAssetDependency(assembly, info.AssetID.Path));
+		Stream stream = assembly.GetManifestResourceStream(info.AssetId.Path) ??
+			throw new FileNotFoundException("failed to open embedded asset stream", info.AssetId.Path);
+		coll.Add(new EmbeddedAssetDependency(assembly, info.AssetId.Path));
 		return ValueTask.FromResult(AssetSourceResult.Success(stream));
 	}
 }

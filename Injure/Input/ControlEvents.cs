@@ -90,26 +90,26 @@ public abstract record ControlEvent(MonoTick Tick);
 
 public sealed record ButtonActionEvent(
 	MonoTick Tick,
-	ActionID Action,
+	ActionId Action,
 	EdgeType Edge,
 	ButtonActionEventInfo Info = default
 ) : ControlEvent(Tick);
 
 public sealed record StateAxisActionEvent(
 	MonoTick Tick,
-	ActionID Action,
+	ActionId Action,
 	float Value
 ) : ControlEvent(Tick);
 
 public sealed record StateAxis2DActionEvent(
 	MonoTick Tick,
-	ActionID Action,
+	ActionId Action,
 	Vector2 Value
 ) : ControlEvent(Tick);
 
 public sealed record ImpulseAxisActionEvent(
 	MonoTick Tick,
-	ActionID Action,
+	ActionId Action,
 	float Amount,
 	ImpulseAxisActionEventInfo Info = default
 ) : ControlEvent(Tick);

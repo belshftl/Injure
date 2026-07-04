@@ -9,7 +9,7 @@ namespace Injure.Mods;
 
 [DontImplement]
 public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIdentity {
-	string OwnerID { get; }
+	string OwnerId { get; }
 	Semver Version { get; }
 	TGameApi Api { get; }
 	IOwnerDiagnostics Diagnostics { get; }
@@ -28,12 +28,12 @@ public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> whe
 public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	// TODO: IModHookDeclarations<L> LinkHooks { get; }
 
-	bool TryGetDependency(string ownerID, out LoadedDepInfo<L> info);
-	bool TryGetCodeDependency(string ownerID, out UntypedLoadedCodeDepInfo<L> info);
+	bool TryGetDependency(string ownerId, out LoadedDepInfo<L> info);
+	bool TryGetCodeDependency(string ownerId, out UntypedLoadedCodeDepInfo<L> info);
 	bool TryGetCodeDependency<LDependency>(out LoadedCodeDepInfo<L, LDependency> info) where LDependency : struct, IModLifetimeIdentity;
 
-	LoadedDepInfo<L> RequireDependency(string ownerID);
-	UntypedLoadedCodeDepInfo<L> RequireCodeDependency(string ownerID);
+	LoadedDepInfo<L> RequireDependency(string ownerId);
+	UntypedLoadedCodeDepInfo<L> RequireCodeDependency(string ownerId);
 	LoadedCodeDepInfo<L, LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity;
 }
 

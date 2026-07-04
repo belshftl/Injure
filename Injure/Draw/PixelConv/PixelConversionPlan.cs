@@ -101,8 +101,8 @@ public readonly unsafe struct PixelConversionPlan {
 		DstDesc = dstDesc;
 		Payload = payload;
 
-		Alpha8UNorm = ConverterCore.Narrow16To8(opts.Alpha16UNorm);
-		Alpha16UNorm = opts.Alpha16UNorm;
+		Alpha8UNorm = ConverterCore.Narrow16To8(opts.Alpha16Unorm);
+		Alpha16UNorm = opts.Alpha16Unorm;
 	}
 
 	/// <summary>

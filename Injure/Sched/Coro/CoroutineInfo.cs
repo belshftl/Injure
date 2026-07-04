@@ -8,7 +8,7 @@ namespace Injure.Sched.Coro;
 public readonly struct CoroutineInfo {
 	public required CoroutineHandle Handle { get; init; }
 	public required string? Name { get; init; }
-	public required string? OwnerID { get; init; }
+	public required string? OwnerId { get; init; }
 	public required string? ScopeName { get; init; }
 	public required CoroutineStatus Status { get; init; }
 	public required CoroUpdatePhase LastPhase { get; init; }

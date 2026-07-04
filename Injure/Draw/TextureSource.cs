@@ -10,9 +10,9 @@ using Injure.Rendering;
 namespace Injure.Draw;
 
 internal enum TextureSourceKind {
-	Texture2D,
-	RenderTarget2D,
-	Texture2DAssetRef,
+	Texture2d,
+	RenderTarget2d,
+	Texture2dAssetRef,
 }
 
 public readonly struct TextureSource : IEquatable<TextureSource> {
@@ -25,12 +25,12 @@ public readonly struct TextureSource : IEquatable<TextureSource> {
 		Kind = kind;
 	}
 
-	public static implicit operator TextureSource(Texture2D tex) =>
-		new(tex, TextureSourceKind.Texture2D);
-	public static implicit operator TextureSource(RenderTarget2D rt) =>
-		new(rt, TextureSourceKind.RenderTarget2D);
-	public static implicit operator TextureSource(AssetRef<Texture2D> asset) =>
-		new(asset, TextureSourceKind.Texture2DAssetRef);
+	public static implicit operator TextureSource(Texture2d tex) =>
+		new(tex, TextureSourceKind.Texture2d);
+	public static implicit operator TextureSource(RenderTarget2d rt) =>
+		new(rt, TextureSourceKind.RenderTarget2d);
+	public static implicit operator TextureSource(AssetRef<Texture2d> asset) =>
+		new(asset, TextureSourceKind.Texture2dAssetRef);
 
 	public bool Equals(TextureSource other) => ReferenceEquals(val, other.val) && Kind == other.Kind;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is TextureSource other && Equals(other);
@@ -39,68 +39,68 @@ public readonly struct TextureSource : IEquatable<TextureSource> {
 	public static bool operator !=(TextureSource left, TextureSource right) => !left.Equals(right);
 
 	internal ResolvedTextureSource Resolve() => Kind switch {
-		TextureSourceKind.Texture2D => new ResolvedTextureSource((Texture2D)val),
-		TextureSourceKind.RenderTarget2D => new ResolvedTextureSource((RenderTarget2D)val),
-		TextureSourceKind.Texture2DAssetRef => new ResolvedTextureSource(((AssetRef<Texture2D>)val).Borrow()),
+		TextureSourceKind.Texture2d => new ResolvedTextureSource((Texture2d)val),
+		TextureSourceKind.RenderTarget2d => new ResolvedTextureSource((RenderTarget2d)val),
+		TextureSourceKind.Texture2dAssetRef => new ResolvedTextureSource(((AssetRef<Texture2d>)val).Borrow()),
 		_ => throw new UnreachableException(),
 	};
 }
 
 internal enum ResolvedTextureSourceKind {
-	Texture2D,
-	RenderTarget2D,
-	LeasedTexture2D,
+	Texture2d,
+	RenderTarget2d,
+	LeasedTexture2d,
 }
 
 internal readonly ref struct ResolvedTextureSource {
-	private readonly Texture2D? texture = null;
-	private readonly RenderTarget2D? renderTarget = null;
-	private readonly AssetLease<Texture2D> lease = default;
+	private readonly Texture2d? texture = null;
+	private readonly RenderTarget2d? renderTarget = null;
+	private readonly AssetLease<Texture2d> lease = default;
 
 	public ResolvedTextureSourceKind Kind { get; }
 
-	public ResolvedTextureSource(Texture2D texture) {
+	public ResolvedTextureSource(Texture2d texture) {
 		this.texture = texture;
-		Kind = ResolvedTextureSourceKind.Texture2D;
+		Kind = ResolvedTextureSourceKind.Texture2d;
 	}
 
-	public ResolvedTextureSource(RenderTarget2D renderTarget) {
+	public ResolvedTextureSource(RenderTarget2d renderTarget) {
 		this.renderTarget = renderTarget;
-		Kind = ResolvedTextureSourceKind.RenderTarget2D;
+		Kind = ResolvedTextureSourceKind.RenderTarget2d;
 	}
 
-	public ResolvedTextureSource(AssetLease<Texture2D> lease) {
+	public ResolvedTextureSource(AssetLease<Texture2d> lease) {
 		this.lease = lease;
-		Kind = ResolvedTextureSourceKind.LeasedTexture2D;
+		Kind = ResolvedTextureSourceKind.LeasedTexture2d;
 	}
 
 	public uint Width => Kind switch {
-		ResolvedTextureSourceKind.Texture2D => texture!.Width,
-		ResolvedTextureSourceKind.RenderTarget2D => renderTarget!.Width,
-		ResolvedTextureSourceKind.LeasedTexture2D => lease.Value.Width,
+		ResolvedTextureSourceKind.Texture2d => texture!.Width,
+		ResolvedTextureSourceKind.RenderTarget2d => renderTarget!.Width,
+		ResolvedTextureSourceKind.LeasedTexture2d => lease.Value.Width,
 		_ => throw new UnreachableException(),
 	};
 	public uint Height => Kind switch {
-		ResolvedTextureSourceKind.Texture2D => texture!.Height,
-		ResolvedTextureSourceKind.RenderTarget2D => renderTarget!.Height,
-		ResolvedTextureSourceKind.LeasedTexture2D => lease.Value.Height,
+		ResolvedTextureSourceKind.Texture2d => texture!.Height,
+		ResolvedTextureSourceKind.RenderTarget2d => renderTarget!.Height,
+		ResolvedTextureSourceKind.LeasedTexture2d => lease.Value.Height,
 		_ => throw new UnreachableException(),
 	};
-	public GPUBindGroupRef BindGroup => Kind switch {
-		ResolvedTextureSourceKind.Texture2D => texture!.BindGroup,
-		ResolvedTextureSourceKind.RenderTarget2D => renderTarget!.ColorBindGroup,
-		ResolvedTextureSourceKind.LeasedTexture2D => lease.Value.BindGroup,
+	public GpuBindGroupRef BindGroup => Kind switch {
+		ResolvedTextureSourceKind.Texture2d => texture!.BindGroup,
+		ResolvedTextureSourceKind.RenderTarget2d => renderTarget!.ColorBindGroup,
+		ResolvedTextureSourceKind.LeasedTexture2d => lease.Value.BindGroup,
 		_ => throw new UnreachableException(),
 	};
 
 	public object Identity => Kind switch {
-		ResolvedTextureSourceKind.Texture2D => texture!,
-		ResolvedTextureSourceKind.RenderTarget2D => renderTarget!,
-		ResolvedTextureSourceKind.LeasedTexture2D => lease.Value,
+		ResolvedTextureSourceKind.Texture2d => texture!,
+		ResolvedTextureSourceKind.RenderTarget2d => renderTarget!,
+		ResolvedTextureSourceKind.LeasedTexture2d => lease.Value,
 		_ => throw new UnreachableException(),
 	};
 
 	// comparing color textures only is enough since every render target has its own one
-	public bool SameRenderTargetAs(RenderTarget2D rt) =>
-		Kind == ResolvedTextureSourceKind.RenderTarget2D && renderTarget!.ColorTexture.SameTexture(rt.ColorTexture);
+	public bool SameRenderTargetAs(RenderTarget2d rt) =>
+		Kind == ResolvedTextureSourceKind.RenderTarget2d && renderTarget!.ColorTexture.SameTexture(rt.ColorTexture);
 }

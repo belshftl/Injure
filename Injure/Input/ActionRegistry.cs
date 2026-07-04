@@ -12,27 +12,27 @@ public sealed class ActionRegistry {
 		private readonly ActionRegistry owner;
 		private readonly string? ns;
 		private readonly List<string> sids;
-		private readonly List<ActionID> ids;
+		private readonly List<ActionId> ids;
 
 		internal BatchRegistrar(ActionRegistry owner, string? ns) {
 			this.owner = owner;
 			this.ns = ns;
 			sids = new List<string>();
-			ids = new List<ActionID>();
+			ids = new List<ActionId>();
 		}
 
-		public ActionID Register(string sidOrLocalName) {
+		public ActionId Register(string sidOrLocalName) {
 			string sid = ns is null ? sidOrLocalName : ns + "::" + sidOrLocalName;
-			ValidateSIDOrThrow(sid);
+			ValidateSidOrThrow(sid);
 
 			for (int i = 0; i < sids.Count; i++)
 				if (StringComparer.Ordinal.Equals(sids[i], sid))
 					throw new InvalidOperationException($"action SID {sid} is already registered in this batch");
 			if (owner.actions.ContainsLeft(sid))
 				throw new InvalidOperationException($"action SID {sid} is already registered");
-			if ((ulong)owner.nextID + (ulong)ids.Count >= uint.MaxValue)
+			if ((ulong)owner.nextId + (ulong)ids.Count >= uint.MaxValue)
 				throw new InvalidOperationException("action ID space exhausted");
-			ActionID id = new(owner.nextID + 1u + (uint)ids.Count);
+			ActionId id = new(owner.nextId + 1u + (uint)ids.Count);
 			sids.Add(sid);
 			ids.Add(id);
 			return id;
@@ -42,7 +42,7 @@ public sealed class ActionRegistry {
 			if (sids.Count == 0)
 				return;
 			owner.actions.Set(CollectionsMarshal.AsSpan(sids), CollectionsMarshal.AsSpan(ids));
-			owner.nextID += (uint)ids.Count;
+			owner.nextId += (uint)ids.Count;
 		}
 	}
 
@@ -51,21 +51,21 @@ public sealed class ActionRegistry {
 	// it in and the other changes get lost
 	private readonly Lock writeLock = new();
 
-	private readonly FrozenSnapshotTwoWayMap<string, ActionID> actions = new(cmpLeft: StringComparer.Ordinal);
-	private uint nextID = 0; // first will be 1 since this gets incremented upfront
+	private readonly FrozenSnapshotTwoWayMap<string, ActionId> actions = new(cmpLeft: StringComparer.Ordinal);
+	private uint nextId = 0; // first will be 1 since this gets incremented upfront
 
 	// for now just do this
 	internal ActionRegistry() {
 	}
 
-	public ActionID Register(string sid) {
-		ValidateSIDOrThrow(sid);
+	public ActionId Register(string sid) {
+		ValidateSidOrThrow(sid);
 		lock (writeLock) {
 			if (actions.ContainsLeft(sid))
 				throw new InvalidOperationException($"action SID {sid} is already registered");
-			ActionID id = new(nextID + 1);
+			ActionId id = new(nextId + 1);
 			actions.Set(sid, id);
-			nextID++;
+			nextId++;
 			return id;
 		}
 	}
@@ -90,16 +90,16 @@ public sealed class ActionRegistry {
 		}
 	}
 
-	public bool TryGetID(string sid, out ActionID id) => actions.TryGetByLeft(sid, out id);
-	public bool TryGetSID(ActionID id, [NotNullWhen(true)] out string? sid) => actions.TryGetByRight(id, out sid);
+	public bool TryGetId(string sid, out ActionId id) => actions.TryGetByLeft(sid, out id);
+	public bool TryGetSid(ActionId id, [NotNullWhen(true)] out string? sid) => actions.TryGetByRight(id, out sid);
 
 	// these could just redirect to actions.GetBy* but this has nicer exception messages
-	public ActionID GetID(string sid) {
-		if (!actions.TryGetByLeft(sid, out ActionID id))
+	public ActionId GetId(string sid) {
+		if (!actions.TryGetByLeft(sid, out ActionId id))
 			throw new ArgumentException("unknown action SID", nameof(sid));
 		return id;
 	}
-	public string GetSID(ActionID id) {
+	public string GetSid(ActionId id) {
 		if (!actions.TryGetByRight(id, out string? sid))
 			throw new ArgumentException("unknown action ID", nameof(id));
 		return sid;
@@ -123,7 +123,7 @@ public sealed class ActionRegistry {
 		return true;
 	}
 
-	public static bool ValidateSID([NotNullWhen(true)] string? sid, [NotNullWhen(false)] out string? err) {
+	public static bool ValidateSid([NotNullWhen(true)] string? sid, [NotNullWhen(false)] out string? err) {
 		if (sid is null) {
 			err = "action SID must not be null";
 			return false;
@@ -143,8 +143,8 @@ public sealed class ActionRegistry {
 		return true;
 	}
 
-	public static void ValidateSIDOrThrow([NotNull] string? sid) {
-		if (!ValidateSID(sid, out string? err))
+	public static void ValidateSidOrThrow([NotNull] string? sid) {
+		if (!ValidateSid(sid, out string? err))
 			throw new FormatException(err);
 	}
 }

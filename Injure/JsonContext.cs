@@ -6,6 +6,6 @@ using Injure.Assets.Builtin;
 
 namespace Injure;
 
-[JsonSerializable(typeof(Texture2DAssetMetadata))]
+[JsonSerializable(typeof(Texture2dAssetMetadata))]
 internal sealed partial class InjureJsonContext : JsonSerializerContext {
 }

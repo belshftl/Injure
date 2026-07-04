@@ -15,7 +15,7 @@ internal static class HookApplier<TGameApi> {
 		foreach (LoadedCodeMod<TGameApi> mod in mods)
 			patches.AddRange(mod.LoadHooks.Snapshot());
 		var scopes = mods.ToDictionary(
-			static m => m.Staged.Manifest.OwnerID,
+			static m => m.Staged.Manifest.OwnerId,
 			static m => m.Scope,
 			StringComparer.Ordinal
 		);
@@ -60,19 +60,19 @@ internal static class HookApplier<TGameApi> {
 		patches.Sort(compare);
 		foreach (PatchDeclaration patch in patches) {
 			ct.ThrowIfCancellationRequested();
-			if (!scopes.TryGetValue(patch.OwnerID, out UntypedBoundedScopeImpl? scope))
-				throw new InternalStateException($"owner '{patch.OwnerID}' has no active owner scope");
+			if (!scopes.TryGetValue(patch.OwnerId, out UntypedBoundedScopeImpl? scope))
+				throw new InternalStateException($"owner '{patch.OwnerId}' has no active owner scope");
 			patch.Commit(scope);
 		}
 	}
 
 	private static int compare(PatchDeclaration a, PatchDeclaration b) {
-		int cmp = StringComparer.Ordinal.Compare(a.OwnerID, b.OwnerID);
+		int cmp = StringComparer.Ordinal.Compare(a.OwnerId, b.OwnerId);
 		if (cmp != 0)
 			return cmp;
 		cmp = b.Order.LocalPriority.CompareTo(a.Order.LocalPriority);
 		if (cmp != 0)
 			return cmp;
-		return StringComparer.Ordinal.Compare(a.Order.LocalID, b.Order.LocalID);
+		return StringComparer.Ordinal.Compare(a.Order.LocalId, b.Order.LocalId);
 	}
 }

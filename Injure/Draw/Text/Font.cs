@@ -7,10 +7,10 @@ using Injure.Assets;
 namespace Injure.Draw.Text;
 
 public sealed class Font : IRevokable {
-	private static ulong nextID = 0;
+	private static ulong nextId = 0;
 	private int revoked = 0;
 
-	internal ulong ID { get; }
+	internal ulong Id { get; }
 	internal byte[] Data {
 		get {
 			chk();
@@ -32,7 +32,7 @@ public sealed class Font : IRevokable {
 
 	public Font(byte[] data, string? debugName, int faceCount) {
 		ArgumentNullException.ThrowIfNull(data);
-		ID = Interlocked.Increment(ref nextID);
+		Id = Interlocked.Increment(ref nextId);
 		Data = data;
 		DebugName = debugName;
 		FaceCount = faceCount;

@@ -6,18 +6,18 @@ using Injure.Assets;
 namespace Injure.Internals.Tests.Assets;
 
 public sealed class AssetStoreBasicTests {
-	private const string ownerID = "test";
+	private const string ownerId = "test";
 
 	[Fact]
 	public async Task BasicFunctionality() {
 		AssetStore store = new();
 		TestDependencyWatcher watcher = new();
-		store.RegisterSource(ownerID, new TestSource(new TestDependency("dep")), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		AssetStoreRegistration cr = store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
-		AssetStoreRegistration wr = store.RegisterDependencyWatcher(ownerID, watcher, "watcher");
+		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep")), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		AssetStoreRegistration cr = store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		AssetStoreRegistration wr = store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		Assert.False(asset.IsLoaded);
 		Assert.False(asset.TryPassiveBorrow(out _));
 
@@ -25,7 +25,7 @@ public sealed class AssetStoreBasicTests {
 		Assert.True(asset.IsLoaded);
 		Assert.True(asset.TryPassiveBorrow(out AssetLease<TestAsset> lease));
 		Assert.Equal(1ul, lease.Version);
-		Assert.Equal($"{ownerID}::asset", lease.Value.Val);
+		Assert.Equal($"{ownerId}::asset", lease.Value.Val);
 		Assert.Equal([new TestDependency("dep")], lease.Dependencies.CastDepsToArray<TestDependency>());
 		Assert.Equal(["watch:dep"], watcher.Log);
 
@@ -45,7 +45,7 @@ public sealed class AssetStoreBasicTests {
 
 		cr.Remove();
 		Assert.Throws<InvalidOperationException>(() => _ = default(AssetNamespace).Namespace);
-		AssetNamespace n = store.WithNamespace(ownerID);
+		AssetNamespace n = store.WithNamespace(ownerId);
 		AssetRef<TestAsset> asset2 = n.Get<TestAsset>("asset2");
 		Assert.Throws<AssetUnhandledException>(() => _ = asset2.Borrow());
 
@@ -56,10 +56,10 @@ public sealed class AssetStoreBasicTests {
 	[Fact]
 	public void ReloadingWorks() {
 		AssetStore store = new();
-		store.RegisterSource(ownerID, new TestSource(new TestDependency("dep-source")), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
+		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep-source")), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
 		store.RegisterCreator(
-			ownerID,
+			ownerId,
 			new SteppingCreator(
 				new Step("step1", Handled: true, new TestDependency("dep-creator-1")),
 				new Step("step2", Handled: true, new TestDependency("dep-creator-2"))
@@ -67,7 +67,7 @@ public sealed class AssetStoreBasicTests {
 			"creator"
 		);
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		AssetLease<TestAsset> lease = asset.Borrow();
 		Assert.Equal(1ul, lease.Version);
 		Assert.Equal("step1", lease.Value.Val);
@@ -87,13 +87,13 @@ public sealed class AssetStoreBasicTests {
 	[Fact]
 	public void RevocationWorks() {
 		AssetStore store = new();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerID, new TestCreator(), "creator");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		TestAsset v = asset.Borrow().Value;
-		Assert.Equal($"{ownerID}::asset", v.Val);
+		Assert.Equal($"{ownerId}::asset", v.Val);
 
 		asset.QueueReload();
 		int published = store.ApplyQueuedReloadsOrThrow();
@@ -105,17 +105,17 @@ public sealed class AssetStoreBasicTests {
 	[Fact]
 	public void DepsAreDeduplicated() {
 		AssetStore store = new();
-		store.RegisterSource(ownerID, new TestSource(), "source");
-		store.RegisterResolver(ownerID, new TestResolver(), "resolver");
+		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
 		store.RegisterCreator(
-			ownerID,
+			ownerId,
 			new SteppingCreator(
 				new Step("step", Handled: true, new TestDependency("dep-duplicate"), new TestDependency("dep-duplicate"))
 			),
 			"creator"
 		);
 
-		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetID(ownerID, "asset"));
+		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		AssetLease<TestAsset> lease = asset.Borrow();
 		TestDependency[] deps = lease.Dependencies.CastDepsToArray<TestDependency>();
 		Assert.Single(deps);

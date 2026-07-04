@@ -39,8 +39,8 @@ public static class ManifestReader {
 
 		ModPackageKind type = root.RequiredEnum<ModPackageKind>("type");
 
-		string ownerID = root.RequiredString("id");
-		validateOwnerID(ownerID, root.RequiredNode("id"));
+		string ownerId = root.RequiredString("id");
+		validateOwnerId(ownerId, root.RequiredNode("id"));
 
 		Semver version = readSemver(root.RequiredNode("version"), root.RequiredString("version"), "version");
 
@@ -67,7 +67,7 @@ public static class ManifestReader {
 		return type switch {
 			ModPackageKind.Content => parseContent(
 				root,
-				ownerID,
+				ownerId,
 				version,
 				reloadable,
 				displayName,
@@ -80,7 +80,7 @@ public static class ManifestReader {
 			),
 			ModPackageKind.Code => parseCode(
 				root,
-				ownerID,
+				ownerId,
 				version,
 				reloadable,
 				liveReloadable,
@@ -98,7 +98,7 @@ public static class ManifestReader {
 
 	private static ContentModManifest parseContent(
 		JsonObjectReader root,
-		string ownerID,
+		string ownerId,
 		Semver version,
 		bool reloadable,
 		string? displayName,
@@ -112,7 +112,7 @@ public static class ManifestReader {
 		rejectIfPresent(root, "entry-assembly", "entry-assembly is only valid for code mods");
 		rejectIfPresent(root, "contract-assemblies", "contract-assemblies is only valid for code mods");
 		return new ContentModManifest {
-			OwnerID = ownerID,
+			OwnerId = ownerId,
 			Version = version,
 			Reloadable = reloadable,
 			DisplayName = displayName,
@@ -127,7 +127,7 @@ public static class ManifestReader {
 
 	private static CodeModManifest parseCode(
 		JsonObjectReader root,
-		string ownerID,
+		string ownerId,
 		Semver version,
 		bool reloadable,
 		bool liveReloadable,
@@ -143,7 +143,7 @@ public static class ManifestReader {
 		validateRelativePath(entryAssembly, root.RequiredNode("entry-assembly"), "entry assembly");
 		IReadOnlyList<string> contractAssemblies = readContractAssemblies(root.OptionalArray("contract-assemblies"));
 		return new CodeModManifest {
-			OwnerID = ownerID,
+			OwnerId = ownerId,
 			Version = version,
 			Reloadable = reloadable,
 			DisplayName = displayName,
@@ -193,7 +193,7 @@ public static class ManifestReader {
 		if (nodes.Count == 0)
 			return Array.Empty<ModRelationshipManifest>();
 		List<ModRelationshipManifest> result = new(nodes.Count);
-		HashSet<(string OwnerID, ModRelationshipKind Kind)> seenExact = new();
+		HashSet<(string OwnerId, ModRelationshipKind Kind)> seenExact = new();
 		foreach (JNode node in nodes) {
 			JsonObjectReader rel = new(node);
 			rel.RejectUnknownProperties(
@@ -203,8 +203,8 @@ public static class ManifestReader {
 				"description"
 			);
 
-			string ownerID = rel.RequiredString("id");
-			validateOwnerID(ownerID, rel.RequiredNode("id"));
+			string ownerId = rel.RequiredString("id");
+			validateOwnerId(ownerId, rel.RequiredNode("id"));
 
 			ModRelationshipKind kind = ModRelationshipKind.Enum.FromTag(rel.RequiredEnum<ModRelationshipKind.Case>("kind"));
 
@@ -223,12 +223,12 @@ public static class ManifestReader {
 
 			string? description = rel.OptionalString("description");
 
-			if (!seenExact.Add((ownerID, kind)))
-				throw err(rel.RequiredNode("id"), $"duplicate relationship '{JsonObjectReader.ToKebab(kind.ToString())}' for owner '{ownerID}'");
+			if (!seenExact.Add((ownerId, kind)))
+				throw err(rel.RequiredNode("id"), $"duplicate relationship '{JsonObjectReader.ToKebab(kind.ToString())}' for owner '{ownerId}'");
 
 			result.Add(
 				new ModRelationshipManifest {
-					OwnerID = ownerID,
+					OwnerId = ownerId,
 					Kind = kind,
 					Version = version,
 					Description = description,
@@ -281,7 +281,7 @@ public static class ManifestReader {
 			);
 
 			string id = lib.RequiredString("id");
-			validateLocalID(id, lib.RequiredNode("id"), "native library ID");
+			validateLocalId(id, lib.RequiredNode("id"), "native library ID");
 
 			string path = lib.RequiredString("path");
 			validateRelativePath(path, lib.RequiredNode("path"), "native library");
@@ -295,7 +295,7 @@ public static class ManifestReader {
 
 			result.Add(
 				new ModNativeLibraryManifest {
-					ID = id,
+					Id = id,
 					Path = path,
 					RuntimeIdentifier = rid,
 				}
@@ -329,13 +329,13 @@ public static class ManifestReader {
 		}
 	}
 
-	private static void validateOwnerID(string value, JNode node) {
-		if (!ModMetadataValidation.ValidateOwnerID(value, out string? e))
+	private static void validateOwnerId(string value, JNode node) {
+		if (!ModMetadataValidation.ValidateOwnerId(value, out string? e))
 			throw err(node, $"invalid owner ID '{value}': {e}");
 	}
 
-	private static void validateLocalID(string value, JNode node, string what) {
-		if (!ModMetadataValidation.ValidateLocalID(value, out string? e))
+	private static void validateLocalId(string value, JNode node, string what) {
+		if (!ModMetadataValidation.ValidateLocalId(value, out string? e))
 			throw err(node, $"invalid {what} '{value}': {e}");
 	}
 
