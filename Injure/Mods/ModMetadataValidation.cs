@@ -50,7 +50,7 @@ public static class ModMetadataValidation {
 	/// Checks an owner ID for validity, throwing <see cref="ArgumentException"/> if it's invalid.
 	/// </summary>
 	/// <inheritdoc cref="ValidateOwnerId(ReadOnlySpan{char}, out string?)"/>
-	public static void ValidateOwnerIdOrThrow(string s) {
+	public static void ValidateOwnerIdOrThrow([NotNull] string? s) {
 		ArgumentNullException.ThrowIfNull(s);
 		if (!ValidateOwnerId(s, out string? err))
 			throw new ArgumentException(err);
@@ -100,7 +100,7 @@ public static class ModMetadataValidation {
 	/// Checks a local ID for validity, throwing <see cref="ArgumentException"/> if it's invalid.
 	/// </summary>
 	/// <inheritdoc cref="ValidateLocalId(ReadOnlySpan{char}, out string?)"/>
-	public static void ValidateLocalIdOrThrow(string s) {
+	public static void ValidateLocalIdOrThrow([NotNull] string? s) {
 		ArgumentNullException.ThrowIfNull(s);
 		if (!ValidateLocalId(s, out string? err))
 			throw new ArgumentException(err);

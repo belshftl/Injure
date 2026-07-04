@@ -1,54 +1,173 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Injure.Internals.Analyzers.Attributes;
 
 namespace Injure.Mods;
 
+/// <summary>
+/// Thrown when owner-ordering entries or constraints cannot form a valid deterministic order.
+/// </summary>
+/// <param name="message">
+/// Message describing the invalid entry, missing hard target, self-reference, or constraint cycle.
+/// </param>
 public sealed class OwnerOrderingException(string message) : Exception(message) {
 }
 
+/// <summary>
+/// Specifies how an ordering constraint behaves when its target is absent.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A soft constraint is ignored when its target is absent. A hard constraint requires
+/// its target to be present. Soft constraints are otherwise enforced identically to hard constraints;
+/// self-references, cycles, or other unsatisfisable conditions still cause ordering to fail.
+/// </para>
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct OwnerOrderingConstraintKind {
+	/// <summary>Raw switch tag for <see cref="OwnerOrderingConstraintKind"/>.</summary>
 	public enum Case {
+		/// <summary>
+		/// The constraint is to be ignored if its target is absent.
+		/// </summary>
 		Soft = 1,
+
+		/// <summary>
+		/// Ordering is to fail if this constraint's target is absent.
+		/// </summary>
 		Hard,
 	}
 }
 
-public readonly struct OwnerOrderingConstraint {
+/// <summary>
+/// Specifies whether an ordering constraint targets an entire owner or one exact entry.
+/// </summary>
+/// <remarks>
+/// An owner target orders the source entry's entire owner relative to the target owner.
+/// An entry target orders only the source entry relative to the exact target entry.
+/// </remarks>
+[ClosedEnum(DefaultIsInvalid = true)]
+public readonly partial struct OwnerOrderingConstraintTargetKind {
+	public enum Case {
+		Owner = 1,
+		Entry,
+	}
+}
+
+/// <summary>
+/// Identifies the target of an owner-ordering constraint, that being either an entire owner or
+/// one exact entry identified by an owner ID + local ID pair.
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct OwnerOrderingConstraintTarget : IEquatable<OwnerOrderingConstraintTarget> {
+	/// <summary>
+	/// Whether this value targets an entire owner or one exact entry.
+	/// </summary>
+	public OwnerOrderingConstraintTargetKind Kind { get; }
+
+	/// <summary>
+	/// The target owner ID.
+	/// </summary>
 	public string OwnerId { get; }
+
+	/// <summary>
+	/// If <see cref="Kind"/> is <see cref="OwnerOrderingConstraintTargetKind.Entry"/>, the target local ID;
+	/// otherwise, <see langword="null"/>.
+	/// </summary>
+	public string? LocalId { get; }
+
+	private OwnerOrderingConstraintTarget(OwnerOrderingConstraintTargetKind kind, string ownerId, string? localId) {
+		ModMetadataValidation.ValidateOwnerIdOrThrow(ownerId);
+		if (kind == OwnerOrderingConstraintTargetKind.Owner) {
+			if (localId is not null)
+				throw new ArgumentException("an owner target cannot have a local ID", nameof(localId));
+		} else if (kind == OwnerOrderingConstraintTargetKind.Entry) {
+			ModMetadataValidation.ValidateLocalIdOrThrow(localId);
+		} else {
+			throw new UnreachableException();
+		}
+
+		Kind = kind;
+		OwnerId = ownerId;
+		LocalId = localId;
+	}
+
+	public static OwnerOrderingConstraintTarget Owner(string ownerId) =>
+		new(OwnerOrderingConstraintTargetKind.Owner, ownerId, null);
+	public static OwnerOrderingConstraintTarget Entry(string ownerId, string localId) =>
+		new(OwnerOrderingConstraintTargetKind.Entry, ownerId, localId);
+
+	public bool Equals(OwnerOrderingConstraintTarget other) => Kind == other.Kind && OwnerId == other.OwnerId && LocalId == other.LocalId;
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is OwnerOrderingConstraintTarget other && Equals(other);
+	public override int GetHashCode() => HashCode.Combine(Kind, OwnerId, LocalId);
+	public static bool operator ==(OwnerOrderingConstraintTarget left, OwnerOrderingConstraintTarget right) => left.Equals(right);
+	public static bool operator !=(OwnerOrderingConstraintTarget left, OwnerOrderingConstraintTarget right) => !left.Equals(right);
+
+	public override string ToString() => Kind == OwnerOrderingConstraintTargetKind.Entry ? $"{OwnerId}::{LocalId}" : OwnerId;
+}
+
+public readonly struct OwnerOrderingConstraint {
+	public OwnerOrderingConstraintTarget Target { get; }
 	public OwnerOrderingConstraintKind Kind { get; }
 
-	private OwnerOrderingConstraint(string ownerId, OwnerOrderingConstraintKind kind) {
-		ModMetadataValidation.ValidateOwnerIdOrThrow(ownerId);
-		OwnerId = ownerId;
+	private OwnerOrderingConstraint(OwnerOrderingConstraintTarget target, OwnerOrderingConstraintKind kind) {
+		validateTarget(target);
+		Target = target;
 		Kind = kind;
 	}
 
-	public static OwnerOrderingConstraint Soft(string ownerId) => new(ownerId, OwnerOrderingConstraintKind.Soft);
-	public static OwnerOrderingConstraint Hard(string ownerId) => new(ownerId, OwnerOrderingConstraintKind.Hard);
+	public static OwnerOrderingConstraint SoftOwner(string ownerId) =>
+		Soft(OwnerOrderingConstraintTarget.Owner(ownerId));
+
+	public static OwnerOrderingConstraint HardOwner(string ownerId) =>
+		Hard(OwnerOrderingConstraintTarget.Owner(ownerId));
+
+	public static OwnerOrderingConstraint SoftEntry(string ownerId, string localId) =>
+		Soft(OwnerOrderingConstraintTarget.Entry(ownerId, localId));
+
+	public static OwnerOrderingConstraint HardEntry(string ownerId, string localId) =>
+		Hard(OwnerOrderingConstraintTarget.Entry(ownerId, localId));
+
+	public static OwnerOrderingConstraint Soft(OwnerOrderingConstraintTarget target) =>
+		new(target, OwnerOrderingConstraintKind.Soft);
+
+	public static OwnerOrderingConstraint Hard(OwnerOrderingConstraintTarget target) =>
+		new(target, OwnerOrderingConstraintKind.Hard);
+
+	private static void validateTarget(OwnerOrderingConstraintTarget target) {
+		ModMetadataValidation.ValidateOwnerIdOrThrow(target.OwnerId);
+		if (target.Kind == OwnerOrderingConstraintTargetKind.Entry) {
+			ModMetadataValidation.ValidateLocalIdOrThrow(target.LocalId);
+		} else if (target.LocalId is not null) {
+			throw new ArgumentException("an owner target cannot have a local ID", nameof(target));
+		}
+	}
 }
 
 public sealed class OwnerOrderedEntry<T> {
-	private readonly OwnerOrderingConstraint[] beforeOwners;
-	private readonly OwnerOrderingConstraint[] afterOwners;
+	private readonly OwnerOrderingConstraint[] before;
+	private readonly OwnerOrderingConstraint[] after;
 
 	public T Item { get; }
 	public string OwnerId { get; }
 	public string LocalId { get; }
 	public int LocalPriority { get; }
-	public IReadOnlyList<OwnerOrderingConstraint> BeforeOwners => beforeOwners;
-	public IReadOnlyList<OwnerOrderingConstraint> AfterOwners => afterOwners;
+
+	public IReadOnlyList<OwnerOrderingConstraint> Before => before;
+	public IReadOnlyList<OwnerOrderingConstraint> After => after;
 
 	public OwnerOrderedEntry(
 		T item,
 		string ownerId,
 		string localId,
 		int localPriority = 0,
-		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
-		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
+		IEnumerable<OwnerOrderingConstraint>? before = null,
+		IEnumerable<OwnerOrderingConstraint>? after = null
 	) {
 		ArgumentNullException.ThrowIfNull(item);
 		ModMetadataValidation.ValidateOwnerIdOrThrow(ownerId);
@@ -57,31 +176,39 @@ public sealed class OwnerOrderedEntry<T> {
 		OwnerId = ownerId;
 		LocalId = localId;
 		LocalPriority = localPriority;
-		this.beforeOwners = fold(beforeOwners, nameof(beforeOwners));
-		this.afterOwners = fold(afterOwners, nameof(afterOwners));
+		this.before = fold(before, nameof(before));
+		this.after = fold(after, nameof(after));
 	}
 
-	private static OwnerOrderingConstraint[] fold(IEnumerable<OwnerOrderingConstraint>? owners, string paramName) {
-		if (owners is null)
+	private static OwnerOrderingConstraint[] fold(IEnumerable<OwnerOrderingConstraint>? constraints, string paramName) {
+		if (constraints is null)
 			return Array.Empty<OwnerOrderingConstraint>();
-		HashSet<string> seen = new(StringComparer.Ordinal);
+		HashSet<OwnerOrderingConstraintTarget> seen = new();
 		List<OwnerOrderingConstraint> list = new();
-		foreach (OwnerOrderingConstraint cons in owners) {
-			if (!seen.Add(cons.OwnerId))
-				throw new ArgumentException("owner list cannot contain duplicates", paramName);
-			list.Add(cons);
+		foreach (OwnerOrderingConstraint constraint in constraints) {
+			if (!seen.Add(constraint.Target))
+				throw new ArgumentException($"constraint list contains duplicate target '{constraint.Target}'", paramName);
+			list.Add(constraint);
 		}
 		return list.Count == 0 ? Array.Empty<OwnerOrderingConstraint>() : list.ToArray();
 	}
 }
 
 public static class OwnerOrderedSorter {
-	private sealed class Node<T>(string ownerId) {
+	private sealed class OwnerNode<T>(string ownerId) {
 		public readonly string OwnerId = ownerId;
 		public readonly HashSet<string> LocalIds = new(StringComparer.Ordinal);
-		public readonly HashSet<string> Outgoing = new(StringComparer.Ordinal);
-		public readonly List<OwnerOrderedEntry<T>> Items = new();
+		public readonly HashSet<string> OutgoingOwners = new(StringComparer.Ordinal);
+		public readonly List<EntryNode<T>> Entries = new();
 		public int InDegree;
+	}
+
+	private sealed class EntryNode<T>(OwnerOrderedEntry<T> entry, OwnerNode<T> owner) {
+		public readonly OwnerOrderedEntry<T> Entry = entry;
+		public readonly OwnerNode<T> Owner = owner;
+		public readonly HashSet<EntryNode<T>> Outgoing = new();
+		public int InDegree;
+		public int BaselineIndex;
 	}
 
 	private enum VisitState {
@@ -90,142 +217,315 @@ public static class OwnerOrderedSorter {
 	}
 
 	public static T[] Sort<T>(IReadOnlyList<OwnerOrderedEntry<T>> entries) {
-		Dictionary<string, Node<T>> nodes = new(StringComparer.Ordinal);
+		ArgumentNullException.ThrowIfNull(entries);
+		Dictionary<string, OwnerNode<T>> owners = new(StringComparer.Ordinal);
+		Dictionary<(string OwnerId, string LocalId), EntryNode<T>> entriesById = new();
+
 		foreach (OwnerOrderedEntry<T> entry in entries) {
-			if (!nodes.TryGetValue(entry.OwnerId, out Node<T>? node)) {
-				node = new Node<T>(entry.OwnerId);
-				nodes.Add(entry.OwnerId, node);
+			ArgumentNullException.ThrowIfNull(entry);
+
+			if (!owners.TryGetValue(entry.OwnerId, out OwnerNode<T>? owner)) {
+				owner = new OwnerNode<T>(entry.OwnerId);
+				owners.Add(entry.OwnerId, owner);
 			}
-			if (!node.LocalIds.Add(entry.LocalId))
+			if (!owner.LocalIds.Add(entry.LocalId))
 				throw new OwnerOrderingException($"duplicate LocalId '{entry.LocalId}' for owner '{entry.OwnerId}'");
-			node.Items.Add(entry);
+
+			EntryNode<T> node = new(entry, owner);
+			owner.Entries.Add(node);
+			entriesById.Add((entry.OwnerId, entry.LocalId), node);
 		}
 
-		foreach (Node<T> node in nodes.Values) {
-			foreach (OwnerOrderedEntry<T> entry in node.Items) {
-				foreach (OwnerOrderingConstraint before in entry.BeforeOwners)
-					addConstraintEdge(nodes, entry, before, node.OwnerId, before.OwnerId, "before");
-				foreach (OwnerOrderingConstraint after in entry.AfterOwners)
-					addConstraintEdge(nodes, entry, after, after.OwnerId, node.OwnerId, "after");
+		foreach (OwnerNode<T> owner in owners.Values) {
+			owner.Entries.Sort(static (a, b) => {
+				int cmp = a.Entry.LocalPriority.CompareTo(b.Entry.LocalPriority);
+				if (cmp != 0)
+					return cmp;
+				cmp = StringComparer.Ordinal.Compare(a.Entry.LocalId, b.Entry.LocalId);
+				if (cmp == 0)
+					throw new InternalStateException("duplicate LocalId got into local-priority sort");
+				return cmp;
+			});
+		}
+
+		bool hasEntryConstraints = false;
+
+		foreach (OwnerNode<T> owner in owners.Values) {
+			foreach (EntryNode<T> source in owner.Entries) {
+				foreach (OwnerOrderingConstraint constraint in source.Entry.Before) {
+					if (constraint.Target.Kind == OwnerOrderingConstraintTargetKind.Owner)
+						addOwnerConstraintEdge(owners, source.Entry, constraint, source.Entry.OwnerId, constraint.Target.OwnerId, "before");
+					else
+						hasEntryConstraints = true;
+				}
+
+				foreach (OwnerOrderingConstraint constraint in source.Entry.After) {
+					if (constraint.Target.Kind == OwnerOrderingConstraintTargetKind.Owner)
+						addOwnerConstraintEdge(owners, source.Entry, constraint, constraint.Target.OwnerId, source.Entry.OwnerId, "after");
+					else
+						hasEntryConstraints = true;
+				}
 			}
 		}
 
-		SortedSet<string> ready = new(StringComparer.Ordinal);
-		foreach (Node<T> node in nodes.Values)
-			if (node.InDegree == 0)
-				ready.Add(node.OwnerId);
+		List<OwnerNode<T>> orderedOwners = sortOwners(owners);
+		return !hasEntryConstraints
+			? flattenOwners(orderedOwners, entries.Count)
+			: sortEntries(owners, orderedOwners, entriesById, entries.Count);
+	}
 
-		List<Node<T>> ordered = new(nodes.Count);
+	private static List<OwnerNode<T>> sortOwners<T>(Dictionary<string, OwnerNode<T>> owners) {
+		SortedSet<string> ready = new(StringComparer.Ordinal);
+
+		foreach (OwnerNode<T> owner in owners.Values)
+			if (owner.InDegree == 0)
+				ready.Add(owner.OwnerId);
+		List<OwnerNode<T>> ordered = new(owners.Count);
+
 		while (ready.Count > 0) {
 			string ownerId = ready.Min!;
 			ready.Remove(ownerId);
-			Node<T> node = nodes[ownerId];
-			ordered.Add(node);
-			foreach (string nextID in node.Outgoing) {
-				Node<T> next = nodes[nextID];
+			OwnerNode<T> owner = owners[ownerId];
+			ordered.Add(owner);
+			foreach (string nextId in owner.OutgoingOwners) {
+				OwnerNode<T> next = owners[nextId];
 				if (--next.InDegree == 0)
-					ready.Add(nextID);
+					ready.Add(nextId);
 			}
 		}
-		if (ordered.Count != nodes.Count) {
-			List<string>? cycle = findCycle(nodes);
+
+		if (ordered.Count != owners.Count) {
+			List<string>? cycle = findOwnerCycle(owners);
 			string msg = "ordering constraints are unsatisfiable";
 			if (cycle is not null)
 				msg += ": " + string.Join(" -> ", cycle) + " -> " + cycle[0];
 			throw new OwnerOrderingException(msg);
 		}
 
-		// sort within owners by local priority
-		var result = new T[entries.Count];
-		int resultidx = 0;
-		foreach (Node<T> node in ordered) {
-			node.Items.Sort(static (a, b) => {
-					int n = a.LocalPriority.CompareTo(b.LocalPriority);
-					if (n != 0)
-						return n;
-					n = StringComparer.Ordinal.Compare(a.LocalId, b.LocalId);
-					if (n == 0)
-						throw new InternalStateException("duplicate LocalId got into local-priority sort");
-					return n;
-				}
-			);
-			foreach (OwnerOrderedEntry<T> ent in node.Items)
-				result[resultidx++] = ent.Item;
-		}
+		return ordered;
+	}
+
+	private static T[] flattenOwners<T>(IReadOnlyList<OwnerNode<T>> orderedOwners, int count) {
+		var result = new T[count];
+		int i = 0;
+		foreach (OwnerNode<T> owner in orderedOwners)
+			foreach (EntryNode<T> entry in owner.Entries)
+				result[i++] = entry.Entry.Item;
 		return result;
 	}
 
-	private static void addConstraintEdge<T>(
-		Dictionary<string, Node<T>> nodes,
-		OwnerOrderedEntry<T> entry,
+	private static T[] sortEntries<T>(
+		Dictionary<string, OwnerNode<T>> owners,
+		IReadOnlyList<OwnerNode<T>> orderedOwners,
+		Dictionary<(string OwnerId, string LocalId), EntryNode<T>> entriesById,
+		int count
+	) {
+		var entriesByBaseline = new EntryNode<T>[count];
+		int baselineIndex = 0;
+		foreach (OwnerNode<T> owner in orderedOwners) {
+			foreach (EntryNode<T> entry in owner.Entries) {
+				entry.BaselineIndex = baselineIndex;
+				entriesByBaseline[baselineIndex++] = entry;
+			}
+		}
+
+		foreach (OwnerNode<T> owner in owners.Values)
+			for (int i = 1; i < owner.Entries.Count; i++)
+				addEntryEdge(owner.Entries[i - 1], owner.Entries[i]);
+
+		// owner-level A -> B means every entry of A precedes every entry of B,
+		// and since entries within each owner are chained, this requires only
+		// one edge (from A's last entry to B's first)
+		foreach (OwnerNode<T> owner in owners.Values) {
+			EntryNode<T> lastSource = owner.Entries[^1];
+			foreach (string targetOwnerId in owner.OutgoingOwners)
+				addEntryEdge(lastSource, owners[targetOwnerId].Entries[0]);
+		}
+
+		foreach (OwnerNode<T> owner in owners.Values) {
+			foreach (EntryNode<T> source in owner.Entries) {
+				foreach (OwnerOrderingConstraint constraint in source.Entry.Before) {
+					if (constraint.Target.Kind != OwnerOrderingConstraintTargetKind.Entry)
+						continue;
+					addEntryConstraintEdge(entriesById, source, constraint, source, "before");
+				}
+
+				foreach (OwnerOrderingConstraint constraint in source.Entry.After) {
+					if (constraint.Target.Kind != OwnerOrderingConstraintTargetKind.Entry)
+						continue;
+					addEntryConstraintEdge(entriesById, source, constraint, source, "after");
+				}
+			}
+		}
+
+		SortedSet<int> ready = new();
+
+		foreach (EntryNode<T> entry in entriesByBaseline)
+			if (entry.InDegree == 0)
+				ready.Add(entry.BaselineIndex);
+		var result = new T[count];
+		int resultIndex = 0;
+
+		while (ready.Count > 0) {
+			int idx = ready.Min;
+			ready.Remove(idx);
+			EntryNode<T> entry = entriesByBaseline[idx];
+			result[resultIndex++] = entry.Entry.Item;
+			foreach (EntryNode<T> next in entry.Outgoing) {
+				if (--next.InDegree == 0)
+					ready.Add(next.BaselineIndex);
+			}
+		}
+
+		if (resultIndex != count) {
+			List<EntryNode<T>>? cycle = findEntryCycle(entriesByBaseline);
+			string msg = "ordering constraints are unsatisfiable";
+			if (cycle is not null)
+				msg += ": " + string.Join(" -> ", cycle.Select(formatEntryId)) + " -> " + formatEntryId(cycle[0]);
+			throw new OwnerOrderingException(msg);
+		}
+
+		return result;
+	}
+
+	private static void addOwnerConstraintEdge<T>(
+		Dictionary<string, OwnerNode<T>> owners,
+		OwnerOrderedEntry<T> sourceEntry,
 		OwnerOrderingConstraint constraint,
 		string fromOwnerId,
 		string toOwnerId,
 		string direction
 	) {
-		if (!nodes.ContainsKey(constraint.OwnerId)) {
+		if (!owners.ContainsKey(constraint.Target.OwnerId)) {
 			if (constraint.Kind == OwnerOrderingConstraintKind.Hard)
 				throw new OwnerOrderingException(
-					$"owner '{entry.OwnerId}' local '{entry.LocalId}' has hard '{direction}' constraint targeting unknown owner '{constraint.OwnerId}'"
+					$"owner '{sourceEntry.OwnerId}' local '{sourceEntry.LocalId}' has hard '{direction}' constraint targeting unknown owner '{constraint.Target.OwnerId}'"
 				);
 			return;
 		}
-		addEdge(nodes, fromOwnerId, toOwnerId);
+		addOwnerEdge(owners, fromOwnerId, toOwnerId);
 	}
 
-	private static void addEdge<T>(Dictionary<string, Node<T>> nodes, string fromOwnerId, string toOwnerId) {
+	private static void addOwnerEdge<T>(
+		Dictionary<string, OwnerNode<T>> owners,
+		string fromOwnerId,
+		string toOwnerId
+	) {
 		if (string.IsNullOrWhiteSpace(fromOwnerId) || string.IsNullOrWhiteSpace(toOwnerId))
 			throw new OwnerOrderingException("null/empty/whitespace references are not allowed");
-		if (StringComparer.Ordinal.Equals(fromOwnerId, toOwnerId))
-			throw new OwnerOrderingException($"owner '{fromOwnerId}' has a self-reference");
-		if (!nodes.TryGetValue(fromOwnerId, out Node<T>? fromNode))
+		if (fromOwnerId == toOwnerId)
+			throw new OwnerOrderingException($"owner '{fromOwnerId}' has an owner-level self-reference");
+		if (!owners.TryGetValue(fromOwnerId, out OwnerNode<T>? from))
 			throw new OwnerOrderingException($"unknown source owner '{fromOwnerId}'");
-		if (!nodes.TryGetValue(toOwnerId, out Node<T>? toNode))
+		if (!owners.TryGetValue(toOwnerId, out OwnerNode<T>? to))
 			throw new OwnerOrderingException($"unknown target owner '{toOwnerId}'");
-		if (fromNode.Outgoing.Add(toOwnerId))
-			toNode.InDegree++;
+		if (from.OutgoingOwners.Add(toOwnerId))
+			to.InDegree++;
 	}
 
-	private static List<string>? findCycle<T>(Dictionary<string, Node<T>> nodes) {
-		HashSet<string> remaining = new(
-			nodes.Where(static (kvp) => kvp.Value.InDegree > 0).Select(static (kvp) => kvp.Key),
-			StringComparer.Ordinal
-		);
+	private static void addEntryConstraintEdge<T>(
+		Dictionary<(string OwnerId, string LocalId), EntryNode<T>> entriesById,
+		EntryNode<T> source,
+		OwnerOrderingConstraint constraint,
+		EntryNode<T> declaringEntry,
+		string direction
+	) {
+		string targetLocalId = constraint.Target.LocalId ?? throw new InternalStateException("entry constraint has no local ID");
+		if (!entriesById.TryGetValue((constraint.Target.OwnerId, targetLocalId), out EntryNode<T>? target)) {
+			if (constraint.Kind == OwnerOrderingConstraintKind.Hard)
+				throw new OwnerOrderingException(
+					$"owner '{declaringEntry.Entry.OwnerId}' local '{declaringEntry.Entry.LocalId}' has hard '{direction}' constraint targeting unknown entry '{constraint.Target.OwnerId}::{targetLocalId}'"
+				);
+			return;
+		}
+		if (direction == "before")
+			addEntryEdge(source, target);
+		else if (direction == "after")
+			addEntryEdge(target, source);
+		else
+			throw new InternalStateException($"unknown ordering direction '{direction}'");
+	}
+
+	private static void addEntryEdge<T>(EntryNode<T> from, EntryNode<T> to) {
+		if (ReferenceEquals(from, to))
+			throw new OwnerOrderingException($"entry '{formatEntryId(from)}' has a self-reference");
+		if (from.Outgoing.Add(to))
+			to.InDegree++;
+	}
+
+	private static List<string>? findOwnerCycle<T>(Dictionary<string, OwnerNode<T>> owners) {
+		HashSet<string> remaining = new(owners.Where(static kvp => kvp.Value.InDegree > 0).Select(static kvp => kvp.Key), StringComparer.Ordinal);
 		Dictionary<string, VisitState> state = new(StringComparer.Ordinal);
-		// not a Stack<string> so we can find a node already on the stack easily
 		List<string> stack = new();
 		Dictionary<string, int> stackIndex = new(StringComparer.Ordinal);
 		List<string>? cycle = null;
-
-		// iterate by Ordinal order instead of the nondeterministic hashset iter order
-		foreach (string id in remaining.OrderBy(static x => x, StringComparer.Ordinal)) {
-			if (state.ContainsKey(id))
+		foreach (string ownerId in remaining.OrderBy(static id => id, StringComparer.Ordinal)) {
+			if (state.ContainsKey(ownerId))
 				continue;
-			dfs(id);
+			visit(ownerId);
 			if (cycle is not null)
 				return cycle;
 		}
 		return null;
 
-		void dfs(string id) {
-			state[id] = VisitState.Visiting;
-			stackIndex[id] = stack.Count;
-			stack.Add(id);
-			foreach (string nextID in nodes[id].Outgoing.Where(remaining.Contains).OrderBy(static x => x, StringComparer.Ordinal))
-				if (!state.TryGetValue(nextID, out VisitState nextState)) {
-					dfs(nextID);
+		void visit(string ownerId) {
+			state[ownerId] = VisitState.Visiting;
+			stackIndex[ownerId] = stack.Count;
+			stack.Add(ownerId);
+			foreach (string nextId in owners[ownerId].OutgoingOwners.Where(remaining.Contains).OrderBy(static id => id, StringComparer.Ordinal)) {
+				if (!state.TryGetValue(nextId, out VisitState nextState)) {
+					visit(nextId);
 					if (cycle is not null)
 						return;
 				} else if (nextState == VisitState.Visiting) {
-					int start = stackIndex[nextID];
+					int start = stackIndex[nextId];
 					cycle = stack.GetRange(start, stack.Count - start);
 					return;
 				}
+			}
 			stack.RemoveAt(stack.Count - 1);
-			stackIndex.Remove(id);
-			state[id] = VisitState.Done;
+			stackIndex.Remove(ownerId);
+			state[ownerId] = VisitState.Done;
 		}
 	}
+
+	private static List<EntryNode<T>>? findEntryCycle<T>(IReadOnlyList<EntryNode<T>> entries) {
+		HashSet<EntryNode<T>> remaining = new(entries.Where(static e => e.InDegree > 0));
+		Dictionary<EntryNode<T>, VisitState> state = new();
+		List<EntryNode<T>> stack = new();
+		Dictionary<EntryNode<T>, int> stackIndex = new();
+		List<EntryNode<T>>? cycle = null;
+		foreach (EntryNode<T> entry in remaining.OrderBy(static e => e.BaselineIndex)) {
+			if (state.ContainsKey(entry))
+				continue;
+			visit(entry);
+			if (cycle is not null)
+				return cycle;
+		}
+		return null;
+
+		void visit(EntryNode<T> entry) {
+			state[entry] = VisitState.Visiting;
+			stackIndex[entry] = stack.Count;
+			stack.Add(entry);
+			foreach (EntryNode<T> next in entry.Outgoing.Where(remaining.Contains).OrderBy(static next => next.BaselineIndex)) {
+				if (!state.TryGetValue(next, out VisitState nextState)) {
+					visit(next);
+					if (cycle is not null)
+						return;
+				} else if (nextState == VisitState.Visiting) {
+					int start = stackIndex[next];
+					cycle = stack.GetRange(start, stack.Count - start);
+					return;
+				}
+			}
+			stack.RemoveAt(stack.Count - 1);
+			stackIndex.Remove(entry);
+			state[entry] = VisitState.Done;
+		}
+	}
+
+	private static string formatEntryId<T>(EntryNode<T> entry) => $"{entry.Entry.OwnerId}::{entry.Entry.LocalId}";
 }
 
 /// <summary>
