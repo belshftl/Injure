@@ -23,9 +23,9 @@ public static class HookEmitter {
 
 			addStringConstant(module, container, candidate.ConstantName, candidate.ID);
 
-			TypeDefinition origDelegate = createOrigDelegate(module, candidate);
-			container.NestedTypes.Add(origDelegate);
-			delegateTypes.Add(candidate, origDelegate);
+			TypeDefinition nextDelegate = createNextDelegate(module, candidate);
+			container.NestedTypes.Add(nextDelegate);
+			delegateTypes.Add(candidate, nextDelegate);
 		}
 
 		return delegateTypes;
@@ -90,10 +90,10 @@ public static class HookEmitter {
 		container.Fields.Add(fieldDefinition);
 	}
 
-	private static TypeDefinition createOrigDelegate(ModuleDefinition module, HookCandidate candidate) {
+	private static TypeDefinition createNextDelegate(ModuleDefinition module, HookCandidate candidate) {
 		TypeDefinition delegateType = new(
 			"",
-			candidate.OrigDelegateName,
+			candidate.NextDelegateName,
 			TypeAttributes.NestedPublic |
 			TypeAttributes.Sealed |
 			TypeAttributes.AnsiClass |
@@ -125,14 +125,14 @@ public static class HookEmitter {
 			ImplAttributes = MethodImplAttributes.Runtime | MethodImplAttributes.Managed,
 		};
 
-		foreach (ParameterDefinition parameter in getOrigDelegateParameters(module, candidate.Method))
+		foreach (ParameterDefinition parameter in getNextDelegateParameters(module, candidate.Method))
 			invoke.Parameters.Add(parameter);
 
 		delegateType.Methods.Add(invoke);
 		return delegateType;
 	}
 
-	private static IEnumerable<ParameterDefinition> getOrigDelegateParameters(ModuleDefinition module, MethodDefinition method) {
+	private static IEnumerable<ParameterDefinition> getNextDelegateParameters(ModuleDefinition module, MethodDefinition method) {
 		if (method.HasThis) {
 			TypeReference selfType = module.ImportReference(method.DeclaringType);
 

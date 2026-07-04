@@ -35,7 +35,7 @@ public static class StoreEmitter {
 		);
 		module.Types.Add(storeType);
 
-		ArrayType hookTargetArrayType = new(ij.HookTargetType);
+		ArrayType hookTargetArrayType = new(ij.HookTargetDefinitionType);
 		FieldDefinition targetsField = new(
 			"targets",
 			FieldAttributes.Private |
@@ -91,21 +91,21 @@ public static class StoreEmitter {
 		);
 
 		il.Emit(OpCodes.Ldc_I4, candidates.Count);
-		il.Emit(OpCodes.Newarr, ij.HookTargetType);
+		il.Emit(OpCodes.Newarr, ij.HookTargetDefinitionType);
 
 		for (int i = 0; i < candidates.Count; i++) {
 			HookCandidate candidate = candidates[i];
-			TypeDefinition origDelegateType = delegateTypes[candidate];
+			TypeDefinition nextDelegateType = delegateTypes[candidate];
 
 			il.Emit(OpCodes.Dup);
 			il.Emit(OpCodes.Ldc_I4, i);
 			il.Emit(OpCodes.Ldstr, candidate.ID);
 			il.Emit(OpCodes.Ldtoken, module.ImportReference(candidate.Method));
 			il.Emit(OpCodes.Call, getMethodFromHandle);
-			il.Emit(OpCodes.Ldtoken, origDelegateType);
+			il.Emit(OpCodes.Ldtoken, nextDelegateType);
 			il.Emit(OpCodes.Call, getTypeFromHandle);
-			il.Emit(OpCodes.Newobj, ij.HookTargetCtor);
-			il.Emit(OpCodes.Stelem_Any, ij.HookTargetType);
+			il.Emit(OpCodes.Newobj, ij.HookTargetDefinitionCtor);
+			il.Emit(OpCodes.Stelem_Any, ij.HookTargetDefinitionType);
 		}
 
 		il.Emit(OpCodes.Stsfld, targetsField);

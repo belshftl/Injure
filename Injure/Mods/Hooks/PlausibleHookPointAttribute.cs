@@ -1,18 +1,18 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-namespace Injure.Mods.MonoMod;
+namespace Injure.Mods.Hooks;
 
 // use open enums since 1) these are just informational and 2) you can't have the closed enum
 // types in an attribute
 
 /// <summary>
-/// Set of MonoMod hook types that a plausible-hook-point method explicitly says it supports.
+/// Set of hook types that a plausible-hook-point method explicitly says it supports.
 /// </summary>
 [Flags]
-public enum MonoModHookKinds {
+public enum HookPointHookKinds {
 	/// <summary>
-	/// Normal hooks (also sometimes known as <c>On.</c> hooks) are explicitly supported.
+	/// Plain managed hooks are explicitly supported.
 	/// </summary>
 	Hook = 1 << 0,
 
@@ -317,20 +317,20 @@ public enum HookPointEffects {
 }
 
 /// <summary>
-/// Marks a suggested MonoMod hook point in this binary/DLL. This attribute is currently purely for
-/// information and easier discovery of relevant locations in source code / decompiler output and
-/// serves no functional runtime purpose.
+/// Marks a suggested hook point in this binary/DLL. This attribute is currently purely for information
+/// and easier discovery of relevant locations in source code / decompiler output and serves no
+/// functional runtime purpose.
 /// </summary>
 /// <remarks>
 /// This does <b>not</b> imply in any way that the marked method is a stable API; it may be removed,
 /// have its signature/name changed, etc. at any point without notice. This is merely an informational
 /// marker for a plausible hook point in a specific build of a game, intended to be discoverable in e.g
 /// decompilations. If you are the game developer and want to expose a stable hook-point API for mods,
-/// roll something of your own that doesn't depend on MonoMod patching.
+/// roll something of your own that doesn't depend on runtime patching.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, AllowMultiple = true, Inherited = false)]
-public sealed class PlausibleMonoModHookPointAttribute : Attribute {
-	public MonoModHookKinds SupportedKinds { get; init; } = MonoModHookKinds.Hook | MonoModHookKinds.ILHook;
+public sealed class PlausibleHookPointAttribute : Attribute {
+	public HookPointHookKinds SupportedKinds { get; init; } = HookPointHookKinds.Hook | HookPointHookKinds.ILHook;
 	public HookPointReloadBoundary ReloadBoundary { get; init; } = HookPointReloadBoundary.Unspecified;
 	public HookPointThreadAffinity ThreadAffinity { get; init; } = HookPointThreadAffinity.Unspecified;
 	public HookPointBlockingPolicy Blocking { get; init; } = HookPointBlockingPolicy.Unspecified;

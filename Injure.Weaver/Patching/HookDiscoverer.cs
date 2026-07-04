@@ -51,7 +51,7 @@ public static class HookDiscoverer {
 
 	private static bool hasHookPointAttribute(MethodDefinition method) {
 		foreach (CustomAttribute attribute in method.CustomAttributes)
-			if (attribute.AttributeType.Name == "PlausibleMonoModHookPointAttribute")
+			if (attribute.AttributeType.Name == "PlausibleHookPointAttribute")
 				return true;
 		return false;
 	}
@@ -76,7 +76,7 @@ public static class HookDiscoverer {
 			Method = method,
 			ContainerName = container,
 			ConstantName = TypeNameUtil.SanitizeIdentifier(methodBase + suffix),
-			OrigDelegateName = TypeNameUtil.SanitizeIdentifier("orig_" + methodBase + suffix),
+			NextDelegateName = TypeNameUtil.SanitizeIdentifier("next_" + methodBase + suffix),
 		};
 	}
 }

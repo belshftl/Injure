@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-namespace Injure.Mods.MonoMod;
+using System.ComponentModel;
 
-[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
+namespace Injure.Mods.Hooks;
+
+[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class ModHookTargetStoreAttribute(Type storeType) : Attribute {
 	public Type StoreType { get; } = storeType;
 }

@@ -9,8 +9,8 @@ public sealed class InjureReferences {
 	public const string PublicizedAttributeFullName = "Injure.Mods.Weaver.PublicizedAttribute";
 	public const string PublicizedSignatureAttributeFullName = "Injure.Mods.Weaver.PublicizedSignatureAttribute";
 	public const string PublicizedStateMachineAttributeFullName = "Injure.Mods.Weaver.PublicizedStateMachineAttribute";
-	public const string ModHookTargetStoreAttributeFullName = "Injure.Mods.MonoMod.ModHookTargetStoreAttribute";
-	public const string HookTargetFullName = "Injure.Mods.MonoMod.HookTarget";
+	public const string ModHookTargetStoreAttributeFullName = "Injure.Mods.Hooks.ModHookTargetStoreAttribute";
+	public const string HookTargetDefinitionFullName = "Injure.Mods.Hooks.HookTargetDefinition";
 
 	public required TypeReference PublicizedAttributeType { get; init; }
 	public required MethodReference PublicizedAttributeCtor { get; init; }
@@ -24,8 +24,8 @@ public sealed class InjureReferences {
 	public required TypeReference ModHookTargetStoreAttributeType { get; init; }
 	public required MethodReference ModHookTargetStoreAttributeCtor { get; init; }
 
-	public required TypeReference HookTargetType { get; init; }
-	public required MethodReference HookTargetCtor { get; init; }
+	public required TypeReference HookTargetDefinitionType { get; init; }
+	public required MethodReference HookTargetDefinitionCtor { get; init; }
 }
 
 public static class InjureReferenceResolver {
@@ -58,9 +58,9 @@ public static class InjureReferenceResolver {
 				ctor.Parameters.Count == 1 && ctor.Parameters[0].ParameterType.FullName == "System.Type"
 		);
 
-		TypeDefinition hookTarget = findRequiredType(module, InjureReferences.HookTargetFullName);
-		MethodDefinition hookTargetCtor = findCtor(
-			hookTarget,
+		TypeDefinition hookTargetDefinition = findRequiredType(module, InjureReferences.HookTargetDefinitionFullName);
+		MethodDefinition hookTargetDefinitionCtor = findCtor(
+			hookTargetDefinition,
 			static ctor =>
 				ctor.Parameters.Count == 3 &&
 				ctor.Parameters[0].ParameterType.FullName == "System.String" &&
@@ -77,8 +77,8 @@ public static class InjureReferenceResolver {
 			PublicizedStateMachineAttributeCtor = module.ImportReference(publicizedStateMachineCtor),
 			ModHookTargetStoreAttributeType = module.ImportReference(storeAttribute),
 			ModHookTargetStoreAttributeCtor = module.ImportReference(storeAttributeCtor),
-			HookTargetType = module.ImportReference(hookTarget),
-			HookTargetCtor = module.ImportReference(hookTargetCtor),
+			HookTargetDefinitionType = module.ImportReference(hookTargetDefinition),
+			HookTargetDefinitionCtor = module.ImportReference(hookTargetDefinitionCtor),
 		};
 	}
 

@@ -17,12 +17,12 @@ public readonly struct HookCandidate : IEquatable<HookCandidate> {
 	public required MethodDefinition Method { get; init; }
 	public required string ContainerName { get; init; }
 	public required string ConstantName { get; init; }
-	public required string OrigDelegateName { get; init; }
+	public required string NextDelegateName { get; init; }
 
 	public bool Equals(HookCandidate other) => Kind == other.Kind && ID == other.ID && Method == other.Method &&
-		ContainerName == other.ContainerName && ConstantName == other.ConstantName && OrigDelegateName == other.OrigDelegateName;
+		ContainerName == other.ContainerName && ConstantName == other.ConstantName && NextDelegateName == other.NextDelegateName;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is HookCandidate other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine(Kind, ID, Method, ContainerName, ConstantName, OrigDelegateName);
+	public override int GetHashCode() => HashCode.Combine(Kind, ID, Method, ContainerName, ConstantName, NextDelegateName);
 	public static bool operator ==(HookCandidate left, HookCandidate right) => left.Equals(right);
 	public static bool operator !=(HookCandidate left, HookCandidate right) => !left.Equals(right);
 }
