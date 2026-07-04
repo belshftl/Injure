@@ -14,7 +14,7 @@ internal static partial class JsonExceptionMessageSuffixRegex {
 	public static partial Regex Re();
 }
 
-public static partial class LocatedJsonParser {
+public static class LocatedJsonParser {
 	public static JNode Parse(string sourceName, string text) => Parse(new SourceText(sourceName, text));
 
 	public static JNode Parse(SourceText source) {
