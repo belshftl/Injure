@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 
-namespace Injure.Analyzers.Core;
+namespace Injure.Analyzers.CodeAnalysis;
 
 internal static class TypeSymbolExtensions {
 	extension([NotNullWhen(true)] ITypeSymbol? type) {

@@ -7,12 +7,12 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace Injure.Analyzers.Core;
+namespace Injure.Analyzers.CodeAnalysis;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class DontImplementAnalyzer : DiagnosticAnalyzer {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
-		Diagnostics.Core.DontImplementInterface
+		Diagnostics.CodeAnalysis.DontImplementInterface
 	);
 
 	public override void Initialize(AnalysisContext context) {
@@ -114,7 +114,7 @@ public sealed class DontImplementAnalyzer : DiagnosticAnalyzer {
 						continue;
 					c.ReportDiagnostic(
 						Diagnostic.Create(
-							Diagnostics.Core.DontImplementInterface,
+							Diagnostics.CodeAnalysis.DontImplementInterface,
 							loc,
 							iface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
 						)

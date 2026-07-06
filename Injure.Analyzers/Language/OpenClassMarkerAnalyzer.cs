@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Injure.Analyzers.Core;
+namespace Injure.Analyzers.Language;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class OpenClassMarkerAnalyzer : DiagnosticAnalyzer {

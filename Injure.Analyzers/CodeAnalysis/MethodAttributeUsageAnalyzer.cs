@@ -6,14 +6,14 @@ using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace Injure.Analyzers.Core;
+namespace Injure.Analyzers.CodeAnalysis;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MethodAttributeUsageAnalyzer : DiagnosticAnalyzer {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
-		Diagnostics.Core.InvalidMethodAttributeUsageTarget,
-		Diagnostics.Core.ContradictoryMethodAttributeUsageConstraints,
-		Diagnostics.Core.MethodAttributeUsageConstraintViolation
+		Diagnostics.CodeAnalysis.InvalidMethodAttributeUsageTarget,
+		Diagnostics.CodeAnalysis.ContradictoryMethodAttributeUsageConstraints,
+		Diagnostics.CodeAnalysis.MethodAttributeUsageConstraintViolation
 	);
 
 	public override void Initialize(AnalysisContext context) {
@@ -41,14 +41,14 @@ public sealed class MethodAttributeUsageAnalyzer : DiagnosticAnalyzer {
 		Location loc = getAttrLocation(usage, type, ctx.CancellationToken);
 
 		if (!type.DerivesFrom(known.Attribute))
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.InvalidMethodAttributeUsageTarget, loc, type.ToDisplayString()));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.CodeAnalysis.InvalidMethodAttributeUsageTarget, loc, type.ToDisplayString()));
 
 		if (!tryGetConstraints(usage, out MethodConstraintsMirror constraints))
 			return;
 
 		string? contradictions = getContradictions(constraints);
 		if (contradictions is not null)
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.ContradictoryMethodAttributeUsageConstraints, loc, type.ToDisplayString(), contradictions));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.CodeAnalysis.ContradictoryMethodAttributeUsageConstraints, loc, type.ToDisplayString(), contradictions));
 	}
 
 	private static void analyzeMethod(SymbolAnalysisContext ctx, KnownTypes known) {
@@ -74,7 +74,7 @@ public sealed class MethodAttributeUsageAnalyzer : DiagnosticAnalyzer {
 				if (usage.ApplicationSyntaxReference is null)
 					ctx.ReportDiagnostic(
 						Diagnostic.Create(
-							Diagnostics.Core.ContradictoryMethodAttributeUsageConstraints,
+							Diagnostics.CodeAnalysis.ContradictoryMethodAttributeUsageConstraints,
 							loc,
 							attrType.ToDisplayString(),
 							contradictions
@@ -86,7 +86,7 @@ public sealed class MethodAttributeUsageAnalyzer : DiagnosticAnalyzer {
 			string? violations = getViolations(method, constraints);
 			if (violations is null)
 				continue;
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.MethodAttributeUsageConstraintViolation, loc, attrType.ToDisplayString(), violations));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.CodeAnalysis.MethodAttributeUsageConstraintViolation, loc, attrType.ToDisplayString(), violations));
 		}
 	}
 

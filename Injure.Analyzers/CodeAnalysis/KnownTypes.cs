@@ -3,7 +3,7 @@
 
 using Microsoft.CodeAnalysis;
 
-namespace Injure.Analyzers.Core;
+namespace Injure.Analyzers.CodeAnalysis;
 
 internal sealed class KnownTypes(Compilation comp) {
 	public INamedTypeSymbol? Attribute { get; } = comp.GetTypeByMetadataName(KnownTypeMetadataNames.Attribute);
