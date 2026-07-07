@@ -6,8 +6,7 @@ using Injure.Mods;
 namespace TestMod.Contracts;
 
 [ModLifetimeIdentityBelongsTo("jdoe.test-mod")]
-public readonly struct TestModL : IModLifetimeIdentity {
-}
+public readonly struct TestModL : IModLifetimeIdentity;
 
 public interface ITestModExports : IModExportContract<TestModL> {
 	void DoSomething();

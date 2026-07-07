@@ -7,6 +7,7 @@ using Injure.Mods.Hooks.Il;
 
 namespace Injure.Mods.Hooks;
 
+[DontCache]
 [DontImplement]
 public interface IModHookDeclarations<L> where L : struct, IModLifetimeIdentity {
 	void DeclareHook(string targetId, MethodInfo hookMethod, in ModHookConfig config);

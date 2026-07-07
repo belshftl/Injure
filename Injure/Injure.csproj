@@ -35,14 +35,17 @@
 		<PackageReference Include="Alimer.Bindings.WebGPU" Version="1.6.0" />
 		<PackageReference Include="Alimer.WebGPU.Native" Version="1.0.4" />
 
+		<!-- asset decoding -->
+		<PackageReference Include="StbImageSharp" Version="2.30.15" />
+
 		<!-- text -->
 		<PackageReference Include="FreeTypeSharp" Version="3.1.0" />
 		<PackageReference Include="HarfBuzzSharp" Version="8.3.1.3" />
 		<PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="8.3.1.3" />
 		<PackageReference Include="FriBidiNative" Version="1.0.10" />
 
-		<!-- asset decoding -->
-		<PackageReference Include="StbImageSharp" Version="2.30.15" />
+		<!-- mods -->
+		<PackageReference Include="Mono.Cecil" Version="0.11.6" />
 	</ItemGroup>
 
 	<ItemGroup>

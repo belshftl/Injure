@@ -18,6 +18,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Mono.Cecil" Version="0.11.6" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<Using Include="Xunit" />
 		<AssemblyMetadata Include="ProjectRoot" Value="$(MSBuildProjectDirectory)" />
 		<AssemblyMetadata Include="RepoRoot" Value="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'Injure.slnx'))" />

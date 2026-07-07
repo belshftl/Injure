@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.CodeAnalysis;
-using Injure.Mods.MonoMod;
+using Injure.Mods.Hooks;
 using Injure.Runtime;
 
 namespace Injure.Mods;
 
+[DontCache]
 [DontImplement]
 public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIdentity {
 	string OwnerId { get; }
@@ -18,12 +19,14 @@ public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIden
 	DiagnosticsSinkRegistry DiagnosticsSinkRegistry { get; }
 }
 
+[DontCache]
 [DontImplement]
 public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IModHookDeclarations<L> LoadHooks { get; }
 	IModExportDeclarations<L> Exports { get; }
 }
 
+[DontCache]
 [DontImplement]
 public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	// TODO: IModHookDeclarations<L> LinkHooks { get; }
@@ -37,12 +40,14 @@ public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> whe
 	LoadedCodeDepInfo<L, LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity;
 }
 
+[DontCache]
 [DontImplement]
 public interface IModActivateContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	GameServices GameServices { get; }
 	IBoundedScope<L> ActivationScope { get; }
 }
 
+[DontCache]
 [DontImplement]
 public interface IModReloadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IReadOnlySet<string> ReloadSet { get; }

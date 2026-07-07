@@ -6,7 +6,6 @@
 	<Project Path="Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj" />
 	<Project Path="Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj" />
 	<Project Path="Injure.Mods.Runtime/Injure.Mods.Runtime.csproj" />
-	<Project Path="Injure.Mods.Utils/Injure.Mods.Utils.csproj" />
 	<Project Path="Injure.Native/Injure.Native.csproj" />
 	<Project Path="Injure.Weaver/Injure.Weaver.csproj" />
 </Solution>
