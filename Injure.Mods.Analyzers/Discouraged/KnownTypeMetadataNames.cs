@@ -17,8 +17,8 @@ internal static class KnownMetadataNames {
 	public const string ModExportNameAttribute = "MonoMod.ModInterop.ModExportNameAttribute";
 	public const string ModImportNameAttribute = "MonoMod.ModInterop.ModImportNameAttribute";
 
-	public const string IModLoadContext = "Injure.Mods.IModLoadContext`2";
-	public const string IModLinkContext = "Injure.Mods.IModLinkContext`2";
-	public const string IModActivateContext = "Injure.Mods.IModActivateContext`2";
-	public const string IModReloadContext = "Injure.Mods.IModReloadContext`2";
+	public const string IModLoadContext = "Injure.Mods.Abstractions.IModLoadContext`2";
+	public const string IModLinkContext = "Injure.Mods.Abstractions.IModLinkContext`2";
+	public const string IModActivateContext = "Injure.Mods.Abstractions.IModActivateContext`2";
+	public const string IModReloadContext = "Injure.Mods.Abstractions.IModReloadContext`2";
 }

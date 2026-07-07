@@ -23,7 +23,7 @@ public sealed class AssetStoreCycleTests {
 		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "assetA"));
-		asset.Warm();
+		asset.Warm(TestContext.Current.CancellationToken);
 	}
 
 	[Fact]
@@ -43,7 +43,7 @@ public sealed class AssetStoreCycleTests {
 		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "assetA"));
-		AssetLoadCycleException ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm());
+		AssetLoadCycleException ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm(TestContext.Current.CancellationToken));
 		Assert.Contains($"{nameof(TestAsset)}({ownerId}::assetA) -> {nameof(TestAsset)}({ownerId}::assetA)", ex.Message, StringComparison.Ordinal);
 	}
 
@@ -62,7 +62,7 @@ public sealed class AssetStoreCycleTests {
 		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "assetA"));
-		AssetLoadCycleException ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm());
+		AssetLoadCycleException ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm(TestContext.Current.CancellationToken));
 		Assert.Contains(
 			$"{nameof(TestAsset)}({ownerId}::assetA) -> {nameof(TestAsset)}({ownerId}::assetB) -> {nameof(TestAsset)}({ownerId}::assetA)",
 			ex.Message,
@@ -78,7 +78,7 @@ public sealed class AssetStoreCycleTests {
 		};
 
 		asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "assetA"));
-		ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm());
+		ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm(TestContext.Current.CancellationToken));
 		Assert.Contains(
 			$"{nameof(TestAsset)}({ownerId}::assetA) -> {nameof(TestAsset)}({ownerId}::assetB) -> {nameof(TestAsset)}({ownerId}::assetC) -> {nameof(TestAsset)}({ownerId}::assetD) -> {nameof(TestAsset)}({ownerId}::assetE) -> {nameof(TestAsset)}({ownerId}::assetA)",
 			ex.Message,

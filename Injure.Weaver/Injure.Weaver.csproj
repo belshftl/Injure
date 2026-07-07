@@ -4,10 +4,11 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+
 		<PublishAot>true</PublishAot>
 		<InvariantGlobalization>true</InvariantGlobalization>
 		<TrimMode>full</TrimMode>
-		<NoWarn>$(NoWarn);IL2104</NoWarn> <!-- Mono.Cecil has some trim warnings, but we don't seem to use any of the problematic features -->
+		<NoWarn>$(NoWarn);IL2104</NoWarn> <!-- Mono.Cecil has some trim warnings, but we don't use any of the problematic features -->
 
 		<PackageId>Injure.Weaver</PackageId>
 		<Version>0.1.0-alpha.0</Version>

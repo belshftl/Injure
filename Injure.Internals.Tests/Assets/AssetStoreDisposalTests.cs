@@ -17,7 +17,7 @@ public sealed class AssetStoreDisposalTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
 		Assert.Equal(1, creator.PreparedDisposeCalls);
 	}
@@ -31,8 +31,8 @@ public sealed class AssetStoreDisposalTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
-		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+		await asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		store.ApplyQueuedReloadsOrThrow();
 
 		Assert.Equal(2, creator.PreparedDisposeCalls);
@@ -47,9 +47,9 @@ public sealed class AssetStoreDisposalTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		creator.FinalizeException = new InvalidOperationException("finalize failed");
-		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		store.ApplyQueuedReloads();
 
 		Assert.Equal(2, creator.PreparedDisposeCalls);
@@ -64,11 +64,11 @@ public sealed class AssetStoreDisposalTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
-		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+		await asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.True(asset.HasQueuedReload);
 
-		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.True(asset.HasQueuedReload);
 		store.ApplyQueuedReloadsOrThrow();
 

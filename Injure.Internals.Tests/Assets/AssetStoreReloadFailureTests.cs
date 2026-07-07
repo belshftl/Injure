@@ -19,11 +19,11 @@ public sealed class AssetStoreReloadFailureTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		ulong oldver = asset.Borrow().Version;
 
 		creator.PrepareException = ex;
-		ForeignException fex = await Assert.ThrowsAsync<ForeignException>(() => asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100)));
+		ForeignException fex = await Assert.ThrowsAsync<ForeignException>(() => asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
 		Assert.Equal(ex.GetType().FullName, fex.OriginalFullTypeName);
 		Assert.Equal(ex.Message, fex.OriginalMessage);
 		Assert.False(asset.HasQueuedReload);
@@ -54,7 +54,7 @@ public sealed class AssetStoreReloadFailureTests {
 		store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		creator.PrepareException = ex;
 
 		watcher.Raise(dep);
@@ -87,11 +87,11 @@ public sealed class AssetStoreReloadFailureTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		TestAsset oldValue = asset.Borrow().Value;
 		creator.FinalizeException = ex;
 
-		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.True(asset.HasQueuedReload);
 
 		AssetReloadReport report = store.ApplyQueuedReloads();
@@ -123,9 +123,9 @@ public sealed class AssetStoreReloadFailureTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		creator.FinalizeException = ex;
-		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
 		AggregateException aggregate = Assert.Throws<AggregateException>(() => store.ApplyQueuedReloadsOrThrow());
 		Assert.Single(aggregate.InnerExceptions);
@@ -144,16 +144,16 @@ public sealed class AssetStoreReloadFailureTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
 		creator.PrepareException = new InvalidOperationException("prepare failed");
-		ForeignException fex = await Assert.ThrowsAsync<ForeignException>(() => asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100)));
+		ForeignException fex = await Assert.ThrowsAsync<ForeignException>(() => asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
 		Assert.Equal(typeof(InvalidOperationException).FullName, fex.OriginalFullTypeName);
 		Assert.NotNull(asset.LastReloadFailure);
 
 		creator.PrepareException = null;
 		creator.OverrideValue = "recovered";
-		await asset.QueueReloadAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.Equal(1, store.ApplyQueuedReloadsOrThrow());
 
 		AssetLease<TestAsset> lease = asset.Borrow();

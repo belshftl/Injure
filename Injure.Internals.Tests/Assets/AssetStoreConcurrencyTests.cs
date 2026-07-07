@@ -19,7 +19,7 @@ public sealed class AssetStoreConcurrencyTests {
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		Assert.False(asset.IsLoaded);
 
-		ulong[] ids = await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => asset.Borrow().Value.ID))).WaitAsync(TimeSpan.FromMilliseconds(100));
+		ulong[] ids = await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => asset.Borrow().Value.ID))).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.Equal(1, creator.PrepareCalls);
 		Assert.Equal(1, creator.FinalizeCalls);
 		Assert.True(ids.All(id => id == ids[0]));
@@ -36,7 +36,7 @@ public sealed class AssetStoreConcurrencyTests {
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		Assert.False(asset.IsLoaded);
 
-		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => asset.WarmAsync())).WaitAsync(TimeSpan.FromMilliseconds(100));
+		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => asset.WarmAsync())).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.Equal(1, creator.PrepareCalls);
 		Assert.Equal(1, creator.FinalizeCalls);
 		Assert.True(asset.TryPassiveBorrow(out AssetLease<TestAsset> lease));
@@ -52,9 +52,9 @@ public sealed class AssetStoreConcurrencyTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
-		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => asset.QueueReloadAsync())).WaitAsync(TimeSpan.FromMilliseconds(100));
+		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => asset.QueueReloadAsync())).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.True(asset.HasQueuedReload);
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
@@ -73,9 +73,9 @@ public sealed class AssetStoreConcurrencyTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
-		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => asset.QueueReloadAsync()))).WaitAsync(TimeSpan.FromMilliseconds(100));
+		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => asset.QueueReloadAsync()))).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.True(asset.HasQueuedReload);
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
@@ -96,9 +96,9 @@ public sealed class AssetStoreConcurrencyTests {
 		store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
-		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => watcher.Raise(new TestDependency("dep"))))).WaitAsync(TimeSpan.FromMilliseconds(100));
+		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => watcher.Raise(new TestDependency("dep"))))).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		await AssetTestWait.ForQueuedReloadAsync(asset);
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
@@ -125,14 +125,14 @@ public sealed class AssetStoreConcurrencyTests {
 
 		AssetRef<TestAsset> assetA = store.GetAsset<TestAsset>(a);
 		AssetRef<TestAsset> assetB = store.GetAsset<TestAsset>(b);
-		Task warmA = assetA.WarmAsync();
-		Task warmB = assetB.WarmAsync();
+		Task warmA = assetA.WarmAsync(TestContext.Current.CancellationToken);
+		Task warmB = assetB.WarmAsync(TestContext.Current.CancellationToken);
 
-		await ckp.TargetReached.WaitAsync(TimeSpan.FromMilliseconds(100));
+		await ckp.TargetReached.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.Equal(2, ckp.EnteredCount);
 
 		ckp.Proceed();
-		await Task.WhenAll(warmA, warmB).WaitAsync(TimeSpan.FromMilliseconds(100));
+		await Task.WhenAll(warmA, warmB).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.Equal(2, creator.PrepareCalls);
 		Assert.Equal(2, creator.FinalizeCalls);
 	}
@@ -154,12 +154,12 @@ public sealed class AssetStoreConcurrencyTests {
 		Task warm2 = asset.WarmAsync(cts2.Token);
 		Task warm3 = asset.WarmAsync(cts3.Token);
 
-		await ckp.Entered.WaitAsync(TimeSpan.FromMilliseconds(100));
+		await ckp.Entered.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		cts2.Cancel();
-		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => warm2.WaitAsync(TimeSpan.FromMilliseconds(100)));
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => warm2.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
 
 		ckp.Proceed();
-		await Task.WhenAll(warm1, warm3).WaitAsync(TimeSpan.FromMilliseconds(100));
+		await Task.WhenAll(warm1, warm3).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.Equal(1, creator.PrepareCalls);
 		Assert.Equal(1, creator.FinalizeCalls);
 		Assert.True(asset.TryPassiveBorrow(out AssetLease<TestAsset> lease));
@@ -176,19 +176,19 @@ public sealed class AssetStoreConcurrencyTests {
 		store.RegisterStagedCreator(ownerId, creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync().WaitAsync(TimeSpan.FromMilliseconds(100));
+		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
 		using CancellationTokenSource cts1 = new();
 		using CancellationTokenSource cts2 = new();
 		Task reload1 = asset.QueueReloadAsync(cts1.Token);
-		await block.Checkpoint.Entered.WaitAsync(TimeSpan.FromMilliseconds(100));
+		await block.Checkpoint.Entered.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Task reload2 = asset.QueueReloadAsync(cts2.Token);
 
 		cts1.Cancel();
-		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reload1.WaitAsync(TimeSpan.FromMilliseconds(100)));
+		await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reload1.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
 
 		block.Checkpoint.Proceed();
-		await reload2.WaitAsync(TimeSpan.FromMilliseconds(100));
+		await reload2.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.Equal(1, store.ApplyQueuedReloadsOrThrow());
 		Assert.Equal(3ul, asset.Borrow().Version);
 		Assert.Null(asset.LastReloadFailure);

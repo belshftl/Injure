@@ -21,7 +21,7 @@ public sealed class AssetStoreWatcherTests {
 		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		asset.Warm();
+		asset.Warm(TestContext.Current.CancellationToken);
 
 		Assert.Equal(["watch:dep"], watcherA.Log);
 		Assert.Equal(["watch:dep"], watcherB.Log);
@@ -41,7 +41,7 @@ public sealed class AssetStoreWatcherTests {
 		store.RegisterDependencyWatcher(ownerId, watcherA, "watcher-a");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		asset.Warm();
+		asset.Warm(TestContext.Current.CancellationToken);
 
 		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
 
@@ -62,7 +62,7 @@ public sealed class AssetStoreWatcherTests {
 		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		await asset.WarmAsync();
+		await asset.WarmAsync(TestContext.Current.CancellationToken);
 		watcherB.Raise(dep);
 		await AssetTestWait.ForQueuedReloadAsync(asset);
 
@@ -89,8 +89,8 @@ public sealed class AssetStoreWatcherTests {
 		store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		asset.Warm();
-		asset.QueueReload();
+		asset.Warm(TestContext.Current.CancellationToken);
+		asset.QueueReload(TestContext.Current.CancellationToken);
 		store.ApplyQueuedReloadsOrThrow();
 
 		Assert.Equal(["watch:dep-a", "unwatch:dep-a", "watch:dep-b"], watcher.Log);
@@ -109,7 +109,7 @@ public sealed class AssetStoreWatcherTests {
 		AssetStoreRegistration r = store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		asset.Warm();
+		asset.Warm(TestContext.Current.CancellationToken);
 		r.Remove();
 
 		watcher.Raise(dep);

@@ -28,7 +28,7 @@ internal static class KnownTypeMetadataNames {
 	public const string AssemblyLoadContext = "System.Runtime.Loader.AssemblyLoadContext";
 	public const string Process = "System.Diagnostics.Process";
 
-	public const string BoundedCt = "Injure.Mods.BoundedCt`1";
+	public const string BoundedCt = "Injure.Mods.Abstractions.BoundedCt`1";
 
 	public const string DoesNotCreateObligationAttribute = "Injure.Mods.CodeAnalysis.DoesNotCreateObligationAttribute";
 	public const string ObligationAttribute = "Injure.Mods.CodeAnalysis.ObligationAttribute";

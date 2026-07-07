@@ -21,7 +21,7 @@ public sealed class AssetStoreBasicTests {
 		Assert.False(asset.IsLoaded);
 		Assert.False(asset.TryPassiveBorrow(out _));
 
-		asset.Warm();
+		asset.Warm(TestContext.Current.CancellationToken);
 		Assert.True(asset.IsLoaded);
 		Assert.True(asset.TryPassiveBorrow(out AssetLease<TestAsset> lease));
 		Assert.Equal(1ul, lease.Version);
@@ -73,7 +73,7 @@ public sealed class AssetStoreBasicTests {
 		Assert.Equal("step1", lease.Value.Val);
 		Assert.Equal([new TestDependency("dep-source"), new TestDependency("dep-creator-1")], lease.Dependencies.CastDepsToArray<TestDependency>());
 
-		asset.QueueReload();
+		asset.QueueReload(TestContext.Current.CancellationToken);
 		Assert.True(asset.HasQueuedReload);
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
@@ -95,7 +95,7 @@ public sealed class AssetStoreBasicTests {
 		TestAsset v = asset.Borrow().Value;
 		Assert.Equal($"{ownerId}::asset", v.Val);
 
-		asset.QueueReload();
+		asset.QueueReload(TestContext.Current.CancellationToken);
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
 

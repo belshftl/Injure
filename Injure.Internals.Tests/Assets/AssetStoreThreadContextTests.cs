@@ -51,10 +51,10 @@ public sealed class AssetStoreThreadContextTests {
 		);
 		thread.Start();
 
-		Assert.True(first.Entered.Wait(TimeSpan.FromMilliseconds(100)));
+		Assert.True(first.Entered.Wait(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
 		if (ex is not null)
 			throw ex;
-		asset.QueueReload();
+		asset.QueueReload(TestContext.Current.CancellationToken);
 		store.AtSafeBoundary();
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
@@ -62,7 +62,7 @@ public sealed class AssetStoreThreadContextTests {
 
 		store.AtSafeBoundary();
 		first.Proceed();
-		Assert.True(second.Entered.Wait(TimeSpan.FromMilliseconds(100)));
+		Assert.True(second.Entered.Wait(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
 		if (ex is not null)
 			throw ex;
 		Assert.Throws<AssetLeaseExpiredException>(() => _ = v.Val);
@@ -99,10 +99,10 @@ public sealed class AssetStoreThreadContextTests {
 		);
 		thread.Start();
 
-		Assert.True(ckp.Entered.Wait(TimeSpan.FromMilliseconds(100)));
+		Assert.True(ckp.Entered.Wait(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
 		if (ex is not null)
 			throw ex;
-		asset.QueueReload();
+		asset.QueueReload(TestContext.Current.CancellationToken);
 		store.AtSafeBoundary();
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);

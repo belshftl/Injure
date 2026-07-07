@@ -21,7 +21,7 @@ public sealed class AssetStoreFetchTests {
 		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(mainID);
-		asset.Warm();
+		asset.Warm(TestContext.Current.CancellationToken);
 
 		Assert.False(resolver.SawOptionalStream);
 	}
@@ -38,7 +38,7 @@ public sealed class AssetStoreFetchTests {
 		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(mainID);
-		Assert.Throws<AssetUnhandledException>(() => asset.Warm());
+		Assert.Throws<AssetUnhandledException>(() => asset.Warm(TestContext.Current.CancellationToken));
 	}
 
 	[Fact]
@@ -50,7 +50,7 @@ public sealed class AssetStoreFetchTests {
 		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
-		asset.Warm();
+		asset.Warm(TestContext.Current.CancellationToken);
 
 		Assert.NotNull(source.LastStream);
 		Assert.True(source.LastStream.Disposed);
