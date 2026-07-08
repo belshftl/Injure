@@ -40,6 +40,11 @@ public sealed class MonoModBackendTests {
 		public const int NormalDelegateTargetReturn = 67;
 		public const int PatchedDelegateTargetReturnDiv3 = 0xbeef;
 		public const int PatchedDelegateTargetReturn = PatchedDelegateTargetReturnDiv3 * 3;
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		public static int LabelTarget() => NormalLabelTargetReturn;
+		public const int NormalLabelTargetReturn = 99;
+		public const int PatchedLabelTargetReturn = 0xcafe;
 	}
 
 	[Fact]
@@ -151,5 +156,38 @@ public sealed class MonoModBackendTests {
 			Assert.Equal(Targets.PatchedDelegateTargetReturn, Targets.DelegateTarget());
 		}
 		Assert.Equal(Targets.NormalDelegateTargetReturn, Targets.DelegateTarget());
+	}
+
+	[Fact]
+	public void LabelOperandsGetNormalized() {
+		MethodInfo target = typeof(Targets).GetMethod(nameof(Targets.LabelTarget))!;
+		var registration = IlManipulatorRegistration.Create<TestL>(
+			"mod",
+			"hook",
+			static ctx => {
+				IlLabel target = ctx.DefineLabel();
+				ctx.EmitAtStart(e => {
+					e.Br(target);
+				});
+				ctx.MatchNext(
+					[MatchIl.Ret],
+					IlPatternProvenanceConstraint.AllFromOwner("game")
+				).EmitBefore(e => {
+					e.MarkLabel(target);
+					e.LdcI4(Targets.PatchedLabelTargetReturn);
+				});
+			}
+		);
+		MonoModRuntimeHookBackend backend = new();
+
+		Assert.Equal(Targets.NormalLabelTargetReturn, Targets.LabelTarget());
+		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(new IlHookPipelineInstallRequest {
+			TargetMethod = target,
+			BaselineOwnerId = "game",
+			GetSnapshot = () => [registration],
+		})) {
+			Assert.Equal(Targets.PatchedLabelTargetReturn, Targets.LabelTarget());
+		}
+		Assert.Equal(Targets.NormalLabelTargetReturn, Targets.LabelTarget());
 	}
 }
