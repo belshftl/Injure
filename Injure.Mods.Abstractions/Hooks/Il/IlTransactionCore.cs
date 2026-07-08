@@ -296,13 +296,21 @@ internal sealed class IlTransactionCore(
 	private Instruction lowerInstr(IlInstructionSpec spec) {
 		return spec.Kind switch {
 			IlInstructionSpecKind.Raw => createRawInstr(spec.OpCode, spec.Operand),
-			IlInstructionSpecKind.Ldarg => createLdarg(spec.Integer),
-			IlInstructionSpecKind.Ldloc => createLdloc(spec.Integer),
-			IlInstructionSpecKind.Stloc => createStloc(spec.Integer),
-			IlInstructionSpecKind.LdcI4 => createLdcI4(spec.Integer),
-			IlInstructionSpecKind.ManagedDelegate => throw new IlPipelineException("managed delegates must be lowered as fragments"),
+
+			IlInstructionSpecKind.LdcI4 => createLdcI4(spec.Int),
+
+			IlInstructionSpecKind.Ldarg => createLdarg(spec.Int),
+			IlInstructionSpecKind.Ldarga => createLongOrShortArgInstr(spec.Int, OpCodes.Ldarga_S, OpCodes.Ldarga),
+			IlInstructionSpecKind.Starg => createLongOrShortArgInstr(spec.Int, OpCodes.Starg_S, OpCodes.Starg),
+
+			IlInstructionSpecKind.Ldloc => createLdloc(spec.Int),
+			IlInstructionSpecKind.Ldloca => createLdloca(spec.Int),
+			IlInstructionSpecKind.Stloc => createStloc(spec.Int),
+
 			IlInstructionSpecKind.Branch => Instruction.Create(spec.OpCode, Instruction.Create(OpCodes.Nop)),
 			IlInstructionSpecKind.Switch => Instruction.Create(OpCodes.Switch, Array.Empty<Instruction>()),
+
+			IlInstructionSpecKind.ManagedDelegate => throw new InternalStateException("managed delegates should be lowered as fragments"),
 			_ => throw new IlPipelineException($"unsupported IL instruction specification kind '{spec.Kind}'"),
 		};
 	}
@@ -316,67 +324,6 @@ internal sealed class IlTransactionCore(
 			instr.Operand = spec.Labels!.Select(label => labelTargets[label.LabelId]).ToArray();
 			break;
 		}
-	}
-
-	private Instruction createLdarg(int idx) {
-		int argumentCount = snapshot.Method.Parameters.Count + (snapshot.Method.HasThis ? 1 : 0);
-		if ((uint)idx >= (uint)argumentCount)
-			throw new IlPipelineException($"IL argument index {idx} is invalid for method '{snapshot.Method.FullName}'");
-		return idx switch {
-			0 => Instruction.Create(OpCodes.Ldarg_0),
-			1 => Instruction.Create(OpCodes.Ldarg_1),
-			2 => Instruction.Create(OpCodes.Ldarg_2),
-			3 => Instruction.Create(OpCodes.Ldarg_3),
-			_ => Instruction.Create(idx <= byte.MaxValue ? OpCodes.Ldarg_S : OpCodes.Ldarg, getParameterForIlArgument(idx)),
-		};
-	}
-
-	private ParameterDefinition getParameterForIlArgument(int idx) {
-		int paramIdx = snapshot.Method.HasThis ? idx - 1 : idx;
-		if ((uint)paramIdx >= (uint)snapshot.Method.Parameters.Count)
-			throw new IlPipelineException($"IL argument index {idx} is invalid for method '{snapshot.Method.FullName}'");
-		return snapshot.Method.Parameters[paramIdx];
-	}
-
-	private Instruction createLdloc(int idx) {
-		if ((uint)idx >= (uint)working.Body.Variables.Count)
-			throw new IlPipelineException($"IL local index {idx} is invalid for method '{snapshot.Method.FullName}'");
-		return idx switch {
-			0 => Instruction.Create(OpCodes.Ldloc_0),
-			1 => Instruction.Create(OpCodes.Ldloc_1),
-			2 => Instruction.Create(OpCodes.Ldloc_2),
-			3 => Instruction.Create(OpCodes.Ldloc_3),
-			_ => Instruction.Create(idx <= byte.MaxValue ? OpCodes.Ldloc_S : OpCodes.Ldloc, working.Body.Variables[idx]),
-		};
-	}
-
-	private Instruction createStloc(int idx) {
-		if ((uint)idx >= (uint)working.Body.Variables.Count)
-			throw new IlPipelineException($"IL local index {idx} is invalid for method '{snapshot.Method.FullName}'");
-		return idx switch {
-			0 => Instruction.Create(OpCodes.Stloc_0),
-			1 => Instruction.Create(OpCodes.Stloc_1),
-			2 => Instruction.Create(OpCodes.Stloc_2),
-			3 => Instruction.Create(OpCodes.Stloc_3),
-			_ => Instruction.Create(idx <= byte.MaxValue ? OpCodes.Stloc_S : OpCodes.Stloc, working.Body.Variables[idx]),
-		};
-	}
-
-	private static Instruction createLdcI4(int v) {
-		return v switch {
-			-1 => Instruction.Create(OpCodes.Ldc_I4_M1),
-			0 => Instruction.Create(OpCodes.Ldc_I4_0),
-			1 => Instruction.Create(OpCodes.Ldc_I4_1),
-			2 => Instruction.Create(OpCodes.Ldc_I4_2),
-			3 => Instruction.Create(OpCodes.Ldc_I4_3),
-			4 => Instruction.Create(OpCodes.Ldc_I4_4),
-			5 => Instruction.Create(OpCodes.Ldc_I4_5),
-			6 => Instruction.Create(OpCodes.Ldc_I4_6),
-			7 => Instruction.Create(OpCodes.Ldc_I4_7),
-			8 => Instruction.Create(OpCodes.Ldc_I4_8),
-			>= sbyte.MinValue and <= sbyte.MaxValue => Instruction.Create(OpCodes.Ldc_I4_S, (sbyte)v),
-			_ => Instruction.Create(OpCodes.Ldc_I4, v),
-		};
 	}
 
 	private Instruction createRawInstr(OpCode opCode, object? operand) {
@@ -453,6 +400,80 @@ internal sealed class IlTransactionCore(
 		}
 	}
 
+	private static Instruction createLdcI4(int v) {
+		return v switch {
+			-1 => Instruction.Create(OpCodes.Ldc_I4_M1),
+			0 => Instruction.Create(OpCodes.Ldc_I4_0),
+			1 => Instruction.Create(OpCodes.Ldc_I4_1),
+			2 => Instruction.Create(OpCodes.Ldc_I4_2),
+			3 => Instruction.Create(OpCodes.Ldc_I4_3),
+			4 => Instruction.Create(OpCodes.Ldc_I4_4),
+			5 => Instruction.Create(OpCodes.Ldc_I4_5),
+			6 => Instruction.Create(OpCodes.Ldc_I4_6),
+			7 => Instruction.Create(OpCodes.Ldc_I4_7),
+			8 => Instruction.Create(OpCodes.Ldc_I4_8),
+			>= sbyte.MinValue and <= sbyte.MaxValue => Instruction.Create(OpCodes.Ldc_I4_S, (sbyte)v),
+			_ => Instruction.Create(OpCodes.Ldc_I4, v),
+		};
+	}
+
+	private Instruction createLdarg(int idx) {
+		int argumentCount = snapshot.Method.Parameters.Count + (snapshot.Method.HasThis ? 1 : 0);
+		if ((uint)idx >= (uint)argumentCount)
+			throw new IlPipelineException($"IL argument index {idx} is invalid for method '{snapshot.Method.FullName}'");
+		return idx switch {
+			0 => Instruction.Create(OpCodes.Ldarg_0),
+			1 => Instruction.Create(OpCodes.Ldarg_1),
+			2 => Instruction.Create(OpCodes.Ldarg_2),
+			3 => Instruction.Create(OpCodes.Ldarg_3),
+			_ => Instruction.Create(idx <= byte.MaxValue ? OpCodes.Ldarg_S : OpCodes.Ldarg, getParameterForIlArgument(idx)),
+		};
+	}
+
+	private Instruction createLongOrShortArgInstr(int idx, OpCode @short, OpCode @long) {
+		int argumentCount = snapshot.Method.Parameters.Count + (snapshot.Method.HasThis ? 1 : 0);
+		if ((uint)idx >= (uint)argumentCount)
+			throw new IlPipelineException($"IL argument index {idx} is invalid for method '{snapshot.Method.FullName}'");
+		return Instruction.Create(idx <= byte.MaxValue ? @short : @long, getParameterForIlArgument(idx));
+	}
+
+	private ParameterDefinition getParameterForIlArgument(int idx) {
+		int paramIdx = snapshot.Method.HasThis ? idx - 1 : idx;
+		if ((uint)paramIdx >= (uint)snapshot.Method.Parameters.Count)
+			throw new IlPipelineException($"IL argument index {idx} is invalid for method '{snapshot.Method.FullName}'");
+		return snapshot.Method.Parameters[paramIdx];
+	}
+
+	private Instruction createLdloc(int idx) {
+		if ((uint)idx >= (uint)working.Body.Variables.Count)
+			throw new IlPipelineException($"IL local index {idx} is invalid for method '{snapshot.Method.FullName}'");
+		return idx switch {
+			0 => Instruction.Create(OpCodes.Ldloc_0),
+			1 => Instruction.Create(OpCodes.Ldloc_1),
+			2 => Instruction.Create(OpCodes.Ldloc_2),
+			3 => Instruction.Create(OpCodes.Ldloc_3),
+			_ => Instruction.Create(idx <= byte.MaxValue ? OpCodes.Ldloc_S : OpCodes.Ldloc, working.Body.Variables[idx]),
+		};
+	}
+
+	private Instruction createLdloca(int idx) {
+		if ((uint)idx >= (uint)working.Body.Variables.Count)
+			throw new IlPipelineException($"IL local index {idx} is invalid for method '{snapshot.Method.FullName}'");
+		return Instruction.Create(idx <= byte.MaxValue ? OpCodes.Ldloca_S : OpCodes.Ldloca, working.Body.Variables[idx]);
+	}
+
+	private Instruction createStloc(int idx) {
+		if ((uint)idx >= (uint)working.Body.Variables.Count)
+			throw new IlPipelineException($"IL local index {idx} is invalid for method '{snapshot.Method.FullName}'");
+		return idx switch {
+			0 => Instruction.Create(OpCodes.Stloc_0),
+			1 => Instruction.Create(OpCodes.Stloc_1),
+			2 => Instruction.Create(OpCodes.Stloc_2),
+			3 => Instruction.Create(OpCodes.Stloc_3),
+			_ => Instruction.Create(idx <= byte.MaxValue ? OpCodes.Stloc_S : OpCodes.Stloc, working.Body.Variables[idx]),
+		};
+	}
+
 	private bool matchesAt(int start, ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) {
 		if (!matchesProvenance(start, pattern.Length, provenance))
 			return false;
@@ -495,74 +516,29 @@ internal sealed class IlTransactionCore(
 		return elem.Kind switch {
 			IlPatternElementKind.UninitializedValue => throw new InternalStateException("thought we validated this earlier"),
 			IlPatternElementKind.Any => true,
+
 			IlPatternElementKind.OpCode => instr.OpCode == elem.OpCode,
-			IlPatternElementKind.Call => instr.OpCode == OpCodes.Call && methodEquals(instr.Operand as MethodReference, elem.Method),
-			IlPatternElementKind.Callvirt => instr.OpCode == OpCodes.Callvirt && methodEquals(instr.Operand as MethodReference, elem.Method),
-			IlPatternElementKind.Field => instr.OpCode == elem.OpCode && fieldEquals(instr.Operand as FieldReference, elem.Field),
-			IlPatternElementKind.Ldarg => tryGetArgumentIdx(instr, out int argIdx) && argIdx == elem.Integer,
-			IlPatternElementKind.LdcI4 => tryGetLdcI4Value(instr, out int val) && val == elem.Integer,
-			IlPatternElementKind.Ldloc => tryGetLocalIdx(instr, load: true, out int loadIdx) && loadIdx == elem.Integer,
-			IlPatternElementKind.Stloc => tryGetLocalIdx(instr, load: false, out int storeIdx) && storeIdx == elem.Integer,
+
+			IlPatternElementKind.LdcI4 => tryGetLdcI4Value(instr, out int v) && v == elem.Int,
+			IlPatternElementKind.LdcI8 => instr.OpCode.Code == Code.Ldc_I8 && instr.Operand is long lv && lv == elem.Long,
+			IlPatternElementKind.LdcR4 => instr.OpCode.Code == Code.Ldc_R4 && instr.Operand is float fv && fv == elem.Float,
+			IlPatternElementKind.LdcR8 => instr.OpCode.Code == Code.Ldc_R8 && instr.Operand is double dv && dv == elem.Double,
+
+			IlPatternElementKind.Ldarg => tryGetLdargIdx(instr, out int idx) && idx == elem.Int,
+			IlPatternElementKind.Ldarga => tryGetLdargaOrStargIdx(instr, ldarga: true, out int idx) && idx == elem.Int,
+			IlPatternElementKind.Starg => tryGetLdargaOrStargIdx(instr, ldarga: false, out int idx) && idx == elem.Int,
+
+			IlPatternElementKind.Ldloc => tryGetLdlocOrStlocIdx(instr, ldloc: true, out int idx) && idx == elem.Int,
+			IlPatternElementKind.Ldloca => tryGetLdlocaIdx(instr, out int idx) && idx == elem.Int,
+			IlPatternElementKind.Stloc => tryGetLdlocOrStlocIdx(instr, ldloc: false, out int idx) && idx == elem.Int,
+
+			IlPatternElementKind.Field => instr.OpCode.Code == elem.OpCode.Code && fieldEquals(instr.Operand as FieldReference, elem.Field),
+
+			IlPatternElementKind.Call => instr.OpCode.Code == Code.Call && methodEquals(instr.Operand as MethodReference, elem.Method),
+			IlPatternElementKind.Callvirt => instr.OpCode.Code == Code.Callvirt && methodEquals(instr.Operand as MethodReference, elem.Method),
+
 			_ => throw new InternalStateException($"unknown IlPatternElementKind '{elem.Kind}'"),
 		};
-	}
-
-	private static bool methodEquals(MethodReference? left, MethodReference? right) {
-		if (left is null || right is null)
-			return false;
-		if (!StringComparer.Ordinal.Equals(left.FullName, right.FullName))
-			return false;
-		return StringComparer.Ordinal.Equals(left.DeclaringType.Scope?.Name, right.DeclaringType.Scope?.Name);
-	}
-
-	private static bool fieldEquals(FieldReference? left, FieldReference? right) {
-		if (left is null || right is null)
-			return false;
-		if (!StringComparer.Ordinal.Equals(left.Name, right.Name))
-			return false;
-		if (!StringComparer.Ordinal.Equals(left.DeclaringType.FullName, right.DeclaringType.FullName))
-			return false;
-		if (!StringComparer.Ordinal.Equals(left.FieldType.FullName, right.FieldType.FullName))
-			return false;
-		return StringComparer.Ordinal.Equals(left.DeclaringType.Scope?.Name, right.DeclaringType.Scope?.Name);
-	}
-
-	private bool tryGetArgumentIdx(Instruction instr, out int idx) {
-		idx = instr.OpCode.Code switch {
-			Code.Ldarg_0 => 0,
-			Code.Ldarg_1 => 1,
-			Code.Ldarg_2 => 2,
-			Code.Ldarg_3 => 3,
-			_ => -1,
-		};
-		if (idx >= 0)
-			return true;
-		if (instr.OpCode.Code is not Code.Ldarg and not Code.Ldarg_S || instr.Operand is not ParameterDefinition param)
-			return false;
-		idx = param.Index + (snapshot.Method.HasThis ? 1 : 0);
-		return true;
-	}
-
-	private static bool tryGetLocalIdx(Instruction instr, bool load, out int index) {
-		Code code = instr.OpCode.Code;
-		index = code switch {
-			Code.Ldloc_0 when load => 0,
-			Code.Ldloc_1 when load => 1,
-			Code.Ldloc_2 when load => 2,
-			Code.Ldloc_3 when load => 3,
-			Code.Stloc_0 when !load => 0,
-			Code.Stloc_1 when !load => 1,
-			Code.Stloc_2 when !load => 2,
-			Code.Stloc_3 when !load => 3,
-			_ => -1,
-		};
-		if (index >= 0)
-			return true;
-		bool opcodeMatches = load ? code is Code.Ldloc or Code.Ldloc_S : code is Code.Stloc or Code.Stloc_S;
-		if (!opcodeMatches || instr.Operand is not VariableDefinition @var)
-			return false;
-		index = @var.Index;
-		return true;
 	}
 
 	private static bool tryGetLdcI4Value(Instruction instr, out int v) {
@@ -607,6 +583,84 @@ internal sealed class IlTransactionCore(
 			v = default;
 			return false;
 		}
+	}
+
+	private bool tryGetLdargIdx(Instruction instr, out int idx) {
+		idx = instr.OpCode.Code switch {
+			Code.Ldarg_0 => 0,
+			Code.Ldarg_1 => 1,
+			Code.Ldarg_2 => 2,
+			Code.Ldarg_3 => 3,
+			_ => -1,
+		};
+		if (idx >= 0)
+			return true;
+		if (instr.OpCode.Code is not Code.Ldarg and not Code.Ldarg_S || instr.Operand is not ParameterDefinition param)
+			return false;
+		idx = param.Index + (snapshot.Method.HasThis ? 1 : 0);
+		return true;
+	}
+
+	private bool tryGetLdargaOrStargIdx(Instruction instr, bool ldarga, out int idx) {
+		Code code = instr.OpCode.Code;
+		bool opcodeMatches = ldarga ? code is Code.Ldarga or Code.Ldarga_S : code is Code.Starg or Code.Starg_S;
+		if (!opcodeMatches || instr.Operand is not ParameterDefinition param) {
+			idx = -1;
+			return false;
+		}
+		idx = param.Index + (snapshot.Method.HasThis ? 1 : 0);
+		return true;
+	}
+
+	private static bool tryGetLdlocOrStlocIdx(Instruction instr, bool ldloc, out int index) {
+		Code code = instr.OpCode.Code;
+		index = code switch {
+			Code.Ldloc_0 when ldloc => 0,
+			Code.Ldloc_1 when ldloc => 1,
+			Code.Ldloc_2 when ldloc => 2,
+			Code.Ldloc_3 when ldloc => 3,
+			Code.Stloc_0 when !ldloc => 0,
+			Code.Stloc_1 when !ldloc => 1,
+			Code.Stloc_2 when !ldloc => 2,
+			Code.Stloc_3 when !ldloc => 3,
+			_ => -1,
+		};
+		if (index >= 0)
+			return true;
+		bool opcodeMatches = ldloc ? code is Code.Ldloc or Code.Ldloc_S : code is Code.Stloc or Code.Stloc_S;
+		if (!opcodeMatches || instr.Operand is not VariableDefinition @var)
+			return false;
+		index = @var.Index;
+		return true;
+	}
+
+	private static bool tryGetLdlocaIdx(Instruction instr, out int index) {
+		if (instr.OpCode.Code is not Code.Ldloca and not Code.Ldloca_S || instr.Operand is not VariableDefinition @var) {
+			index = -1;
+			return false;
+		}
+		index = @var.Index;
+		return true;
+	}
+
+	private static bool fieldEquals(FieldReference? left, FieldReference? right) {
+		if (left is null || right is null)
+			return false;
+		if (!StringComparer.Ordinal.Equals(left.Name, right.Name))
+			return false;
+		if (!StringComparer.Ordinal.Equals(left.DeclaringType.FullName, right.DeclaringType.FullName))
+			return false;
+		if (!StringComparer.Ordinal.Equals(left.FieldType.FullName, right.FieldType.FullName))
+			return false;
+		return StringComparer.Ordinal.Equals(left.DeclaringType.Scope?.Name, right.DeclaringType.Scope?.Name);
+	}
+
+	private static bool methodEquals(MethodReference? left, MethodReference? right) {
+		if (left is null || right is null)
+			return false;
+		if (!StringComparer.Ordinal.Equals(left.FullName, right.FullName))
+			return false;
+		return StringComparer.Ordinal.Equals(left.DeclaringType.Scope?.Name, right.DeclaringType.Scope?.Name);
 	}
 
 	private static void validatePattern(ReadOnlySpan<IlPatternElement> pattern, string paramName) {

@@ -47,13 +47,13 @@ internal static class IlPatternDisplay {
 		return element.Kind switch {
 			IlPatternElementKind.Any => "<any instruction>",
 			IlPatternElementKind.OpCode => element.OpCode.Name,
-			IlPatternElementKind.LdcI4 => $"ldc.i4 {element.Integer.ToString(CultureInfo.InvariantCulture)}",
+			IlPatternElementKind.LdcI4 => $"ldc.i4 {element.Int.ToString(CultureInfo.InvariantCulture)}",
 			IlPatternElementKind.Call => $"call {CecilDisplay.FormatMethod(element.Method ?? throw new InternalStateException("IlPatternElement with kind Call is missing its Method value"))}",
 			IlPatternElementKind.Callvirt => $"callvirt {CecilDisplay.FormatMethod(element.Method ?? throw new InternalStateException("IlPatternElement with kind Callvirt is missing its Method value"))}",
 			IlPatternElementKind.Field => $"{element.OpCode.Name} {CecilDisplay.FormatField(element.Field ?? throw new InternalStateException("IlPatternElement with kind Field is missing its Field value"))}",
-			IlPatternElementKind.Ldarg => $"ldarg {element.Integer}",
-			IlPatternElementKind.Ldloc => $"ldloc {element.Integer}",
-			IlPatternElementKind.Stloc => $"stloc {element.Integer}",
+			IlPatternElementKind.Ldarg => $"ldarg {element.Int}",
+			IlPatternElementKind.Ldloc => $"ldloc {element.Int}",
+			IlPatternElementKind.Stloc => $"stloc {element.Int}",
 			_ => "<invalid pattern element>",
 		};
 	}

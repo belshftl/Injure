@@ -9,14 +9,32 @@ namespace Injure.Mods.Abstractions.Hooks.Il;
 internal enum IlPatternElementKind {
 	UninitializedValue = 0,
 	Any = 1,
+
+	// raw
 	OpCode,
+
+	// loading literals
+	LdcI4,
+	LdcI8,
+	LdcR4,
+	LdcR8,
+
+	// args
+	Ldarg,
+	Ldarga,
+	Starg,
+
+	// locals
+	Ldloc,
+	Ldloca,
+	Stloc,
+
+	// fields
+	Field,
+
+	// calls
 	Call,
 	Callvirt,
-	Field,
-	Ldarg,
-	LdcI4,
-	Ldloc,
-	Stloc,
 }
 
 /// <summary>
@@ -35,15 +53,30 @@ public readonly struct IlPatternElement {
 	internal OpCode OpCode { get; }
 	internal MethodReference? Method { get; }
 	internal FieldReference? Field { get; }
-	internal int Integer { get; }
+	internal int Int { get; }
+	internal long Long { get; }
+	internal float Float { get; }
+	internal double Double { get; }
 
 	internal bool IsValid => Kind != IlPatternElementKind.UninitializedValue;
 
-	internal IlPatternElement(IlPatternElementKind kind, OpCode opCode = default, MethodReference? method = null, FieldReference? field = null, int integer = 0) {
+	internal IlPatternElement(
+		IlPatternElementKind kind,
+		OpCode opCode = default,
+		MethodReference? method = null,
+		FieldReference? field = null,
+		int @int = 0,
+		long @long = 0,
+		float @float = 0f,
+		double @double = 0.0
+	) {
 		Kind = kind;
 		OpCode = opCode;
 		Method = method;
 		Field = field;
-		Integer = integer;
+		Int = @int;
+		Long = @long;
+		Float = @float;
+		Double = @double;
 	}
 }

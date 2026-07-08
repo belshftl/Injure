@@ -356,6 +356,24 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
+	public void LdstrHelperEmitsExpectedOpcode() {
+		MethodDefinition method = createVoidMethod(Instruction.Create(OpCodes.Ret));
+
+		transform(
+			method,
+			"game",
+			registration("mod", "hook", ctx => {
+				ctx.EmitAtStart(e => {
+					e.Ldstr("abcdef");
+				});
+			})
+		);
+
+		assertCodes(method, Code.Ldstr, Code.Ret);
+		Assert.IsType<string>(method.Body.Instructions[0].Operand);
+	}
+
+	[Fact]
 	public void ReferenceImportsCanImportFieldsForMatchingAndEmission() {
 		MethodDefinition method = createVoidMethod(Instruction.Create(OpCodes.Ret));
 		FieldInfo fieldInfo = typeof(FieldHolder).GetField(nameof(FieldHolder.StaticValue))!;
