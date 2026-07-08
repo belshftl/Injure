@@ -48,17 +48,13 @@ public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
 
 	[LoadIlHook(TestGame.RawHooks.GameplayLayer.GetSomeColor)]
 	internal static void IL_GameplayLayer_GetSomeColor(IlContext<TestModL> ctx) {
-		FieldReference magenta = ctx.Imports.Import(
-			typeof(Color32).GetField(nameof(Color32.Magenta), BindingFlags.Static | BindingFlags.Public) ??
-				throw new MissingFieldException("Color32.Magenta unexpectedly missing")
-		);
 		FieldReference blue = ctx.Imports.Import(
 			typeof(Color32).GetField(nameof(Color32.Blue), BindingFlags.Static | BindingFlags.Public) ??
 				throw new MissingFieldException("Color32.Blue unexpectedly missing")
 		);
 
 		IlMatch m = ctx.MatchNext(
-			[MatchIl.Ldsfld(magenta)],
+			[MatchIl.Ldsfld<Color32>("Magenta")],
 			IlPatternProvenanceConstraint.AllFromOwner("TestGame")
 		);
 		IlLabel skip = ctx.DefineLabel();

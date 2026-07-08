@@ -348,7 +348,7 @@ public readonly ref struct IlEmitter {
 	// managed delegates
 
 	/// <summary>
-	/// Emits a call to a managed delegate. The exact emitted CIL instructions are backend-dependent
+	/// Emits a call to a managed delegate. The exact emitted instructions are backend-dependent
 	/// and should not be treated as part of the API.
 	/// </summary>
 	/// <typeparam name="TDelegate">Delegate type to invoke.</typeparam>
@@ -356,6 +356,10 @@ public readonly ref struct IlEmitter {
 	/// Delegate instance retained for as long as the transformed runtime hook remains installed.
 	/// </param>
 	/// <remarks>
+	/// <para>
+	/// Primarily provided for convenience. For exact control over the emitted IL, use
+	/// <see cref="Call(MethodReference)"/> or <see cref="Callvirt(MethodReference)"/>.
+	/// </para>
 	/// <para>
 	/// It is highly recommended that <paramref name="callback"/> is a plain static method;
 	/// instance methods or capturing lambdas retain state for what's typically the rest of the

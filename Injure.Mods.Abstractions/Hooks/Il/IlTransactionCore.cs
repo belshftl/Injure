@@ -532,10 +532,20 @@ internal sealed class IlTransactionCore(
 			IlPatternElementKind.Ldloca => tryGetLdlocaIdx(instr, out int idx) && idx == elem.Int,
 			IlPatternElementKind.Stloc => tryGetLdlocOrStlocIdx(instr, ldloc: false, out int idx) && idx == elem.Int,
 
-			IlPatternElementKind.Field => instr.OpCode.Code == elem.OpCode.Code && fieldEquals(instr.Operand as FieldReference, elem.Field),
+			IlPatternElementKind.CecilField =>
+				instr.OpCode.Code == elem.OpCode.Code && instr.Operand is FieldReference f &&
+				CecilMemberIdentity.SameField(f, elem.CecilField ?? throw new InternalStateException("IlPatternElement of kind CecilField is missing its CecilField value")),
+			IlPatternElementKind.ReflectionField =>
+				instr.OpCode.Code == elem.OpCode.Code && instr.Operand is FieldReference f &&
+				CecilMemberIdentity.SameField(f, elem.ReflectionField ?? throw new InternalStateException("IlPatternElement of kind ReflectionField is missing its ReflectionField value")),
 
-			IlPatternElementKind.Call => instr.OpCode.Code == Code.Call && methodEquals(instr.Operand as MethodReference, elem.Method),
-			IlPatternElementKind.Callvirt => instr.OpCode.Code == Code.Callvirt && methodEquals(instr.Operand as MethodReference, elem.Method),
+			IlPatternElementKind.CecilMethod =>
+				instr.OpCode.Code == elem.OpCode.Code && instr.Operand is MethodReference m &&
+				CecilMemberIdentity.SameMethod(m, elem.CecilMethod ?? throw new InternalStateException("IlPatternElement of kind CecilMethod is missing its CecilMethod value")),
+
+			IlPatternElementKind.ReflectionMethod =>
+				instr.OpCode.Code == elem.OpCode.Code && instr.Operand is MethodReference m &&
+				CecilMemberIdentity.SameMethod(m, elem.ReflectionMethod ?? throw new InternalStateException("IlPatternElement of kind ReflectionMethod is missing its ReflectionMethod value")),
 
 			_ => throw new InternalStateException($"unknown IlPatternElementKind '{elem.Kind}'"),
 		};
@@ -641,26 +651,6 @@ internal sealed class IlTransactionCore(
 		}
 		index = @var.Index;
 		return true;
-	}
-
-	private static bool fieldEquals(FieldReference? left, FieldReference? right) {
-		if (left is null || right is null)
-			return false;
-		if (!StringComparer.Ordinal.Equals(left.Name, right.Name))
-			return false;
-		if (!StringComparer.Ordinal.Equals(left.DeclaringType.FullName, right.DeclaringType.FullName))
-			return false;
-		if (!StringComparer.Ordinal.Equals(left.FieldType.FullName, right.FieldType.FullName))
-			return false;
-		return StringComparer.Ordinal.Equals(left.DeclaringType.Scope?.Name, right.DeclaringType.Scope?.Name);
-	}
-
-	private static bool methodEquals(MethodReference? left, MethodReference? right) {
-		if (left is null || right is null)
-			return false;
-		if (!StringComparer.Ordinal.Equals(left.FullName, right.FullName))
-			return false;
-		return StringComparer.Ordinal.Equals(left.DeclaringType.Scope?.Name, right.DeclaringType.Scope?.Name);
 	}
 
 	private static void validatePattern(ReadOnlySpan<IlPatternElement> pattern, string paramName) {

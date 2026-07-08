@@ -3,7 +3,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using System.Text;
+
 using Mono.Cecil;
 
 namespace Injure.Mods.Abstractions.Hooks.Il;
@@ -31,29 +33,52 @@ internal readonly record struct IlPatternSearchInfo(
 
 internal static class IlPatternDisplay {
 	public static string FormatPattern(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) {
-		StringBuilder sb = new();
-		for (int i = 0; i < pattern.Length; i++) {
-			sb.Append(' ');
-			sb.Append(i.ToString(CultureInfo.InvariantCulture).PadLeft(3));
-			sb.Append(". ");
-			sb.AppendLine(FormatElement(pattern[i]));
-		}
-		sb.Append("    + ");
-		sb.Append(FormatProvenance(provenance));
-		return sb.ToString();
-	}
+		const string orShortForm = " // or short-form equivalent";
+                StringBuilder sb = new();
+		int leftPad = 4;
+                for (int i = 0; i < pattern.Length; i++) {
+                        sb.Append(' ');
+			string lineno = i.ToString(CultureInfo.InvariantCulture).PadLeft(3);
+			leftPad = Math.Max(leftPad, lineno.Length + 1);
+                        sb.Append(lineno);
+                        sb.Append(". ");
+			if (!pattern[i].Kind.MatchesEquivalentShorterForms) {
+				sb.AppendLine(FormatElement(pattern[i]));
+			} else {
+				sb.Append(FormatElement(pattern[i]));
+				sb.AppendLine(orShortForm);
+			}
+                }
+                sb.Append("    + ");
+                sb.Append(FormatProvenance(provenance));
+                return sb.ToString();
+        }
 
 	public static string FormatElement(IlPatternElement element) {
 		return element.Kind switch {
 			IlPatternElementKind.Any => "<any instruction>",
+
 			IlPatternElementKind.OpCode => element.OpCode.Name,
+
 			IlPatternElementKind.LdcI4 => $"ldc.i4 {element.Int.ToString(CultureInfo.InvariantCulture)}",
-			IlPatternElementKind.Call => $"call {CecilDisplay.FormatMethod(element.Method ?? throw new InternalStateException("IlPatternElement with kind Call is missing its Method value"))}",
-			IlPatternElementKind.Callvirt => $"callvirt {CecilDisplay.FormatMethod(element.Method ?? throw new InternalStateException("IlPatternElement with kind Callvirt is missing its Method value"))}",
-			IlPatternElementKind.Field => $"{element.OpCode.Name} {CecilDisplay.FormatField(element.Field ?? throw new InternalStateException("IlPatternElement with kind Field is missing its Field value"))}",
-			IlPatternElementKind.Ldarg => $"ldarg {element.Int}",
-			IlPatternElementKind.Ldloc => $"ldloc {element.Int}",
-			IlPatternElementKind.Stloc => $"stloc {element.Int}",
+			IlPatternElementKind.LdcI8 => $"ldc.i8 {element.Long.ToString(CultureInfo.InvariantCulture)}",
+			IlPatternElementKind.LdcR4 => $"ldc.r4 {element.Float.ToString(CultureInfo.InvariantCulture)}",
+			IlPatternElementKind.LdcR8 => $"ldc.r8 {element.Double.ToString(CultureInfo.InvariantCulture)}",
+
+			IlPatternElementKind.Ldarg => $"ldarg {element.Int.ToString(CultureInfo.InvariantCulture)}",
+			IlPatternElementKind.Ldarga => $"ldarga {element.Int.ToString(CultureInfo.InvariantCulture)}",
+			IlPatternElementKind.Starg => $"starg {element.Int.ToString(CultureInfo.InvariantCulture)}",
+
+			IlPatternElementKind.Ldloc => $"ldloc {element.Int.ToString(CultureInfo.InvariantCulture)}",
+			IlPatternElementKind.Ldloca => $"ldloca {element.Int.ToString(CultureInfo.InvariantCulture)}",
+			IlPatternElementKind.Stloc => $"stloc {element.Int.ToString(CultureInfo.InvariantCulture)}",
+
+			IlPatternElementKind.CecilField => $"{element.OpCode.Name} {CecilDisplay.FormatField(element.CecilField ?? throw new InternalStateException("IlPatternElement with kind CecilField is missing its CecilField value"))}",
+			IlPatternElementKind.ReflectionField => $"{element.OpCode.Name} {ReflectionDisplay.FormatField(element.ReflectionField ?? throw new InternalStateException("IlPatternElement with kind ReflectionField is missing its ReflectionField value"))}",
+
+			IlPatternElementKind.CecilMethod => $"{element.OpCode.Name} {CecilDisplay.FormatMethod(element.CecilMethod ?? throw new InternalStateException("IlPatternElement with kind CecilMethod is missing its CecilMethod value"))}",
+			IlPatternElementKind.ReflectionMethod => $"{element.OpCode.Name} {ReflectionDisplay.FormatMethod(element.ReflectionMethod ?? throw new InternalStateException("IlPatternElement with kind ReflectionMethod is missing its ReflectionMethod value"))}",
+
 			_ => "<invalid pattern element>",
 		};
 	}
@@ -132,14 +157,14 @@ internal static class CecilDisplay {
 		return name;
 	}
 
-	static string formatNonGenericTypeName(TypeReference t) {
+	private static string formatNonGenericTypeName(TypeReference t) {
 		string name = stripArity(t.Name);
 		if (t.DeclaringType != null)
 			return FormatType(t.DeclaringType) + "." + name;
 		return string.IsNullOrEmpty(t.Namespace) ? name : t.Namespace + "." + name;
 	}
 
-	static bool tryUnwrapByref(TypeReference t, [NotNullWhen(true)] out TypeReference? elem) {
+	private static bool tryUnwrapByref(TypeReference t, [NotNullWhen(true)] out TypeReference? elem) {
 		for (;;) {
 			switch (t) {
 			case RequiredModifierType req:
@@ -161,7 +186,7 @@ internal static class CecilDisplay {
 		}
 	}
 
-	static TypeReference stripModifiers(TypeReference t) {
+	private static TypeReference stripModifiers(TypeReference t) {
 		for (;;) {
 			switch (t) {
 			case RequiredModifierType req:
@@ -176,7 +201,7 @@ internal static class CecilDisplay {
 		}
 	}
 
-	static bool hasModifier(TypeReference t, string modifierFullName) {
+	private static bool hasModifier(TypeReference t, string modifierFullName) {
 		for (;;) {
 			switch (t) {
 			case RequiredModifierType req:
@@ -208,5 +233,120 @@ internal static class CecilDisplay {
 	private static string stripArity(string name) {
 		int bt = name.IndexOf('`');
 		return bt < 0 ? name : name[..bt];
+	}
+}
+
+internal static class ReflectionDisplay {
+	public static string FormatMethod(MethodBase m) {
+		ArgumentNullException.ThrowIfNull(m);
+		return FormatType(m.DeclaringType!) + "::" + formatMethodName(m) + "(" + string.Join(", ", m.GetParameters().Select(FormatParameter)) + ")";
+	}
+
+	private static string formatMethodName(MethodBase m) {
+		string name = stripArity(m.Name);
+		if (m.IsGenericMethod) {
+			Type[] args = m.GetGenericArguments();
+			if (args.Length != 0)
+				return name + "<" + string.Join(", ", args.Select(FormatType)) + ">";
+		}
+		return name;
+	}
+
+	public static string FormatParameter(ParameterInfo p) {
+		ArgumentNullException.ThrowIfNull(p);
+		Type t = p.ParameterType;
+		if (!tryUnwrapByref(t, out Type? elem))
+			return FormatType(t);
+		if (p.IsOut && !p.IsIn)
+			return "out " + FormatType(elem);
+		if (hasAttr(p, "System.Runtime.CompilerServices.RequiresLocationAttribute") || hasModifier(p, "System.Runtime.CompilerServices.RequiresLocationAttribute"))
+			return "ref readonly " + FormatType(elem);
+		if (
+			p.IsIn ||
+			hasAttr(p, "System.Runtime.CompilerServices.IsReadOnlyAttribute") ||
+			hasModifier(p, "System.Runtime.CompilerServices.IsReadOnlyAttribute") ||
+			hasModifier(p, "System.Runtime.InteropServices.InAttribute")
+		)
+			return "in " + FormatType(elem);
+		return "ref " + FormatType(elem);
+	}
+
+	public static string FormatField(FieldInfo f) {
+		ArgumentNullException.ThrowIfNull(f);
+		return FormatType(f.DeclaringType!) + "::" + f.Name;
+	}
+
+	public static string FormatType(Type t) {
+		ArgumentNullException.ThrowIfNull(t);
+		if (t.IsGenericParameter)
+			return t.Name;
+		if (t.IsByRef)
+			return FormatType(t.GetElementType()!) + "&";
+		if (t.IsPointer)
+			return FormatType(t.GetElementType()!) + "*";
+		if (t.IsArray)
+			return FormatType(t.GetElementType()!) + arraySuffix(t);
+		if (t.IsGenericType)
+			return formatGenericTypeName(t);
+		return formatNonGenericTypeName(t);
+	}
+
+	private static string formatGenericTypeName(Type t) {
+		Type def = t.IsGenericTypeDefinition ? t : t.GetGenericTypeDefinition();
+		Type[] args = t.GetGenericArguments();
+		int argIdx = 0;
+		return formatGenericTypeName(def, args, ref argIdx);
+	}
+
+	private static string formatGenericTypeName(Type t, Type[] args, ref int argIdx) {
+		string name = stripArity(t.Name);
+		string ret;
+		if (t.DeclaringType != null)
+			ret = formatGenericTypeName(t.DeclaringType, args, ref argIdx) + "." + name;
+		else
+			ret = string.IsNullOrEmpty(t.Namespace) ? name : t.Namespace + "." + name;
+
+		int arity = getArity(t.Name);
+		if (arity != 0) {
+			ret += "<" + string.Join(", ", args.Skip(argIdx).Take(arity).Select(FormatType)) + ">";
+			argIdx += arity;
+		}
+		return ret;
+	}
+
+	private static string formatNonGenericTypeName(Type t) {
+		string name = stripArity(t.Name);
+		if (t.DeclaringType != null)
+			return FormatType(t.DeclaringType) + "." + name;
+		return string.IsNullOrEmpty(t.Namespace) ? name : t.Namespace + "." + name;
+	}
+
+	private static bool tryUnwrapByref(Type t, [NotNullWhen(true)] out Type? elem) {
+		if (t.IsByRef) {
+			elem = t.GetElementType()!;
+			return true;
+		}
+		elem = null;
+		return false;
+	}
+
+	private static bool hasModifier(ParameterInfo p, string modifierFullName) =>
+		p.GetRequiredCustomModifiers().Any(t => t.FullName == modifierFullName) ||
+		p.GetOptionalCustomModifiers().Any(t => t.FullName == modifierFullName);
+
+	private static bool hasAttr(ParameterInfo p, string attrFullName) => p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == attrFullName);
+
+	private static string arraySuffix(Type arr) => arr.GetArrayRank() <= 1 ? "[]" : "[" + new string(',', arr.GetArrayRank() - 1) + "]";
+
+	private static string stripArity(string name) {
+		int bt = name.IndexOf('`');
+		return bt < 0 ? name : name[..bt];
+	}
+
+	private static int getArity(string name) {
+		int bt = name.IndexOf('`');
+		if (bt < 0 || bt == name.Length - 1)
+			return 0;
+		return int.TryParse(name[(bt + 1)..], out int arity) ? arity : 0;
 	}
 }
