@@ -18,7 +18,7 @@ internal sealed class IlWorkingBody : IStrongRefDroppable {
 		this.provenance = provenance ?? throw new InternalStateException("IlWorkingBody constructed with null provenance dictionary");
 	}
 
-	public static IlWorkingBody Clone(MethodDefinition method, InternalIlProvenance baseline) {
+	public static IlWorkingBody Clone(MethodDefinition method, InternalIlProvenance baseline, IIlBackendOperandNormalizer operandNormalizer) {
 		MethodBody source = method.Body;
 		MethodBody body = new(method) {
 			InitLocals = source.InitLocals,
@@ -34,7 +34,7 @@ internal sealed class IlWorkingBody : IStrongRefDroppable {
 
 		Dictionary<Instruction, Instruction> instrs = new(InstructionReferenceComparer.Instance);
 		foreach (Instruction sourceInstrs in source.Instructions) {
-			Instruction instr = createInstrShell(sourceInstrs);
+			Instruction instr = createInstrShell(sourceInstrs, operandNormalizer);
 			body.Instructions.Add(instr);
 			instrs.Add(sourceInstrs, instr);
 		}
@@ -42,7 +42,7 @@ internal sealed class IlWorkingBody : IStrongRefDroppable {
 		for (int i = 0; i < source.Instructions.Count; i++) {
 			Instruction sourceInstr = source.Instructions[i];
 			Instruction instr = body.Instructions[i];
-			instr.Operand = cloneOperand(sourceInstr.Operand, source, body, instrs, vars);
+			instr.Operand = cloneOperand(sourceInstr.Operand, source, body, instrs, vars, operandNormalizer);
 		}
 
 		foreach (ExceptionHandler sourceHandler in source.ExceptionHandlers) {
@@ -90,27 +90,28 @@ internal sealed class IlWorkingBody : IStrongRefDroppable {
 		provenance.Clear();
 	}
 
-	private static Instruction createInstrShell(Instruction source) {
+	private static Instruction createInstrShell(Instruction source, IIlBackendOperandNormalizer operandNormalizer) {
 		OpCode opCode = source.OpCode;
 		object? operand = source.Operand;
-		return operand switch {
+		object? normalized = operandNormalizer.NormalizeOperand(operand);
+		return normalized switch {
 			null => Instruction.Create(opCode),
 			Instruction => Instruction.Create(opCode, Instruction.Create(OpCodes.Nop)),
 			Instruction[] => Instruction.Create(opCode, Array.Empty<Instruction>()),
-			sbyte value => Instruction.Create(opCode, value),
-			byte value => Instruction.Create(opCode, value),
-			int value => Instruction.Create(opCode, value),
-			long value => Instruction.Create(opCode, value),
-			float value => Instruction.Create(opCode, value),
-			double value => Instruction.Create(opCode, value),
-			string value => Instruction.Create(opCode, value),
-			TypeReference value => Instruction.Create(opCode, value),
-			FieldReference value => Instruction.Create(opCode, value),
-			MethodReference value => Instruction.Create(opCode, value),
-			CallSite value => Instruction.Create(opCode, value),
-			VariableDefinition value => Instruction.Create(opCode, value),
-			ParameterDefinition value => Instruction.Create(opCode, value),
-			_ => throw new IlPipelineException($"unsupported Cecil operand type '{operand.GetType()}' while cloning"),
+			sbyte val => Instruction.Create(opCode, val),
+			byte val => Instruction.Create(opCode, val),
+			int val => Instruction.Create(opCode, val),
+			long val => Instruction.Create(opCode, val),
+			float val => Instruction.Create(opCode, val),
+			double val => Instruction.Create(opCode, val),
+			string s => Instruction.Create(opCode, s),
+			TypeReference t => Instruction.Create(opCode, t),
+			FieldReference f => Instruction.Create(opCode, f),
+			MethodReference m => Instruction.Create(opCode, m),
+			CallSite cs => Instruction.Create(opCode, cs),
+			VariableDefinition v => Instruction.Create(opCode, v),
+			ParameterDefinition p => Instruction.Create(opCode, p),
+			_ => throw new IlPipelineException($"unsupported Cecil operand type '{normalized.GetType()}' (normalized by backend from '{operand.GetType()}') while cloning"),
 		};
 	}
 
@@ -119,15 +120,16 @@ internal sealed class IlWorkingBody : IStrongRefDroppable {
 		MethodBody sourceBody,
 		MethodBody targetBody,
 		Dictionary<Instruction, Instruction> instrs,
-		Dictionary<VariableDefinition, VariableDefinition> vars
+		Dictionary<VariableDefinition, VariableDefinition> vars,
+		IIlBackendOperandNormalizer operandNormalizer
 	) {
-		return operand switch {
-			null => null,
+		object? normalized = operandNormalizer.NormalizeOperand(operand);
+		return normalized switch {
 			Instruction instr => instrs[instr],
 			Instruction[] targets => targets.Select(target => instrs[target]).ToArray(),
 			VariableDefinition @var => vars[@var],
 			ParameterDefinition param when ReferenceEquals(param, sourceBody.ThisParameter) => targetBody.ThisParameter,
-			_ => operand,
+			_ => normalized,
 		};
 	}
 

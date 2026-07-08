@@ -11,7 +11,7 @@ using Injure.Input;
 using Injure.Layers;
 using Injure.Primitives;
 using Injure.Sched.Tickers;
-using Injure.UI;
+using Injure.Ui;
 
 namespace TestGame;
 
@@ -23,7 +23,7 @@ public sealed class GameplayLayer : Layer {
 	private Vector2 pos = new(200, 200);
 	private float size = 40f;
 	private float flash = 0f;
-	private UIRoot? ui;
+	private UiRoot? ui;
 
 	public override LayerFeatures Features => LayerFeatures.Render | LayerFeatures.Input;
 	public override LayerTagSet Tags => tags;
@@ -35,20 +35,20 @@ public sealed class GameplayLayer : Layer {
 	}
 
 	public override void OnEnter() {
-		UITextStyle style = new(
+		UiTextStyle style = new(
 			Fonts: new FontFallbackChain(Game.TestFont),
 			Size: 32f,
 			Color: new Color32(128, 244, 216)
 		);
-		UILabel label = new(Game.Text, style, "ficelle\u0301 fffffi AVAVAV. ToToTo WaWaWa");
-		UIDebugRect rect = new(Color32.Blue) {
+		UiLabel label = new(Game.Text, style, "ficelle\u0301 fffffi AVAVAV. ToToTo WaWaWa");
+		UiDebugRect rect = new(Color32.Blue) {
 			Stroke = Color32.Magenta,
 			StrokeWidth = 4f,
 		};
-		UIOverlay root = new();
-		root.Add(new UIPlaced(label, UIPlacement.CenterAuto()));
-		root.Add(new UIPlaced(rect, UIPlacement.AnchorAt(UIAnchor.TopRight, offset: new Vector2(-32f, 32f), size: new SizeF(200f, 50f))));
-		ui = new(UICanvasPolicy.MatchDrawable) { // note: normally you'll wanna use Fixed or something like that, this is for debugging
+		UiOverlay root = new();
+		root.Add(new UiPlaced(label, UiPlacement.CenterAuto()));
+		root.Add(new UiPlaced(rect, UiPlacement.AnchorAt(UiAnchor.TopRight, offset: new Vector2(-32f, 32f), size: new SizeF(200f, 50f))));
+		ui = new(UiCanvasPolicy.MatchDrawable) { // note: normally you'll wanna use Fixed or something like that, this is for debugging
 			RootWidget = root,
 		};
 	}

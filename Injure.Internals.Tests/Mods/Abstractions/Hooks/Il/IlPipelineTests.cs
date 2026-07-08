@@ -733,14 +733,14 @@ public sealed class IlPipelineTests {
 		MethodDefinition method,
 		string? baselineOwnerId,
 		params IlManipulatorRegistration[] registrations
-	) => IlPipelineRunner.Transform(method, baselineOwnerId, registrations, null);
+	) => IlPipelineRunner.Transform(method, baselineOwnerId, registrations, null, NullBackendOperandNormalizer.Instance);
 
 	private static IlPipelineResult transform(
 		MethodDefinition method,
 		string? baselineOwnerId,
 		IIlManagedDelegateLowerer managedDelegateLowerer,
 		params IlManipulatorRegistration[] registrations
-	) => IlPipelineRunner.Transform(method, baselineOwnerId, registrations, managedDelegateLowerer);
+	) => IlPipelineRunner.Transform(method, baselineOwnerId, registrations, managedDelegateLowerer, NullBackendOperandNormalizer.Instance);
 
 	private static MethodDefinition createVoidMethod(params Instruction[] instrs) {
 		var module = ModuleDefinition.CreateModule("Test", ModuleKind.Dll);

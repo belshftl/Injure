@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using Injure.Mods.Abstractions;
+
 namespace Injure.Mods.Runtime;
 
 internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
@@ -73,7 +75,7 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 			: CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
 		BoundedCtsCore source = new(Generation, linked);
 		try {
-			AddDisposable<BoundedCtsCore>(source);
+			AddDisposable(source);
 			return new BoundedCts<L>(source);
 		} catch {
 			source.Dispose();

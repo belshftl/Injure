@@ -3,7 +3,8 @@
 
 using System.Collections.Frozen;
 using System.Reflection;
-using Injure.Mods.Runtime.MonoMod;
+using Injure.Mods.Abstractions;
+using Injure.Mods.Runtime.Hooks;
 
 namespace Injure.Mods.Runtime;
 
@@ -39,7 +40,20 @@ internal sealed class LoadedContentMod : ILoadedMod {
 	}
 }
 
-internal sealed class LoadedCodeMod<TGameApi> : ILoadedMod {
+internal interface ILoadedCodeMod : ILoadedMod {
+	ModAlc AssemblyLoadContext { get; }
+	Assembly Assembly { get; }
+	object Entrypoint { get; }
+	object? ReloadEntrypoint { get; }
+	Type LifetimeIdentityType { get; }
+	UntypedBoundedScopeImpl? ActivationScope { get; }
+	RuntimeHookDeclarationSet LoadHooks { get; }
+	RuntimeHookDeclarationSet LinkHooks { get; }
+	UntypedModExportTable Exports { get; }
+	bool Active { get; }
+}
+
+internal sealed class LoadedCodeMod<TGameApi> : ILoadedCodeMod {
 	public required StagedMod Staged { get; init; }
 	public required ModAlc AssemblyLoadContext {
 		get => field ?? throw new InternalStateException("mod ALC strong ref has already been dropped");
@@ -71,14 +85,20 @@ internal sealed class LoadedCodeMod<TGameApi> : ILoadedMod {
 		get => !activationScopeDropped ? field : throw new InternalStateException("mod activation scope strong ref has already been dropped");
 		set;
 	}
-	private GenerationPatchSet? loadHooksBacking;
-	public required GenerationPatchSet LoadHooks {
-		get => loadHooksBacking ?? throw new InternalStateException("mod patch declaration set strong ref has already been dropped");
+	private RuntimeHookDeclarationSet? loadHooksBacking;
+	public required RuntimeHookDeclarationSet LoadHooks {
+		get => loadHooksBacking ?? throw new InternalStateException("mod load hook set strong ref has already been dropped");
 		set => loadHooksBacking = value;
 	}
+	private RuntimeHookDeclarationSet? linkHooksBacking;
+	public required RuntimeHookDeclarationSet LinkHooks {
+		get => linkHooksBacking ?? throw new InternalStateException("mod link hook set strong ref has already been dropped");
+		set => linkHooksBacking = value;
+	}
+	private UntypedModExportTable? exportsBacking;
 	public required UntypedModExportTable Exports {
-		get => field ?? throw new InternalStateException("mod export table strong ref has already been dropped");
-		set;
+		get => exportsBacking ?? throw new InternalStateException("mod export table strong ref has already been dropped");
+		set => exportsBacking = value;
 	}
 	public bool Active { get; set; }
 
@@ -94,8 +114,10 @@ internal sealed class LoadedCodeMod<TGameApi> : ILoadedMod {
 		ActivationScope = null!;
 		loadHooksBacking?.DropStrongReferences();
 		loadHooksBacking = null;
-		Exports.DropStrongReferences();
-		Exports = null!;
+		linkHooksBacking?.DropStrongReferences();
+		linkHooksBacking = null;
+		exportsBacking?.DropStrongReferences();
+		exportsBacking = null;
 	}
 }
 

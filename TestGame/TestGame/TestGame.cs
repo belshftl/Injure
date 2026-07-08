@@ -10,7 +10,7 @@ using Injure.Runtime;
 using Injure.Draw;
 using Injure.Draw.Text;
 using Injure.Layers;
-using Injure.Mods;
+using Injure.Mods.Abstractions;
 using Injure.Mods.Runtime;
 using Injure.Time;
 using Injure.Sched.Tickers;
@@ -26,8 +26,8 @@ internal sealed class TestApi : ITestGameModApi {
 }
 
 public sealed class Game : IGame {
-	public const string OwnerID = "TestGame";
-	static string IGame.OwnerID => OwnerID;
+	public const string OwnerId = "TestGame";
+	static string IGame.OwnerId => OwnerId;
 
 	public static readonly string AssetsDirectory = Path.Combine(AppContext.BaseDirectory, "Assets");
 
@@ -69,16 +69,15 @@ public sealed class Game : IGame {
 		string mods = Path.Combine(root, "Mods");
 		string cache = Path.Combine(root, ".mod-cache");
 		Mods = new(new ModRuntimeOptions<ITestGameModApi> {
-			GameOwnerID = OwnerID,
+			GameOwnerId = OwnerId,
+			GameAssemblies = [
+				typeof(Game).Assembly,
+			],
 			ModDirectory = mods,
 			CacheDirectory = cache,
 			ApiFactory = _ => new TestApi(),
-			SharedAssemblies = [
-				"Injure",
-				"Injure.Mods.Runtime",
+			AdditionalSharedAssemblies = [
 				"TestGame.ModApi",
-				"MonoMod.RuntimeDetour",
-				"MonoMod.Utils",
 			],
 		});
 		await Mods.StartAsync(CancellationToken.None);
@@ -86,17 +85,17 @@ public sealed class Game : IGame {
 		ModWatcher = new();
 		ModWatcher.Changed += static ev => {
 			if (!ev.Reloadable) {
-				Diagnostics.Info($"mod '{ev.OwnerID}' changed but isn't reloadable; restart the game to apply changes");
+				Diagnostics.Info($"mod '{ev.OwnerId}' changed but isn't reloadable; restart the game to apply changes");
 				return;
 			}
-			Mods.RequestReload(ev.OwnerID);
+			Mods.RequestReload(ev.OwnerId);
 		};
 		ModWatcher.RebuildFrom(Mods.GetWatchSpecs());
 
 		Runner.Run(g, new GameConfig {
 			Service = new ServiceConfig { Assets = true, Text = true },
 			Window = new WindowConfig { Settings = new WindowSettings { Title = "TestGame", Width = 640, Height = 480 } },
-			Timing = new TimingConfig { Settings = new TimingSettings { RenderMode = RenderTimingMode.Capped, TargetFPS = 60.0 } },
+			Timing = new TimingConfig { Settings = new TimingSettings { RenderMode = RenderTimingMode.Capped, TargetFps = 60.0 } },
 		});
 	}
 
@@ -105,10 +104,10 @@ public sealed class Game : IGame {
 		LayerStack = new(Tickers, Input.Raw);
 
 		Mods.AttachGameActivateBlocking(sv);
-		Assets.RegisterSource(OwnerID, new DirectoryAssetSource(OwnerID, AssetsDirectory), "AssetsDirectory");
+		Assets.RegisterSource(OwnerId, new DirectoryAssetSource(OwnerId, AssetsDirectory), "AssetsDirectory");
 		Actions.Init();
 		LayerTags.Init();
-		TestFont = Assets.GetAsset<Font>(new AssetID(OwnerID, TestFontFilename));
+		TestFont = Assets.GetAsset<Font>(new AssetId(OwnerId, TestFontFilename));
 
 		TickerHandle gameplayTicker = Tickers.Add(new TickerSpec(
 			Timing: new TickerTiming(MonoTick.PeriodFromHz(60.0)),
@@ -130,7 +129,7 @@ public sealed class Game : IGame {
 	}
 
 	public void BetweenSchedulerTicks() {
-		//Mods.AtSafeBoundaryBlocking(); // TODO: figure out where this should properly be called because it's Not here
-		Mods.AtLiveBoundaryBlocking();
+		Mods.AtSafeBoundaryBlocking(); // TODO: figure out where this should properly be called because it's Not here
+		//Mods.AtLiveBoundaryBlocking();
 	}
 }

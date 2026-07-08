@@ -7,9 +7,9 @@
 	<ItemGroup>
 		<ProjectReference Include="../../Injure/Injure.csproj" Private="false" />
 		<ProjectReference Include="../../Injure.Analyzers/Injure.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="../../Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj" Private="false" />
 		<ProjectReference Include="../../Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		<ProjectReference Include="../../Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-		<ProjectReference Include="../../Injure.Mods.Utils/Injure.Mods.Utils.csproj" Private="false" />
 		<ProjectReference Include="../TestGame.ModApi/TestGame.ModApi.csproj" Private="false" />
 
 		<ProjectReference Include="../TestMod.Contracts/TestMod.Contracts.csproj" />

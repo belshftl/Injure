@@ -15,9 +15,9 @@ public sealed class OpenClassMarkerAnalyzer : DiagnosticAnalyzer {
 	public const string Marker = "/* open */";
 
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
-		Diagnostics.Core.MissingOpenClassMarker,
-		Diagnostics.Core.OpenClassMarkerNotAllowed,
-		Diagnostics.Core.MalformedOpenClassMarker
+		Diagnostics.Language.MissingOpenClassMarker,
+		Diagnostics.Language.OpenClassMarkerNotAllowed,
+		Diagnostics.Language.MalformedOpenClassMarker
 	);
 
 	public override void Initialize(AnalysisContext context) {
@@ -142,12 +142,12 @@ public sealed class OpenClassMarkerAnalyzer : DiagnosticAnalyzer {
 
 		if (!isClassLike || hasClosingModifier) {
 			foreach (SyntaxTrivia marker in allMarkers)
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.OpenClassMarkerNotAllowed, Location.Create(ctx.Node.SyntaxTree, marker.Span)));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Language.OpenClassMarkerNotAllowed, Location.Create(ctx.Node.SyntaxTree, marker.Span)));
 			return;
 		}
 
 		if (allMarkers.Count == 0) {
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.MissingOpenClassMarker, keyword.GetLocation()));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Language.MissingOpenClassMarker, keyword.GetLocation()));
 			return;
 		}
 
@@ -156,7 +156,7 @@ public sealed class OpenClassMarkerAnalyzer : DiagnosticAnalyzer {
 		if (valid)
 			return;
 		foreach (SyntaxTrivia marker in allMarkers)
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.MalformedOpenClassMarker, Location.Create(ctx.Node.SyntaxTree, marker.Span)));
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Language.MalformedOpenClassMarker, Location.Create(ctx.Node.SyntaxTree, marker.Span)));
 	}
 
 	private static void addMarkers(SyntaxTriviaList triviaList, List<SyntaxTrivia> markers) {

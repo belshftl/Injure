@@ -4,11 +4,11 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
-using Injure.Mods;
-using Injure.Mods.MonoMod;
-using Injure.Mods.Utils.MonoMod;
+using Injure.Mods.Abstractions;
+using Injure.Mods.Abstractions.Hooks;
+using Injure.Mods.Abstractions.Hooks.Il;
 using Injure.Primitives;
-using MonoMod.Cil;
+using Mono.Cecil;
 using TestGame.ModApi;
 
 using TestMod.Contracts;
@@ -28,14 +28,9 @@ internal sealed class ExportsImpl(IOwnerDiagnostics log) : ITestModExports {
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
 	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, TestModL> ctx, BoundedCt<TestModL> ct) {
-		/*
-		ctx.LoadHooks.DeclareILHook(TestGame.RawHooks.GameplayLayer.GetSomeColor, IL_GameplayLayer_GetSomeColor, new ModHookConfig {
-			DetourID = "jdoe.test-mod::SomeHook",
-		});
-		*/
 		ctx.Exports.Add<ITestModExports>(new ExportsImpl(ctx.Diagnostics));
 		ctx.Diagnostics.Info("loaded!");
-		ctx.Api.MarkLoaded(ctx.OwnerID);
+		ctx.Api.MarkLoaded(ctx.OwnerId);
 		return ValueTask.CompletedTask;
 	}
 
@@ -51,14 +46,27 @@ public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, TestModL> {
 	public ValueTask UnloadAsync(BoundedCt<TestModL> ct) =>
 		ValueTask.CompletedTask;
 
-	[LoadILHook(TestGame.RawHooks.GameplayLayer.GetSomeColor)]
-	public static void IL_GameplayLayer_GetSomeColor(ILContext il) {
-		ILCursor c = new(il);
-		c.RequireGotoNext("ldsfld Injure.Color32::Magenta", static i => i.MatchLdsfld<Color32>(nameof(Color32.Magenta)));
-		FieldInfo fi = typeof(Color32).GetField(nameof(Color32.Green), BindingFlags.Static | BindingFlags.Public) ??
-			throw new MissingFieldException("Color32.Green unexpectedly missing");
-		c.Remove(); // TODO: avoid destructive IL edits, they can mess up IL hooks from other mods
-		c.EmitLdsfld(fi);
+	[LoadIlHook(TestGame.RawHooks.GameplayLayer.GetSomeColor)]
+	internal static void IL_GameplayLayer_GetSomeColor(IlContext<TestModL> ctx) {
+		FieldReference magenta = ctx.Imports.Import(
+			typeof(Color32).GetField(nameof(Color32.Magenta), BindingFlags.Static | BindingFlags.Public) ??
+				throw new MissingFieldException("Color32.Magenta unexpectedly missing")
+		);
+		FieldReference blue = ctx.Imports.Import(
+			typeof(Color32).GetField(nameof(Color32.Blue), BindingFlags.Static | BindingFlags.Public) ??
+				throw new MissingFieldException("Color32.Blue unexpectedly missing")
+		);
+
+		IlMatch m = ctx.MatchNext(
+			[MatchIl.Ldsfld(magenta)],
+			IlPatternProvenanceConstraint.AllFromOwner("TestGame")
+		);
+		IlLabel skip = ctx.DefineLabel();
+		m.EmitBefore(e => e.Br(skip));
+		m.EmitAfter(e => {
+			e.MarkLabel(skip);
+			e.Ldsfld(blue);
+		});
 	}
 }
 

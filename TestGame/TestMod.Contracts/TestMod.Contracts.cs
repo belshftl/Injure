@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.Mods;
+using Injure.Mods.Abstractions;
 
 namespace TestMod.Contracts;
 

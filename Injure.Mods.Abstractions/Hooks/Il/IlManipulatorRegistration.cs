@@ -19,7 +19,7 @@ internal sealed class IlManipulatorRegistration : IStrongRefDroppable {
 		if (!ModMetadataValidation.ValidateOwnerId(ownerId, out string? e))
 			throw new InternalStateException($"IL manipulator registration under bad owner ID '{ownerId}': {e}");
 		if (!ModMetadataValidation.ValidateLocalId(localId, out e))
-			throw new InternalStateException($"IL manipulator registration under bad owner ID '{localId}': {e}");
+			throw new InternalStateException($"IL manipulator registration under bad local ID '{localId}': {e}");
 		if (manipulator is null)
 			throw new InternalStateException("IL manipulator registration happened for a null manipulator");
 		return new IlManipulatorRegistration(ownerId, localId, new IlManipulatorInvokerImpl<L>(manipulator));

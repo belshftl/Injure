@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.ComponentModel;
+
 namespace Injure.Mods.Weaver;
 
 [AttributeUsage(
@@ -17,5 +19,5 @@ namespace Injure.Mods.Weaver;
 	AllowMultiple = false,
 	Inherited = false
 )]
-public sealed class PublicizedAttribute : Attribute {
-}
+[EditorBrowsable(EditorBrowsableState.Never)]
+public sealed class PublicizedAttribute : Attribute;

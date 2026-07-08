@@ -9,8 +9,8 @@ public sealed class InjureReferences {
 	public const string PublicizedAttributeFullName = "Injure.Mods.Weaver.PublicizedAttribute";
 	public const string PublicizedSignatureAttributeFullName = "Injure.Mods.Weaver.PublicizedSignatureAttribute";
 	public const string PublicizedStateMachineAttributeFullName = "Injure.Mods.Weaver.PublicizedStateMachineAttribute";
-	public const string ModHookTargetStoreAttributeFullName = "Injure.Mods.Hooks.ModHookTargetStoreAttribute";
-	public const string HookTargetDefinitionFullName = "Injure.Mods.Hooks.HookTargetDefinition";
+	public const string ModHookTargetStoreAttributeFullName = "Injure.Mods.Weaver.ModHookTargetStoreAttribute";
+	public const string HookTargetDefinitionFullName = "Injure.Mods.Weaver.HookTargetDefinition";
 
 	public required TypeReference PublicizedAttributeType { get; init; }
 	public required MethodReference PublicizedAttributeCtor { get; init; }

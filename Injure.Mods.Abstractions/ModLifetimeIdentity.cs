@@ -12,7 +12,7 @@ namespace Injure.Mods.Abstractions;
 /// from purely being compile-time guards, and cross-mod interactions.
 /// </para>
 /// <para>
-/// Implementations must be structs marked with <see cref="ModLifetimeIdentityBelongsToAttribute"/>,
+/// Implementations must be <see langword="struct"/>s marked with <see cref="ModLifetimeIdentityBelongsToAttribute"/>,
 /// as enforced by both the analyzer and the runtime.
 /// The analyzer additionally enforces that the target struct:
 /// <list type="bullet">
@@ -20,13 +20,12 @@ namespace Injure.Mods.Abstractions;
 /// <item><description>is not a <c>ref struct</c>,</description></item>
 /// <item><description>is not nested inside another type,</description></item>
 /// <item><description>is not generic, including closed generics,</description></item>
-/// <item><description>is public,</description></item>
+/// <item><description>is <see langword="public"/>,</description></item>
 /// <item><description>and contains no members.</description></item>
 /// </list>
 /// </para>
 /// </remarks>
-public interface IModLifetimeIdentity {
-}
+public interface IModLifetimeIdentity;
 
 /// <summary>
 /// Declares the owner of a lifetime identity.

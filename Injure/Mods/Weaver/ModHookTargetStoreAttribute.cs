@@ -3,7 +3,7 @@
 
 using System.ComponentModel;
 
-namespace Injure.Mods.Abstractions.Hooks;
+namespace Injure.Mods.Weaver;
 
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
 [EditorBrowsable(EditorBrowsableState.Never)]

@@ -5,7 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-namespace Injure.Mods.Abstractions.Hooks;
+namespace Injure.Mods.Weaver;
 
 [EditorBrowsable(EditorBrowsableState.Never)]
 public readonly struct HookTargetDefinition : IEquatable<HookTargetDefinition> {

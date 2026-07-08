@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.Mods.MonoMod;
-using Injure.Mods.Runtime.MonoMod;
+using Injure.Mods.Abstractions;
+using Injure.Mods.Abstractions.Hooks;
+using Injure.Mods.Runtime.Hooks;
 using Injure.Runtime;
 
 namespace Injure.Mods.Runtime;
@@ -52,7 +53,7 @@ internal abstract class ModContextImpl<TGameApi, L>(
 }
 
 internal sealed class ModLoadContextImpl<TGameApi, L>(
-	ModHookDeclarations<TGameApi, L> loadHooks,
+	ModHookDeclarations<L> loadHooks,
 	UntypedModExportTable exports,
 	string ownerId,
 	Semver version,
@@ -62,7 +63,7 @@ internal sealed class ModLoadContextImpl<TGameApi, L>(
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
 ) : ModContextImpl<TGameApi, L>(nameof(IModLoadContext<,>), ownerId, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLoadContext<TGameApi, L>
 	where L : struct, IModLifetimeIdentity {
-	private ModHookDeclarations<TGameApi, L>? loadHooks = loadHooks;
+	private ModHookDeclarations<L>? loadHooks = loadHooks;
 	public IModHookDeclarations<L> LoadHooks => loadHooks ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
 	public IModExportDeclarations<L> Exports {
 		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);

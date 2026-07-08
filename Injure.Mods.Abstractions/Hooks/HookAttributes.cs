@@ -12,10 +12,8 @@ public abstract class HookAttribute : Attribute {
 	private protected HookAttribute() {
 	}
 
-	public string? LocalOrderDomain { get; init; }
-	public int LocalPriority { get; init; }
-
 	public string? LocalIdOverride { get; init; }
+	public int LocalPriority { get; init; }
 
 	public string[]? SoftBefore { get; init; }
 	public string[]? SoftAfter { get; init; }

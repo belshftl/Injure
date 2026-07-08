@@ -73,7 +73,7 @@ internal static class AssemblyScrubber {
 		DynamicMethod dm = new(
 			$"{declaringType.FullName}_{field.Name}_scrub_instance",
 			typeof(void),
-			new[] { typeof(object) },
+			[typeof(object)],
 			declaringType.Module,
 			skipVisibility: true
 		);

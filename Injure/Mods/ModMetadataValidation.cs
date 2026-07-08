@@ -38,6 +38,23 @@ public static class ModMetadataValidation {
 	}
 
 	/// <summary>
+	/// Checks an owner ID for validity.
+	/// </summary>
+	/// <returns>
+	/// <see langword="true"/> if <paramref name="s"/> is a valid owner ID;
+	/// <see langword="false"/> otherwise.
+	/// </returns>
+	/// <param name="s">String to perform the check on.</param>
+	/// <param name="err">If the method returned <see langword="false"/>, an error string describing the invalidity.</param>
+	public static bool ValidateOwnerId([NotNullWhen(true)] string? s, [NotNullWhen(false)] out string? err) {
+		if (s is null) {
+			err = "owner ID must not be null";
+			return false;
+		}
+		return ValidateOwnerId(s.AsSpan(), out err);
+	}
+
+	/// <summary>
 	/// Checks an owner ID for validity, throwing <see cref="ArgumentException"/> if it's invalid.
 	/// </summary>
 	/// <inheritdoc cref="ValidateOwnerId(ReadOnlySpan{char}, out string?)"/>
@@ -52,7 +69,7 @@ public static class ModMetadataValidation {
 	/// <inheritdoc cref="ValidateOwnerId(ReadOnlySpan{char}, out string?)"/>
 	public static void ValidateOwnerIdOrThrow([NotNull] string? s) {
 		ArgumentNullException.ThrowIfNull(s);
-		if (!ValidateOwnerId(s, out string? err))
+		if (!ValidateOwnerId(s.AsSpan(), out string? err))
 			throw new ArgumentException(err);
 	}
 
@@ -85,6 +102,23 @@ public static class ModMetadataValidation {
 			}
 		err = null;
 		return true;
+	}
+
+	/// <summary>
+	/// Checks a local ID for validity.
+	/// </summary>
+	/// <returns>
+	/// <see langword="true"/> if <paramref name="s"/> is a valid local ID;
+	/// <see langword="false"/> otherwise.
+	/// </returns>
+	/// <param name="s">String to perform the check on.</param>
+	/// <param name="err">If the method returned <see langword="false"/>, an error string describing the invalidity.</param>
+	public static bool ValidateLocalId([NotNullWhen(true)] string? s, [NotNullWhen(false)] out string? err) {
+		if (s is null) {
+			err = "local ID must not be null";
+			return false;
+		}
+		return ValidateLocalId(s.AsSpan(), out err);
 	}
 
 	/// <summary>

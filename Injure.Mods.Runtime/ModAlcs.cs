@@ -16,7 +16,7 @@ internal sealed class ModAlc(string entryAssemblyPath, IEnumerable<string> share
 		ArgumentNullException.ThrowIfNull(assemblyName);
 		if (assemblyName.Name is not null && sharedAssemblyNames.Contains(assemblyName.Name))
 			return null;
-		if (contracts.TryGet(assemblyName, out Assembly? loaded)) {
+		if (contracts.TryLoad(assemblyName, out Assembly? loaded)) {
 			AssemblyName loadedName = loaded.GetName();
 			if (assemblyName.Version is not null && loadedName.Version is not null && assemblyName.Version != loadedName.Version)
 				throw new FileLoadException($"requested shared contract assembly '{assemblyName.FullName}', but runtime loaded '{loaded.FullName}'");
@@ -48,7 +48,7 @@ internal sealed class ModContractsAlc(IReadOnlyDictionary<string, string> pathsB
 		return null;
 	}
 
-	public bool TryGet(AssemblyName requested, [NotNullWhen(true)] out Assembly? asm) {
+	public bool TryLoad(AssemblyName requested, [NotNullWhen(true)] out Assembly? asm) {
 		if (Load(requested) is Assembly a) {
 			asm = a;
 			return true;

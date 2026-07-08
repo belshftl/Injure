@@ -2,14 +2,18 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Frozen;
+using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
 using Injure.Internals.Analyzers.Attributes;
-using Injure.Mods.ManifestReader;
+using Injure.Mods.Abstractions;
+using Injure.Mods.Abstractions.ManifestReader;
+using Injure.Mods.Runtime.Hooks;
 using Injure.Mods.Runtime.MonoMod;
 using Injure.Runtime;
 
@@ -27,10 +31,11 @@ public readonly struct ModApiFactoryContext {
 
 public sealed record ModRuntimeOptions<TGameApi> {
 	public required string GameOwnerId { get; init; }
+	public required IReadOnlyList<Assembly> GameAssemblies { get; init; }
 	public required string ModDirectory { get; init; }
 	public required string CacheDirectory { get; init; }
 	public required Func<ModApiFactoryContext, TGameApi> ApiFactory { get; init; }
-	public required IReadOnlyList<string> SharedAssemblies { get; init; }
+	public required IReadOnlyList<string> AdditionalSharedAssemblies { get; init; }
 
 	public IDiagnosticsSink DiagnosticsSink { get; init; } = new DefaultDiagnosticsSink();
 	public TimeSpan UnloadGracePeriod { get; init; } = TimeSpan.FromMilliseconds(75);
@@ -68,11 +73,10 @@ public readonly partial struct RuntimePhase {
 	}
 }
 
-public sealed class ModRuntime<TGameApi> {
+public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 	// ==========================================================================
 	// bookkeeping
-	private readonly struct ContentLifetimeIdentity : IModLifetimeIdentity {
-	}
+	private readonly struct ContentLifetimeIdentity : IModLifetimeIdentity;
 
 	private readonly record struct ActiveDependent(string OwnerId, bool IsHard);
 
@@ -164,14 +168,25 @@ public sealed class ModRuntime<TGameApi> {
 	// constants
 	public const string ManifestJson = "manifest.json";
 	public const int MaxAlcUnloadGcAttempts = 8;
+	public static readonly ImmutableArray<string> DefaultSharedAssemblies = ImmutableArray.Create(
+		"Injure",
+		"Injure.Mods.Abstractions",
+		"Injure.Mods.Runtime",
+		"Mono.Cecil"
+	);
+
+	private static readonly Assembly mainAssembly = typeof(InternalStateException).Assembly;
+	private static readonly Assembly abstractionsAssembly = typeof(IModLifetimeIdentity).Assembly;
+	private static readonly Assembly runtimeAssembly = typeof(ModRuntime<>).Assembly;
 
 	// ==========================================================================
 	// state
 	private readonly string gameOwnerId;
+	private readonly Assembly[] gameAssemblies;
 	private readonly string modDir;
 	private readonly string cacheDir;
 	private readonly Func<ModApiFactoryContext, TGameApi> apiFactory;
-	private readonly IReadOnlyList<string> sharedAssemblies;
+	private readonly string[] sharedAssemblies;
 	private readonly DiagnosticsSinkRegistry diagnosticsSinkRegistry;
 	private readonly TimeSpan unloadGracePeriod;
 	private readonly int maxLoadParallelism;
@@ -190,6 +205,8 @@ public sealed class ModRuntime<TGameApi> {
 	private GameServices? attachedGameServices;
 	private readonly HashSet<string> enabledOwners = new(StringComparer.Ordinal);
 	private readonly HookTargetResolver hookTargetResolver = new(AssemblyLoadContext.Default.Assemblies);
+	private readonly MonoModRuntimeHookBackend hookBackend;
+	private readonly RuntimeHookRegistry runtimeHookRegistry;
 	private readonly Dictionary<string, ulong> nextGenerationByOwner = new(StringComparer.Ordinal);
 
 	private readonly Lock opLock = new();
@@ -205,10 +222,13 @@ public sealed class ModRuntime<TGameApi> {
 
 	public ModRuntime(ModRuntimeOptions<TGameApi> options) {
 		gameOwnerId = options.GameOwnerId ?? throw new ArgumentNullException(nameof(options), "GameOwnerId cannot be null");
+		gameAssemblies = options.GameAssemblies?.ToArray() ?? throw new ArgumentNullException(nameof(options), "GameAssemblies cannot be null");
 		modDir = options.ModDirectory ?? throw new ArgumentNullException(nameof(options), "ModDirectory cannot be null");
 		cacheDir = options.CacheDirectory ?? throw new ArgumentNullException(nameof(options), "CacheDirectory cannot be null");
 		apiFactory = options.ApiFactory ?? throw new ArgumentNullException(nameof(options), "ApiFactory cannot be null");
-		sharedAssemblies = options.SharedAssemblies ?? throw new ArgumentNullException(nameof(options), "SharedAssemblies cannot be null");
+		if (options.AdditionalSharedAssemblies is null)
+			throw new ArgumentNullException(nameof(options), "AdditionalSharedAssemblies cannot be null");
+		sharedAssemblies = DefaultSharedAssemblies.Concat(options.AdditionalSharedAssemblies).ToArray();
 		if (options.DiagnosticsSink is null)
 			throw new ArgumentNullException(nameof(options), "DiagnosticsSink cannot be null");
 		diagnosticsSinkRegistry = new DiagnosticsSinkRegistry([options.DiagnosticsSink]);
@@ -216,6 +236,8 @@ public sealed class ModRuntime<TGameApi> {
 		maxLoadParallelism = Math.Max(1, options.MaxLoadParallelism);
 		maxScopeTeardownParallelism = Math.Max(1, options.MaxScopeTeardownParallelism);
 		codeLoadSem = new SemaphoreSlim(maxLoadParallelism, maxLoadParallelism);
+		hookBackend = new MonoModRuntimeHookBackend();
+		runtimeHookRegistry = new RuntimeHookRegistry(hookBackend, this);
 		diagnostics = new OwnerDiagnostics(EngineInfo.OwnerId, diagnosticsSinkRegistry, null);
 		GameDiagnostics = new OwnerDiagnostics(gameOwnerId, diagnosticsSinkRegistry, null);
 	}
@@ -279,7 +301,7 @@ public sealed class ModRuntime<TGameApi> {
 				string manifestText = await File.ReadAllTextAsync(manifestPath, ct).ConfigureAwait(false);
 				SourceText manifestSource = new(manifestPath, manifestText);
 				try {
-					ModManifest manifest = ManifestReader.ManifestReader.Parse(manifestSource);
+					ModManifest manifest = ManifestReader.Parse(manifestSource);
 					string root = Path.GetDirectoryName(manifestPath) ??
 						throw new InternalStateException("was expecting enumerateManifests yielded path to have a dirname");
 					result.Add(manifest.OwnerId, new DiscoveredMod(new ModSource(root, manifestPath), manifest));
@@ -411,7 +433,7 @@ public sealed class ModRuntime<TGameApi> {
 		ct.ThrowIfCancellationRequested();
 		try {
 			foreach (LoadedCodeMod<TGameApi> mod in activeCode.Values)
-				HookDiscoverer<TGameApi>.DiscoverLoadHooks(mod, hookTargetResolver);
+				HookDiscoverer.DiscoverLoadHooks(mod, hookTargetResolver);
 			phase = RuntimePhase.HooksDiscovered;
 		} catch {
 			phase = RuntimePhase.Faulted;
@@ -442,7 +464,7 @@ public sealed class ModRuntime<TGameApi> {
 		requirePhase(RuntimePhase.Loaded, nameof(ApplyLoadHooksAsync));
 		ct.ThrowIfCancellationRequested();
 		try {
-			await HookApplier<TGameApi>.ApplyLoadHooksAsync(activeCode.Values.ToArray(), maxLoadParallelism, ct).ConfigureAwait(false);
+			runtimeHookRegistry.ReplaceLoadHooks(activeCode.Values.ToArray());
 			phase = RuntimePhase.LoadHooksApplied;
 		} catch {
 			phase = RuntimePhase.Faulted;
@@ -624,6 +646,8 @@ public sealed class ModRuntime<TGameApi> {
 			lock (opLock)
 				pendingOps.Clear();
 
+			runtimeHookRegistry.ClearAll();
+
 			RuntimePhase startingPhase = phase;
 			if (startingPhase == RuntimePhase.Active) {
 				await deactivateSetAsync(activeCode.Keys.ToHashSet(StringComparer.Ordinal), activeGraph, reverse: true, ct).ConfigureAwait(false);
@@ -642,6 +666,8 @@ public sealed class ModRuntime<TGameApi> {
 					await mod.Scope.InvalidateAsync(ReloadTeardownReason.Shutdown, ct).ConfigureAwait(false);
 			}
 
+			runtimeHookRegistry.Dispose();
+			hookBackend.DropStrongReferences();
 			clearRuntimeStateAfterShutdown();
 			if (unloadGracePeriod > TimeSpan.Zero && pendingUnloads.Count != 0)
 				await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
@@ -667,6 +693,12 @@ public sealed class ModRuntime<TGameApi> {
 			lock (opLock)
 				pendingOps.Clear();
 
+			try {
+				runtimeHookRegistry.ClearAll();
+			} catch (Exception ex) {
+				diagnostics.Warning($"abort: error clearing hook registry, moving on: {ex}");
+			}
+
 			List<PendingAlcUnload> pendingUnloads = new();
 			foreach (LoadedCodeMod<TGameApi> mod in activeCode.Values) {
 				try {
@@ -688,6 +720,16 @@ public sealed class ModRuntime<TGameApi> {
 					diagnostics.Warning($"abort: error invalidating content scope for '{mod.Staged.Manifest.OwnerId}', moving on: {ex}");
 				}
 
+			try {
+				runtimeHookRegistry.Dispose();
+			} catch (Exception ex) {
+				diagnostics.Warning($"abort: error disposing hook registry, moving on: {ex}");
+			}
+			try {
+				hookBackend.DropStrongReferences();
+			} catch (Exception ex) {
+				diagnostics.Warning($"abort: error dropping hook backend, moving on: {ex}");
+			}
 			clearRuntimeStateAfterShutdown();
 			if (unloadGracePeriod > TimeSpan.Zero && pendingUnloads.Count != 0)
 				await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
@@ -707,6 +749,33 @@ public sealed class ModRuntime<TGameApi> {
 
 	public void ShutdownBlocking(CancellationToken ct = default) => block(ShutdownAsync(ct));
 	public void AbortBlocking() => block(AbortAsync());
+
+	// ==========================================================================
+	// assembly owner resolution
+	bool IAssemblyOwnerResolver.TryGetOwner(Assembly asm, [NotNullWhen(true)] out string? ownerId) {
+		if (asm == mainAssembly || asm == abstractionsAssembly || asm == runtimeAssembly) {
+			ownerId = EngineInfo.OwnerId;
+			return true;
+		}
+
+		if (gameAssemblies.Contains(asm)) {
+			ownerId = gameOwnerId;
+			return true;
+		}
+
+		// TODO: contract assemblies, even though hooking them is kind of a bad idea
+
+		LoadedCodeMod<TGameApi>[] loaded = activeCode.Values.ToArray();
+		foreach (LoadedCodeMod<TGameApi> mod in loaded) {
+			if (asm == mod.Assembly) {
+				ownerId = mod.Staged.Manifest.OwnerId;
+				return true;
+			}
+		}
+
+		ownerId = null;
+		return false;
+	}
 
 	// ==========================================================================
 	// private methods
@@ -818,15 +887,15 @@ public sealed class ModRuntime<TGameApi> {
 				if (readiness == BoundaryPlanReadiness.WaitForStrongerBoundary)
 					return;
 
-				Transaction? transaction = await prepareTransactionAsync(plan, ct).ConfigureAwait(false);
-				if (transaction is null)
+				Transaction? txn = await prepareTransactionAsync(plan, ct).ConfigureAwait(false);
+				if (txn is null)
 					return;
 
 				removePendingBatch(batch);
 
-				ModOperationResult r = await commitTransactionAsync(transaction, ct).ConfigureAwait(false);
-				transaction.DropContainersOnly();
-				transaction = null;
+				ModOperationResult r = await commitTransactionAsync(txn, ct).ConfigureAwait(false);
+				txn.DropContainersOnly();
+				txn = null;
 				if (unloadGracePeriod > TimeSpan.Zero)
 					await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
 				foreach (PendingAlcUnload pending in r.PendingUnloads)
@@ -1075,7 +1144,7 @@ public sealed class ModRuntime<TGameApi> {
 			string manifestText = await File.ReadAllTextAsync(old.Source.ManifestPath, ct).ConfigureAwait(false);
 			SourceText manifestSource = new(old.Source.ManifestPath, manifestText);
 			try {
-				ModManifest manifest = ManifestReader.ManifestReader.Parse(manifestSource);
+				ModManifest manifest = ManifestReader.Parse(manifestSource);
 				candidateDiscovered[id] = new DiscoveredMod(old.Source, manifest);
 			} catch (ManifestReadException ex) {
 				throw new ModLoadException(id, "error parsing mod manifest while preparing a mod transaction:\n" + manifestSource.FormatDiagnostic(ex));
@@ -1117,7 +1186,7 @@ public sealed class ModRuntime<TGameApi> {
 			foreach (StagedMod stagedMod in replacementStaged)
 				if (stagedMod.Manifest is CodeModManifest) {
 					LoadedCodeMod<TGameApi> loaded = await loadCodeModBoundedAsync(stagedMod, ct).ConfigureAwait(false);
-					HookDiscoverer<TGameApi>.DiscoverLoadHooks(loaded, hookTargetResolver);
+					HookDiscoverer.DiscoverLoadHooks(loaded, hookTargetResolver);
 					preparedCode.Add(stagedMod.Manifest.OwnerId, loaded);
 				} else if (stagedMod.Manifest is ContentModManifest) {
 					preparedContent.Add(stagedMod.Manifest.OwnerId, createLoadedContentMod(stagedMod));
@@ -1193,8 +1262,8 @@ public sealed class ModRuntime<TGameApi> {
 		throw prepareErr.ToException();
 	}
 
-	private async ValueTask<ModOperationResult> commitTransactionAsync(Transaction transaction, CancellationToken ct) {
-		BoundaryPlan plan = transaction.Plan;
+	private async ValueTask<ModOperationResult> commitTransactionAsync(Transaction txn, CancellationToken ct) {
+		BoundaryPlan plan = txn.Plan;
 		Dictionary<string, ModLiveStateBlob> capturedState = new(StringComparer.Ordinal);
 		GameServices? gameServices = attachedGameServices;
 		bool wasActive = phase == RuntimePhase.Active;
@@ -1223,16 +1292,16 @@ public sealed class ModRuntime<TGameApi> {
 				destructiveBoundaryCrossed = true;
 			}
 
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.OldCode.Values)
+			foreach (LoadedCodeMod<TGameApi> mod in txn.OldCode.Values)
 				await unloadCodeGenerationAsync(mod, ct).ConfigureAwait(false);
 
 			await disposeOldOwnerScopesAsync(plan.OldTouchedSet, plan, ct).ConfigureAwait(false);
 
-			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.PreparedCode.Values.ToArray(), maxLoadParallelism, ct).ConfigureAwait(false);
+			runtimeHookRegistry.ReplaceLoadHooks(txn.PreparedCode.Values.ToArray());
 
 			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live)
 				foreach (KeyValuePair<string, ModLiveStateBlob> kvp in capturedState)
-					if (transaction.PreparedCode.TryGetValue(kvp.Key, out LoadedCodeMod<TGameApi>? next) && next.ReloadEntrypoint is not null) {
+					if (txn.PreparedCode.TryGetValue(kvp.Key, out LoadedCodeMod<TGameApi>? next) && next.ReloadEntrypoint is not null) {
 						object ctx = createReloadContext(next, createApi(next), diagnosticsSinkRegistry, reloadSetSnapshot, gameServices);
 						try {
 							await invokeRestoreStateAsync(next, ctx, kvp.Value, ct).ConfigureAwait(false);
@@ -1245,16 +1314,16 @@ public sealed class ModRuntime<TGameApi> {
 			if (wasActive)
 				await activateSetAsync(
 					plan.PrepareSet,
-					transaction.CandidateGraph,
-					transaction.PreparedCode,
+					txn.CandidateGraph,
+					txn.PreparedCode,
 					gameServices ?? throw new InternalStateException("active runtime has no attached GameServices"),
 					ct
 				).ConfigureAwait(false);
-			publishTransaction(transaction);
+			publishTransaction(txn);
 			publishBoundaryCrossed = true;
 
 			List<PendingAlcUnload> oldUnloads = new();
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.OldCode.Values)
+			foreach (LoadedCodeMod<TGameApi> mod in txn.OldCode.Values)
 				oldUnloads.Add(detachForUnload(mod));
 
 			return ModOperationResult.Succeeded(
@@ -1273,13 +1342,13 @@ public sealed class ModRuntime<TGameApi> {
 			throw reloadErr.ToException(); // post-publish rollback is unsafe and will most likely corrupt state, just don't bother
 
 		if (!destructiveBoundaryCrossed) {
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values)
+			foreach (LoadedCodeMod<TGameApi> mod in txn.PreparedCode.Values)
 				await startDestroyPreparedCodeGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 			if (unloadGracePeriod > TimeSpan.Zero)
 				await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values)
+			foreach (LoadedCodeMod<TGameApi> mod in txn.PreparedCode.Values)
 				unload(detachForUnload(mod), diagnostics);
-			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
+			foreach (LoadedContentMod mod in txn.PreparedContent.Values)
 				await mod.Scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 			throw reloadErr.ToException();
 		}
@@ -1287,23 +1356,23 @@ public sealed class ModRuntime<TGameApi> {
 		List<PendingAlcUnload> preparedUnloads = new();
 		List<ExceptionSnapshot> rollbackErrs = new();
 		try {
-			foreach (LoadedCodeMod<TGameApi> mod in transaction.PreparedCode.Values) {
+			foreach (LoadedCodeMod<TGameApi> mod in txn.PreparedCode.Values) {
 				await startDestroyPreparedCodeGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 				preparedUnloads.Add(detachForUnload(mod));
 			}
-			foreach (LoadedContentMod mod in transaction.PreparedContent.Values)
+			foreach (LoadedContentMod mod in txn.PreparedContent.Values)
 				await mod.Scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
 			rollbackErrs.Add(ExceptionSnapshot.FromException(ex));
 		}
 
 		try {
-			foreach (LoadedCodeMod<TGameApi> old in transaction.OldCode.Values)
+			foreach (LoadedCodeMod<TGameApi> old in txn.OldCode.Values)
 				old.Scope = new UntypedBoundedScopeImpl(old.Staged.Generation, maxScopeTeardownParallelism);
-			foreach (LoadedContentMod old in transaction.OldContent.Values)
+			foreach (LoadedContentMod old in txn.OldContent.Values)
 				old.Scope = new UntypedBoundedScopeImpl(old.Staged.Generation, maxScopeTeardownParallelism);
 
-			await HookApplier<TGameApi>.ApplyLoadHooksAsync(transaction.OldCode.Values.ToArray(), maxLoadParallelism, ct).ConfigureAwait(false);
+			runtimeHookRegistry.ReplaceLoadHooks(txn.OldCode.Values.ToArray());
 			if (wasActive)
 				await activateSetAsync(
 					plan.OldTouchedSet,
@@ -1319,7 +1388,7 @@ public sealed class ModRuntime<TGameApi> {
 		if (rollbackErrs.Count > 0)
 			throw new AggregateException("mod operation failed and rollback also failed", rollbackErrs.Select(static e => e.ToException()).Prepend(reloadErr.ToException()));
 		var r = ModOperationResult.RollbackSucceeded(reloadErr, preparedUnloads);
-		transaction.DropPreparedStrongReferences();
+		txn.DropPreparedStrongReferences();
 		return r;
 	}
 
@@ -1389,7 +1458,8 @@ public sealed class ModRuntime<TGameApi> {
 				Scope = scope,
 				Entrypoint = entrypoint,
 				ReloadEntrypoint = reloadEntrypoint,
-				LoadHooks = new GenerationPatchSet(),
+				LoadHooks = new RuntimeHookDeclarationSet(stagedMod.Manifest.OwnerId),
+				LinkHooks = new RuntimeHookDeclarationSet(stagedMod.Manifest.OwnerId),
 				Exports = new UntypedModExportTable(lifetimeIdentityType),
 			};
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
@@ -1516,10 +1586,10 @@ public sealed class ModRuntime<TGameApi> {
 		}
 	}
 
-	private void publishTransaction(Transaction transaction) {
-		BoundaryPlan plan = transaction.Plan;
-		discovered = transaction.CandidateDiscovered;
-		activeGraph = transaction.CandidateGraph;
+	private void publishTransaction(Transaction txn) {
+		BoundaryPlan plan = txn.Plan;
+		discovered = txn.CandidateDiscovered;
+		activeGraph = txn.CandidateGraph;
 		foreach (string id in plan.DisableSet) {
 			activeCode.Remove(id);
 			activeContent.Remove(id);
@@ -1527,11 +1597,11 @@ public sealed class ModRuntime<TGameApi> {
 		}
 		foreach (string id in plan.EnableSet)
 			enabledOwners.Add(id);
-		foreach (KeyValuePair<string, LoadedCodeMod<TGameApi>> kvp in transaction.PreparedCode)
+		foreach (KeyValuePair<string, LoadedCodeMod<TGameApi>> kvp in txn.PreparedCode)
 			activeCode[kvp.Key] = kvp.Value;
-		foreach (KeyValuePair<string, LoadedContentMod> kvp in transaction.PreparedContent)
+		foreach (KeyValuePair<string, LoadedContentMod> kvp in txn.PreparedContent)
 			activeContent[kvp.Key] = kvp.Value;
-		staged = staged.Where(mod => !plan.OldTouchedSet.Contains(mod.Manifest.OwnerId)).Concat(transaction.ReplacementStaged).ToArray();
+		staged = staged.Where(mod => !plan.OldTouchedSet.Contains(mod.Manifest.OwnerId)).Concat(txn.ReplacementStaged).ToArray();
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
@@ -1727,7 +1797,7 @@ public sealed class ModRuntime<TGameApi> {
 	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) => apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerId, mod.Scope));
 
 	private static object createLoadHookDeclarations(LoadedCodeMod<TGameApi> mod, HookTargetResolver resolver) => Activator.CreateInstance(
-		typeof(ModHookDeclarations<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
+		typeof(ModHookDeclarations<>).MakeGenericType(mod.LifetimeIdentityType),
 		mod,
 		resolver,
 		HookDeclarationPhase.Load,

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Threading.Tasks;
-using Injure.Mods;
+using Injure.Mods.Abstractions;
 using TestGame.ModApi;
 
 using TestMod.Contracts;
@@ -12,14 +12,13 @@ using TestMod.Contracts;
 namespace OtherTestMod;
 
 [ModLifetimeIdentityBelongsTo("jdoe.other-test-mod")]
-public readonly struct OtherTestModL : IModLifetimeIdentity {
-}
+public readonly struct OtherTestModL : IModLifetimeIdentity;
 
 [ModEntrypoint]
 public sealed class Entrypoint : IModEntrypoint<ITestGameModApi, OtherTestModL> {
 	public ValueTask LoadAsync(IModLoadContext<ITestGameModApi, OtherTestModL> ctx, BoundedCt<OtherTestModL> ct) {
 		ctx.Diagnostics.Info("loaded!");
-		ctx.Api.MarkLoaded(ctx.OwnerID);
+		ctx.Api.MarkLoaded(ctx.OwnerId);
 		return ValueTask.CompletedTask;
 	}
 

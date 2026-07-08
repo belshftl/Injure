@@ -24,9 +24,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- Injure internals: -->
 		<ProjectReference Include="../Injure.Internals.Analyzers/Injure.Internals.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-		<ProjectReference Include="../Injure.Native/Injure.Native.csproj" />
 		<InternalsVisibleTo Include="Injure.Internals.Tests" />
+
+		<!-- public packages: -->
+		<ProjectReference Include="../Injure.Native/Injure.Native.csproj" />
 		<InternalsVisibleTo Include="Injure.Mods.Abstractions" />
 		<InternalsVisibleTo Include="Injure.Mods.Runtime" />
 	</ItemGroup>

@@ -7,5 +7,6 @@
 	<ItemGroup>
 		<ProjectReference Include="../../Injure/Injure.csproj" Private="false" />
 		<ProjectReference Include="../../Injure.Analyzers/Injure.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="../../Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj" Private="false" />
 	</ItemGroup>
 </Project>

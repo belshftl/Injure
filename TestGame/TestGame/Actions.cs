@@ -7,20 +7,20 @@ using Injure.Input;
 namespace TestGame;
 
 public static class Actions {
-	public static ActionID Move { get; private set; }
-	public static ActionID Confirm { get; private set; }
-	public static ActionID Pause { get; private set; }
-	public static ActionID ScrollY { get; private set; }
+	public static ActionId Move { get; private set; }
+	public static ActionId Confirm { get; private set; }
+	public static ActionId Pause { get; private set; }
+	public static ActionId ScrollY { get; private set; }
 
 	// these are temporary
-	public static ActionID ReloadTestMod { get; private set; }
-	public static ActionID DisableTestMod { get; private set; }
-	public static ActionID EnableTestMod { get; private set; }
+	public static ActionId ReloadTestMod { get; private set; }
+	public static ActionId DisableTestMod { get; private set; }
+	public static ActionId EnableTestMod { get; private set; }
 
 	public static ActionProfile Profile { get => field ?? throw new InvalidOperationException("Actions.Init() not called yet"); private set; }
 
 	public static void Init() {
-		Game.Input.Actions.RegisterMany(Game.OwnerID, reg => {
+		Game.Input.Actions.RegisterMany(Game.OwnerId, reg => {
 			Move = reg.Register("move");
 			Confirm = reg.Register("confirm");
 			Pause = reg.Register("pause");

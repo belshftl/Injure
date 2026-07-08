@@ -57,7 +57,14 @@ internal sealed class IlPipelineResult : IDisposable, IStrongRefDroppable {
 			throw new AggregateException("one or more managed-delegate retention leases threw during dispose", failures);
 	}
 
-	public void DropStrongReferences() => Dispose(); // TODO: maybe wrap this in a try-catch idk
+	public void DropStrongReferences() {
+		method = null;
+		provenance?.Clear();
+		provenance = null;
+		IDisposable[] r = Interlocked.Exchange(ref retentions, Array.Empty<IDisposable>());
+		foreach (IDisposable retention in r)
+			try { retention?.Dispose(); } catch {}
+	}
 }
 
 internal static class IlPipelineRunner {
@@ -65,12 +72,11 @@ internal static class IlPipelineRunner {
 		MethodDefinition method,
 		string? baselineOwnerId,
 		IReadOnlyList<IlManipulatorRegistration> manipulators,
-		IIlManagedDelegateLowerer? managedDelegateLowerer
+		IIlManagedDelegateLowerer? managedDelegateLowerer,
+		IIlBackendOperandNormalizer operandNormalizer
 	) {
-		if (method is null)
-			throw new InternalStateException("IlPipelineRunner got passed null method");
-		if (manipulators is null)
-			throw new InternalStateException("IlPipelineRunner got passed null manipulator list");
+		InternalStateException.ThrowIfNull(method);
+		InternalStateException.ThrowIfNull(manipulators);
 		if (!method.HasBody)
 			throw new InternalStateException("IlPipelineRunner got passed method with no body");
 		if (baselineOwnerId is not null && !ModMetadataValidation.ValidateOwnerId(baselineOwnerId, out string? e))
@@ -85,7 +91,7 @@ internal static class IlPipelineRunner {
 
 		List<IDisposable> retentions = new();
 		try {
-			var working = IlWorkingBody.Clone(method, new InternalIlProvenance(baselineOwnerId, null));
+			var working = IlWorkingBody.Clone(method, new InternalIlProvenance(baselineOwnerId, null), operandNormalizer);
 			foreach (IlManipulatorRegistration m in manipulators) {
 				IlSnapshot snap = working.CaptureSnapshot();
 				IlTransactionCore txn = new(working, snap, new InternalIlProvenance(m.OwnerId, m.LocalId), managedDelegateLowerer, retentions);
@@ -97,7 +103,7 @@ internal static class IlPipelineRunner {
 				} catch (Exception ex) {
 					if (ExceptionPolicy.IsInternalState(ex))
 						throw;
-					throw new IlPipelineException($"IL manipulator '{m.OwnerId}::{m.LocalId}' threw", ex);
+					throw new IlPipelineException($"IL manipulator '{m.OwnerId}::{m.LocalId}' threw", ExceptionSnapshot.FromException(ex).ToException());
 				}
 			}
 
