@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics.CodeAnalysis;
-using Injure.CodeAnalysis;
+using Injure.CodeAnalysis.Internal;
 using Injure.Time;
 
 namespace Injure.Runtime;

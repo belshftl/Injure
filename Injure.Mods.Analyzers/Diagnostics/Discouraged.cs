@@ -7,105 +7,28 @@ namespace Injure.Mods.Analyzers.Diagnostics;
 
 internal static class Discouraged {
 #pragma warning disable RS2008 // enable analyzer release tracking
-	public static readonly DiagnosticDescriptor StaticEventDeclaredInNonReloadableMod = new(
-		id: "IJM0200",
-		title: "Static event declared in non-reloadable mod",
-		messageFormat:
-		"Static events are arbitrary, possibly cross-ALC registration buckets with no mechanism to force unregistry and can easily leak old generations of reloadable mods; they're allowed in non-reloadable mods, but strongly prefer a IBoundedScope-managed object instead",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Warning,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor StaticEventDeclaredInReloadableMod = new(
-		id: "IJM0201",
-		title: "Static event declared in reloadable mod",
-		messageFormat:
-		"Static events are impossible to use correctly in reloadable mods; registrations easily leak old generation state of other mods, state cannot be recreated across reloads, and they promote bad APIs relying on fragile reflection tracking",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true
-	);
-
 	public static readonly DiagnosticDescriptor StaticEventSubscriptionInReloadableMod = new(
-		id: "IJM0202",
+		id: "IJM0200",
 		title: "Static event subscription in reloadable mod",
 		messageFormat:
-		"Static events are impossible to use correctly in reloadable mods; switch to another API or ask the maintainer(s) of this one to switch to registration handles or at least a scope-registerable holder object for the events",
+		"Static events are impossible to use correctly in reloadable mods; switch to another API, and if you're forced to stay on this one, you may have to make your mod non-reloadable",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor HookFieldInReloadableMod = new(
-		id: "IJM0203",
-		title: "Hook field/property in reloadable mod",
-		messageFormat:
-		"Don't store hooks in fields/properties in reloadable mods; keep hooks scoped to either the entire generation or the same method that creates it, and prefer built-in hook APIs. For conditional behavior, keep the hook installed and branch inside the hook.",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Warning,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor MonoModHookGenUsed = new(
-		id: "IJM0204",
-		title: "Don't use MonoMod.HookGen",
-		messageFormat: "Use Injure's built-in hook APIs instead of MonoMod.HookGen; HookGen is blatantly reload-unsafe, easy to violate the detour ID rule with, has very dated tooling, and involves mixing in a 2nd post-compile tool",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor MonoModModInteropUsed = new(
-		id: "IJM0205",
-		title: "Don't use MonoMod.ModInterop",
-		messageFormat:
-		"Use the built-in mod exports API; MonoMod.ModInterop conflicts with the lifecycle/dependency model and is blatantly reload-unsafe",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor MonoModModInteropNamespaceUsed = new(
-		id: "IJM0206",
-		title: "MonoMod.ModInterop namespace used",
-		messageFormat:
-		"Use the built-in mod exports API; MonoMod.ModInterop conflicts with the lifecycle/dependency model and is blatantly reload-unsafe. Using its API is an error, but merely including the namespace is only a warning.",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Warning,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor LifecycleContextMember = new(
-		id: "IJM0207",
-		title: "Lifecycle context stored in field/property",
-		messageFormat: "Don't store lifecycle context objects, as they become invalid after the call returns; store specific long-lived values such as Api / Scope / Diagnostics",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Error,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor LifecycleContextLambdaCapture = new(
-		id: "IJM0208",
-		title: "Lifecycle context captured by lambda",
-		messageFormat: "Lifecycle context objects become invalid after the call returns, so this lambda capture will most likely not work how you think it will",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor NonStaticHookMethod = new(
-		id: "IJM0209",
-		title: "Hook methods should be plain static methods",
+		id: "IJM0201",
+		title: "Hook methods should be static methods",
 		messageFormat:
-		"Hook methods should be plain static methods; instance methods / capturing lambdas can cause all sorts of chaos by capturing state, and Action/Func/etc objects make it hard to pinpoint what actually gets used as the hook",
+		"Hook methods should be static methods; instance methods / capturing lambdas can cause all sorts of chaos by capturing state, and Action/Func/etc objects make it hard to pinpoint what actually gets used as the hook",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
 	);
 
 	public static readonly DiagnosticDescriptor HookStaticLambda = new(
-		id: "IJM0210",
+		id: "IJM0202",
 		title: "Prefer plain static methods over static lambdas for hooks",
 		messageFormat:
 		"Prefer a plain static method over a static lambda for hooks; static lambdas make it harder to pinpoint the hook body or give it an identity for debugging/diagnostics/etc",
@@ -114,63 +37,23 @@ internal static class Discouraged {
 		isEnabledByDefault: true
 	);
 
-	public static readonly DiagnosticDescriptor NonStaticEmitDelegateMethod = new(
-		id: "IJM0211",
-		title: "EmitDelegate argument should be a plain static method",
+	public static readonly DiagnosticDescriptor NonStaticIlEmitterDelegateMethod = new(
+		id: "IJM0203",
+		title: "IlEmitter.Delegate argument should be a static method",
 		messageFormat:
-		"EmitDelegate should be passed a plain static method; instance methods / capturing lambdas can cause all sorts of chaos by capturing state, and Action/Func/etc objects make it hard to pinpoint what actually gets called",
+		"IlEmitter.Delegate should be passed a static method; instance methods / capturing lambdas can cause all sorts of chaos by capturing state, and Action/Func/etc objects make it hard to pinpoint what actually gets called",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
 	);
 
-	public static readonly DiagnosticDescriptor EmitDelegateStaticLambda = new(
-		id: "IJM0212",
-		title: "Prefer plain static methods over static lambdas for EmitDelegate",
+	public static readonly DiagnosticDescriptor IlEmitterDelegateStaticLambda = new(
+		id: "IJM0204",
+		title: "Prefer plain static methods over static lambdas for IlEmitter.Delegate",
 		messageFormat:
-		"Prefer a plain static method over a static lambda for EmitDelegate, as static lambdas usually emit worse IL; what could be a plain call instruction becomes a capture of a delegate field on a compiler-generated class, and the callsite has to do weird castclass magic",
+		"Prefer a plain static method over a static lambda for IlEmitter.Delegate, as static lambdas usually emit worse IL; what could be a plain call instruction now has to retain a delegate instance somewhere in internal storage and fetch it at the callsite",
 		category: "Discouraged",
 		defaultSeverity: DiagnosticSeverity.Info,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor ManualHookWithDetourConfig = new(
-		id: "IJM0213",
-		title: "Prefer built-in hook APIs",
-		messageFormat:
-		"Prefer built-in hook APIs instead of manually created hooks, as they provide better ergonomics, reload safety, and can have better interop conveniences for authors of other mods",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Info,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor ManualHookWithoutDetourConfig = new(
-		id: "IJM0214",
-		title: "Prefer built-in hook APIs, or at least use a DetourConfig",
-		messageFormat:
-		"Prefer built-in hook APIs instead of manually created hooks, but if you must manually create a hook, it must have a detour ID (i.e be constructed with a non-null DetourConfig)",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Warning,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor DestructiveILEdit = new(
-		id: "IJM0215",
-		title: "Avoid destructive IL edits",
-		messageFormat:
-		"Removing or modifying instructions commonly breaks IL hooks of other mods, which causes seemingly random crashes for players; prefer exclusively adding new instructions. For example, to patch out some code segment, skip it with an unconditional branch instead of deleting it.",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Warning,
-		isEnabledByDefault: true
-	);
-
-	public static readonly DiagnosticDescriptor PreferRequireGoto = new(
-		id: "IJM0216",
-		title: "Use RequireGoto{{Next,Prev}} instead of plain Goto{{Next,Prev}}",
-		messageFormat:
-		"Use ILCursor.RequireGoto{{Next,Prev}} from Injure.Mods.Utils instead of plain Goto{{Next,Prev}} as they provide much better exceptions/messages on match failure",
-		category: "Discouraged",
-		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
 	);
 #pragma warning restore RS2008 // enable analyzer release tracking

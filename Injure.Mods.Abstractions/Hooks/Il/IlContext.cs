@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.CodeAnalysis;
+using Injure.CodeAnalysis.Internal;
 
 namespace Injure.Mods.Abstractions.Hooks.Il;
 
@@ -11,7 +11,7 @@ namespace Injure.Mods.Abstractions.Hooks.Il;
 /// <typeparam name="L">
 /// Lifetime identity of the owner; see <c>Docs/mods/lifetime-identity.md</c> for more info.
 /// </typeparam>
-[DontCache]
+[DontCache("an IlContext is only valid for the duration of the IL manipulator invocation that got passed it")]
 public sealed class IlContext<L> : IStrongRefDroppable where L : struct, IModLifetimeIdentity {
 	private IlTransactionCore? core;
 	private readonly string? ownerId;

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.CodeAnalysis;
+using Injure.CodeAnalysis.Internal;
 using Injure.Mods;
 
 namespace Injure.Assets;

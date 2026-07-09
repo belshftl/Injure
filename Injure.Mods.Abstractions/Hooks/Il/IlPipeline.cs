@@ -104,6 +104,8 @@ internal static class IlPipelineRunner {
 					if (ExceptionPolicy.IsInternalState(ex))
 						throw;
 					throw new IlPipelineException($"IL manipulator '{m.OwnerId}::{m.LocalId}' threw", ExceptionSnapshot.FromException(ex).ToException());
+				} finally {
+					txn.DropStrongReferences();
 				}
 			}
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics.CodeAnalysis;
-using Injure.CodeAnalysis;
+using Injure.CodeAnalysis.Internal;
 
 namespace Injure.Mods.Abstractions.Hooks.Il;
 
@@ -18,7 +18,7 @@ namespace Injure.Mods.Abstractions.Hooks.Il;
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-[DontCache]
+[DontCache("IlLabel objects are only valid within the same IL manipulator transaction that minted them")]
 public readonly struct IlLabel : IEquatable<IlLabel> {
 	internal long TransactionId { get; }
 	internal int LabelId { get; }

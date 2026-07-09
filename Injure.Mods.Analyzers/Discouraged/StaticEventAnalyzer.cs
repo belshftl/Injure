@@ -14,8 +14,7 @@ public sealed class StaticEventAnalyzer : DiagnosticAnalyzer {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
 		Diagnostics.Discouraged.StaticEventDeclaredInNonReloadableMod,
 		Diagnostics.Discouraged.StaticEventDeclaredInReloadableMod,
-		Diagnostics.Discouraged.StaticEventSubscriptionInReloadableMod,
-		Diagnostics.Discouraged.MonoModHookGenUsed
+		Diagnostics.Discouraged.StaticEventSubscriptionInReloadableMod
 	);
 
 	public override void Initialize(AnalysisContext context) {
@@ -44,14 +43,12 @@ public sealed class StaticEventAnalyzer : DiagnosticAnalyzer {
 	}
 
 	private static void analyzeEventAssignment(OperationAnalysisContext ctx, bool nonreloadable) {
+		if (nonreloadable)
+			return;
 		var asg = (IEventAssignmentOperation)ctx.Operation;
 		var @ref = (IEventReferenceOperation)asg.EventReference;
 		IEventSymbol sym = @ref.Event;
-		INamespaceSymbol ns = sym.ContainingNamespace;
-		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent);
-		if (ns.Name is "On" or "IL")
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Discouraged.MonoModHookGenUsed, asg.Syntax.GetLocation()));
-		else if (!nonreloadable && sym.IsStatic)
+		if (sym.IsStatic)
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Discouraged.StaticEventSubscriptionInReloadableMod, asg.Syntax.GetLocation()));
 	}
 }

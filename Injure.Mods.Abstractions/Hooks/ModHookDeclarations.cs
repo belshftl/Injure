@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 using System.Reflection;
-using Injure.CodeAnalysis;
+using Injure.CodeAnalysis.Internal;
 using Injure.Mods.Abstractions.Hooks.Il;
 
 namespace Injure.Mods.Abstractions.Hooks;
 
-[DontCache]
+[DontCache("hook declarations for a given phase are closed after the corresponding mod lifecycle method returns")]
 [DontImplement]
 public interface IModHookDeclarations<L> where L : struct, IModLifetimeIdentity {
 	void DeclareHook(string targetId, MethodInfo hookMethod, in ModHookConfig config);

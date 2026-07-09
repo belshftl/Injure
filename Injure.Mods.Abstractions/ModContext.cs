@@ -1,13 +1,19 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.CodeAnalysis;
+using Injure.CodeAnalysis.Internal;
 using Injure.Mods.Abstractions.Hooks;
 using Injure.Runtime;
 
 namespace Injure.Mods.Abstractions;
 
-[DontCache]
+internal static class ModContextCodeAnalysisMessages {
+	public const string DontCache = "lifecycle context objects are only valid for the duration of the corresponding lifecycle method invocation; cache specific long-lived values such as Api / Scope / Diagnostics";
+	public const string DontCapture = "lifecycle context objects are only valid for the duration of the corresponding lifecycle method invocation, so a lambda capture probably won't work how you think it will; cache and capture specific long-lived values such as Api / Scope / Diagnostics instead";
+}
+
+[DontCache(ModContextCodeAnalysisMessages.DontCache)]
+[DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIdentity {
 	string OwnerId { get; }
@@ -19,14 +25,16 @@ public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIden
 	DiagnosticsSinkRegistry DiagnosticsSinkRegistry { get; }
 }
 
-[DontCache]
+[DontCache(ModContextCodeAnalysisMessages.DontCache)]
+[DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IModHookDeclarations<L> LoadHooks { get; }
 	IModExportDeclarations<L> Exports { get; }
 }
 
-[DontCache]
+[DontCache(ModContextCodeAnalysisMessages.DontCache)]
+[DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	// TODO: IModHookDeclarations<L> LinkHooks { get; }
@@ -40,14 +48,16 @@ public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> whe
 	LoadedCodeDepInfo<L, LDependency> RequireCodeDependency<LDependency>() where LDependency : struct, IModLifetimeIdentity;
 }
 
-[DontCache]
+[DontCache(ModContextCodeAnalysisMessages.DontCache)]
+[DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModActivateContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	GameServices GameServices { get; }
 	IBoundedScope<L> ActivationScope { get; }
 }
 
-[DontCache]
+[DontCache(ModContextCodeAnalysisMessages.DontCache)]
+[DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModReloadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IReadOnlySet<string> ReloadSet { get; }

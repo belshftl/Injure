@@ -7,12 +7,12 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace Injure.Analyzers.CodeAnalysis;
+namespace Injure.Analyzers.Usage;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class DontImplementAnalyzer : DiagnosticAnalyzer {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
-		Diagnostics.CodeAnalysis.DontImplementInterface
+		Diagnostics.Usage.DontImplementInterface
 	);
 
 	public override void Initialize(AnalysisContext context) {
@@ -44,9 +44,7 @@ public sealed class DontImplementAnalyzer : DiagnosticAnalyzer {
 				interfaces.Add(inherited);
 		}
 
-		interfaces.RemoveWhere(iface => !iface.OriginalDefinition.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, known.DontImplementAttribute)
-			)
-		);
+		interfaces.RemoveWhere(iface => !iface.OriginalDefinition.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, known.DontImplementAttribute)));
 		if (interfaces.Count == 0)
 			return;
 
@@ -72,8 +70,7 @@ public sealed class DontImplementAnalyzer : DiagnosticAnalyzer {
 					foreach (INamedTypeSymbol iface in interfaces) {
 						if (
 							!SymbolEqualityComparer.Default.Equals(candidate, iface) &&
-							!candidate.AllInterfaces.Any(inherited => SymbolEqualityComparer.Default.Equals(inherited, iface)
-							)
+							!candidate.AllInterfaces.Any(inherited => SymbolEqualityComparer.Default.Equals(inherited, iface))
 						)
 							continue;
 
@@ -109,12 +106,12 @@ public sealed class DontImplementAnalyzer : DiagnosticAnalyzer {
 							break;
 					}
 
-					loc ??= type.Locations.FirstOrDefault(candidate => candidate.IsInSource);
+					loc ??= type.Locations.FirstOrDefault(static l => l.IsInSource);
 					if (loc is null)
 						continue;
 					c.ReportDiagnostic(
 						Diagnostic.Create(
-							Diagnostics.CodeAnalysis.DontImplementInterface,
+							Diagnostics.Usage.DontImplementInterface,
 							loc,
 							iface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
 						)

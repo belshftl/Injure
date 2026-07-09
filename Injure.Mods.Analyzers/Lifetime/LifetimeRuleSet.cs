@@ -47,12 +47,6 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 		ITypeSymbol? type = creation.Type;
 		if (hasAttribute(creation.Constructor, known.DoesNotCreateObligationAttribute))
 			return null;
-		if (type.IsOrDerivesFrom(known.Hook))
-			return required(LifetimeObligationKind.Hook, type);
-		if (type.IsOrDerivesFrom(known.ILHook))
-			return required(LifetimeObligationKind.ILHook, type);
-		if (type.IsOrDerivesFrom(known.NativeHook))
-			return required(LifetimeObligationKind.NativeHook, type);
 		if (type.IsOrDerivesFrom(known.Thread))
 			return required(LifetimeObligationKind.Thread, type);
 		if (type.IsOrDerivesFrom(known.Timer) || type.IsOrDerivesFrom(known.TimersTimer))
@@ -112,9 +106,6 @@ internal sealed class LifetimeRuleSet(KnownTypes known, BoundedTokenProvenance t
 		if (objectSatisfaction is not null)
 			return objectSatisfaction;
 		return obl.Kind switch {
-			LifetimeObligationKind.Hook => tryDispose(inv, obl),
-			LifetimeObligationKind.ILHook => tryDispose(inv, obl),
-			LifetimeObligationKind.NativeHook => tryDispose(inv, obl),
 			LifetimeObligationKind.Thread => tryThreadJoin(inv, obl),
 			LifetimeObligationKind.Timer => tryDispose(inv, obl),
 			LifetimeObligationKind.PeriodicTimer => tryDispose(inv, obl),

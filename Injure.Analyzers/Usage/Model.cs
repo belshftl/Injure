@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-namespace Injure.Analyzers.CodeAnalysis;
+namespace Injure.Analyzers.Usage;
 
 // mirrors Injure.CodeAnalysis.MethodConstraints
 [Flags]

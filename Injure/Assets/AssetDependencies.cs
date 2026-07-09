@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Reflection;
-using Injure.CodeAnalysis;
+using Injure.CodeAnalysis.Internal;
 
 namespace Injure.Assets;
 

@@ -55,19 +55,19 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 			if (isStableReportingTree(compilation, ctx.Tree))
 				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.MissingModAssemblyAttribute, getStableTreeLocation(ctx.Tree)));
 		if (model.ModAssemblyAttributes.Length == 1 && model.ModAssembly is not null) {
-			Location location = model.ModAssembly.Location;
+			Location loc = model.ModAssembly.Location;
 			if (!Model.IsEnumValueNamed(known.ModAssemblyHotReloadLevel, model.ModAssembly.HotReloadRawValue))
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadHotReloadLevel, location, model.ModAssembly.HotReloadRawValue));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadHotReloadLevel, loc, model.ModAssembly.HotReloadRawValue));
 			INamedTypeSymbol? lifetime = model.ModAssembly.LifetimeIdentityType;
 			if (lifetime is null) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.NullLifetimeIdentityTypeArgument, location));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.NullLifetimeIdentityTypeArgument, loc));
 				return;
 			}
 
 			IEnumerable<AttributeData> belongsToAttrs =
 				lifetime.GetAttributes().Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, known.ModLifetimeIdentityBelongsToAttribute));
 			if (belongsToAttrs.Take(2).Count() != 1) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadLifetimeIdentityType, SymbolHelpers.GetBestLocation(lifetime), lifetime.ToDisplayString()));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadLifetimeIdentityType, loc, lifetime.ToDisplayString()));
 				return;
 			}
 
@@ -77,13 +77,13 @@ public sealed class ModDeclarationAnalyzer : DiagnosticAnalyzer {
 				!lifetime.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, known.ModLifetimeIdentityInterface)) ||
 				lifetime.GetMembers().Any(static m => !m.IsImplicitlyDeclared)
 			) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadLifetimeIdentityType, SymbolHelpers.GetBestLocation(lifetime), lifetime.ToDisplayString()));
+				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Core.BadLifetimeIdentityType, loc, lifetime.ToDisplayString()));
 				return;
 			}
 
 			AttributeData belongsToAttr = belongsToAttrs.Single();
 			if (belongsToAttr.ConstructorArguments.Length > 0 && belongsToAttr.ConstructorArguments[0].Value is string attrOwnerID && model.ModAssembly.OwnerID != attrOwnerID) {
-				Location loc = belongsToAttr.ApplicationSyntaxReference?.GetSyntax(ctx.CancellationToken).GetLocation() ?? SymbolHelpers.GetBestLocation(lifetime);
+				loc = belongsToAttr.ApplicationSyntaxReference?.GetSyntax(ctx.CancellationToken).GetLocation() ?? SymbolHelpers.GetBestLocation(lifetime);
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(Diagnostics.Core.LifetimeIdentityOwnerMismatch, loc, lifetime.ToDisplayString(), attrOwnerID, model.ModAssembly.OwnerID)
 				);

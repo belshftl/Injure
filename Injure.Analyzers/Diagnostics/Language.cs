@@ -36,8 +36,18 @@ internal static class Language {
 
 	public static readonly DiagnosticDescriptor ForeachImplicitBadCast = new(
 		id: "IJ0004",
-		title: "foreach iteration variable type mismatch",
+		title: "Iteration variable type mismatch in foreach",
 		messageFormat: "Cannot assign to '{0}' from iterator yielding '{1}'",
+		category: "Language",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true
+	);
+
+	public static readonly DiagnosticDescriptor StaticEventDeclared = new(
+		id: "IJ0005",
+		title: "Static event declared",
+		messageFormat:
+		"Static events are banned; they're impossible to use correctly from reloadable mods and are generally a code smell. If this is a public API, avoid events altogether and hand out IReloadTeardown handles.",
 		category: "Language",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
