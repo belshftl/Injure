@@ -191,6 +191,10 @@ jobs:
         run: >
           dotnet pack Injure.Analyzers/Injure.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
+      - name: Pack Injure.Mods.Abstractions
+        run: >
+          dotnet pack Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+
       - name: Pack Injure.Mods.Analyzers
         run: >
           dotnet pack Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
@@ -202,10 +206,6 @@ jobs:
       - name: Pack Injure.Mods.Runtime
         run: >
           dotnet pack Injure.Mods.Runtime/Injure.Mods.Runtime.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
-
-      - name: Pack Injure.Mods.Utils
-        run: >
-          dotnet pack Injure.Mods.Utils/Injure.Mods.Utils.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
 
       - name: Pack Injure.Native
         run: >
