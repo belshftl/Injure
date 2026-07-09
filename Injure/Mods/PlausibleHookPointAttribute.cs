@@ -1,29 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-namespace Injure.Mods.Abstractions.Hooks;
+namespace Injure.Mods;
 
 // use open enums since 1) these are just informational and 2) you can't have the closed enum
 // types in an attribute
-
-/// <summary>
-/// Set of hook types that a plausible-hook-point method explicitly says it supports.
-/// </summary>
-[Flags]
-public enum HookPointHookKinds {
-	/// <summary>
-	/// Plain managed hooks are explicitly supported.
-	/// </summary>
-	Hook = 1 << 0,
-
-	/// <summary>
-	/// IL hooks are explicitly supported.
-	/// </summary>
-	/// <remarks>
-	/// This does <b>not</b> imply the method's IL contents are stable across builds in any way.
-	/// </remarks>
-	ILHook = 1 << 1,
-}
 
 /// <summary>
 /// Least disruptive reload boundary at which hooks for a plausible-hook-point method were intended
@@ -330,7 +311,6 @@ public enum HookPointEffects {
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, AllowMultiple = true, Inherited = false)]
 public sealed class PlausibleHookPointAttribute : Attribute {
-	public HookPointHookKinds SupportedKinds { get; init; } = HookPointHookKinds.Hook | HookPointHookKinds.ILHook;
 	public HookPointReloadBoundary ReloadBoundary { get; init; } = HookPointReloadBoundary.Unspecified;
 	public HookPointThreadAffinity ThreadAffinity { get; init; } = HookPointThreadAffinity.Unspecified;
 	public HookPointBlockingPolicy Blocking { get; init; } = HookPointBlockingPolicy.Unspecified;

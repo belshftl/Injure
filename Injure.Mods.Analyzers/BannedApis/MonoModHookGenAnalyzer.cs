@@ -2,27 +2,23 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
-using Injure.Mods.Analyzers.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace Injure.Mods.Analyzers.Discouraged;
+namespace Injure.Mods.Analyzers.BannedApis;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class StaticEventAnalyzer : DiagnosticAnalyzer {
+public sealed class MonoModHookGenAnalyzer : DiagnosticAnalyzer {
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
-		Diagnostics.Discouraged.StaticEventSubscriptionInReloadableMod
+		Diagnostics.BannedApis.MonoModUsed
 	);
 
 	public override void Initialize(AnalysisContext context) {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(static ctx => {
-				if (!HotReloadModel.TryGetHotReloadLevel(ctx.Compilation, out ModAssemblyHotReloadLevelMirror lv))
-					return;
-				if (lv >= ModAssemblyHotReloadLevelMirror.SafeBoundary)
-					ctx.RegisterOperationAction(analyzeEventAssignment, OperationKind.EventAssignment);
+				ctx.RegisterOperationAction(analyzeEventAssignment, OperationKind.EventAssignment);
 			}
 		);
 	}
@@ -31,7 +27,9 @@ public sealed class StaticEventAnalyzer : DiagnosticAnalyzer {
 		var asg = (IEventAssignmentOperation)ctx.Operation;
 		var @ref = (IEventReferenceOperation)asg.EventReference;
 		IEventSymbol sym = @ref.Event;
-		if (sym.IsStatic)
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Discouraged.StaticEventSubscriptionInReloadableMod, asg.Syntax.GetLocation()));
+		INamespaceSymbol ns = sym.ContainingNamespace;
+		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent);
+		if (ns.Name is "On" or "IL")
+			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.MonoModUsed, asg.Syntax.GetLocation()));
 	}
 }

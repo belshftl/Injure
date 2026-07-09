@@ -8,7 +8,6 @@ using Injure.Mods.Abstractions.Hooks;
 using Injure.Mods.Abstractions.Hooks.Il;
 using Injure.Primitives;
 using TestGame.ModApi;
-
 using TestMod.Contracts;
 
 [assembly: ModAssembly("jdoe.test-mod", ModAssemblyHotReloadLevel.Live, typeof(TestModL))]
