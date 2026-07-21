@@ -21,11 +21,10 @@ public sealed class AssemblyReferenceAnalyzer : DiagnosticAnalyzer {
 	}
 
 	private static void analyzeCompilation(CompilationAnalysisContext ctx) {
-		foreach (IAssemblySymbol asm in ctx.Compilation.SourceModule.ReferencedAssemblySymbols) {
+		foreach (IAssemblySymbol asm in ctx.Compilation.SourceModule.ReferencedAssemblySymbols)
 			if (KnownMetadataNames.MonoModAssemblies.Contains(asm.Identity.Name))
 				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.MonoModAssemblyReferenced, Location.None, asm.Identity.Name));
 			else if (KnownMetadataNames.HarmonyAssemblies.Contains(asm.Identity.Name))
 				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.HarmonyAssemblyReferenced, Location.None, asm.Identity.Name));
-		}
 	}
 }

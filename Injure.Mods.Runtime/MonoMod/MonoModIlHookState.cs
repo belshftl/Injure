@@ -3,7 +3,7 @@
 
 using MonoMod.Cil;
 using Injure.Mods.Abstractions;
-using Injure.Mods.Abstractions.Hooks.Il;
+using Injure.Mods.Abstractions.MethodModification.Il;
 
 namespace Injure.Mods.Runtime.MonoMod;
 

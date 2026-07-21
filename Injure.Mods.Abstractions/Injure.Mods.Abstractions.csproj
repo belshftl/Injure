@@ -9,7 +9,7 @@
 
 		<PackageId>Injure.Mods.Abstractions</PackageId>
 		<Version>0.1.0-alpha.0</Version>
-		<Authors>AtBelshftl</Authors>
+		<Authors>belshftl</Authors>
 		<Description>mod-specific APIs and infrastructure from the game framework/engine colloquially known as Injure</Description>
 		<Copyright>Copyright (c) 2026 belshftl</Copyright>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

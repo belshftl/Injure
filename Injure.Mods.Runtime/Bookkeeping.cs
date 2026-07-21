@@ -4,7 +4,7 @@
 using System.Collections.Frozen;
 using System.Reflection;
 using Injure.Mods.Abstractions;
-using Injure.Mods.Runtime.Hooks;
+using Injure.Mods.Runtime.MethodModification;
 
 namespace Injure.Mods.Runtime;
 
@@ -47,8 +47,10 @@ internal interface ILoadedCodeMod : ILoadedMod {
 	object? ReloadEntrypoint { get; }
 	Type LifetimeIdentityType { get; }
 	UntypedBoundedScopeImpl? ActivationScope { get; }
-	RuntimeHookDeclarationSet LoadHooks { get; }
-	RuntimeHookDeclarationSet LinkHooks { get; }
+	RuntimeDetourDeclarationSet LoadDetours { get; }
+	RuntimePatchDeclarationSet LoadPatches { get; }
+	RuntimeDetourDeclarationSet LinkDetours { get; }
+	RuntimePatchDeclarationSet LinkPatches { get; }
 	UntypedModExportTable Exports { get; }
 	bool Active { get; }
 }
@@ -85,15 +87,25 @@ internal sealed class LoadedCodeMod<TGameApi> : ILoadedCodeMod {
 		get => !activationScopeDropped ? field : throw new InternalStateException("mod activation scope strong ref has already been dropped");
 		set;
 	}
-	private RuntimeHookDeclarationSet? loadHooksBacking;
-	public required RuntimeHookDeclarationSet LoadHooks {
-		get => loadHooksBacking ?? throw new InternalStateException("mod load hook set strong ref has already been dropped");
-		set => loadHooksBacking = value;
+	private RuntimeDetourDeclarationSet? loadDetours;
+	public required RuntimeDetourDeclarationSet LoadDetours {
+		get => loadDetours ?? throw new InternalStateException("mod load detour set strong ref has already been dropped");
+		set => loadDetours = value;
 	}
-	private RuntimeHookDeclarationSet? linkHooksBacking;
-	public required RuntimeHookDeclarationSet LinkHooks {
-		get => linkHooksBacking ?? throw new InternalStateException("mod link hook set strong ref has already been dropped");
-		set => linkHooksBacking = value;
+	private RuntimePatchDeclarationSet? loadPatches;
+	public required RuntimePatchDeclarationSet LoadPatches {
+		get => loadPatches ?? throw new InternalStateException("mod load patch set strong ref has already been dropped");
+		set => loadPatches = value;
+	}
+	private RuntimeDetourDeclarationSet? linkDetours;
+	public required RuntimeDetourDeclarationSet LinkDetours {
+		get => linkDetours ?? throw new InternalStateException("mod link detour set strong ref has already been dropped");
+		set => linkDetours = value;
+	}
+	private RuntimePatchDeclarationSet? linkPatches;
+	public required RuntimePatchDeclarationSet LinkPatches {
+		get => linkPatches ?? throw new InternalStateException("mod link patch set strong ref has already been dropped");
+		set => linkPatches = value;
 	}
 	private UntypedModExportTable? exportsBacking;
 	public required UntypedModExportTable Exports {
@@ -112,10 +124,14 @@ internal sealed class LoadedCodeMod<TGameApi> : ILoadedCodeMod {
 		Scope = null!;
 		activationScopeDropped = true;
 		ActivationScope = null!;
-		loadHooksBacking?.DropStrongReferences();
-		loadHooksBacking = null;
-		linkHooksBacking?.DropStrongReferences();
-		linkHooksBacking = null;
+		loadDetours?.DropStrongReferences();
+		loadDetours = null;
+		loadPatches?.DropStrongReferences();
+		loadPatches = null;
+		linkDetours?.DropStrongReferences();
+		linkDetours = null;
+		linkPatches?.DropStrongReferences();
+		linkPatches = null;
 		exportsBacking?.DropStrongReferences();
 		exportsBacking = null;
 	}

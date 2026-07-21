@@ -207,7 +207,9 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 						)
 					);
 			else if (checkZeroNames && !isNeutralZeroName(zeroFields[0].Name))
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsSuspiciousZeroName, Util.GetLocation(zeroFields[0], bitsSymbol), zeroFields[0].Name));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsSuspiciousZeroName, Util.GetLocation(zeroFields[0], bitsSymbol), zeroFields[0].Name)
+				);
 		}
 		return atomicMask;
 	}
@@ -222,7 +224,9 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 			bool subset = Util.GetBoolNamedArgument(attr, AttributeSources.ClosedFlagsMirrorAttributeSubsetName, false);
 			Location loc = attr.ApplicationSyntaxReference?.GetSyntax(ctx.CancellationToken).GetLocation() ?? Util.GetLocation(structSymbol, structSymbol);
 			if (!Util.TryGetMirrorEnum(attr, out INamedTypeSymbol? external) || external is null) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid, loc, "ClosedFlagsMirror must have exactly one typeof(TEnum) argument."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid, loc, "ClosedFlagsMirror must have exactly one typeof(TEnum) argument.")
+				);
 				continue;
 			}
 			if (external.TypeKind != TypeKind.Enum) {
@@ -232,7 +236,9 @@ public sealed class ClosedFlagsAnalyzer : DiagnosticAnalyzer {
 				continue;
 			}
 			if (!seenMirrors.Add(external)) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid, loc, $"Duplicate ClosedFlagsMirror for '{external.ToDisplayString()}'."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(Diagnostics.ClosedFlags.ClosedFlagsMirrorInvalid, loc, $"Duplicate ClosedFlagsMirror for '{external.ToDisplayString()}'.")
+				);
 				continue;
 			}
 			if (!SymbolEqualityComparer.Default.Equals(bitsSymbol.EnumUnderlyingType, external.EnumUnderlyingType)) {

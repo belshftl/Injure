@@ -141,11 +141,10 @@ public readonly struct OwnerOrderingConstraint {
 
 	private static void validateTarget(OwnerOrderingConstraintTarget target) {
 		ModMetadataValidation.ValidateOwnerIdOrThrow(target.OwnerId);
-		if (target.Kind == OwnerOrderingConstraintTargetKind.Entry) {
+		if (target.Kind == OwnerOrderingConstraintTargetKind.Entry)
 			ModMetadataValidation.ValidateLocalIdOrThrow(target.LocalId);
-		} else if (target.LocalId is not null) {
+		else if (target.LocalId is not null)
 			throw new ArgumentException("an owner target cannot have a local ID", nameof(target));
-		}
 	}
 }
 
@@ -236,35 +235,33 @@ public static class OwnerOrderedSorter {
 			entriesById.Add((entry.OwnerId, entry.LocalId), node);
 		}
 
-		foreach (OwnerNode<T> owner in owners.Values) {
+		foreach (OwnerNode<T> owner in owners.Values)
 			owner.Entries.Sort(static (a, b) => {
-				int cmp = a.Entry.LocalPriority.CompareTo(b.Entry.LocalPriority);
-				if (cmp != 0)
+					int cmp = a.Entry.LocalPriority.CompareTo(b.Entry.LocalPriority);
+					if (cmp != 0)
+						return cmp;
+					cmp = StringComparer.Ordinal.Compare(a.Entry.LocalId, b.Entry.LocalId);
+					if (cmp == 0)
+						throw new InternalStateException("duplicate LocalId got into local-priority sort");
 					return cmp;
-				cmp = StringComparer.Ordinal.Compare(a.Entry.LocalId, b.Entry.LocalId);
-				if (cmp == 0)
-					throw new InternalStateException("duplicate LocalId got into local-priority sort");
-				return cmp;
-			});
-		}
+				}
+			);
 
 		bool hasEntryConstraints = false;
 
 		foreach (OwnerNode<T> owner in owners.Values) {
 			foreach (EntryNode<T> source in owner.Entries) {
-				foreach (OwnerOrderingConstraint constraint in source.Entry.Before) {
+				foreach (OwnerOrderingConstraint constraint in source.Entry.Before)
 					if (constraint.Target.Kind == OwnerOrderingConstraintTargetKind.Owner)
 						addOwnerConstraintEdge(owners, source.Entry, constraint, source.Entry.OwnerId, constraint.Target.OwnerId, "before");
 					else
 						hasEntryConstraints = true;
-				}
 
-				foreach (OwnerOrderingConstraint constraint in source.Entry.After) {
+				foreach (OwnerOrderingConstraint constraint in source.Entry.After)
 					if (constraint.Target.Kind == OwnerOrderingConstraintTargetKind.Owner)
 						addOwnerConstraintEdge(owners, source.Entry, constraint, constraint.Target.OwnerId, source.Entry.OwnerId, "after");
 					else
 						hasEntryConstraints = true;
-				}
 			}
 		}
 
@@ -371,10 +368,9 @@ public static class OwnerOrderedSorter {
 			ready.Remove(idx);
 			EntryNode<T> entry = entriesByBaseline[idx];
 			result[resultIndex++] = entry.Entry.Item;
-			foreach (EntryNode<T> next in entry.Outgoing) {
+			foreach (EntryNode<T> next in entry.Outgoing)
 				if (--next.InDegree == 0)
 					ready.Add(next.BaselineIndex);
-			}
 		}
 
 		if (resultIndex != count) {
@@ -472,7 +468,7 @@ public static class OwnerOrderedSorter {
 			state[ownerId] = VisitState.Visiting;
 			stackIndex[ownerId] = stack.Count;
 			stack.Add(ownerId);
-			foreach (string nextId in owners[ownerId].OutgoingOwners.Where(remaining.Contains).OrderBy(static id => id, StringComparer.Ordinal)) {
+			foreach (string nextId in owners[ownerId].OutgoingOwners.Where(remaining.Contains).OrderBy(static id => id, StringComparer.Ordinal))
 				if (!state.TryGetValue(nextId, out VisitState nextState)) {
 					visit(nextId);
 					if (cycle is not null)
@@ -482,7 +478,6 @@ public static class OwnerOrderedSorter {
 					cycle = stack.GetRange(start, stack.Count - start);
 					return;
 				}
-			}
 			stack.RemoveAt(stack.Count - 1);
 			stackIndex.Remove(ownerId);
 			state[ownerId] = VisitState.Done;
@@ -508,7 +503,7 @@ public static class OwnerOrderedSorter {
 			state[entry] = VisitState.Visiting;
 			stackIndex[entry] = stack.Count;
 			stack.Add(entry);
-			foreach (EntryNode<T> next in entry.Outgoing.Where(remaining.Contains).OrderBy(static next => next.BaselineIndex)) {
+			foreach (EntryNode<T> next in entry.Outgoing.Where(remaining.Contains).OrderBy(static next => next.BaselineIndex))
 				if (!state.TryGetValue(next, out VisitState nextState)) {
 					visit(next);
 					if (cycle is not null)
@@ -518,7 +513,6 @@ public static class OwnerOrderedSorter {
 					cycle = stack.GetRange(start, stack.Count - start);
 					return;
 				}
-			}
 			stack.RemoveAt(stack.Count - 1);
 			stackIndex.Remove(entry);
 			state[entry] = VisitState.Done;

@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 using MonoMod.RuntimeDetour;
-using Injure.Mods.Abstractions.Hooks;
+using Injure.Mods.Abstractions.MethodModification;
 
 namespace Injure.Mods.Runtime.MonoMod;
 
-internal sealed class MonoModIlHookHandle(MonoModIlHookState state, ILHook hook) : IInstalledRuntimeHook {
+internal sealed class MonoModIlHookHandle(MonoModIlHookState state, ILHook hook) : IInstalledRuntimePatch {
 	private MonoModIlHookState? state = state;
 	private ILHook? hook = hook;
 

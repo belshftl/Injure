@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Mods.Abstractions;
-using Injure.Mods.Abstractions.Hooks;
-using Injure.Mods.Runtime.Hooks;
+using Injure.Mods.Abstractions.MethodModification;
+using Injure.Mods.Runtime.MethodModification;
 using Injure.Runtime;
 
 namespace Injure.Mods.Runtime;
@@ -53,7 +53,8 @@ internal abstract class ModContextImpl<TGameApi, L>(
 }
 
 internal sealed class ModLoadContextImpl<TGameApi, L>(
-	ModHookDeclarations<L> loadHooks,
+	ModDetourDeclarations<L> loadDetours,
+	ModPatchDeclarations<L> loadPatches,
 	UntypedModExportTable exports,
 	string ownerId,
 	Semver version,
@@ -63,16 +64,20 @@ internal sealed class ModLoadContextImpl<TGameApi, L>(
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
 ) : ModContextImpl<TGameApi, L>(nameof(IModLoadContext<,>), ownerId, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModLoadContext<TGameApi, L>
 	where L : struct, IModLifetimeIdentity {
-	private ModHookDeclarations<L>? loadHooks = loadHooks;
-	public IModHookDeclarations<L> LoadHooks => loadHooks ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
+	private ModDetourDeclarations<L>? loadDetours = loadDetours;
+	public IModDetourDeclarations<L> LoadDetours => loadDetours ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
+	private ModPatchDeclarations<L>? loadPatches = loadPatches;
+	public IModPatchDeclarations<L> LoadPatches => loadPatches ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
 	public IModExportDeclarations<L> Exports {
 		get => field ?? throw new ModLifecycleContextExpiredException(nameof(IModLoadContext<,>), Generation);
 		private set;
 	} = exports.AsDeclsView<L>();
 
 	public override void OnDropStrongReferences() {
-		loadHooks?.DropStrongReferences();
-		loadHooks = null;
+		loadDetours?.DropStrongReferences();
+		loadDetours = null;
+		loadPatches?.DropStrongReferences();
+		loadPatches = null;
 		Exports = null!;
 	}
 }

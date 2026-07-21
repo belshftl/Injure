@@ -25,12 +25,13 @@ public sealed class DontCacheAnalyzer : DiagnosticAnalyzer {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(ctx => {
-			KnownTypes known = new(ctx.Compilation);
-			ctx.RegisterSymbolAction(c => analyzeField(c, known), SymbolKind.Field);
-			ctx.RegisterSymbolAction(c => analyzeProperty(c, known), SymbolKind.Property);
-			ctx.RegisterOperationAction(c => analyzeAnonymousFunction(c, known), OperationKind.AnonymousFunction);
-			ctx.RegisterOperationAction(c => analyzeLocalFunction(c, known), OperationKind.LocalFunction);
-		});
+				KnownTypes known = new(ctx.Compilation);
+				ctx.RegisterSymbolAction(c => analyzeField(c, known), SymbolKind.Field);
+				ctx.RegisterSymbolAction(c => analyzeProperty(c, known), SymbolKind.Property);
+				ctx.RegisterOperationAction(c => analyzeAnonymousFunction(c, known), OperationKind.AnonymousFunction);
+				ctx.RegisterOperationAction(c => analyzeLocalFunction(c, known), OperationKind.LocalFunction);
+			}
+		);
 	}
 
 	private static void analyzeField(SymbolAnalysisContext ctx, KnownTypes known) {
@@ -39,12 +40,14 @@ public sealed class DontCacheAnalyzer : DiagnosticAnalyzer {
 			return;
 		if (!tryFindRestrictedType(field.Type, known, closure: false, out RestrictionInfo info))
 			return;
-		ctx.ReportDiagnostic(Diagnostic.Create(
-			Diagnostics.Usage.DontCacheObject,
-			field.Locations.FirstOrDefault(static l => l.IsInSource),
-			field.Type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat),
-			info.Why
-		));
+		ctx.ReportDiagnostic(
+			Diagnostic.Create(
+				Diagnostics.Usage.DontCacheObject,
+				field.Locations.FirstOrDefault(static l => l.IsInSource),
+				field.Type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat),
+				info.Why
+			)
+		);
 	}
 
 	private static void analyzeProperty(SymbolAnalysisContext ctx, KnownTypes known) {
@@ -53,12 +56,14 @@ public sealed class DontCacheAnalyzer : DiagnosticAnalyzer {
 			return;
 		if (!tryFindRestrictedType(property.Type, known, closure: false, out RestrictionInfo info))
 			return;
-		ctx.ReportDiagnostic(Diagnostic.Create(
-			Diagnostics.Usage.DontCacheObject,
-			property.Locations.FirstOrDefault(static l => l.IsInSource),
-			property.Type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat),
-			info.Why
-		));
+		ctx.ReportDiagnostic(
+			Diagnostic.Create(
+				Diagnostics.Usage.DontCacheObject,
+				property.Locations.FirstOrDefault(static l => l.IsInSource),
+				property.Type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat),
+				info.Why
+			)
+		);
 	}
 
 	private static void analyzeAnonymousFunction(OperationAnalysisContext ctx, KnownTypes known) {
@@ -110,13 +115,15 @@ public sealed class DontCacheAnalyzer : DiagnosticAnalyzer {
 
 		public override void VisitInstanceReference(IInstanceReferenceOperation operation) {
 			cancellationToken.ThrowIfCancellationRequested();
-			if (!reportedThis && operation.Type is { } type && tryFindRestrictedType(type, known, closure: true, out RestrictionInfo info)) {
-				report(Diagnostic.Create(
-					Diagnostics.Usage.DontCaptureObjectIntoClosure,
-					operation.Syntax.GetLocation(),
-					info.MarkedType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat),
-					info.Why
-				));
+			if (!reportedThis && operation.Type is {} type && tryFindRestrictedType(type, known, closure: true, out RestrictionInfo info)) {
+				report(
+					Diagnostic.Create(
+						Diagnostics.Usage.DontCaptureObjectIntoClosure,
+						operation.Syntax.GetLocation(),
+						info.MarkedType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat),
+						info.Why
+					)
+				);
 				reportedThis = true;
 			}
 			base.VisitInstanceReference(operation);
@@ -127,12 +134,14 @@ public sealed class DontCacheAnalyzer : DiagnosticAnalyzer {
 				return;
 			if (!tryFindRestrictedType(type, known, closure: true, out RestrictionInfo info))
 				return;
-			report(Diagnostic.Create(
-				Diagnostics.Usage.DontCaptureObjectIntoClosure,
-				location,
-				info.MarkedType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat),
-				info.Why
-			));
+			report(
+				Diagnostic.Create(
+					Diagnostics.Usage.DontCaptureObjectIntoClosure,
+					location,
+					info.MarkedType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat),
+					info.Why
+				)
+			);
 		}
 	}
 

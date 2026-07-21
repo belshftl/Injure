@@ -2,19 +2,19 @@
 // SPDX-License-Identifier: MIT
 
 using MonoMod.RuntimeDetour;
-using Injure.Mods.Abstractions.Hooks;
+using Injure.Mods.Abstractions.MethodModification;
 
 namespace Injure.Mods.Runtime.MonoMod;
 
-internal sealed class MonoModRuntimeHookBackend : IRuntimeHookBackend {
-	public IInstalledRuntimeHook InstallManagedHook(in ManagedHookInstallRequest request) {
+internal sealed class MonoModRuntimeHookBackend : IRuntimeDetourBackend, IRuntimePatchBackend {
+	IInstalledRuntimeDetour IRuntimeDetourBackend.Install(in DetourInstallRequest request) {
 		InternalStateException.ThrowIfNull(request.TargetMethod);
-		InternalStateException.ThrowIfNull(request.HookMethod);
+		InternalStateException.ThrowIfNull(request.DetourMethod);
 		InternalStateException.ThrowIfInvalidOwnerId(request.OwnerId);
 		InternalStateException.ThrowIfInvalidLocalId(request.LocalId);
 		Hook? hook = null;
 		try {
-			hook = new(request.TargetMethod, request.HookMethod);
+			hook = new Hook(request.TargetMethod, request.DetourMethod);
 			return new MonoModManagedHookHandle(hook);
 		} catch {
 			hook?.Dispose();
@@ -22,7 +22,7 @@ internal sealed class MonoModRuntimeHookBackend : IRuntimeHookBackend {
 		}
 	}
 
-	public IInstalledRuntimeHook InstallIlHookPipeline(in IlHookPipelineInstallRequest request) {
+	IInstalledRuntimePatch IRuntimePatchBackend.InstallPipeline(in PatchPipelineInstallRequest request) {
 		InternalStateException.ThrowIfNull(request.TargetMethod);
 		InternalStateException.ThrowIfNull(request.GetSnapshot);
 		MonoModIlHookState state = new(request.BaselineOwnerId, request.GetSnapshot);

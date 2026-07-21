@@ -40,11 +40,13 @@ public sealed class ForeachAnalyzer : DiagnosticAnalyzer {
 			_ => sx.GetLocation(),
 		};
 
-		ctx.ReportDiagnostic(Diagnostic.Create(
-			Diagnostics.Language.ForeachImplicitBadCast,
-			loc,
-			varType?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? "<unknown>",
-			info.ElementType?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? "<unknown>"
-		));
+		ctx.ReportDiagnostic(
+			Diagnostic.Create(
+				Diagnostics.Language.ForeachImplicitBadCast,
+				loc,
+				varType?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? "<unknown>",
+				info.ElementType?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? "<unknown>"
+			)
+		);
 	}
 }

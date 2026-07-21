@@ -31,7 +31,7 @@ public sealed class MonoModNamespaceUsingAnalyzer : DiagnosticAnalyzer {
 		ISymbol? sym = ctx.SemanticModel.GetSymbolInfo(sx.Name!, ctx.CancellationToken).Symbol;
 		if (sym is not INamespaceSymbol ns)
 			return;
-		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent);
+		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent) ;
 		if (ns.Name is KnownMetadataNames.MonoModRootNamespace)
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.MonoModUsed, sx.GetLocation()));
 	}

@@ -13,11 +13,11 @@ public static class BuiltinAssetRegistrations {
 		store.RegisterDependencyWatcher(EngineInfo.OwnerId, new FileAssetDependencyWatcher(), "FileAssetDependencyWatcher");
 	}
 
-	public static void RegisterTexture2DInto(AssetStore store, WebGpuDevice gpuDevice) {
+	public static void RegisterTexture2dInto(AssetStore store, WebGpuDevice gpuDevice) {
 		ArgumentNullException.ThrowIfNull(store);
-		store.RegisterResolver(EngineInfo.OwnerId, new Texture2dJsonAssetResolver(), "Texture2DJsonAssetResolver");
-		store.RegisterResolver(EngineInfo.OwnerId, new Texture2dImageAssetResolver(), "Texture2DImageAssetResolver");
-		store.RegisterStagedCreator(EngineInfo.OwnerId, new Texture2dAssetCreator(gpuDevice), "Texture2DAssetCreator");
+		store.RegisterResolver(EngineInfo.OwnerId, new Texture2dJsonAssetResolver(), "Texture2dJsonAssetResolver");
+		store.RegisterResolver(EngineInfo.OwnerId, new Texture2dImageAssetResolver(), "Texture2dImageAssetResolver");
+		store.RegisterStagedCreator(EngineInfo.OwnerId, new Texture2dAssetCreator(gpuDevice), "Texture2dAssetCreator");
 	}
 
 	public static void RegisterFontInto(AssetStore store, TextSystem text) {

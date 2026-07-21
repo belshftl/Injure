@@ -4,8 +4,8 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Injure.Mods.Abstractions;
-using Injure.Mods.Abstractions.Hooks;
-using Injure.Mods.Abstractions.Hooks.Il;
+using Injure.Mods.Abstractions.MethodModification;
+using Injure.Mods.Abstractions.MethodModification.Il;
 using Injure.Mods.Runtime.MonoMod;
 
 namespace Injure.Internals.ModRuntimeTests.MonoMod;
@@ -54,14 +54,15 @@ public sealed class MonoModBackendTests {
 		MonoModRuntimeHookBackend backend = new();
 
 		Assert.Equal(11, Targets.ManagedTarget(10));
-		using (IInstalledRuntimeHook handle = backend.InstallManagedHook(new ManagedHookInstallRequest {
-			TargetMethod = target,
-			HookMethod = hook,
-			OwnerId = "mod",
-			LocalId = "hook",
-		})) {
+		using (IInstalledRuntimeHook handle = backend.InstallManagedHook(
+			new DetourInstallRequest {
+				TargetMethod = target,
+				DetourMethod = hook,
+				OwnerId = "mod",
+				LocalId = "hook",
+			}
+		))
 			Assert.Equal(111, Targets.ManagedTarget(10));
-		}
 		Assert.Equal(11, Targets.ManagedTarget(10));
 	}
 
@@ -73,21 +74,23 @@ public sealed class MonoModBackendTests {
 			"hook",
 			static ctx => {
 				ctx.EmitAtStart(static e => {
-					e.LdcI4(Targets.PatchedIlTargetReturn);
-					e.Ret();
-				});
+						e.LdcI4(Targets.PatchedIlTargetReturn);
+						e.Ret();
+					}
+				);
 			}
 		);
 		MonoModRuntimeHookBackend backend = new();
 
 		Assert.Equal(Targets.NormalIlTargetReturn, Targets.IlTarget());
-		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(new IlHookPipelineInstallRequest {
-			TargetMethod = target,
-			BaselineOwnerId = "game",
-			GetSnapshot = () => [registration],
-		})) {
+		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(
+			new PatchPipelineInstallRequest {
+				TargetMethod = target,
+				BaselineOwnerId = "game",
+				GetSnapshot = () => [registration],
+			}
+		))
 			Assert.Equal(Targets.PatchedIlTargetReturn, Targets.IlTarget());
-		}
 		Assert.Equal(Targets.NormalIlTargetReturn, Targets.IlTarget());
 	}
 
@@ -99,9 +102,10 @@ public sealed class MonoModBackendTests {
 			"hook",
 			static ctx => {
 				ctx.EmitAtStart(static e => {
-					e.LdcI4(1);
-					e.Pop();
-				});
+						e.LdcI4(1);
+						e.Pop();
+					}
+				);
 			}
 		);
 		var second = IlManipulatorRegistration.Create<TestL>(
@@ -113,21 +117,23 @@ public sealed class MonoModBackendTests {
 					IlPatternProvenanceConstraint.AllFromOwner("first-mod")
 				);
 				m.EmitAfter(static e => {
-					e.LdcI4(Targets.PatchedOrderTargetReturn);
-					e.Ret();
-				});
+						e.LdcI4(Targets.PatchedOrderTargetReturn);
+						e.Ret();
+					}
+				);
 			}
 		);
 		MonoModRuntimeHookBackend backend = new();
 
 		Assert.Equal(Targets.NormalOrderTargetReturn, Targets.OrderTarget());
-		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(new IlHookPipelineInstallRequest {
-			TargetMethod = target,
-			BaselineOwnerId = "game",
-			GetSnapshot = () => [first, second],
-		})) {
+		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(
+			new PatchPipelineInstallRequest {
+				TargetMethod = target,
+				BaselineOwnerId = "game",
+				GetSnapshot = () => [first, second],
+			}
+		))
 			Assert.Equal(Targets.PatchedOrderTargetReturn, Targets.OrderTarget());
-		}
 		Assert.Equal(Targets.NormalOrderTargetReturn, Targets.OrderTarget());
 	}
 
@@ -139,22 +145,24 @@ public sealed class MonoModBackendTests {
 			"hook",
 			static ctx => {
 				ctx.EmitAtStart(static e => {
-					e.LdcI4(Targets.PatchedDelegateTargetReturnDiv3);
-					e.Delegate<Func<int, int>>(static x => x * 3);
-					e.Ret();
-				});
+						e.LdcI4(Targets.PatchedDelegateTargetReturnDiv3);
+						e.Delegate<Func<int, int>>(static x => x * 3);
+						e.Ret();
+					}
+				);
 			}
 		);
 		MonoModRuntimeHookBackend backend = new();
 
 		Assert.Equal(Targets.NormalDelegateTargetReturn, Targets.DelegateTarget());
-		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(new IlHookPipelineInstallRequest {
-			TargetMethod = target,
-			BaselineOwnerId = "game",
-			GetSnapshot = () => [registration],
-		})) {
+		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(
+			new PatchPipelineInstallRequest {
+				TargetMethod = target,
+				BaselineOwnerId = "game",
+				GetSnapshot = () => [registration],
+			}
+		))
 			Assert.Equal(Targets.PatchedDelegateTargetReturn, Targets.DelegateTarget());
-		}
 		Assert.Equal(Targets.NormalDelegateTargetReturn, Targets.DelegateTarget());
 	}
 
@@ -167,27 +175,30 @@ public sealed class MonoModBackendTests {
 			static ctx => {
 				IlLabel target = ctx.DefineLabel();
 				ctx.EmitAtStart(e => {
-					e.Br(target);
-				});
+						e.Br(target);
+					}
+				);
 				ctx.MatchNext(
 					[MatchIl.Ret],
 					IlPatternProvenanceConstraint.AllFromOwner("game")
 				).EmitBefore(e => {
-					e.MarkLabel(target);
-					e.LdcI4(Targets.PatchedLabelTargetReturn);
-				});
+						e.MarkLabel(target);
+						e.LdcI4(Targets.PatchedLabelTargetReturn);
+					}
+				);
 			}
 		);
 		MonoModRuntimeHookBackend backend = new();
 
 		Assert.Equal(Targets.NormalLabelTargetReturn, Targets.LabelTarget());
-		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(new IlHookPipelineInstallRequest {
-			TargetMethod = target,
-			BaselineOwnerId = "game",
-			GetSnapshot = () => [registration],
-		})) {
+		using (IInstalledRuntimeHook handle = backend.InstallIlHookPipeline(
+			new PatchPipelineInstallRequest {
+				TargetMethod = target,
+				BaselineOwnerId = "game",
+				GetSnapshot = () => [registration],
+			}
+		))
 			Assert.Equal(Targets.PatchedLabelTargetReturn, Targets.LabelTarget());
-		}
 		Assert.Equal(Targets.NormalLabelTargetReturn, Targets.LabelTarget());
 	}
 }

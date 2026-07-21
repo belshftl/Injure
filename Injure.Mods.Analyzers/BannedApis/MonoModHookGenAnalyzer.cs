@@ -28,7 +28,7 @@ public sealed class MonoModHookGenAnalyzer : DiagnosticAnalyzer {
 		var @ref = (IEventReferenceOperation)asg.EventReference;
 		IEventSymbol sym = @ref.Event;
 		INamespaceSymbol ns = sym.ContainingNamespace;
-		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent);
+		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent) ;
 		if (ns.Name is "On" or "IL")
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.MonoModUsed, asg.Syntax.GetLocation()));
 	}

@@ -233,7 +233,7 @@ public static unsafe class Runner {
 		if (svconf.Assets) {
 			assets = new AssetStore();
 			BuiltinAssetRegistrations.RegisterBaseInto(assets);
-			BuiltinAssetRegistrations.RegisterTexture2DInto(assets, gpuDevice);
+			BuiltinAssetRegistrations.RegisterTexture2dInto(assets, gpuDevice);
 			assetCtx = assets.AttachCurrentThread();
 		}
 		TextSystem? text = null;

@@ -32,9 +32,9 @@ public sealed class MonoModTypeAnalyzer : DiagnosticAnalyzer {
 		var field = (IFieldSymbol)ctx.Symbol;
 		if (field.IsImplicitlyDeclared)
 			return;
-		if (field.Type.ContainingNamespace is not { } ns)
+		if (field.Type.ContainingNamespace is not {} ns)
 			return;
-		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent);
+		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent) ;
 		if (ns.Name is KnownMetadataNames.MonoModRootNamespace)
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.MonoModUsed, field.Locations.FirstOrDefault(static l => l.IsInSource)));
 	}
@@ -43,9 +43,9 @@ public sealed class MonoModTypeAnalyzer : DiagnosticAnalyzer {
 		var property = (IPropertySymbol)ctx.Symbol;
 		if (property.IsImplicitlyDeclared)
 			return;
-		if (property.Type.ContainingNamespace is not { } ns)
+		if (property.Type.ContainingNamespace is not {} ns)
 			return;
-		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent);
+		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent) ;
 		if (ns.Name is KnownMetadataNames.MonoModRootNamespace)
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.MonoModUsed, property.Locations.FirstOrDefault(static l => l.IsInSource)));
 	}
@@ -54,9 +54,9 @@ public sealed class MonoModTypeAnalyzer : DiagnosticAnalyzer {
 		var creat = (IObjectCreationOperation)ctx.Operation;
 		if (creat.Type is not ITypeSymbol type)
 			return;
-		if (type.ContainingNamespace is not { } ns)
+		if (type.ContainingNamespace is not {} ns)
 			return;
-		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent);
+		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent) ;
 		if (ns.Name is KnownMetadataNames.MonoModRootNamespace)
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.MonoModUsed, creat.Syntax.GetLocation()));
 	}
@@ -64,9 +64,9 @@ public sealed class MonoModTypeAnalyzer : DiagnosticAnalyzer {
 	private static void analyzeInvocation(OperationAnalysisContext ctx) {
 		var inv = (IInvocationOperation)ctx.Operation;
 		IMethodSymbol method = inv.TargetMethod.ReducedFrom ?? inv.TargetMethod;
-		if (method.ContainingNamespace is not { } ns)
+		if (method.ContainingNamespace is not {} ns)
 			return;
-		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent);
+		for (; ns.ContainingNamespace is { IsGlobalNamespace: false } parent; ns = parent) ;
 		if (ns.Name is KnownMetadataNames.MonoModRootNamespace)
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.BannedApis.MonoModUsed, inv.Syntax.GetLocation()));
 	}

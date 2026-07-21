@@ -23,7 +23,9 @@ public sealed class AssetStoreReloadFailureTests {
 		ulong oldver = asset.Borrow().Version;
 
 		creator.PrepareException = ex;
-		ForeignException fex = await Assert.ThrowsAsync<ForeignException>(() => asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
+		ForeignException fex = await Assert.ThrowsAsync<ForeignException>(() =>
+			asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken)
+		);
 		Assert.Equal(ex.GetType().FullName, fex.OriginalFullTypeName);
 		Assert.Equal(ex.Message, fex.OriginalMessage);
 		Assert.False(asset.HasQueuedReload);
@@ -147,7 +149,9 @@ public sealed class AssetStoreReloadFailureTests {
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
 		creator.PrepareException = new InvalidOperationException("prepare failed");
-		ForeignException fex = await Assert.ThrowsAsync<ForeignException>(() => asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken));
+		ForeignException fex = await Assert.ThrowsAsync<ForeignException>(() =>
+			asset.QueueReloadAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken)
+		);
 		Assert.Equal(typeof(InvalidOperationException).FullName, fex.OriginalFullTypeName);
 		Assert.NotNull(asset.LastReloadFailure);
 

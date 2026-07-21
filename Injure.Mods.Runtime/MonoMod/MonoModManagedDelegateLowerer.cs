@@ -4,7 +4,7 @@
 using System.Reflection;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
-using Injure.Mods.Abstractions.Hooks.Il;
+using Injure.Mods.Abstractions.MethodModification.Il;
 
 namespace Injure.Mods.Runtime.MonoMod;
 
@@ -50,14 +50,13 @@ internal sealed class MonoModManagedDelegateLowerer(ILContext ctx) : IIlManagedD
 
 	private static MethodInfo findEmitDelegateMethod() {
 		MethodInfo[] candidates = typeof(ILCursor).GetMethods(BindingFlags.Instance | BindingFlags.Public);
-		foreach (MethodInfo m in candidates) {
+		foreach (MethodInfo m in candidates)
 			if (
 				m.Name == nameof(ILCursor.EmitDelegate) &&
 				m.IsGenericMethodDefinition &&
 				m.GetParameters().Length == 1
 			)
 				return m;
-		}
 		throw new InternalStateException("couldn't find monomod ILCursor.EmitDelegate<T>(T)");
 	}
 }

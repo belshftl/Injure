@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.CodeAnalysis.Internal;
-using Injure.Mods.Abstractions.Hooks;
+using Injure.Mods.Abstractions.MethodModification;
 using Injure.Runtime;
 
 namespace Injure.Mods.Abstractions;
 
 internal static class ModContextCodeAnalysisMessages {
-	public const string DontCache = "lifecycle context objects are only valid for the duration of the corresponding lifecycle method invocation; cache specific long-lived values such as Api / Scope / Diagnostics";
-	public const string DontCapture = "lifecycle context objects are only valid for the duration of the corresponding lifecycle method invocation, so a lambda capture probably won't work how you think it will; cache and capture specific long-lived values such as Api / Scope / Diagnostics instead";
+	public const string DontCache =
+		"lifecycle context objects are only valid for the duration of the corresponding lifecycle method invocation; cache specific long-lived values such as Api / Scope / Diagnostics";
+	public const string DontCapture =
+		"lifecycle context objects are only valid for the duration of the corresponding lifecycle method invocation, so a lambda capture probably won't work how you think it will; cache and capture specific long-lived values such as Api / Scope / Diagnostics instead";
 }
 
 [DontCache(ModContextCodeAnalysisMessages.DontCache)]
@@ -29,7 +31,8 @@ public interface IModContext<out TGameApi, L> where L : struct, IModLifetimeIden
 [DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
-	IModHookDeclarations<L> LoadHooks { get; }
+	IModDetourDeclarations<L> LoadDetours { get; }
+	IModPatchDeclarations<L> LoadPatches { get; }
 	IModExportDeclarations<L> Exports { get; }
 }
 
@@ -37,7 +40,9 @@ public interface IModLoadContext<out TGameApi, L> : IModContext<TGameApi, L> whe
 [DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModLinkContext<out TGameApi, L> : IModContext<TGameApi, L> where L : struct, IModLifetimeIdentity {
-	// TODO: IModHookDeclarations<L> LinkHooks { get; }
+	// TODO:
+	// IModDetourDeclarations<L> LinkDetours { get; }
+	// IModPatchDeclarations<L> LinkPatches { get; }
 
 	bool TryGetDependency(string ownerId, out LoadedDepInfo<L> info);
 	bool TryGetCodeDependency(string ownerId, out UntypedLoadedCodeDepInfo<L> info);

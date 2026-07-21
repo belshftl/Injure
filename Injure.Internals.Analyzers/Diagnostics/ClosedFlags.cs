@@ -8,7 +8,7 @@ namespace Injure.Internals.Analyzers.Diagnostics;
 internal static class ClosedFlags {
 #pragma warning disable RS2008 // enable analyzer release tracking
 	public static readonly DiagnosticDescriptor ClosedFlagsInvalidTarget = new(
-		id: "IJDEV0125",
+		id: "IJDEV1025",
 		title: "Invalid target for attribute ClosedFlags",
 		messageFormat: "{0}",
 		category: "ClosedFlags",
@@ -17,7 +17,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsMustBeReadonly = new(
-		id: "IJDEV0126",
+		id: "IJDEV1026",
 		title: "ClosedFlags target must be readonly",
 		messageFormat: "ClosedFlags target struct '{0}' must be a readonly struct",
 		category: "ClosedFlags",
@@ -26,7 +26,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsInvalidSourceShape = new(
-		id: "IJDEV0127",
+		id: "IJDEV1027",
 		title: "Invalid ClosedFlags source shape",
 		messageFormat: "{0}",
 		category: "ClosedFlags",
@@ -35,7 +35,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsInvalidBitsEnum = new(
-		id: "IJDEV0128",
+		id: "IJDEV1028",
 		title: "Invalid ClosedFlags Bits enum",
 		messageFormat: "{0}",
 		category: "ClosedFlags",
@@ -44,7 +44,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsAliasNotSupported = new(
-		id: "IJDEV0129",
+		id: "IJDEV1029",
 		title: "ClosedFlags aliases are not supported",
 		messageFormat: "ClosedFlags Bits member '{0}' has the same numeric value as '{1}' ({2}); aliases are not supported",
 		category: "ClosedFlags",
@@ -53,7 +53,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsBadMemberValue = new(
-		id: "IJDEV0130",
+		id: "IJDEV1030",
 		title: "ClosedFlags members must all be atomic powers of two or ORs of previously declared members",
 		messageFormat: "ClosedFlags Bits member '{0}' is not a power of two and does not consist of purely already known power-of-two members",
 		category: "ClosedFlags",
@@ -62,7 +62,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsDefaultRule = new(
-		id: "IJDEV0131",
+		id: "IJDEV1031",
 		title: "ClosedFlags default-value rule violation",
 		messageFormat: "{0}",
 		category: "ClosedFlags",
@@ -71,7 +71,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsSuspiciousZeroName = new(
-		id: "IJDEV0132",
+		id: "IJDEV1032",
 		title: "ClosedFlags member with zero value does not look neutral",
 		messageFormat: "ClosedFlags zero-valued member '{0}' does not look like a neutral/default state; consider renaming it or using DefaultIsInvalid = true",
 		category: "ClosedFlags",
@@ -80,7 +80,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsMirrorInvalid = new(
-		id: "IJDEV0133",
+		id: "IJDEV1033",
 		title: "Invalid ClosedFlags mirror declaration",
 		messageFormat: "{0}",
 		category: "ClosedFlags",
@@ -89,7 +89,7 @@ internal static class ClosedFlags {
 	);
 
 	public static readonly DiagnosticDescriptor ClosedFlagsMirrorMismatch = new(
-		id: "IJDEV0134",
+		id: "IJDEV1034",
 		title: "ClosedFlags mirror numeric values do not match",
 		messageFormat: "{0}",
 		category: "ClosedFlags",

@@ -216,15 +216,21 @@ public sealed class ClosedEnumAnalyzer : DiagnosticAnalyzer {
 			bool subset = Util.GetBoolNamedArgument(attr, AttributeSources.ClosedEnumMirrorAttributeSubsetName, false);
 			Location loc = attr.ApplicationSyntaxReference?.GetSyntax(ctx.CancellationToken).GetLocation() ?? Util.GetLocation(structSymbol, structSymbol);
 			if (!Util.TryGetMirrorEnum(attr, out INamedTypeSymbol? external) || external is null) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnum.ClosedEnumMirrorInvalid, loc, "ClosedEnumMirror must have exactly one typeof(TEnum) argument."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(Diagnostics.ClosedEnum.ClosedEnumMirrorInvalid, loc, "ClosedEnumMirror must have exactly one typeof(TEnum) argument.")
+				);
 				continue;
 			}
 			if (external.TypeKind != TypeKind.Enum) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnum.ClosedEnumMirrorInvalid, loc, $"ClosedEnumMirror target '{external.ToDisplayString()}' must be an enum."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(Diagnostics.ClosedEnum.ClosedEnumMirrorInvalid, loc, $"ClosedEnumMirror target '{external.ToDisplayString()}' must be an enum.")
+				);
 				continue;
 			}
 			if (!seenMirrors.Add(external)) {
-				ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.ClosedEnum.ClosedEnumMirrorInvalid, loc, $"Duplicate ClosedEnumMirror for '{external.ToDisplayString()}'."));
+				ctx.ReportDiagnostic(
+					Diagnostic.Create(Diagnostics.ClosedEnum.ClosedEnumMirrorInvalid, loc, $"Duplicate ClosedEnumMirror for '{external.ToDisplayString()}'.")
+				);
 				continue;
 			}
 			if (!SymbolEqualityComparer.Default.Equals(caseSymbol.EnumUnderlyingType, external.EnumUnderlyingType)) {

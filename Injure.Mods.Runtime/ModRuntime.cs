@@ -13,7 +13,7 @@ using System.Text;
 using Injure.Internals.Analyzers.Attributes;
 using Injure.Mods.Abstractions;
 using Injure.Mods.Abstractions.ManifestReader;
-using Injure.Mods.Runtime.Hooks;
+using Injure.Mods.Runtime.MethodModification;
 using Injure.Mods.Runtime.MonoMod;
 using Injure.Runtime;
 
@@ -204,9 +204,9 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 	private readonly Dictionary<string, LoadedContentMod> activeContent = new(StringComparer.Ordinal);
 	private GameServices? attachedGameServices;
 	private readonly HashSet<string> enabledOwners = new(StringComparer.Ordinal);
-	private readonly HookTargetResolver hookTargetResolver = new(AssemblyLoadContext.Default.Assemblies);
-	private readonly MonoModRuntimeHookBackend hookBackend;
-	private readonly RuntimeHookRegistry runtimeHookRegistry;
+	private readonly MethodTargetResolver methodTargetResolver = new(AssemblyLoadContext.Default.Assemblies);
+	private readonly MonoModRuntimeHookBackend monomodBackend;
+	private readonly RuntimeMethodModificationRegistry runtimeModificationRegistry;
 	private readonly Dictionary<string, ulong> nextGenerationByOwner = new(StringComparer.Ordinal);
 
 	private readonly Lock opLock = new();
@@ -236,8 +236,8 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 		maxLoadParallelism = Math.Max(1, options.MaxLoadParallelism);
 		maxScopeTeardownParallelism = Math.Max(1, options.MaxScopeTeardownParallelism);
 		codeLoadSem = new SemaphoreSlim(maxLoadParallelism, maxLoadParallelism);
-		hookBackend = new MonoModRuntimeHookBackend();
-		runtimeHookRegistry = new RuntimeHookRegistry(hookBackend, this);
+		monomodBackend = new MonoModRuntimeHookBackend();
+		runtimeModificationRegistry = new RuntimeMethodModificationRegistry(monomodBackend, monomodBackend, this);
 		diagnostics = new OwnerDiagnostics(EngineInfo.OwnerId, diagnosticsSinkRegistry, null);
 		GameDiagnostics = new OwnerDiagnostics(gameOwnerId, diagnosticsSinkRegistry, null);
 	}
@@ -433,7 +433,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 		ct.ThrowIfCancellationRequested();
 		try {
 			foreach (LoadedCodeMod<TGameApi> mod in activeCode.Values)
-				HookDiscoverer.DiscoverLoadHooks(mod, hookTargetResolver);
+				MethodModificationDiscoverer.DiscoverLoadMethodModifications(mod, methodTargetResolver);
 			phase = RuntimePhase.HooksDiscovered;
 		} catch {
 			phase = RuntimePhase.Faulted;
@@ -464,7 +464,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 		requirePhase(RuntimePhase.Loaded, nameof(ApplyLoadHooksAsync));
 		ct.ThrowIfCancellationRequested();
 		try {
-			runtimeHookRegistry.ReplaceLoadHooks(activeCode.Values.ToArray());
+			runtimeModificationRegistry.ReplaceLoad(activeCode.Values.ToArray());
 			phase = RuntimePhase.LoadHooksApplied;
 		} catch {
 			phase = RuntimePhase.Faulted;
@@ -646,7 +646,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 			lock (opLock)
 				pendingOps.Clear();
 
-			runtimeHookRegistry.ClearAll();
+			runtimeModificationRegistry.ClearAll();
 
 			RuntimePhase startingPhase = phase;
 			if (startingPhase == RuntimePhase.Active) {
@@ -666,8 +666,8 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 					await mod.Scope.InvalidateAsync(ReloadTeardownReason.Shutdown, ct).ConfigureAwait(false);
 			}
 
-			runtimeHookRegistry.Dispose();
-			hookBackend.DropStrongReferences();
+			runtimeModificationRegistry.Dispose();
+			monomodBackend.DropStrongReferences();
 			clearRuntimeStateAfterShutdown();
 			if (unloadGracePeriod > TimeSpan.Zero && pendingUnloads.Count != 0)
 				await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
@@ -694,7 +694,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 				pendingOps.Clear();
 
 			try {
-				runtimeHookRegistry.ClearAll();
+				runtimeModificationRegistry.ClearAll();
 			} catch (Exception ex) {
 				diagnostics.Warning($"abort: error clearing hook registry, moving on: {ex}");
 			}
@@ -721,12 +721,12 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 				}
 
 			try {
-				runtimeHookRegistry.Dispose();
+				runtimeModificationRegistry.Dispose();
 			} catch (Exception ex) {
 				diagnostics.Warning($"abort: error disposing hook registry, moving on: {ex}");
 			}
 			try {
-				hookBackend.DropStrongReferences();
+				monomodBackend.DropStrongReferences();
 			} catch (Exception ex) {
 				diagnostics.Warning($"abort: error dropping hook backend, moving on: {ex}");
 			}
@@ -766,12 +766,11 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 		// TODO: contract assemblies, even though hooking them is kind of a bad idea
 
 		LoadedCodeMod<TGameApi>[] loaded = activeCode.Values.ToArray();
-		foreach (LoadedCodeMod<TGameApi> mod in loaded) {
+		foreach (LoadedCodeMod<TGameApi> mod in loaded)
 			if (asm == mod.Assembly) {
 				ownerId = mod.Staged.Manifest.OwnerId;
 				return true;
 			}
-		}
 
 		ownerId = null;
 		return false;
@@ -1186,7 +1185,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 			foreach (StagedMod stagedMod in replacementStaged)
 				if (stagedMod.Manifest is CodeModManifest) {
 					LoadedCodeMod<TGameApi> loaded = await loadCodeModBoundedAsync(stagedMod, ct).ConfigureAwait(false);
-					HookDiscoverer.DiscoverLoadHooks(loaded, hookTargetResolver);
+					MethodModificationDiscoverer.DiscoverLoadMethodModifications(loaded, methodTargetResolver);
 					preparedCode.Add(stagedMod.Manifest.OwnerId, loaded);
 				} else if (stagedMod.Manifest is ContentModManifest) {
 					preparedContent.Add(stagedMod.Manifest.OwnerId, createLoadedContentMod(stagedMod));
@@ -1297,7 +1296,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 
 			await disposeOldOwnerScopesAsync(plan.OldTouchedSet, plan, ct).ConfigureAwait(false);
 
-			runtimeHookRegistry.ReplaceLoadHooks(txn.PreparedCode.Values.ToArray());
+			runtimeModificationRegistry.ReplaceLoad(txn.PreparedCode.Values.ToArray());
 
 			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live)
 				foreach (KeyValuePair<string, ModLiveStateBlob> kvp in capturedState)
@@ -1372,7 +1371,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 			foreach (LoadedContentMod old in txn.OldContent.Values)
 				old.Scope = new UntypedBoundedScopeImpl(old.Staged.Generation, maxScopeTeardownParallelism);
 
-			runtimeHookRegistry.ReplaceLoadHooks(txn.OldCode.Values.ToArray());
+			runtimeModificationRegistry.ReplaceLoad(txn.OldCode.Values.ToArray());
 			if (wasActive)
 				await activateSetAsync(
 					plan.OldTouchedSet,
@@ -1458,8 +1457,10 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 				Scope = scope,
 				Entrypoint = entrypoint,
 				ReloadEntrypoint = reloadEntrypoint,
-				LoadHooks = new RuntimeHookDeclarationSet(stagedMod.Manifest.OwnerId),
-				LinkHooks = new RuntimeHookDeclarationSet(stagedMod.Manifest.OwnerId),
+				LoadDetours = new RuntimeDetourDeclarationSet(stagedMod.Manifest.OwnerId),
+				LoadPatches = new RuntimePatchDeclarationSet(stagedMod.Manifest.OwnerId),
+				LinkDetours = new RuntimeDetourDeclarationSet(stagedMod.Manifest.OwnerId),
+				LinkPatches = new RuntimePatchDeclarationSet(stagedMod.Manifest.OwnerId),
 				Exports = new UntypedModExportTable(lifetimeIdentityType),
 			};
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
@@ -1477,7 +1478,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 	}
 
 	private async ValueTask runLoadAsync(LoadedCodeMod<TGameApi> mod, CancellationToken ct) {
-		object ctx = createLoadContext(mod, createApi(mod), diagnosticsSinkRegistry, hookTargetResolver);
+		object ctx = createLoadContext(mod, createApi(mod), diagnosticsSinkRegistry, methodTargetResolver);
 		try {
 			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.LoadAsync), ctx, ct).ConfigureAwait(false);
 		} finally {
@@ -1796,11 +1797,19 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) => apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerId, mod.Scope));
 
-	private static object createLoadHookDeclarations(LoadedCodeMod<TGameApi> mod, HookTargetResolver resolver) => Activator.CreateInstance(
-		typeof(ModHookDeclarations<>).MakeGenericType(mod.LifetimeIdentityType),
+	private static object createLoadDetourDeclarations(LoadedCodeMod<TGameApi> mod, MethodTargetResolver resolver) => Activator.CreateInstance(
+		typeof(ModDetourDeclarations<>).MakeGenericType(mod.LifetimeIdentityType),
 		mod,
 		resolver,
-		HookDeclarationPhase.Load,
+		MethodModificationPhase.Load,
+		mod.Staged.Generation
+	)!;
+
+	private static object createLoadPatchDeclarations(LoadedCodeMod<TGameApi> mod, MethodTargetResolver resolver) => Activator.CreateInstance(
+		typeof(ModPatchDeclarations<>).MakeGenericType(mod.LifetimeIdentityType),
+		mod,
+		resolver,
+		MethodModificationPhase.Load,
 		mod.Staged.Generation
 	)!;
 
@@ -1808,10 +1817,11 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 		LoadedCodeMod<TGameApi> mod,
 		TGameApi api,
 		DiagnosticsSinkRegistry diagnosticsSinkRegistry,
-		HookTargetResolver resolver
+		MethodTargetResolver resolver
 	) => Activator.CreateInstance(
 		typeof(ModLoadContextImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
-		createLoadHookDeclarations(mod, resolver),
+		createLoadDetourDeclarations(mod, resolver),
+		createLoadPatchDeclarations(mod, resolver),
 		mod.Exports,
 		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,

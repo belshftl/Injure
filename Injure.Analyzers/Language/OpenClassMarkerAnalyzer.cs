@@ -133,12 +133,11 @@ public sealed class OpenClassMarkerAnalyzer : DiagnosticAnalyzer {
 		}
 
 		bool hasClosingModifier = false;
-		foreach (SyntaxToken modifier in modifiers) {
+		foreach (SyntaxToken modifier in modifiers)
 			if (modifier.IsKind(SyntaxKind.AbstractKeyword) || modifier.IsKind(SyntaxKind.SealedKeyword) || modifier.IsKind(SyntaxKind.StaticKeyword)) {
 				hasClosingModifier = true;
 				break;
 			}
-		}
 
 		if (!isClassLike || hasClosingModifier) {
 			foreach (SyntaxTrivia marker in allMarkers)
@@ -170,9 +169,8 @@ public sealed class OpenClassMarkerAnalyzer : DiagnosticAnalyzer {
 	private static bool hasModifierSpacing(SourceText text, TextSpan span) {
 		if (span.Start != 0) {
 			char prev = text[span.Start - 1];
-			if (!isHorizontalWs(prev) && prev != '\r' && prev != '\n') {
+			if (!isHorizontalWs(prev) && prev != '\r' && prev != '\n')
 				return false;
-			}
 		}
 		int pos = span.End;
 		if (pos >= text.Length || !isHorizontalWs(text[pos]))

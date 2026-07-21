@@ -19,7 +19,8 @@ public sealed class AssetStoreConcurrencyTests {
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		Assert.False(asset.IsLoaded);
 
-		ulong[] ids = await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => asset.Borrow().Value.ID))).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+		ulong[] ids = await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => asset.Borrow().Value.ID)))
+			.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.Equal(1, creator.PrepareCalls);
 		Assert.Equal(1, creator.FinalizeCalls);
 		Assert.True(ids.All(id => id == ids[0]));
@@ -75,7 +76,8 @@ public sealed class AssetStoreConcurrencyTests {
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
-		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => asset.QueueReloadAsync()))).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => asset.QueueReloadAsync())))
+			.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		Assert.True(asset.HasQueuedReload);
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);
@@ -98,7 +100,8 @@ public sealed class AssetStoreConcurrencyTests {
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
-		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => watcher.Raise(new TestDependency("dep"))))).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+		await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => Task.Run(() => watcher.Raise(new TestDependency("dep")))))
+			.WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 		await AssetTestWait.ForQueuedReloadAsync(asset);
 		int published = store.ApplyQueuedReloadsOrThrow();
 		Assert.Equal(1, published);

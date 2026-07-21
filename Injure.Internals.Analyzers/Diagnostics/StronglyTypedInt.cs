@@ -8,7 +8,7 @@ namespace Injure.Internals.Analyzers.Diagnostics;
 internal static class StronglyTypedInt {
 #pragma warning disable RS2008 // enable analyzer release tracking
 	public static readonly DiagnosticDescriptor StronglyTypedIntInvalidTarget = new(
-		id: "IJDEV0200",
+		id: "IJDEV1050",
 		title: "Invalid target for attribute StronglyTypedInt",
 		messageFormat: "{0}",
 		category: "StronglyTypedInt",
@@ -17,7 +17,7 @@ internal static class StronglyTypedInt {
 	);
 
 	public static readonly DiagnosticDescriptor StronglyTypedIntMustBeReadonly = new(
-		id: "IJDEV0201",
+		id: "IJDEV1051",
 		title: "StronglyTypedInt target must be readonly",
 		messageFormat: "StronglyTypedInt target struct '{0}' must be a readonly struct",
 		category: "StronglyTypedInt",
@@ -26,7 +26,7 @@ internal static class StronglyTypedInt {
 	);
 
 	public static readonly DiagnosticDescriptor StronglyTypedIntUnsupportedBacking = new(
-		id: "IJDEV0202",
+		id: "IJDEV1052",
 		title: "Unsupported backing type for StronglyTypedInt",
 		messageFormat: "Backing type '{0}' is not supported (supported: sbyte, byte, short, ushort, int, uint, long, ulong, nint, nuint, Int128, UInt128)",
 		category: "StronglyTypedInt",
@@ -35,7 +35,7 @@ internal static class StronglyTypedInt {
 	);
 
 	public static readonly DiagnosticDescriptor StronglyTypedIntMemberCollision = new(
-		id: "IJDEV0203",
+		id: "IJDEV1053",
 		title: "Existing member collides with reserved member for StronglyTypedInt",
 		messageFormat: "{0}",
 		category: "StronglyTypedInt",

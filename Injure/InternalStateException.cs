@@ -33,26 +33,50 @@ public sealed class InternalStateException : Exception {
 	internal InternalStateException(string message) : base(message) {}
 	internal InternalStateException(string message, Exception ex) : base(message, ex) {}
 
-	internal static void ThrowIfNull<T>(T? v, [CallerArgumentExpression(nameof(v))] string? expr = null, [CallerFilePath] string file = "<unknown>", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "<unknown>") where T : class {
+	internal static void ThrowIfNull<T>(
+		T? v,
+		[CallerArgumentExpression(nameof(v))] string? expr = null,
+		[CallerFilePath] string file = "<unknown>",
+		[CallerLineNumber] int line = 0,
+		[CallerMemberName] string member = "<unknown>"
+	) where T : class {
 		if (v is null)
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' is unexpectedly null");
 	}
 
 #pragma warning disable IDE0001 // name can be simplified
-	internal static void ThrowIfNull<T>(Nullable<T> v, [CallerArgumentExpression(nameof(v))] string? expr = null, [CallerFilePath] string file = "<unknown>", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "<unknown>") where T : struct {
+	internal static void ThrowIfNull<T>(
+		Nullable<T> v,
+		[CallerArgumentExpression(nameof(v))] string? expr = null,
+		[CallerFilePath] string file = "<unknown>",
+		[CallerLineNumber] int line = 0,
+		[CallerMemberName] string member = "<unknown>"
+	) where T : struct {
 		if (v is null)
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' is unexpectedly null");
 	}
 #pragma warning restore IDE0001 // name can be simplified
 
-	internal static void ThrowIfNullOrEmpty(string? s, [CallerArgumentExpression(nameof(s))] string? expr = null, [CallerFilePath] string file = "<unknown>", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "<unknown>") {
+	internal static void ThrowIfNullOrEmpty(
+		string? s,
+		[CallerArgumentExpression(nameof(s))] string? expr = null,
+		[CallerFilePath] string file = "<unknown>",
+		[CallerLineNumber] int line = 0,
+		[CallerMemberName] string member = "<unknown>"
+	) {
 		if (s is null)
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' is unexpectedly null");
 		if (s.Length == 0)
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' is unexpectedly empty");
 	}
 
-	internal static void ThrowIfNullOrWhiteSpace(string? s, [CallerArgumentExpression(nameof(s))] string? expr = null, [CallerFilePath] string file = "<unknown>", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "<unknown>") {
+	internal static void ThrowIfNullOrWhiteSpace(
+		string? s,
+		[CallerArgumentExpression(nameof(s))] string? expr = null,
+		[CallerFilePath] string file = "<unknown>",
+		[CallerLineNumber] int line = 0,
+		[CallerMemberName] string member = "<unknown>"
+	) {
 		if (s is null)
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' is unexpectedly null");
 		if (s.Length == 0)
@@ -61,12 +85,24 @@ public sealed class InternalStateException : Exception {
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' is unexpectedly whitespace-only");
 	}
 
-	internal static void ThrowIfInvalidOwnerId(string? ownerId, [CallerArgumentExpression(nameof(ownerId))] string? expr = null, [CallerFilePath] string file = "<unknown>", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "<unknown>") {
+	internal static void ThrowIfInvalidOwnerId(
+		string? ownerId,
+		[CallerArgumentExpression(nameof(ownerId))] string? expr = null,
+		[CallerFilePath] string file = "<unknown>",
+		[CallerLineNumber] int line = 0,
+		[CallerMemberName] string member = "<unknown>"
+	) {
 		if (!ModMetadataValidation.ValidateOwnerId(ownerId, out string? e))
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' (value: '{ownerId}') is unexpectedly not a valid owner ID: {e}");
 	}
 
-	internal static void ThrowIfInvalidLocalId(string? localId, [CallerArgumentExpression(nameof(localId))] string? expr = null, [CallerFilePath] string file = "<unknown>", [CallerLineNumber] int line = 0, [CallerMemberName] string member = "<unknown>") {
+	internal static void ThrowIfInvalidLocalId(
+		string? localId,
+		[CallerArgumentExpression(nameof(localId))] string? expr = null,
+		[CallerFilePath] string file = "<unknown>",
+		[CallerLineNumber] int line = 0,
+		[CallerMemberName] string member = "<unknown>"
+	) {
 		if (!ModMetadataValidation.ValidateLocalId(localId, out string? e))
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' (value: '{localId}') is unexpectedly not a valid local ID: {e}");
 	}

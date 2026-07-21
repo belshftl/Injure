@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using MonoMod.Cil;
-using Injure.Mods.Abstractions.Hooks.Il;
+using Injure.Mods.Abstractions.MethodModification.Il;
 
 namespace Injure.Mods.Runtime.MonoMod;
 
