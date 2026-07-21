@@ -13,7 +13,7 @@
 		<PackageId>Injure.Weaver</PackageId>
 		<Version>0.1.0-alpha.0</Version>
 		<Authors>belshftl</Authors>
-		<Description>game assembly hookgen and publicizer from the game framework/engine colloquially known as Injure</Description>
+		<Description>game assembly method modification target generator / publicizer from the game framework/engine colloquially known as Injure</Description>
 		<Copyright>Copyright (c) 2026 belshftl</Copyright>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<RepositoryUrl>https://github.com/belshftl/Injure</RepositoryUrl>

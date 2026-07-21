@@ -27,11 +27,10 @@ public static class MainClass {
 				InputPath = require(values, "input"),
 				OutputPath = output,
 				OwnerID = require(values, "owner-id"),
-				HooksRoot = get(values, "hooks-root"),
-				RawHooksRoot = get(values, "raw-hooks-root"),
+				TargetsRoot = get(values, "targets-root"),
 			}
 		);
-		Console.WriteLine($"wrote '{output}' with {emitted} hook target(s)");
+		Console.WriteLine($"wrote '{output}' with {emitted} target(s)");
 	}
 
 	[DoesNotReturn]
@@ -42,12 +41,11 @@ usage: {Environment.GetCommandLineArgs()[0]} --input <dll> --output <dll> --owne
 process an Injure game assembly to make it more suitable for modding
 
 options:
-      --input <dll>                      input assembly (required)
-      --output <dll>                     output assembly path (required)
-      --owner-id <owner id>              owner id of the game, used for internal id generation (required)
-      --hooks-root <full type name>      root static class to emit intended hooks into (default: <assembly name>.Hooks)
-      --raw-hooks-root <full type name>  root static class to emit raw hooks into (default: <assembly name>.RawHooks)
-  -h, --help                             display this help and exit
+      --input <dll>                    input assembly (required)
+      --output <dll>                   output assembly path (required)
+      --owner-id <owner id>            owner id of the game, used for internal id generation (required)
+      --targets-root <full type name>  root static class to emit method modification targets into (default: <assembly name>.Methods)
+  -h, --help                           display this help and exit
 """
 		);
 		Environment.Exit(2);

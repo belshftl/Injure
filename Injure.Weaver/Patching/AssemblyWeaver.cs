@@ -45,11 +45,10 @@ public static class AssemblyWeaver {
 			Publicizer.Publicize(module, in analysis);
 
 			string assemblyName = TypeNameUtil.SanitizeIdentifier(assembly.Name.Name);
-			string hooksRoot = options.HooksRoot ?? assemblyName + ".Hooks";
-			string rawHooksRoot = options.RawHooksRoot ?? assemblyName + ".RawHooks";
+			string targetsRoot = options.TargetsRoot ?? assemblyName + ".Methods";
 
-			List<HookCandidate> candidates = HookDiscoverer.Discover(module, options.OwnerID);
-			Dictionary<HookCandidate, TypeDefinition> delegateTypes = HookEmitter.Emit(module, candidates, hooksRoot, rawHooksRoot);
+			List<TargetCandidate> candidates = TargetDiscoverer.Discover(module, options.OwnerID);
+			Dictionary<TargetCandidate, TypeDefinition> delegateTypes = TargetEmitter.Emit(module, candidates, targetsRoot);
 
 			StoreEmitter.Emit(module, ij, candidates, delegateTypes, assemblyName);
 
@@ -57,7 +56,7 @@ public static class AssemblyWeaver {
 				WriteSymbols = false,
 			};
 			if (Path.GetFullPath(options.InputPath) == Path.GetFullPath(options.OutputPath)) {
-				tmpFilePath = options.OutputPath + ".injure-modkit-tmp";
+				tmpFilePath = options.OutputPath + ".injure-weaver-tmp";
 				assembly.Write(tmpFilePath, writerParameters);
 			} else {
 				assembly.Write(options.OutputPath, writerParameters);

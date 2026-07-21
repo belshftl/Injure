@@ -60,11 +60,11 @@ public readonly partial struct RuntimePhase {
 		NativeLibrariesResolved,
 		ContractAssembliesLoaded,
 		CodeLoaded,
-		HooksDiscovered,
+		ModificationsDiscovered,
 		Loaded,
-		LoadHooksApplied,
+		LoadModificationsApplied,
 		Linked,
-		//LinkHooksApplied,
+		//LinkModificationsApplied,
 		GameAttached,
 		Active,
 		Shutdown,
@@ -251,9 +251,9 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 		await ResolveNativeLibrariesAsync(ct).ConfigureAwait(false);
 		await LoadContractAssembliesAsync(ct).ConfigureAwait(false);
 		await LoadCodeAsync(ct).ConfigureAwait(false);
-		await DiscoverHooksAsync(ct).ConfigureAwait(false);
+		await DiscoverModificationsAsync(ct).ConfigureAwait(false);
 		await LoadAsync(ct).ConfigureAwait(false);
-		await ApplyLoadHooksAsync(ct).ConfigureAwait(false);
+		await ApplyLoadModificationsAsync(ct).ConfigureAwait(false);
 		await LinkAsync(ct).ConfigureAwait(false);
 	}
 
@@ -428,13 +428,13 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 		}
 	}
 
-	public async ValueTask DiscoverHooksAsync(CancellationToken ct) {
-		requirePhase(RuntimePhase.CodeLoaded, nameof(DiscoverHooksAsync));
+	public async ValueTask DiscoverModificationsAsync(CancellationToken ct) {
+		requirePhase(RuntimePhase.CodeLoaded, nameof(DiscoverModificationsAsync));
 		ct.ThrowIfCancellationRequested();
 		try {
 			foreach (LoadedCodeMod<TGameApi> mod in activeCode.Values)
 				MethodModificationDiscoverer.DiscoverLoadMethodModifications(mod, methodTargetResolver);
-			phase = RuntimePhase.HooksDiscovered;
+			phase = RuntimePhase.ModificationsDiscovered;
 		} catch {
 			phase = RuntimePhase.Faulted;
 			throw;
@@ -442,7 +442,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 	}
 
 	public async ValueTask LoadAsync(CancellationToken ct) {
-		requirePhase(RuntimePhase.HooksDiscovered, nameof(LoadAsync));
+		requirePhase(RuntimePhase.ModificationsDiscovered, nameof(LoadAsync));
 		ct.ThrowIfCancellationRequested();
 		try {
 			await Parallel.ForEachAsync(
@@ -460,12 +460,12 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 		}
 	}
 
-	public async ValueTask ApplyLoadHooksAsync(CancellationToken ct) {
-		requirePhase(RuntimePhase.Loaded, nameof(ApplyLoadHooksAsync));
+	public async ValueTask ApplyLoadModificationsAsync(CancellationToken ct) {
+		requirePhase(RuntimePhase.Loaded, nameof(ApplyLoadModificationsAsync));
 		ct.ThrowIfCancellationRequested();
 		try {
 			runtimeModificationRegistry.ReplaceLoad(activeCode.Values.ToArray());
-			phase = RuntimePhase.LoadHooksApplied;
+			phase = RuntimePhase.LoadModificationsApplied;
 		} catch {
 			phase = RuntimePhase.Faulted;
 			throw;
@@ -473,7 +473,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 	}
 
 	public async ValueTask LinkAsync(CancellationToken ct) {
-		requirePhase(RuntimePhase.LoadHooksApplied, nameof(LinkAsync));
+		requirePhase(RuntimePhase.LoadModificationsApplied, nameof(LinkAsync));
 		try {
 			Dictionary<string, UntypedLoadedDepInfo>? owners = buildOwnerInfo(activeContent.Values.Cast<ILoadedMod>().Concat(activeCode.Values));
 			Dictionary<string, UntypedUntypedLoadedCodeDepInfo>? codeOwners = buildCodeOwnerInfo(activeCode.Values);
@@ -696,7 +696,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 			try {
 				runtimeModificationRegistry.ClearAll();
 			} catch (Exception ex) {
-				diagnostics.Warning($"abort: error clearing hook registry, moving on: {ex}");
+				diagnostics.Warning($"abort: error clearing method modification registry, moving on: {ex}");
 			}
 
 			List<PendingAlcUnload> pendingUnloads = new();
@@ -723,12 +723,12 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 			try {
 				runtimeModificationRegistry.Dispose();
 			} catch (Exception ex) {
-				diagnostics.Warning($"abort: error disposing hook registry, moving on: {ex}");
+				diagnostics.Warning($"abort: error disposing method modification registry, moving on: {ex}");
 			}
 			try {
 				monomodBackend.DropStrongReferences();
 			} catch (Exception ex) {
-				diagnostics.Warning($"abort: error dropping hook backend, moving on: {ex}");
+				diagnostics.Warning($"abort: error dropping method modification backend, moving on: {ex}");
 			}
 			clearRuntimeStateAfterShutdown();
 			if (unloadGracePeriod > TimeSpan.Zero && pendingUnloads.Count != 0)
@@ -763,7 +763,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 			return true;
 		}
 
-		// TODO: contract assemblies, even though hooking them is kind of a bad idea
+		// TODO: contract assemblies, even though runtime modifying them is kind of a bad idea
 
 		LoadedCodeMod<TGameApi>[] loaded = activeCode.Values.ToArray();
 		foreach (LoadedCodeMod<TGameApi> mod in loaded)
@@ -780,9 +780,9 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 	// private methods
 	private static bool shutdownHasOwnerScopes(RuntimePhase phase) => phase.Tag switch {
 		RuntimePhase.Case.CodeLoaded or
-			RuntimePhase.Case.HooksDiscovered or
+			RuntimePhase.Case.ModificationsDiscovered or
 			RuntimePhase.Case.Loaded or
-			RuntimePhase.Case.LoadHooksApplied or
+			RuntimePhase.Case.LoadModificationsApplied or
 			RuntimePhase.Case.Linked or
 			RuntimePhase.Case.GameAttached or
 			RuntimePhase.Case.Active => true,
@@ -791,7 +791,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver {
 
 	private static bool shutdownShouldCallUnload(RuntimePhase phase) => phase.Tag switch {
 		RuntimePhase.Case.Loaded or
-			RuntimePhase.Case.LoadHooksApplied or
+			RuntimePhase.Case.LoadModificationsApplied or
 			RuntimePhase.Case.Linked or
 			RuntimePhase.Case.GameAttached or
 			RuntimePhase.Case.Active => true,

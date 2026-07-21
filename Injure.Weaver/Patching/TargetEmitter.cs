@@ -6,20 +6,17 @@ using Mono.Cecil;
 
 namespace Injure.Weaver.Patching;
 
-public static class HookEmitter {
-	public static Dictionary<HookCandidate, TypeDefinition> Emit(
+public static class TargetEmitter {
+	public static Dictionary<TargetCandidate, TypeDefinition> Emit(
 		ModuleDefinition module,
-		IReadOnlyList<HookCandidate> candidates,
-		string hooksRootFullName,
-		string rawHooksRootFullName
+		IReadOnlyList<TargetCandidate> candidates,
+		string targetsRootFullName
 	) {
-		TypeDefinition hooksRoot = findOrCreateRoot(module, hooksRootFullName);
-		TypeDefinition rawHooksRoot = findOrCreateRoot(module, rawHooksRootFullName);
-		Dictionary<HookCandidate, TypeDefinition> delegateTypes = new();
+		TypeDefinition targetsRoot = findOrCreateRoot(module, targetsRootFullName);
+		Dictionary<TargetCandidate, TypeDefinition> delegateTypes = new();
 
-		foreach (HookCandidate candidate in candidates) {
-			TypeDefinition root = candidate.Kind == HookKind.Intended ? hooksRoot : rawHooksRoot;
-			TypeDefinition container = findOrCreateNestedStaticClass(module, root, candidate.ContainerName);
+		foreach (TargetCandidate candidate in candidates) {
+			TypeDefinition container = findOrCreateNestedStaticClass(module, targetsRoot, candidate.ContainerName);
 
 			addStringConstant(module, container, candidate.ConstantName, candidate.ID);
 
@@ -90,7 +87,7 @@ public static class HookEmitter {
 		container.Fields.Add(fieldDefinition);
 	}
 
-	private static TypeDefinition createNextDelegate(ModuleDefinition module, HookCandidate candidate) {
+	private static TypeDefinition createNextDelegate(ModuleDefinition module, TargetCandidate candidate) {
 		TypeDefinition delegateType = new(
 			"",
 			candidate.NextDelegateName,

@@ -6,23 +6,17 @@ using Mono.Cecil;
 
 namespace Injure.Weaver.Model;
 
-public enum HookKind {
-	Intended,
-	Raw,
-}
-
-public readonly struct HookCandidate : IEquatable<HookCandidate> {
-	public required HookKind Kind { get; init; }
+public readonly struct TargetCandidate : IEquatable<TargetCandidate> {
 	public required string ID { get; init; }
 	public required MethodDefinition Method { get; init; }
 	public required string ContainerName { get; init; }
 	public required string ConstantName { get; init; }
 	public required string NextDelegateName { get; init; }
 
-	public bool Equals(HookCandidate other) => Kind == other.Kind && ID == other.ID && Method == other.Method &&
+	public bool Equals(TargetCandidate other) => ID == other.ID && Method == other.Method &&
 		ContainerName == other.ContainerName && ConstantName == other.ConstantName && NextDelegateName == other.NextDelegateName;
-	public override bool Equals([NotNullWhen(true)] object? obj) => obj is HookCandidate other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine(Kind, ID, Method, ContainerName, ConstantName, NextDelegateName);
-	public static bool operator ==(HookCandidate left, HookCandidate right) => left.Equals(right);
-	public static bool operator !=(HookCandidate left, HookCandidate right) => !left.Equals(right);
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is TargetCandidate other && Equals(other);
+	public override int GetHashCode() => HashCode.Combine(ID, Method, ContainerName, ConstantName, NextDelegateName);
+	public static bool operator ==(TargetCandidate left, TargetCandidate right) => left.Equals(right);
+	public static bool operator !=(TargetCandidate left, TargetCandidate right) => !left.Equals(right);
 }

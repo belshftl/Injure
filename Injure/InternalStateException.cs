@@ -14,7 +14,7 @@ namespace Injure;
 /// Exception thrown on internal logic bugs, invariant violations, state corruption,
 /// seemingly impossible conditions, bad values for purely-internal types, etc.
 /// Informally speaking, you should never see this unless either there's a bug in the library
-/// or <c>unsafe</c> code / reflection over internals / mod hooks have messed something up.
+/// or <c>unsafe</c> code / reflection over internals / mod modifications have messed something up.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -87,7 +87,8 @@ public sealed class InternalStateException : Exception {
 
 	internal static void ThrowIfInvalidOwnerId(
 		string? ownerId,
-		[CallerArgumentExpression(nameof(ownerId))] string? expr = null,
+		[CallerArgumentExpression(nameof(ownerId))]
+		string? expr = null,
 		[CallerFilePath] string file = "<unknown>",
 		[CallerLineNumber] int line = 0,
 		[CallerMemberName] string member = "<unknown>"
@@ -98,7 +99,8 @@ public sealed class InternalStateException : Exception {
 
 	internal static void ThrowIfInvalidLocalId(
 		string? localId,
-		[CallerArgumentExpression(nameof(localId))] string? expr = null,
+		[CallerArgumentExpression(nameof(localId))]
+		string? expr = null,
 		[CallerFilePath] string file = "<unknown>",
 		[CallerLineNumber] int line = 0,
 		[CallerMemberName] string member = "<unknown>"

@@ -7,37 +7,38 @@ namespace Injure.Mods;
 // types in an attribute
 
 /// <summary>
-/// Least disruptive reload boundary at which hooks for a plausible-hook-point method were intended
-/// to be correctly installable/removable/replaceable.
+/// Least disruptive reload boundary at which method modifications for a plausible-modification-point
+/// method were intended to be correctly installable/removable/replaceable.
 /// </summary>
-public enum HookPointReloadBoundary {
+public enum ModificationPointReloadBoundary {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
 	Unspecified,
 
 	/// <summary>
-	/// Installing/removing/replacing a hook for this method may leave behind side
+	/// Installing/removing/replacing a modification for this method may leave behind side
 	/// effects that aren't fully reversible without restarting the process.
 	/// </summary>
 	ProcessLifetime,
 
 	/// <summary>
-	/// Hooks may be installed/removed/replaced at a game-defined safe boundary.
+	/// Modifications may be installed/removed/replaced at a game-defined safe boundary.
 	/// </summary>
 	SafeBoundary,
 
 	/// <summary>
-	/// Hooks may be installed/removed/replaced at a game-defined small live reload
+	/// Modifications may be installed/removed/replaced at a game-defined small live reload
 	/// boundary, such as between ticks/frames while the relevant subsystem is quiesced.
 	/// </summary>
 	LiveBoundary,
 }
 
 /// <summary>
-/// What thread(s) a plausible-hook-point method runs on; hooks must be prepared to run on those threads.
+/// What thread(s) a plausible-modification-point method runs on; modification code must be prepared
+/// to run on those threads.
 /// </summary>
-public enum HookPointThreadAffinity {
+public enum ModificationPointThreadAffinity {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
@@ -76,16 +77,17 @@ public enum HookPointThreadAffinity {
 }
 
 /// <summary>
-/// What kinds of blocking behavior a well-behaved hook for a plausible-hook-point method can exhibit.
+/// What kinds of blocking behavior a well-behaved modification for a plausible-modification-point
+/// method can exhibit.
 /// </summary>
-public enum HookPointBlockingPolicy {
+public enum ModificationPointBlockingPolicy {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
 	Unspecified,
 
 	/// <summary>
-	/// Blocking in a hook for this method is not specifically prohibited beyond standard expectations.
+	/// Blocking in a modification of this method is not specifically prohibited beyond standard expectations.
 	/// </summary>
 	MayBlock,
 
@@ -102,10 +104,11 @@ public enum HookPointBlockingPolicy {
 }
 
 /// <summary>
-/// Concurrency hazards of a plausible-hook-point method that hooks must be prepared to deal with.
+/// Concurrency hazards of a plausible-modification-point method that modifications must be prepared
+/// to deal with.
 /// </summary>
 [Flags]
-public enum HookPointConcurrencyHazards {
+public enum ModificationPointConcurrencyHazards {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
@@ -117,7 +120,7 @@ public enum HookPointConcurrencyHazards {
 	NoKnownHazards = 1 << 0,
 
 	/// <summary>
-	/// The method may run while iterating over some global collection/list; hooks must be
+	/// The method may run while iterating over some global collection/list; modifications must be
 	/// careful modifying said collection.
 	/// </summary>
 	IteratorInvalidationRisk = 1 << 1,
@@ -155,7 +158,7 @@ public enum HookPointConcurrencyHazards {
 	NoCallbackIntoOriginSubsystem = 1 << 6,
 
 	/// <summary>
-	/// The method is called without any synchronization guarantees. Any hooks must assume
+	/// The method is called without any synchronization guarantees. Any modifications must assume
 	/// state not known to be synchronized right now may be unstable / racing and typical
 	/// guard locks/mutexes may not be held.
 	/// </summary>
@@ -170,11 +173,11 @@ public enum HookPointConcurrencyHazards {
 }
 
 /// <summary>
-/// Responsibilities of a plausible-hook-point method. Hooks must be prepared to correctly
-/// handle them / suppress them / etc.
+/// Responsibilities of a plausible-modification-point method. Modification code must be prepared to
+/// correctly handle them / suppress them / etc.
 /// </summary>
 [Flags]
-public enum HookPointEffects {
+public enum ModificationPointEffects {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
@@ -186,7 +189,7 @@ public enum HookPointEffects {
 	NoKnownEffects = 1 << 0,
 
 	/// <summary>
-	/// The method is pure or a simple query method; hooks should be careful introducing
+	/// The method is pure or a simple query method; modifications should be careful introducing
 	/// non-trivial extra work or side effects.
 	/// </summary>
 	PureOrQuery = 1 << 1,
@@ -254,14 +257,14 @@ public enum HookPointEffects {
 	/// <summary>
 	/// The method may invoke user/mod/game callbacks, event handlers, delegates, virtual methods,
 	/// scripts, or other arbitrary externally provided code.
-	/// Hooks must treat said code as a black-box that may do anything not contractually prohibited, such as
+	/// Modifications must treat said code as a black-box that may do anything not contractually prohibited, such as
 	/// reenter subsystems, throw, mutate global state, block, spawn threads/children, etc.
 	/// </summary>
 	CallsUserCode = 1 << 13,
 
 	/// <summary>
 	/// Throwing inside or through the method may leave state partially mutated, break caller
-	/// expectations/invariants, skip cleanup, deadlock, etc. Hooks must be careful to catch
+	/// expectations/invariants, skip cleanup, deadlock, etc. Modifications must be careful to catch
 	/// exceptions from other methods and not throw any themselves.
 	/// </summary>
 	/// <remarks>
@@ -288,7 +291,7 @@ public enum HookPointEffects {
 	FfiOrExternalState = 1 << 15,
 
 	/// <summary>
-	/// The method may cause C-style undefined behavior if misused or internally broken by a hook.
+	/// The method may cause C-style undefined behavior if misused or internally broken by a modification.
 	/// </summary>
 	/// <remarks>
 	/// Doesn't necessarily imply native interop; may be as simple as an unsafe method that deals
@@ -298,24 +301,24 @@ public enum HookPointEffects {
 }
 
 /// <summary>
-/// Marks a suggested hook point in this binary/DLL. This attribute is currently purely for information
-/// and easier discovery of relevant locations in source code / decompiler output and serves no
-/// functional runtime purpose.
+/// Marks a suggested method modification (detour/patch) point in this binary/DLL. This attribute is
+/// currently purely for information and easier discovery of relevant locations in source code / decompiler
+/// output and serves no functional runtime purpose.
 /// </summary>
 /// <remarks>
 /// This does <b>not</b> imply in any way that the marked method is a stable API; it may be removed,
 /// have its signature/name changed, etc. at any point without notice. This is merely an informational
-/// marker for a plausible hook point in a specific build of a game, intended to be discoverable in e.g
-/// decompilations. If you are the game developer and want to expose a stable hook-point API for mods,
+/// marker for a plausible modification point in a specific build of a game, intended to be discoverable in e.g
+/// decompilations. If you are the game developer and want to expose a stable modification-point API for mods,
 /// roll something of your own that doesn't depend on runtime patching.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, AllowMultiple = true, Inherited = false)]
-public sealed class PlausibleHookPointAttribute : Attribute {
-	public HookPointReloadBoundary ReloadBoundary { get; init; } = HookPointReloadBoundary.Unspecified;
-	public HookPointThreadAffinity ThreadAffinity { get; init; } = HookPointThreadAffinity.Unspecified;
-	public HookPointBlockingPolicy Blocking { get; init; } = HookPointBlockingPolicy.Unspecified;
-	public HookPointConcurrencyHazards ConcurrencyHazards { get; init; } = HookPointConcurrencyHazards.Unspecified;
-	public HookPointEffects Effects { get; init; } = HookPointEffects.Unspecified;
+public sealed class PlausibleMethodModificationPointAttribute : Attribute {
+	public ModificationPointReloadBoundary ReloadBoundary { get; init; } = ModificationPointReloadBoundary.Unspecified;
+	public ModificationPointThreadAffinity ThreadAffinity { get; init; } = ModificationPointThreadAffinity.Unspecified;
+	public ModificationPointBlockingPolicy Blocking { get; init; } = ModificationPointBlockingPolicy.Unspecified;
+	public ModificationPointConcurrencyHazards ConcurrencyHazards { get; init; } = ModificationPointConcurrencyHazards.Unspecified;
+	public ModificationPointEffects Effects { get; init; } = ModificationPointEffects.Unspecified;
 
 	public string? Purpose { get; init; }
 	public string? AlternativeApi { get; init; }

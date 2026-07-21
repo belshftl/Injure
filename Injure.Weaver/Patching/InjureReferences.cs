@@ -9,8 +9,8 @@ public sealed class InjureReferences {
 	public const string PublicizedAttributeFullName = "Injure.Mods.Weaver.PublicizedAttribute";
 	public const string PublicizedSignatureAttributeFullName = "Injure.Mods.Weaver.PublicizedSignatureAttribute";
 	public const string PublicizedStateMachineAttributeFullName = "Injure.Mods.Weaver.PublicizedStateMachineAttribute";
-	public const string ModHookTargetStoreAttributeFullName = "Injure.Mods.Weaver.ModMethodTargetStoreAttribute";
-	public const string HookTargetDefinitionFullName = "Injure.Mods.Weaver.MethodTargetDefinition";
+	public const string ModMethodTargetStoreAttributeFullName = "Injure.Mods.Weaver.ModMethodTargetStoreAttribute";
+	public const string MethodTargetDefinitionFullName = "Injure.Mods.Weaver.MethodTargetDefinition";
 
 	public required TypeReference PublicizedAttributeType { get; init; }
 	public required MethodReference PublicizedAttributeCtor { get; init; }
@@ -21,11 +21,11 @@ public sealed class InjureReferences {
 	public required TypeReference PublicizedStateMachineAttributeType { get; init; }
 	public required MethodReference PublicizedStateMachineAttributeCtor { get; init; }
 
-	public required TypeReference ModHookTargetStoreAttributeType { get; init; }
-	public required MethodReference ModHookTargetStoreAttributeCtor { get; init; }
+	public required TypeReference ModMethodTargetStoreAttributeType { get; init; }
+	public required MethodReference ModMethodTargetStoreAttributeCtor { get; init; }
 
-	public required TypeReference HookTargetDefinitionType { get; init; }
-	public required MethodReference HookTargetDefinitionCtor { get; init; }
+	public required TypeReference MethodTargetDefinitionType { get; init; }
+	public required MethodReference MethodTargetDefinitionCtor { get; init; }
 }
 
 public static class InjureReferenceResolver {
@@ -51,16 +51,16 @@ public static class InjureReferenceResolver {
 				ctor.Parameters.Count == 0
 		);
 
-		TypeDefinition storeAttribute = findRequiredType(module, InjureReferences.ModHookTargetStoreAttributeFullName);
+		TypeDefinition storeAttribute = findRequiredType(module, InjureReferences.ModMethodTargetStoreAttributeFullName);
 		MethodDefinition storeAttributeCtor = findCtor(
 			storeAttribute,
 			static ctor =>
 				ctor.Parameters.Count == 1 && ctor.Parameters[0].ParameterType.FullName == "System.Type"
 		);
 
-		TypeDefinition hookTargetDefinition = findRequiredType(module, InjureReferences.HookTargetDefinitionFullName);
-		MethodDefinition hookTargetDefinitionCtor = findCtor(
-			hookTargetDefinition,
+		TypeDefinition methodTargetDefinition = findRequiredType(module, InjureReferences.MethodTargetDefinitionFullName);
+		MethodDefinition methodTargetDefinitionCtor = findCtor(
+			methodTargetDefinition,
 			static ctor =>
 				ctor.Parameters.Count == 3 &&
 				ctor.Parameters[0].ParameterType.FullName == "System.String" &&
@@ -75,10 +75,10 @@ public static class InjureReferenceResolver {
 			PublicizedSignatureAttributeCtor = module.ImportReference(publicizedSignatureCtor),
 			PublicizedStateMachineAttributeType = module.ImportReference(publicizedStateMachineAttribute),
 			PublicizedStateMachineAttributeCtor = module.ImportReference(publicizedStateMachineCtor),
-			ModHookTargetStoreAttributeType = module.ImportReference(storeAttribute),
-			ModHookTargetStoreAttributeCtor = module.ImportReference(storeAttributeCtor),
-			HookTargetDefinitionType = module.ImportReference(hookTargetDefinition),
-			HookTargetDefinitionCtor = module.ImportReference(hookTargetDefinitionCtor),
+			ModMethodTargetStoreAttributeType = module.ImportReference(storeAttribute),
+			ModMethodTargetStoreAttributeCtor = module.ImportReference(storeAttributeCtor),
+			MethodTargetDefinitionType = module.ImportReference(methodTargetDefinition),
+			MethodTargetDefinitionCtor = module.ImportReference(methodTargetDefinitionCtor),
 		};
 	}
 

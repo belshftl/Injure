@@ -12,21 +12,21 @@ using TypeAttributes = Mono.Cecil.TypeAttributes;
 namespace Injure.Weaver.Patching;
 
 public static class StoreEmitter {
-	public const string HtsName = "__Injure_HookTargetStore";
+	public const string StoreName = "__Injure_MethodTargetStore";
 
 	public static TypeDefinition Emit(
 		ModuleDefinition module,
 		InjureReferences ij,
-		IReadOnlyList<HookCandidate> candidates,
-		IReadOnlyDictionary<HookCandidate, TypeDefinition> delegateTypes,
+		IReadOnlyList<TargetCandidate> candidates,
+		IReadOnlyDictionary<TargetCandidate, TypeDefinition> delegateTypes,
 		string ns
 	) {
-		if (findTopLevelType(module, ns, HtsName) is not null)
-			throw new InvalidOperationException($"type '{ns}.{HtsName}' already exists; run this tool on a clean assembly output");
+		if (findTopLevelType(module, ns, StoreName) is not null)
+			throw new InvalidOperationException($"type '{ns}.{StoreName}' already exists; run this tool on a clean assembly output");
 
 		TypeDefinition storeType = new(
 			ns,
-			HtsName,
+			StoreName,
 			TypeAttributes.Public |
 			TypeAttributes.Abstract |
 			TypeAttributes.Sealed |
@@ -35,18 +35,18 @@ public static class StoreEmitter {
 		);
 		module.Types.Add(storeType);
 
-		ArrayType hookTargetArrayType = new(ij.HookTargetDefinitionType);
+		ArrayType methodTargetArrayType = new(ij.MethodTargetDefinitionType);
 		FieldDefinition targetsField = new(
 			"targets",
 			FieldAttributes.Private |
 			FieldAttributes.Static |
 			FieldAttributes.InitOnly,
-			hookTargetArrayType
+			methodTargetArrayType
 		);
 		storeType.Fields.Add(targetsField);
 
 		emitCctor(module, ij, storeType, targetsField, candidates, delegateTypes);
-		emitEnumerate(storeType, targetsField, hookTargetArrayType);
+		emitEnumerate(storeType, targetsField, methodTargetArrayType);
 		addAssemblyStoreAttribute(module, ij, storeType);
 		return storeType;
 	}
@@ -63,8 +63,8 @@ public static class StoreEmitter {
 		InjureReferences ij,
 		TypeDefinition storeType,
 		FieldDefinition targetsField,
-		IReadOnlyList<HookCandidate> candidates,
-		IReadOnlyDictionary<HookCandidate, TypeDefinition> delegateTypes
+		IReadOnlyList<TargetCandidate> candidates,
+		IReadOnlyDictionary<TargetCandidate, TypeDefinition> delegateTypes
 	) {
 		MethodDefinition cctor = new(
 			".cctor",
@@ -91,10 +91,10 @@ public static class StoreEmitter {
 		);
 
 		il.Emit(OpCodes.Ldc_I4, candidates.Count);
-		il.Emit(OpCodes.Newarr, ij.HookTargetDefinitionType);
+		il.Emit(OpCodes.Newarr, ij.MethodTargetDefinitionType);
 
 		for (int i = 0; i < candidates.Count; i++) {
-			HookCandidate candidate = candidates[i];
+			TargetCandidate candidate = candidates[i];
 			TypeDefinition nextDelegateType = delegateTypes[candidate];
 
 			il.Emit(OpCodes.Dup);
@@ -104,8 +104,8 @@ public static class StoreEmitter {
 			il.Emit(OpCodes.Call, getMethodFromHandle);
 			il.Emit(OpCodes.Ldtoken, nextDelegateType);
 			il.Emit(OpCodes.Call, getTypeFromHandle);
-			il.Emit(OpCodes.Newobj, ij.HookTargetDefinitionCtor);
-			il.Emit(OpCodes.Stelem_Any, ij.HookTargetDefinitionType);
+			il.Emit(OpCodes.Newobj, ij.MethodTargetDefinitionCtor);
+			il.Emit(OpCodes.Stelem_Any, ij.MethodTargetDefinitionType);
 		}
 
 		il.Emit(OpCodes.Stsfld, targetsField);
@@ -117,14 +117,14 @@ public static class StoreEmitter {
 	private static void emitEnumerate(
 		TypeDefinition storeType,
 		FieldDefinition targetsField,
-		TypeReference hookTargetArrayType
+		TypeReference methodTargetArrayType
 	) {
 		MethodDefinition method = new(
 			"Enumerate",
 			MethodAttributes.Public |
 			MethodAttributes.Static |
 			MethodAttributes.HideBySig,
-			hookTargetArrayType
+			methodTargetArrayType
 		);
 
 		ILProcessor il = method.Body.GetILProcessor();
@@ -135,7 +135,7 @@ public static class StoreEmitter {
 	}
 
 	private static void addAssemblyStoreAttribute(ModuleDefinition module, InjureReferences ij, TypeDefinition storeType) {
-		CustomAttribute attribute = new(ij.ModHookTargetStoreAttributeCtor);
+		CustomAttribute attribute = new(ij.ModMethodTargetStoreAttributeCtor);
 		attribute.ConstructorArguments.Add(
 			new CustomAttributeArgument(
 				module.ImportReference(typeof(Type)),

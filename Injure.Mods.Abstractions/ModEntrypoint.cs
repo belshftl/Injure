@@ -48,8 +48,8 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// accessed during this callback.
 	/// </para>
 	/// <para>
-	/// Load-hook declarations and export declarations close when this call completes;
-	/// load hooks are applied, and the export declaration table is frozen and handed
+	/// Load-modification declarations and export declarations close when this call completes;
+	/// load modifications are applied, and the export declaration table is frozen and handed
 	/// out to dependents during link.
 	/// </para>
 	/// </remarks>
