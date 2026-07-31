@@ -1,11 +1,9 @@
-name: pack-and-publish
+name: Build, test, package, and push
 
 on:
   push:
-    branches: ['main']
-    tags: ['v*']
-  pull_request:
-  workflow_dispatch:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
@@ -19,37 +17,7 @@ env:
   DOTNET_VERSION: 10.0.x
 
 jobs:
-  check-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      run_ci: ${{ steps.decide.outputs.run_ci }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - id: decide
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            base="${{ github.event.pull_request.base.sha }}"
-          else
-            base="${{ github.event.before }}"
-          fi
-
-          files="$(git diff --name-only "$base" "$GITHUB_SHA")"
-
-          if echo "$files" | grep -Eq '^(Injure.*/.*|Injure.slnx|\.gitmodules|\.github/workflows/.*)$'; then
-            echo "run_ci=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run_ci=false" >> "$GITHUB_OUTPUT"
-          fi
-
   test:
-    if: needs.check-changes.outputs.run_ci == 'true'
-    needs: check-changes
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -74,7 +42,7 @@ jobs:
         run: dotnet test --no-build -c Release
 
   build-native:
-    needs: [check-changes, test]
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -138,8 +106,7 @@ jobs:
             Injure.Native/stage/${{ matrix.libmisc_out_name }}
 
   pack-and-push:
-    if: github.event_name != 'pull_request'
-    needs: [check-changes, test, build-native]
+    needs: [test, build-native]
     runs-on: ubuntu-24.04
 
     steps:
