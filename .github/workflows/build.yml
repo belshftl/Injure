@@ -139,44 +139,33 @@ jobs:
           path: Injure.Native/pack/linux-arm64
           merge-multiple: true
 
-      - name: Get package version
-        id: version
-        shell: bash
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            ver="${GITHUB_REF_NAME#v}"
-          else
-            ver="0.1.0-ci.${GITHUB_RUN_NUMBER}"
-          fi
-          echo "version=$ver" >> "$GITHUB_OUTPUT"
-
       - name: Pack Injure
         run: >
-          dotnet pack Injure/Injure.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure/Injure.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Analyzers
         run: >
-          dotnet pack Injure.Analyzers/Injure.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Analyzers/Injure.Analyzers.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Mods.Abstractions
         run: >
-          dotnet pack Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Mods.Analyzers
         run: >
-          dotnet pack Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Mods.Analyzers.CodeFixes
         run: >
-          dotnet pack Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Mods.Runtime
         run: >
-          dotnet pack Injure.Mods.Runtime/Injure.Mods.Runtime.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Mods.Runtime/Injure.Mods.Runtime.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Native
         run: >
-          dotnet pack Injure.Native/Injure.Native.csproj -c Release -o artifacts/nuget -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack Injure.Native/Injure.Native.csproj -c Release -o artifacts/nuget
 
       - name: Add GitHub Packages source
         run: >
