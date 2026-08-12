@@ -29,12 +29,11 @@ namespace Injure;
 /// </para>
 /// </remarks>
 public sealed class InternalStateException : Exception {
-	internal InternalStateException() {}
 	internal InternalStateException(string message) : base(message) {}
 	internal InternalStateException(string message, Exception ex) : base(message, ex) {}
 
 	internal static void ThrowIfNull<T>(
-		T? v,
+		[NotNull] T? v,
 		[CallerArgumentExpression(nameof(v))] string? expr = null,
 		[CallerFilePath] string file = "<unknown>",
 		[CallerLineNumber] int line = 0,
@@ -58,7 +57,7 @@ public sealed class InternalStateException : Exception {
 #pragma warning restore IDE0001 // name can be simplified
 
 	internal static void ThrowIfNullOrEmpty(
-		string? s,
+		[NotNull] string? s,
 		[CallerArgumentExpression(nameof(s))] string? expr = null,
 		[CallerFilePath] string file = "<unknown>",
 		[CallerLineNumber] int line = 0,
@@ -71,7 +70,7 @@ public sealed class InternalStateException : Exception {
 	}
 
 	internal static void ThrowIfNullOrWhiteSpace(
-		string? s,
+		[NotNull] string? s,
 		[CallerArgumentExpression(nameof(s))] string? expr = null,
 		[CallerFilePath] string file = "<unknown>",
 		[CallerLineNumber] int line = 0,
@@ -86,7 +85,7 @@ public sealed class InternalStateException : Exception {
 	}
 
 	internal static void ThrowIfInvalidOwnerId(
-		string? ownerId,
+		[NotNull] string? ownerId,
 		[CallerArgumentExpression(nameof(ownerId))]
 		string? expr = null,
 		[CallerFilePath] string file = "<unknown>",
@@ -97,8 +96,20 @@ public sealed class InternalStateException : Exception {
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' (value: '{ownerId}') is unexpectedly not a valid owner ID: {e}");
 	}
 
+	internal static void ThrowIfNonnullAndInvalidOwnerId(
+		string? ownerId,
+		[CallerArgumentExpression(nameof(ownerId))]
+		string? expr = null,
+		[CallerFilePath] string file = "<unknown>",
+		[CallerLineNumber] int line = 0,
+		[CallerMemberName] string member = "<unknown>"
+	) {
+		if (ownerId is not null && !ModMetadataValidation.ValidateOwnerId(ownerId, out string? e))
+			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' (value: '{ownerId}') is unexpectedly not a valid owner ID: {e}");
+	}
+
 	internal static void ThrowIfInvalidLocalId(
-		string? localId,
+		[NotNull] string? localId,
 		[CallerArgumentExpression(nameof(localId))]
 		string? expr = null,
 		[CallerFilePath] string file = "<unknown>",
@@ -106,6 +117,18 @@ public sealed class InternalStateException : Exception {
 		[CallerMemberName] string member = "<unknown>"
 	) {
 		if (!ModMetadataValidation.ValidateLocalId(localId, out string? e))
+			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' (value: '{localId}') is unexpectedly not a valid local ID: {e}");
+	}
+
+	internal static void ThrowIfNonnullAndInvalidLocalId(
+		string? localId,
+		[CallerArgumentExpression(nameof(localId))]
+		string? expr = null,
+		[CallerFilePath] string file = "<unknown>",
+		[CallerLineNumber] int line = 0,
+		[CallerMemberName] string member = "<unknown>"
+	) {
+		if (localId is not null && !ModMetadataValidation.ValidateLocalId(localId, out string? e))
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' (value: '{localId}') is unexpectedly not a valid local ID: {e}");
 	}
 }

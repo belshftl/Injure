@@ -7,7 +7,7 @@ using Injure.CodeAnalysis.Internal;
 namespace Injure.Mods.Abstractions.MethodModification.Il;
 
 /// <summary>
-/// Opaque transaction-local label that may be referenced before its location is marked.
+/// Opaque transaction-local branch target that may be referenced before its location is marked.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -15,14 +15,21 @@ namespace Injure.Mods.Abstractions.MethodModification.Il;
 /// created it. Retaining a label after its manipulator returns is harmless, but it cannot be reused.
 /// </para>
 /// <para>
+/// Referencing a label is always legal; the constraints are checked when the transaction commits,
+/// not when the branch is emitted. Branching to a label that is never marked, marking one twice, and
+/// using one minted by a different transaction all fail only at commit, so a manipulator is
+/// free to emit a forward branch and mark its target later.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
 [DontCache("IlLabel objects are only valid within the same IL manipulator transaction that minted them")]
 public readonly struct IlLabel : IEquatable<IlLabel> {
-	internal long TransactionId { get; }
+	internal ulong TransactionId { get; }
 	internal int LabelId { get; }
-	internal IlLabel(long transactionId, int labelId) {
+
+	internal IlLabel(ulong transactionId, int labelId) {
 		TransactionId = transactionId;
 		LabelId = labelId;
 	}

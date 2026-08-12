@@ -1,6 +1,8 @@
 /.DS_Store
 /*/.DS_Store
 /.idea
+/IlFixture/bin
+/IlFixture/obj
 /Injure*/bin
 /Injure*/obj
 /Injure.Native/audio/target

@@ -54,7 +54,9 @@ public readonly struct IlPatternProvenanceConstraint {
 	/// Requires every instruction in the matched range to have the same known provenance.
 	/// </summary>
 	/// <remarks>
-	/// An all-unknown-provenance range does not satisfy this constraint.
+	/// An all-unknown-provenance range does not satisfy this constraint. This is, notably, distinct from the
+	/// behavior of <see cref="IlMatch.TryGetUniformProvenance(out IlProvenance)"/>, which considers all-unknown
+	/// a successful uniform match.
 	/// </remarks>
 	public static IlPatternProvenanceConstraint AllUniform { get; } = new(ConstraintKind.AllUniform, null);
 }

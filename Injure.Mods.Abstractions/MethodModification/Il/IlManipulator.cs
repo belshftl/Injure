@@ -13,8 +13,41 @@ namespace Injure.Mods.Abstractions.MethodModification.Il;
 /// Transaction-scoped manipulation context.
 /// </param>
 /// <remarks>
-/// Matching observes the method body as it existed when this manipulator started. Edits that are
-/// declared by this callback are committed atomically and become visible to later manipulators
-/// when the callback returns successfully; if it throws, the edits are discarded.
+/// <para>
+/// Matching observes the method body as it existed when this manipulator started. Edits declared by
+/// this callback are committed atomically and become visible to later manipulators when the callback
+/// returns successfully; if it throws, the edits are discarded.
+/// </para>
+/// <para>
+/// A manipulator may be invoked more than once for a single transformation and must be able to
+/// tolerate that. Manipulators are heavily encouraged to avoid causing any side effects other than
+/// authoring IL edits through <paramref name="ctx"/>; any side effects they do cause must be safe
+/// to be caused multiple times.
+/// </para>
 /// </remarks>
 public delegate void IlManipulator<L>(IlContext<L> ctx) where L : struct, IModLifetimeIdentity;
+
+internal sealed class IlManipulatorRegistration {
+	private readonly Action<IlTransactionCore> invoke;
+	public string OwnerId { get; }
+	public string LocalId { get; }
+
+	private IlManipulatorRegistration(string ownerId, string localId, Action<IlTransactionCore> invoke) {
+		InternalStateException.ThrowIfInvalidOwnerId(ownerId);
+		InternalStateException.ThrowIfInvalidLocalId(localId);
+		InternalStateException.ThrowIfNull(invoke);
+		OwnerId = ownerId;
+		LocalId = localId;
+		this.invoke = invoke;
+	}
+
+	public static IlManipulatorRegistration Create<L>(string ownerId, string localId, IlManipulator<L> manipulator) where L : struct, IModLifetimeIdentity {
+		InternalStateException.ThrowIfNull(manipulator);
+		return new IlManipulatorRegistration(ownerId, localId, core => manipulator(new IlContext<L>(core)));
+	}
+
+	public void Invoke(IlTransactionCore core) {
+		InternalStateException.ThrowIfNull(core);
+		invoke(core);
+	}
+}

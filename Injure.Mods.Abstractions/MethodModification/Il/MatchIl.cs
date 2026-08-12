@@ -2,19 +2,35 @@
 // SPDX-License-Identifier: MIT
 
 using System.Reflection;
-using Mono.Cecil;
-using Mono.Cecil.Cil;
+using System.Reflection.Metadata;
 
 namespace Injure.Mods.Abstractions.MethodModification.Il;
 
 /// <summary>
 /// Creates <see cref="IlPatternElement"/> values for IL pattern matching.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Patterns match canonical instructions, not encodings. An element built for a long form also
+/// matches every short/compact encoding of the same instruction: <c>MatchIl.LdcI4(0)</c> matches
+/// <c>ldc.i4.0</c>, and <c>MatchIl.Ldarg(1)</c> matches <c>ldarg.1</c>, etc. There is no way to match
+/// one encoding but not another, and no reason to want one, since the encoder re-chooses the encoding
+/// independently of what the body was decoded from.
+/// </para>
+/// <para>
+/// Prefixes are currently not matchable.
+/// </para>
+/// </remarks>
 public static class MatchIl {
 	/// <summary>
 	/// Matches any single CIL instruction.
 	/// </summary>
-	public static IlPatternElement Any => new(IlPatternElementKind.Any);
+	/// <remarks>
+	/// Matches exactly one instruction, not a run of them. Patterns have no repetition or wildcard
+	/// operators, at least not yet; a variable-length gap currently must be handled by matching the
+	/// two ends separately.
+	/// </remarks>
+	public static IlPatternElement Any => new(IlPatternElement.PatternKind.Any);
 
 	// ======================================================================================
 	// raw match
@@ -22,7 +38,17 @@ public static class MatchIl {
 	/// <summary>
 	/// Matches the CIL instruction with the given opcode.
 	/// </summary>
-	public static IlPatternElement OpCode(OpCode opCode) => new(IlPatternElementKind.OpCode, opCode);
+	/// <remarks>
+	/// Matches only by opcode, accepting any operand. The opcode is canonicalized, so passing a compact
+	/// form matches the same instructions as passing its long form.
+	/// </remarks>
+	public static IlPatternElement OpCode(ILOpCode opCode) => new(IlPatternElement.PatternKind.OpCode, opCode);
+
+	/// <summary>
+	/// Matches the CIL instruction with the given opcode and operand.
+	/// </summary>
+	public static IlPatternElement Instruction(ILOpCode opCode, IlOperand operand) =>
+		new(IlPatternElement.PatternKind.Instruction, opCode, operand ?? throw new ArgumentNullException(nameof(operand)));
 
 	// ======================================================================================
 	// nop and basic control flow
@@ -30,22 +56,22 @@ public static class MatchIl {
 	/// <summary>
 	/// Matches the CIL <c>nop</c> instruction.
 	/// </summary>
-	public static IlPatternElement Nop => OpCode(OpCodes.Nop);
+	public static IlPatternElement Nop => OpCode(ILOpCode.Nop);
 
 	/// <summary>
 	/// Matches the CIL <c>ret</c> instruction.
 	/// </summary>
-	public static IlPatternElement Ret => OpCode(OpCodes.Ret);
+	public static IlPatternElement Ret => OpCode(ILOpCode.Ret);
 
 	/// <summary>
 	/// Matches the CIL <c>throw</c> instruction.
 	/// </summary>
-	public static IlPatternElement Throw => OpCode(OpCodes.Throw);
+	public static IlPatternElement Throw => OpCode(ILOpCode.Throw);
 
 	/// <summary>
 	/// Matches the CIL <c>rethrow</c> instruction.
 	/// </summary>
-	public static IlPatternElement Rethrow => OpCode(OpCodes.Rethrow);
+	public static IlPatternElement Rethrow => OpCode(ILOpCode.Rethrow);
 
 	// ======================================================================================
 	// basic stack ops
@@ -53,41 +79,41 @@ public static class MatchIl {
 	/// <summary>
 	/// Matches the CIL <c>dup</c> instruction.
 	/// </summary>
-	public static IlPatternElement Dup => OpCode(OpCodes.Dup);
+	public static IlPatternElement Dup => OpCode(ILOpCode.Dup);
 
 	/// <summary>
 	/// Matches the CIL <c>pop</c> instruction.
 	/// </summary>
-	public static IlPatternElement Pop => OpCode(OpCodes.Pop);
+	public static IlPatternElement Pop => OpCode(ILOpCode.Pop);
 
 	/// <summary>
 	/// Matches the CIL <c>ldnull</c> instruction.
 	/// </summary>
-	public static IlPatternElement Ldnull => OpCode(OpCodes.Ldnull);
+	public static IlPatternElement Ldnull => OpCode(ILOpCode.Ldnull);
 
 	// ======================================================================================
 	// loading literal values
 
 	/// <summary>
-	/// Matches the CIL <c>ldc.i4</c> instruction and, if applicable, equivalent short-form encodings
-	/// such as <c>ldc.i4.m1</c> or <c>ldc.i4.s</c>.
+	/// Matches the CIL <c>ldc.i4</c> instruction and equivalent short-form encodings such as
+	/// <c>ldc.i4.m1</c> or <c>ldc.i4.s</c>.
 	/// </summary>
-	public static IlPatternElement LdcI4(int value) => new(IlPatternElementKind.LdcI4, @int: value);
+	public static IlPatternElement LdcI4(int value) => Instruction(ILOpCode.Ldc_i4, new IlInt32Operand(value));
 
 	/// <summary>
 	/// Matches the CIL <c>ldc.i8</c> instruction.
 	/// </summary>
-	public static IlPatternElement LdcI8(long value) => new(IlPatternElementKind.LdcI8, @long: value);
+	public static IlPatternElement LdcI8(long value) => Instruction(ILOpCode.Ldc_i8, new IlInt64Operand(value));
 
 	/// <summary>
 	/// Matches the CIL <c>ldc.r4</c> instruction.
 	/// </summary>
-	public static IlPatternElement LdcR4(float value) => new(IlPatternElementKind.LdcR4, @float: value);
+	public static IlPatternElement LdcR4(float value) => Instruction(ILOpCode.Ldc_r4, new IlFloat32Operand(value));
 
 	/// <summary>
 	/// Matches the CIL <c>ldc.r8</c> instruction.
 	/// </summary>
-	public static IlPatternElement LdcR8(double value) => new(IlPatternElementKind.LdcR8, @double: value);
+	public static IlPatternElement LdcR8(double value) => Instruction(ILOpCode.Ldc_r8, new IlFloat64Operand(value));
 
 	/// <summary>
 	/// Matches the CIL <c>ldstr</c> instruction.
@@ -95,94 +121,64 @@ public static class MatchIl {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="value"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Ldstr(string value) {
-		ArgumentNullException.ThrowIfNull(value);
-		return new IlPatternElement(IlPatternElementKind.Ldstr, @string: value);
-	}
+	public static IlPatternElement Ldstr(string value) => Instruction(ILOpCode.Ldstr, new IlStringOperand(value ?? throw new ArgumentNullException(nameof(value))));
 
 	// ======================================================================================
 	// args
 
 	/// <summary>
-	/// Matches the CIL <c>ldarg</c> instruction and, if applicable, equivalent short-form encodings
-	/// such as <c>ldarg.0</c> or <c>ldarg.s</c>.
+	/// Matches the CIL <c>ldarg</c> instruction and equivalent short-form encodings such as
+	/// <c>ldarg.0</c> or <c>ldarg.s</c>.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Ldarg(int index) {
-		if (index < 0 || index > ushort.MaxValue)
-			throw new ArgumentOutOfRangeException(nameof(index));
-		return new IlPatternElement(IlPatternElementKind.Ldarg, @int: index);
-	}
+	public static IlPatternElement Ldarg(int index) => Instruction(ILOpCode.Ldarg, new IlArgumentOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Matches the CIL <c>ldarga</c> instruction and, if applicable, equivalent short-form encodings
-	/// such as <c>ldarga.s</c>.
+	/// Matches the CIL <c>ldarga</c> instruction and the equivalent <c>ldarga.s</c> encoding.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Ldarga(int index) {
-		if (index < 0 || index > ushort.MaxValue)
-			throw new ArgumentOutOfRangeException(nameof(index));
-		return new IlPatternElement(IlPatternElementKind.Ldarga, @int: index);
-	}
+	public static IlPatternElement Ldarga(int index) => Instruction(ILOpCode.Ldarga, new IlArgumentOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Matches the CIL <c>starg</c> instruction and, if applicable, equivalent short-form encodings
-	/// such as <c>starg.s</c>.
+	/// Matches the CIL <c>starg</c> instruction and the equivalent <c>starg.s</c> encoding.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Starg(int index) {
-		if (index < 0 || index > ushort.MaxValue)
-			throw new ArgumentOutOfRangeException(nameof(index));
-		return new IlPatternElement(IlPatternElementKind.Starg, @int: index);
-	}
+	public static IlPatternElement Starg(int index) => Instruction(ILOpCode.Starg, new IlArgumentOperand(validateIndex(index)));
 
 	// ======================================================================================
 	// locals
 
 	/// <summary>
-	/// Matches the CIL <c>ldloc</c> instruction and, if applicable, equivalent short-form encodings
-	/// such as <c>ldloc.0</c> or <c>ldloc.s</c>.
+	/// Matches the CIL <c>ldloc</c> instruction and equivalent short-form encodings such as
+	/// <c>ldloc.0</c> or <c>ldloc.s</c>.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Ldloc(int index) {
-		if (index < 0 || index > ushort.MaxValue)
-			throw new ArgumentOutOfRangeException(nameof(index));
-		return new IlPatternElement(IlPatternElementKind.Ldloc, @int: index);
-	}
+	public static IlPatternElement Ldloc(int index) => Instruction(ILOpCode.Ldloc, new IlLocalOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Matches the CIL <c>ldloca</c> instruction and, if applicable, equivalent short-form encodings
-	/// such as <c>ldloca.s</c>.
+	/// Matches the CIL <c>ldloca</c> instruction and the equivalent <c>ldloca.s</c> encoding.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Ldloca(int index) {
-		if (index < 0 || index > ushort.MaxValue)
-			throw new ArgumentOutOfRangeException(nameof(index));
-		return new IlPatternElement(IlPatternElementKind.Ldloca, @int: index);
-	}
+	public static IlPatternElement Ldloca(int index) => Instruction(ILOpCode.Ldloca, new IlLocalOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Matches the CIL <c>stloc</c> instruction and, if applicable, equivalent short-form encodings
-	/// such as <c>stloc.0</c> or <c>stloc.s</c>.
+	/// Matches the CIL <c>stloc</c> instruction and equivalent short-form encodings such as
+	/// <c>stloc.0</c> or <c>stloc.s</c>.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Stloc(int index) {
-		if (index < 0 || index > ushort.MaxValue)
-			throw new ArgumentOutOfRangeException(nameof(index));
-		return new IlPatternElement(IlPatternElementKind.Stloc, @int: index);
-	}
+	public static IlPatternElement Stloc(int index) => Instruction(ILOpCode.Stloc, new IlLocalOperand(validateIndex(index)));
 
 	// ======================================================================================
 	// fields
@@ -193,43 +189,7 @@ public static class MatchIl {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Ldfld(FieldReference field) {
-		ArgumentNullException.ThrowIfNull(field);
-		return new IlPatternElement(IlPatternElementKind.CecilField, OpCodes.Ldfld, cecilField: field);
-	}
-
-	/// <summary>
-	/// Matches the CIL <c>ldsfld</c> instruction.
-	/// </summary>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
-	/// </exception>
-	public static IlPatternElement Ldsfld(FieldReference field) {
-		ArgumentNullException.ThrowIfNull(field);
-		return new IlPatternElement(IlPatternElementKind.CecilField, OpCodes.Ldsfld, cecilField: field);
-	}
-
-	/// <summary>
-	/// Matches the CIL <c>stfld</c> instruction.
-	/// </summary>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
-	/// </exception>
-	public static IlPatternElement Stfld(FieldReference field) {
-		ArgumentNullException.ThrowIfNull(field);
-		return new IlPatternElement(IlPatternElementKind.CecilField, OpCodes.Stfld, cecilField: field);
-	}
-
-	/// <summary>
-	/// Matches the CIL <c>stsfld</c> instruction.
-	/// </summary>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
-	/// </exception>
-	public static IlPatternElement Stsfld(FieldReference field) {
-		ArgumentNullException.ThrowIfNull(field);
-		return new IlPatternElement(IlPatternElementKind.CecilField, OpCodes.Stsfld, cecilField: field);
-	}
+	public static IlPatternElement Ldfld(IlFieldRef field) => Instruction(ILOpCode.Ldfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
 
 	/// <summary>
 	/// Matches the CIL <c>ldflda</c> instruction.
@@ -237,10 +197,23 @@ public static class MatchIl {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Ldflda(FieldReference field) {
-		ArgumentNullException.ThrowIfNull(field);
-		return new IlPatternElement(IlPatternElementKind.CecilField, OpCodes.Ldflda, cecilField: field);
-	}
+	public static IlPatternElement Ldflda(IlFieldRef field) => Instruction(ILOpCode.Ldflda, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+
+	/// <summary>
+	/// Matches the CIL <c>stfld</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Stfld(IlFieldRef field) => Instruction(ILOpCode.Stfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+
+	/// <summary>
+	/// Matches the CIL <c>ldsfld</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Ldsfld(IlFieldRef field) => Instruction(ILOpCode.Ldsfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
 
 	/// <summary>
 	/// Matches the CIL <c>ldsflda</c> instruction.
@@ -248,415 +221,66 @@ public static class MatchIl {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Ldsflda(FieldReference field) {
-		ArgumentNullException.ThrowIfNull(field);
-		return new IlPatternElement(IlPatternElementKind.CecilField, OpCodes.Ldsflda, cecilField: field);
-	}
+	public static IlPatternElement Ldsflda(IlFieldRef field) => Instruction(ILOpCode.Ldsflda, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+
+	/// <summary>
+	/// Matches the CIL <c>stsfld</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Stsfld(IlFieldRef field) => Instruction(ILOpCode.Stsfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
 
 	// ======================================================================================
-	// fields (convenience overloads)
+	// fields (reflection overloads)
 
 	/// <summary>
-	/// Matches the CIL <c>ldfld</c> instruction for the named instance field declared by <typeparamref name="TDeclaring"/>.
+	/// Matches the CIL <c>ldfld</c> instruction using a reflection field.
 	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <typeparamref name="TDeclaring"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>ldfld</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldfld<TDeclaring>(string name) where TDeclaring : allows ref struct =>
-		reflectionField(OpCodes.Ldfld, @static: false, typeof(TDeclaring), name);
-
-	/// <summary>
-	/// Matches the CIL <c>ldfld</c> instruction for the named instance field declared by <paramref name="declaringType"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <paramref name="declaringType"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>ldfld</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldfld(Type declaringType, string name) =>
-		reflectionField(OpCodes.Ldfld, @static: false, declaringType, name);
-
-	/// <summary>
-	/// Matches the CIL <c>ldfld</c> instruction for the instance field pointed to by <paramref name="field"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>ldfld</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldfld(FieldInfo field) {
-		ArgumentNullException.ThrowIfNull(field);
-		if (field.IsStatic)
-			throw new InvalidOperationException($"field '{field.Name}' of type '{field.DeclaringType}' is a static field, while this instruction expects an instance field");
-		return new IlPatternElement(IlPatternElementKind.ReflectionField, OpCodes.Ldfld, reflectionField: field);
-	}
+	public static IlPatternElement Ldfld(FieldInfo field) => Ldfld(IlReferenceFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>ldsfld</c> instruction for the named static field declared by <typeparamref name="TDeclaring"/>.
+	/// Matches the CIL <c>ldflda</c> instruction using a reflection field.
 	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldsfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <typeparamref name="TDeclaring"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>ldsfld</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldsfld<TDeclaring>(string name) where TDeclaring : allows ref struct =>
-		reflectionField(OpCodes.Ldsfld, @static: true, typeof(TDeclaring), name);
-
-	/// <summary>
-	/// Matches the CIL <c>ldsfld</c> instruction for the named static field declared by <paramref name="declaringType"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldsfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <paramref name="declaringType"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>ldsfld</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldsfld(Type declaringType, string name) =>
-		reflectionField(OpCodes.Ldsfld, @static: true, declaringType, name);
-
-
-	/// <summary>
-	/// Matches the CIL <c>ldsfld</c> instruction for the static field pointed to by <paramref name="field"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldsfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>ldsfld</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldsfld(FieldInfo field) {
-		ArgumentNullException.ThrowIfNull(field);
-		if (!field.IsStatic)
-			throw new InvalidOperationException($"field '{field.Name}' of type '{field.DeclaringType}' is an instance field, while this instruction expects a static field");
-		return new IlPatternElement(IlPatternElementKind.ReflectionField, OpCodes.Ldsfld, reflectionField: field);
-	}
+	public static IlPatternElement Ldflda(FieldInfo field) => Ldflda(IlReferenceFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>stfld</c> instruction for the named instance field declared by <typeparamref name="TDeclaring"/>.
+	/// Matches the CIL <c>stfld</c> instruction using a reflection field.
 	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Stfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <typeparamref name="TDeclaring"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>stfld</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Stfld<TDeclaring>(string name) where TDeclaring : allows ref struct =>
-		reflectionField(OpCodes.Stfld, @static: false, typeof(TDeclaring), name);
-
-	/// <summary>
-	/// Matches the CIL <c>stfld</c> instruction for the named instance field declared by <paramref name="declaringType"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Stfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <paramref name="declaringType"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>stfld</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Stfld(Type declaringType, string name) => reflectionField(OpCodes.Stfld, @static: false, declaringType, name);
-
-	/// <summary>
-	/// Matches the CIL <c>stfld</c> instruction for the instance field pointed to by <paramref name="field"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Stfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>stfld</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Stfld(FieldInfo field) {
-		ArgumentNullException.ThrowIfNull(field);
-		if (field.IsStatic)
-			throw new InvalidOperationException($"field '{field.Name}' of type '{field.DeclaringType}' is a static field, while this instruction expects an instance field");
-		return new IlPatternElement(IlPatternElementKind.ReflectionField, OpCodes.Stfld, reflectionField: field);
-	}
+	public static IlPatternElement Stfld(FieldInfo field) => Stfld(IlReferenceFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>stsfld</c> instruction for the named static field declared by <typeparamref name="TDeclaring"/>.
+	/// Matches the CIL <c>ldsfld</c> instruction using a reflection field.
 	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Stsfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <typeparamref name="TDeclaring"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>stsfld</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Stsfld<TDeclaring>(string name) where TDeclaring : allows ref struct =>
-		reflectionField(OpCodes.Stsfld, @static: true, typeof(TDeclaring), name);
-
-	/// <summary>
-	/// Matches the CIL <c>stsfld</c> instruction for the named static field declared by <paramref name="declaringType"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Stsfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <paramref name="declaringType"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>stsfld</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Stsfld(Type declaringType, string name) =>
-		reflectionField(OpCodes.Stsfld, @static: true, declaringType, name);
-
-	/// <summary>
-	/// Matches the CIL <c>stsfld</c> instruction for the static field pointed to by <paramref name="field"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Stsfld(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>stsfld</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Stsfld(FieldInfo field) {
-		ArgumentNullException.ThrowIfNull(field);
-		if (!field.IsStatic)
-			throw new InvalidOperationException($"field '{field.Name}' of type '{field.DeclaringType}' is an instance field, while this instruction expects a static field");
-		return new IlPatternElement(IlPatternElementKind.ReflectionField, OpCodes.Stsfld, reflectionField: field);
-	}
+	public static IlPatternElement Ldsfld(FieldInfo field) => Ldsfld(IlReferenceFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>ldflda</c> instruction for the named instance field declared by <typeparamref name="TDeclaring"/>.
+	/// Matches the CIL <c>ldsflda</c> instruction using a reflection field.
 	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldflda(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <typeparamref name="TDeclaring"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>ldflda</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldflda<TDeclaring>(string name) where TDeclaring : allows ref struct =>
-		reflectionField(OpCodes.Ldflda, @static: false, typeof(TDeclaring), name);
-
-	/// <summary>
-	/// Matches the CIL <c>ldflda</c> instruction for the named instance field declared by <paramref name="declaringType"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldflda(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <paramref name="declaringType"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>ldflda</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldflda(Type declaringType, string name) =>
-		reflectionField(OpCodes.Ldflda, @static: false, declaringType, name);
-
-	/// <summary>
-	/// Matches the CIL <c>ldflda</c> instruction for the instance field pointed to by <paramref name="field"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldflda(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is a static field; since <c>ldflda</c> operates only on instance fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldflda(FieldInfo field) {
-		ArgumentNullException.ThrowIfNull(field);
-		if (field.IsStatic)
-			throw new InvalidOperationException($"field '{field.Name}' of type '{field.DeclaringType}' is a static field, while this instruction expects an instance field");
-		return new IlPatternElement(IlPatternElementKind.ReflectionField, OpCodes.Ldflda, reflectionField: field);
-	}
+	public static IlPatternElement Ldsflda(FieldInfo field) => Ldsflda(IlReferenceFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>ldsflda</c> instruction for the named static field declared by <typeparamref name="TDeclaring"/>.
+	/// Matches the CIL <c>stsfld</c> instruction using a reflection field.
 	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldsflda(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <typeparamref name="TDeclaring"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>ldsflda</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldsflda<TDeclaring>(string name) where TDeclaring : allows ref struct =>
-		reflectionField(OpCodes.Ldsflda, @static: true, typeof(TDeclaring), name);
-
-	/// <summary>
-	/// Matches the CIL <c>ldsflda</c> instruction for the named static field declared by <paramref name="declaringType"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldsflda(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="name"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="MissingFieldException">
-	/// Thrown if no field named <paramref name="name"/> is found in <paramref name="declaringType"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>ldsflda</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldsflda(Type declaringType, string name) =>
-		reflectionField(OpCodes.Ldsflda, @static: true, declaringType, name);
-
-	/// <summary>
-	/// Matches the CIL <c>ldsflda</c> instruction for the static field pointed to by <paramref name="field"/>.
-	/// </summary>
-	/// <remarks>
-	/// This is a reflection-based convenience overload. It's likely to be sufficient for most
-	/// cases, but for precise Cecil field reference matching, <see cref="Ldsflda(FieldReference)"/>
-	/// should be used.
-	/// </remarks>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if the field is an instance field; since <c>ldsflda</c> operates only on static fields,
-	/// this is most likely misuse / a bug on your end.
-	/// </exception>
-	public static IlPatternElement Ldsflda(FieldInfo field) {
-		ArgumentNullException.ThrowIfNull(field);
-		if (!field.IsStatic)
-			throw new InvalidOperationException($"field '{field.Name}' of type '{field.DeclaringType}' is an instance field, while this instruction expects a static field");
-		return new IlPatternElement(IlPatternElementKind.ReflectionField, OpCodes.Ldsflda, reflectionField: field);
-	}
-
-	private static IlPatternElement reflectionField(OpCode opCode, bool @static, Type declaringType, string name) {
-		// note: technically, ECMA-335 allows multiple fields with the same name within
-		// the same declaring type provided their types differ, C# doesn't allow it though
-		// GetField throws AmbiguousMatchException if there are multiple, which in our case
-		// is good enough, it's extremely rare that a non-C# assembly is being patched and
-		// custom handling logic would probably just throw the same AmbiguousMatchException
-		// with a slightly different message
-		ArgumentNullException.ThrowIfNull(declaringType);
-		ArgumentException.ThrowIfNullOrWhiteSpace(name);
-		FieldInfo field = declaringType.GetField(name, BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) ??
-			throw new MissingFieldException(declaringType.FullName, name);
-		if (field.IsStatic != @static)
-			throw new InvalidOperationException(
-				$"field '{name}' of type '{declaringType}' is {(field.IsStatic ? "a static" : "an instance")} field, while this instruction expects {(@static ? "a static" : "an instance")} field"
-			);
-		return new IlPatternElement(IlPatternElementKind.ReflectionField, opCode, reflectionField: field);
-	}
+	public static IlPatternElement Stsfld(FieldInfo field) => Stsfld(IlReferenceFactory.Field(field));
 
 	// ======================================================================================
 	// calls
@@ -667,10 +291,7 @@ public static class MatchIl {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Call(MethodReference method) {
-		ArgumentNullException.ThrowIfNull(method);
-		return new IlPatternElement(IlPatternElementKind.CecilMethod, OpCodes.Call, cecilMethod: method);
-	}
+	public static IlPatternElement Call(IlMethodRef method) => Instruction(ILOpCode.Call, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
 
 	/// <summary>
 	/// Matches the CIL <c>callvirt</c> instruction.
@@ -678,55 +299,142 @@ public static class MatchIl {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Callvirt(MethodReference method) {
-		ArgumentNullException.ThrowIfNull(method);
-		return new IlPatternElement(IlPatternElementKind.CecilMethod, OpCodes.Callvirt, cecilMethod: method);
-	}
+	public static IlPatternElement Callvirt(IlMethodRef method) => Instruction(ILOpCode.Callvirt, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
+
+	// TODO: calli
 
 	// ======================================================================================
-	// calls (convenience overloads)
+	// calls (reflection overloads)
 
-	// TODO: doc comments, i didn't write these yet because i'm kinda tired of writing and
-	// copying the boilerplate doc comments on the convenience overloads
+	/// <summary>
+	/// Matches the CIL <c>call</c> instruction using a reflection method.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Call(MethodBase method) => Call(IlReferenceFactory.Method(method));
 
-	public static IlPatternElement Call<TDeclaring>(string name) => reflectionMethod(OpCodes.Call, typeof(TDeclaring), name, null);
-	public static IlPatternElement Call<TDeclaring>(string name, params Type[] parameterTypes) => reflectionMethod(OpCodes.Call, typeof(TDeclaring), name, parameterTypes);
-	public static IlPatternElement Call(Type declaringType, string name) => reflectionMethod(OpCodes.Call, declaringType, name, null);
-	public static IlPatternElement Call(Type declaringType, string name, params Type[] parameterTypes) => reflectionMethod(OpCodes.Call, declaringType, name, parameterTypes);
-	public static IlPatternElement Call(MethodInfo method) {
-		ArgumentNullException.ThrowIfNull(method);
-		return new IlPatternElement(IlPatternElementKind.ReflectionMethod, OpCodes.Call, reflectionMethod: method);
-	}
+	/// <summary>
+	/// Matches the CIL <c>callvirt</c> instruction using a reflection method.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Callvirt(MethodBase method) => Callvirt(IlReferenceFactory.Method(method));
 
-	public static IlPatternElement Callvirt<TDeclaring>(string name) => reflectionMethod(OpCodes.Callvirt, typeof(TDeclaring), name, null);
-	public static IlPatternElement Callvirt<TDeclaring>(string name, params Type[] parameterTypes) => reflectionMethod(OpCodes.Callvirt, typeof(TDeclaring), name, parameterTypes);
-	public static IlPatternElement Callvirt(Type declaringType, string name) => reflectionMethod(OpCodes.Callvirt, declaringType, name, null);
-	public static IlPatternElement Callvirt(Type declaringType, string name, params Type[] parameterTypes) => reflectionMethod(OpCodes.Callvirt, declaringType, name, parameterTypes);
-	public static IlPatternElement Callvirt(MethodInfo method) {
-		ArgumentNullException.ThrowIfNull(method);
-		return new IlPatternElement(IlPatternElementKind.ReflectionMethod, OpCodes.Callvirt, reflectionMethod: method);
-	}
+	// TODO: calli
 
-	private static IlPatternElement reflectionMethod(OpCode opCode, Type declaringType, string name, Type[]? parameterTypes) {
-		ArgumentNullException.ThrowIfNull(declaringType);
-		ArgumentException.ThrowIfNullOrWhiteSpace(name);
-		const BindingFlags flags = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-		if (parameterTypes is not null) {
-			MethodInfo method = declaringType.GetMethod(
-				name,
-				flags,
-				binder: null,
-				types: parameterTypes,
-				modifiers: null
-			) ?? throw new MissingMethodException(declaringType.FullName, name);
-			return new IlPatternElement(IlPatternElementKind.ReflectionMethod, opCode, reflectionMethod: method);
-		}
+	// ======================================================================================
+	// object ops
 
-		MethodInfo[] matches = declaringType.GetMethods(flags).Where(m => m.Name == name).ToArray();
-		return matches.Length switch {
-			1 => new IlPatternElement(IlPatternElementKind.ReflectionMethod, opCode, reflectionMethod: matches[0]),
-			0 => throw new MissingMethodException(declaringType.FullName, name),
-			_ => throw new AmbiguousMatchException($"method '{declaringType.FullName}.{name}' is overloaded; specify parameter types"),
-		};
+	/// <summary>
+	/// Matches the CIL <c>newobj</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="constructor"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Newobj(IlMethodRef constructor) => Instruction(ILOpCode.Newobj, new IlMethodOperand(constructor ?? throw new ArgumentNullException(nameof(constructor))));
+
+	/// <summary>
+	/// Matches the CIL <c>box</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Box(IlTypeRef type) => Instruction(ILOpCode.Box, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+
+	/// <summary>
+	/// Matches the CIL <c>unbox.any</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement UnboxAny(IlTypeRef type) => Instruction(ILOpCode.Unbox_any, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+
+	/// <summary>
+	/// Matches the CIL <c>castclass</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Castclass(IlTypeRef type) => Instruction(ILOpCode.Castclass, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+
+	/// <summary>
+	/// Matches the CIL <c>isinst</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Isinst(IlTypeRef type) => Instruction(ILOpCode.Isinst, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+
+	/// <summary>
+	/// Matches the CIL <c>newarr</c> instruction.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Newarr(IlTypeRef type) => Instruction(ILOpCode.Newarr, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+
+	// TODO: ldtoken
+
+	// ======================================================================================
+	// object ops (reflection overloads)
+
+	/// <summary>
+	/// Matches the CIL <c>newobj</c> instruction using a reflection constructor.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="constructor"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Newobj(ConstructorInfo constructor) => Newobj(IlReferenceFactory.Method(constructor));
+
+	/// <summary>
+	/// Matches the CIL <c>box</c> instruction using a reflection type.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Box(Type type) => Box(IlReferenceFactory.Type(type));
+
+	/// <summary>
+	/// Matches the CIL <c>unbox.any</c> instruction using a reflection type.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement UnboxAny(Type type) => UnboxAny(IlReferenceFactory.Type(type));
+
+	/// <summary>
+	/// Matches the CIL <c>castclass</c> instruction using a reflection type.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Castclass(Type type) => Castclass(IlReferenceFactory.Type(type));
+
+	/// <summary>
+	/// Matches the CIL <c>isinst</c> instruction using a reflection type.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Isinst(Type type) => Isinst(IlReferenceFactory.Type(type));
+
+	/// <summary>
+	/// Matches the CIL <c>newarr</c> instruction using a reflection type.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Newarr(Type type) => Newarr(IlReferenceFactory.Type(type));
+	
+	// TODO: ldtoken
+
+	// ======================================================================================
+	// helper methods
+	private static int validateIndex(int index) {
+		if ((uint)index > ushort.MaxValue)
+			throw new ArgumentOutOfRangeException(nameof(index));
+		return index;
 	}
 }

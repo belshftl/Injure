@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.CodeAnalysis.Internal;
-
 namespace Injure.Mods.Abstractions.MethodModification.Il;
 
 /// <summary>
@@ -11,30 +9,22 @@ namespace Injure.Mods.Abstractions.MethodModification.Il;
 /// <typeparam name="L">
 /// Lifetime identity of the owner; see <c>Docs/mods/lifetime-identity.md</c> for more info.
 /// </typeparam>
-[DontCache("an IlContext is only valid for the duration of the IL manipulator invocation that got passed it")]
-public sealed class IlContext<L> : IStrongRefDroppable where L : struct, IModLifetimeIdentity {
-	private IlTransactionCore? core;
-	private readonly string? ownerId;
-	private readonly string? localId;
-	private readonly string? targetMethod;
-	internal IlTransactionCore Core => Volatile.Read(ref core) ?? throw new IlTransactionExpiredException(ownerId, localId, targetMethod);
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly ref struct IlContext<L> where L : struct, IModLifetimeIdentity {
+	internal IlTransactionCore Core => field ?? throw new InvalidOperationException("this IlContext<L> value is uninitialized/invalid");
 
 	internal IlContext(IlTransactionCore core) {
-		this.core = core ?? throw new InternalStateException("IlContext constructed with null core");
-		ownerId = core.OwnerId;
-		localId = core.LocalId;
-		targetMethod = core.TargetMethodDisplayName;
+		InternalStateException.ThrowIfNull(core);
+		Core = core;
 	}
 
 	/// <summary>
-	/// The amount of instructions in this manipulator's input snapshot.
+	/// The amount of instructions the manipulator can see, and therefore the highest valid boundary index.
+	/// Unaffected by anything emitted during this transaction.
 	/// </summary>
 	public int InstructionCount => Core.InstructionCount;
-
-	/// <summary>
-	/// Helpers for importing references into the target Cecil module.
-	/// </summary>
-	public IlReferenceImports Imports => new(Core);
 
 	/// <summary>
 	/// Creates an unresolved transaction-local label that can be used by branch emissions before it
@@ -43,13 +33,24 @@ public sealed class IlContext<L> : IStrongRefDroppable where L : struct, IModLif
 	public IlLabel DefineLabel() => Core.DefineLabel();
 
 	/// <summary>
-	/// Emits a fragment before the first instruction in the snapshot.
+	/// Emits a fragment before the first instruction of the method.
 	/// </summary>
+	/// <remarks>
+	/// The original first instruction keeps its anchor, so an exception region or branch that began at
+	/// the start of the method still begins there, after the emitted fragment. The fragment therefore
+	/// runs on entry but sits outside any protected region that started at the first instruction.
+	/// </remarks>
 	public void EmitAtStart(IlEmitAction emit) => Core.EmitAtBoundary(0, emit);
 
 	/// <summary>
-	/// Emits a fragment after the last instruction in the snapshot.
+	/// Emits a fragment after the last instruction of the method.
 	/// </summary>
+	/// <remarks>
+	/// A well-formed method ends with a terminal instruction, so a fragment emitted here is normally
+	/// unreachable. That is allowed: unreachable instructions are not rejected, though they still
+	/// contribute to the method's computed stack height. To run code before a method returns, match its
+	/// terminal instructions (usually <c>ret</c> / <c>throw</c>) and emit before each one.
+	/// </remarks>
 	public void EmitAtEnd(IlEmitAction emit) => Core.EmitAtBoundary(Core.InstructionCount, emit);
 
 	/// <summary>
@@ -57,22 +58,23 @@ public sealed class IlContext<L> : IStrongRefDroppable where L : struct, IModLif
 	/// provenance constraint.
 	/// </summary>
 	/// <remarks>
-	/// Matching without a provenance constraint is not allowed; if you explicitly don't care about
-	/// provenance, use <see cref="IlPatternProvenanceConstraint.Any"/>.
+	/// Matching without a provenance constraint is not allowed; if provenance is irrelevant, use
+	/// <see cref="IlPatternProvenanceConstraint.Any"/>.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="pattern"/> is empty, or if <paramref name="provenance"/> is an
 	/// invalid/uninitialized value.
 	/// </exception>
-	public IlMatches MatchAll(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) => Core.MatchAll(pattern, provenance);
+	public IlMatches MatchAll(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) =>
+		Core.MatchAll(pattern, provenance);
 
 	/// <summary>
 	/// Finds the first occurrence of a non-empty pattern in the snapshot that matches the given
 	/// provenance constraint.
 	/// </summary>
 	/// <remarks>
-	/// Matching without a provenance constraint is not allowed; if you explicitly don't care about
-	/// provenance, use <see cref="IlPatternProvenanceConstraint.Any"/>.
+	/// Matching without a provenance constraint is not allowed; if provenance is irrelevant, use
+	/// <see cref="IlPatternProvenanceConstraint.Any"/>.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="pattern"/> is empty, or if <paramref name="provenance"/> is an
@@ -81,8 +83,6 @@ public sealed class IlContext<L> : IStrongRefDroppable where L : struct, IModLif
 	/// <exception cref="IlMatchException">
 	/// Thrown if no match is found.
 	/// </exception>
-	public IlMatch MatchNext(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) => Core.MatchNext(0, pattern, provenance);
-
-	internal void DropStrongReferences() => Volatile.Write(ref core, null);
-	void IStrongRefDroppable.DropStrongReferences() => DropStrongReferences();
+	public IlMatch MatchNext(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) =>
+		Core.MatchNext(0, pattern, provenance);
 }
