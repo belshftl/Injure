@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+
+		<PackageId>Injure.Mods.Runtime</PackageId>
+		<Description>game-facing mod runtime from the game framework/engine colloquially known as Injure</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Injure internals: -->
+		<ProjectReference Include="../Injure.DevAnalyzers/Injure.DevAnalyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+
+		<!-- public packages: -->
+		<ProjectReference Include="../Injure/Injure.csproj" />
+		<ProjectReference Include="../Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.4" PrivateAssets="compile;contentfiles;build;analyzers" />
+	</ItemGroup>
+</Project>

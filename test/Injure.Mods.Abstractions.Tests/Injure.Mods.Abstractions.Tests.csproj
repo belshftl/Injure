@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<IsPackable>false</IsPackable>
+		<PublishAot>true</PublishAot>
+		<InvariantGlobalization>true</InvariantGlobalization>
+		<TrimMode>full</TrimMode>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="../../eng/Fixtures/IlFixture/IlFixture.csproj" />
+		<ProjectReference Include="../../src/Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="xunit.v3.aot.mtp-v2" Version="4.0.0-pre.*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Using Include="Xunit" />
+		<AssemblyMetadata Include="ProjectRoot" Value="$(MSBuildProjectDirectory)" />
+		<AssemblyMetadata Include="RepoRoot" Value="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), 'Injure.slnx'))" />
+	</ItemGroup>
+</Project>

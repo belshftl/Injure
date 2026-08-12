@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+		<PublishAot>true</PublishAot>
+		<InvariantGlobalization>true</InvariantGlobalization>
+		<TrimMode>full</TrimMode>
+		<NoWarn>$(NoWarn);IL2104</NoWarn> <!-- Mono.Cecil has some trim warnings, but we don't use any of the problematic features -->
+
+		<PackageId>Injure.Weaver</PackageId>
+		<Description>game assembly method modification target generator / publicizer from the game framework/engine colloquially known as Injure</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Mono.Cecil" Version="0.11.6" />
+	</ItemGroup>
+</Project>

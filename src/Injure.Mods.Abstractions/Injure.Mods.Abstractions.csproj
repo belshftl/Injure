@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+
+		<PackageId>Injure.Mods.Abstractions</PackageId>
+		<Description>mod-specific APIs and infrastructure from the game framework/engine colloquially known as Injure</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Injure internals: -->
+		<ProjectReference Include="../../eng/Injure.DevAnalyzers/Injure.DevAnalyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		<InternalsVisibleTo Include="Injure.Mods.Abstractions.Tests" />
+
+		<!-- public packages: -->
+		<ProjectReference Include="../Injure/Injure.csproj" />
+		<InternalsVisibleTo Include="Injure.Mods.Runtime" />
+	</ItemGroup>
+</Project>

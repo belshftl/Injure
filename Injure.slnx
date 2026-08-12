@@ -2,7 +2,7 @@
 	<Project Path="IlFixture/IlFixture.csproj" />
 	<Project Path="Injure/Injure.csproj" />
 	<Project Path="Injure.Analyzers/Injure.Analyzers.csproj" />
-	<Project Path="Injure.Internals.Analyzers/Injure.Internals.Analyzers.csproj" />
+	<Project Path="Injure.DevAnalyzers/Injure.DevAnalyzers.csproj" />
 	<Project Path="Injure.Internals.Tests/Injure.Internals.Tests.csproj" />
 	<Project Path="Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj" />
 	<Project Path="Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj" />
