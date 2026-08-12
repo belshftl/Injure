@@ -1,7 +1,13 @@
 /.DS_Store/
 /*/.DS_Store/
 /.idea/
-/{eng,src,test}/**/{bin,obj}/
+/eng/**/bin/
+/eng/**/obj/
 /native/audio/target/
-/native/misc/{obj,out}/
+/native/misc/obj/
+/native/misc/out/
 /native/pack/
+/src/**/bin/
+/src/**/obj/
+/test/**/bin/
+/test/**/obj/

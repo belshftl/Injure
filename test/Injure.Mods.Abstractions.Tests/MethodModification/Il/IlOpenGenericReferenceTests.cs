@@ -106,7 +106,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 	}
 
 	[Fact]
-	public void MixingParameterSpacesProducesADifferentReference() {
+	public static void MixingParameterSpacesProducesADifferentReference() {
 		IlMethodSignature wrong = IlReferenceFactory.Signature(
 			returnType: IlReferenceFactory.MethodGenericParameter(2),
 			genericParameterCount: 1,
@@ -227,7 +227,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 	// ==========================================================================================
 	// validation
 	[Fact]
-	public void MethodsCannotBeDeclaredOnTypesThatDeclareNothing() {
+	public static void MethodsCannotBeDeclaredOnTypesThatDeclareNothing() {
 		IlMethodSignature signature = IlReferenceFactory.Signature(IlTest.Void);
 
 		Assert.Throws<ArgumentException>(
@@ -242,7 +242,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 	}
 
 	[Fact]
-	public void PrimitiveDeclaringTypesAreAllowedDueToNormalization() {
+	public static void PrimitiveDeclaringTypesAreAllowedDueToNormalization() {
 		// System.String is a TypeDefinition in corelib and normalizes to a primitive, so a member on it
 		// would be unnameable if primitives were rejected here
 		IlMethodRef getLength = IlReferenceFactory.Method(
@@ -255,7 +255,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 	}
 
 	[Fact]
-	public void ArrayDeclaringTypesAreAllowedForPseudoMethods() {
+	public static void ArrayDeclaringTypesAreAllowedForPseudoMethods() {
 		IlMethodRef get = IlReferenceFactory.Method(
 			IlReferenceFactory.Array(IlTest.Int32, rank: 2),
 			"Get",
@@ -266,7 +266,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 	}
 
 	[Fact]
-	public void ConstructedMethodsAreNeverInstantiations() {
+	public static void ConstructedMethodsAreNeverInstantiations() {
 		IlMethodRef definition = IlReferenceFactory.Method(
 			IlReferenceFactory.GenericInstance(
 				innerDefinition,
@@ -288,7 +288,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 	}
 
 	[Fact]
-	public void NamesAreRequired() {
+	public static void NamesAreRequired() {
 		IlMethodSignature signature = IlReferenceFactory.Signature(IlTest.Void);
 
 		Assert.Throws<ArgumentException>(() => IlReferenceFactory.Method(IlTest.Object, "", signature));

@@ -9,7 +9,7 @@ public sealed class AssetStoreConcurrencyTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public async Task ColdConcurrentBorrowsMaterializeOnce() {
+	public static async Task ColdConcurrentBorrowsMaterializeOnce() {
 		AssetStore store = new();
 		TestCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
@@ -27,7 +27,7 @@ public sealed class AssetStoreConcurrencyTests {
 	}
 
 	[Fact]
-	public async Task ColdConcurrentWarmsMaterializeOnce() {
+	public static async Task ColdConcurrentWarmsMaterializeOnce() {
 		AssetStore store = new();
 		TestCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
@@ -45,7 +45,7 @@ public sealed class AssetStoreConcurrencyTests {
 	}
 
 	[Fact]
-	public async Task ConcurrentQueueReloadsWork() {
+	public static async Task ConcurrentQueueReloadsWork() {
 		AssetStore store = new();
 		TestCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
@@ -66,7 +66,7 @@ public sealed class AssetStoreConcurrencyTests {
 	}
 
 	[Fact]
-	public async Task ConcurrentQueueReloadsFromThreadPoolWork() {
+	public static async Task ConcurrentQueueReloadsFromThreadPoolWork() {
 		AssetStore store = new();
 		TestCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
@@ -88,7 +88,7 @@ public sealed class AssetStoreConcurrencyTests {
 	}
 
 	[Fact]
-	public async Task ConcurrentWatcherEventsWork() {
+	public static async Task ConcurrentWatcherEventsWork() {
 		AssetStore store = new();
 		TestCreator creator = new();
 		TestDependencyWatcher watcher = new();
@@ -112,7 +112,7 @@ public sealed class AssetStoreConcurrencyTests {
 	}
 
 	[Fact]
-	public async Task ParallelAssetPrepWorks() {
+	public static async Task ParallelAssetPrepWorks() {
 		AssetId a = new(ownerId, "a");
 		AssetId b = new(ownerId, "b");
 
@@ -141,7 +141,7 @@ public sealed class AssetStoreConcurrencyTests {
 	}
 
 	[Fact]
-	public async Task CancelledWarmDoesntCancelSharedWork() {
+	public static async Task CancelledWarmDoesntCancelSharedWork() {
 		AssetStore store = new();
 		TaskCheckpoint ckp = new();
 		TestCreator creator = new(onPrepareAsync: (_, ct) => ckp.WaitAsync(ct));
@@ -170,7 +170,7 @@ public sealed class AssetStoreConcurrencyTests {
 	}
 
 	[Fact]
-	public async Task CancelledQueueReloadDoesntCancelSharedReloadWork() {
+	public static async Task CancelledQueueReloadDoesntCancelSharedReloadWork() {
 		AssetStore store = new();
 		BlockingOnNthPrepare block = new(2);
 		TestCreator creator = new(onPrepareAsync: block.OnPrepareAsync);

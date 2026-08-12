@@ -62,7 +62,7 @@ public static class UiCanvasLayout {
 		int right = (int)MathF.Ceiling(MathF.Max(a.X, b.X));
 		int bottom = (int)MathF.Ceiling(MathF.Max(a.Y, b.Y));
 
-		return RectI.FromLTRB(left, top, right, bottom);
+		return RectI.FromLtrb(left, top, right, bottom);
 	}
 
 	private static RectF computeLogicalRect(UiCanvasPolicy policy, SizeI drawableSize) {

@@ -9,7 +9,7 @@ public sealed class AssetStoreBasicTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public async Task BasicFunctionality() {
+	public static async Task BasicFunctionality() {
 		AssetStore store = new();
 		TestDependencyWatcher watcher = new();
 		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep")), "source");
@@ -54,7 +54,7 @@ public sealed class AssetStoreBasicTests {
 	}
 
 	[Fact]
-	public void ReloadingWorks() {
+	public static void ReloadingWorks() {
 		AssetStore store = new();
 		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep-source")), "source");
 		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
@@ -85,7 +85,7 @@ public sealed class AssetStoreBasicTests {
 	}
 
 	[Fact]
-	public void RevocationWorks() {
+	public static void RevocationWorks() {
 		AssetStore store = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
 		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
@@ -103,7 +103,7 @@ public sealed class AssetStoreBasicTests {
 	}
 
 	[Fact]
-	public void DepsAreDeduplicated() {
+	public static void DepsAreDeduplicated() {
 		AssetStore store = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
 		store.RegisterResolver(ownerId, new TestResolver(), "resolver");

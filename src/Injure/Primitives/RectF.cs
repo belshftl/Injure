@@ -146,7 +146,7 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// <paramref name="left"/>, when <paramref name="bottom"/> is less than
 	/// <paramref name="top"/>, or when the derived size is not finite.
 	/// </exception>
-	public static RectF FromLTRB(float left, float top, float right, float bottom) {
+	public static RectF FromLtrb(float left, float top, float right, float bottom) {
 		if (!float.IsFinite(left))
 			throw new ArgumentOutOfRangeException(nameof(left), left, "left edge must be finite");
 		if (!float.IsFinite(top))
@@ -198,7 +198,7 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 			result = Empty;
 			return false;
 		}
-		result = FromLTRB(left, top, right, bottom);
+		result = FromLtrb(left, top, right, bottom);
 		return true;
 	}
 
@@ -215,7 +215,7 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 			return other.HasArea ? other : Empty;
 		if (!other.HasArea)
 			return this;
-		return FromLTRB(MathF.Min(Left, other.Left), MathF.Min(Top, other.Top), MathF.Max(Right, other.Right), MathF.Max(Bottom, other.Bottom));
+		return FromLtrb(MathF.Min(Left, other.Left), MathF.Min(Top, other.Top), MathF.Max(Right, other.Right), MathF.Max(Bottom, other.Bottom));
 	}
 
 	/// <summary>
@@ -223,7 +223,7 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// edges, including zero-area rectangles.
 	/// </summary>
 	/// <param name="other">The rectangle to include.</param>
-	public RectF UnionExtents(RectF other) => FromLTRB(MathF.Min(Left, other.Left), MathF.Min(Top, other.Top), MathF.Max(Right, other.Right), MathF.Max(Bottom, other.Bottom));
+	public RectF UnionExtents(RectF other) => FromLtrb(MathF.Min(Left, other.Left), MathF.Min(Top, other.Top), MathF.Max(Right, other.Right), MathF.Max(Bottom, other.Bottom));
 
 	/// <summary>
 	/// Returns whether this rectangle intersects another rectangle.

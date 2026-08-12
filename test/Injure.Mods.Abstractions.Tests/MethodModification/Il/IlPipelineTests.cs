@@ -19,7 +19,7 @@ public sealed class IlPipelineTests {
 	// ==========================================================================================
 	// no-ops
 	[Fact]
-	public void NoManipulatorsReturnsBaseline() {
+	public static void NoManipulatorsReturnsBaseline() {
 		IlMethodBody baseline = makeBaseline();
 		IlPipelineResult result = IlPipeline.Transform(baseline, []);
 		Assert.False(result.Modified);
@@ -27,7 +27,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void NoOpManipulatorsLeaveBodyUnmodified() {
+	public static void NoOpManipulatorsLeaveBodyUnmodified() {
 		IlMethodBody baseline = makeBaseline();
 		IlPipelineResult result = IlPipeline.Transform(baseline, [noOp("a"), noOp("b")]);
 		Assert.False(result.Modified);
@@ -37,7 +37,7 @@ public sealed class IlPipelineTests {
 	// ==========================================================================================
 	// applying
 	[Fact]
-	public void EmittedInstructionsGoIntoCloneNotBaseline() {
+	public static void EmittedInstructionsGoIntoCloneNotBaseline() {
 		IlMethodBody baseline = makeBaseline();
 		int before = baseline.Instructions.Count;
 		IlPipelineResult result = IlPipeline.Transform(baseline, [emitsNop("a")]);
@@ -48,7 +48,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void ManipulatorsRunInGivenOrder() {
+	public static void ManipulatorsRunInGivenOrder() {
 		List<int> order = new();
 		IlPipeline.Transform(
 			makeBaseline(),
@@ -62,7 +62,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void LaterManipulatorsSeeEarlierEdits() {
+	public static void LaterManipulatorsSeeEarlierEdits() {
 		int observed = -1;
 		IlPipeline.Transform(
 			makeBaseline(),
@@ -72,7 +72,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void ValidationResultIsCachedOnTheReturnedBody() {
+	public static void ValidationResultIsCachedOnTheReturnedBody() {
 		IlPipelineResult result = IlPipeline.Transform(makeBaseline(), [emitsNop("a")]);
 		Assert.NotNull(result.Body.ComputedMaxStack);
 	}
@@ -85,7 +85,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void ManipulatorExceptionsBubbleOutUnchanged() {
+	public static void ManipulatorExceptionsBubbleOutUnchanged() {
 		IlMethodBody baseline = makeBaseline();
 		ManipulatorException thrown = new("from the manipulator");
 		ManipulatorException caught = Assert.Throws<ManipulatorException>(
@@ -96,7 +96,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void FailedManipulatorEditsAreDiscarded() {
+	public static void FailedManipulatorEditsAreDiscarded() {
 		IlMethodBody baseline = makeBaseline();
 		Assert.Throws<ManipulatorException>(() => IlPipeline.Transform(
 			baseline,
@@ -106,7 +106,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void SkipFailingManipulatorsDiscardsOnlyFailingManipulator() {
+	public static void SkipFailingManipulatorsDiscardsOnlyFailingManipulator() {
 		IlPipelineResult result = IlPipeline.Transform(
 			makeBaseline(),
 			[
@@ -126,11 +126,11 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void DuplicateIdentifiersAreRejected() =>
+	public static void DuplicateIdentifiersAreRejected() =>
 		Assert.ThrowsAny<Exception>(() => IlPipeline.Transform(makeBaseline(), [noOp("same"), noOp("same")]));
 
 	[Fact]
-	public void SameLocalIdCanExistInDifferentOwners() {
+	public static void SameLocalIdCanExistInDifferentOwners() {
 		IlPipelineResult result = IlPipeline.Transform(
 			makeBaseline(),
 			[emitsNop("patch"), makeManipulator("patch", ctx => ctx.EmitAtStart(static e => e.Nop()), "test.other")]
@@ -141,7 +141,7 @@ public sealed class IlPipelineTests {
 	// ==========================================================================================
 	// validation and attribution
 	[Fact]
-	public void InvalidBodyIsAValidationFailure() {
+	public static void InvalidBodyIsAValidationFailure() {
 		IlPipelineValidationException ex = Assert.Throws<IlPipelineValidationException>(
 			static () => IlPipeline.Transform(makeBaseline(), [emitsUnderflow("bad")])
 		);
@@ -150,7 +150,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void AttributionNamesCulprit() {
+	public static void AttributionNamesCulprit() {
 		IlPipelineValidationException ex = Assert.Throws<IlPipelineValidationException>(
 			static () => IlPipeline.Transform(makeBaseline(), [emitsNop("innocent"), emitsUnderflow("guilty"), emitsNop("later")])
 		);
@@ -158,7 +158,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void AttributionRerunsEveryManipulatorExactlyOnceMore() {
+	public static void AttributionRerunsEveryManipulatorExactlyOnceMore() {
 		Dictionary<string, int> invocations = new();
 		void count(string id) => invocations[id] = invocations.GetValueOrDefault(id) + 1;
 		Assert.Throws<IlPipelineValidationException>(() => IlPipeline.Transform(
@@ -173,7 +173,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void AttributionCanBeDisabled() {
+	public static void AttributionCanBeDisabled() {
 		int invocations = 0;
 		IlPipelineValidationException ex = Assert.Throws<IlPipelineValidationException>(() => IlPipeline.Transform(
 			makeBaseline(),
@@ -186,7 +186,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void DivergentRerunFallsBackToUnattributedFailure() {
+	public static void DivergentRerunFallsBackToUnattributedFailure() {
 		int invocations = 0;
 		IlPipelineValidationException ex = Assert.Throws<IlPipelineValidationException>(() => IlPipeline.Transform(
 			makeBaseline(),
@@ -203,7 +203,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void SkippingFinalValidationLeavesBodyUnanalyzed() {
+	public static void SkippingFinalValidationLeavesBodyUnanalyzed() {
 		IlPipelineResult result = IlPipeline.Transform(
 			makeBaseline(),
 			[emitsUnderflow("bad")],
@@ -214,7 +214,7 @@ public sealed class IlPipelineTests {
 	}
 
 	[Fact]
-	public void PerStepValidationFailsAtOffendingManipulator() {
+	public static void PerStepValidationFailsAtOffendingManipulator() {
 		int ranAfter = 0;
 		Assert.ThrowsAny<Exception>(() => IlPipeline.Transform(
 			makeBaseline(),

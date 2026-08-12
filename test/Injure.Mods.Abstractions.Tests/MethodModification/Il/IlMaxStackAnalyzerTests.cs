@@ -10,7 +10,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	// ==========================================================================================
 	// regression tests
 	[Fact]
-	public void ModifiedVoidReturnStillCountsAsVoid() {
+	public static void ModifiedVoidReturnStillCountsAsVoid() {
 		IlTypeRef modifiedVoid = new IlModifiedTypeRef(IlTest.Named("System.Runtime.CompilerServices", "IsExternalInit"), IlTest.Void, isRequired: true);
 		IlMethodBody body = new BodyBuilder().Ret().Build(IlTest.Sig(modifiedVoid));
 		Assert.Equal(0, IlMaxStackAnalyzer.Analyze(body));
@@ -19,17 +19,17 @@ public sealed class IlMaxStackAnalyzerTests {
 	// ==========================================================================================
 	// heights
 	[Fact]
-	public void EmptyReturnHasNoStack() =>
+	public static void EmptyReturnHasNoStack() =>
 		Assert.Equal(0, IlMaxStackAnalyzer.Analyze(new BodyBuilder().Ret().Build()));
 
 	[Fact]
-	public void ReturnValueCountsTowardsMaximum() {
+	public static void ReturnValueCountsTowardsMaximum() {
 		IlMethodBody body = new BodyBuilder().LdcI4(1).Ret().Build(IlTest.Sig(IlTest.Int32));
 		Assert.Equal(1, IlMaxStackAnalyzer.Analyze(body));
 	}
 
 	[Fact]
-	public void DupPushesWithoutPoppingNet() {
+	public static void DupPushesWithoutPoppingNet() {
 		// ldc.i4; dup; pop; pop; ret -> peak 2
 		IlMethodBody body = new BodyBuilder().LdcI4(1).Add(ILOpCode.Dup).Pop().Pop().Ret().Build();
 
@@ -37,7 +37,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void BranchTargetsMergeAtTheSameHeight() {
+	public static void BranchTargetsMergeAtTheSameHeight() {
 		// ldc.i4; brtrue -> 4; ldc.i4; br -> 5; ldc.i4; pop; ret
 		BodyBuilder builder = new();
 		builder.LdcI4(1).Brtrue(4).LdcI4(2).Br(5).LdcI4(3).Pop().Ret();
@@ -46,7 +46,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void ResultIsCachedOnTheBody() {
+	public static void ResultIsCachedOnTheBody() {
 		IlMethodBody body = new BodyBuilder().LdcI4(1).Pop().Ret().Build();
 
 		Assert.Null(body.ComputedMaxStack);
@@ -58,11 +58,11 @@ public sealed class IlMaxStackAnalyzerTests {
 	// ==========================================================================================
 	// rejection
 	[Fact]
-	public void UnderflowIsRejected() =>
+	public static void UnderflowIsRejected() =>
 		Assert.Throws<IlInvalidMethodException>(() => IlMaxStackAnalyzer.Analyze(new BodyBuilder().Pop().Ret().Build()));
 
 	[Fact]
-	public void ConflictingMergeHeightsAreRejected() {
+	public static void ConflictingMergeHeightsAreRejected() {
 		// ldc.i4; brtrue -> 3; ldc.i4; ret
 		// (target reached at height 0 and 1)
 		BodyBuilder builder = new();
@@ -72,18 +72,18 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void FallingOffTheEndIsRejected() =>
+	public static void FallingOffTheEndIsRejected() =>
 		Assert.Throws<IlInvalidMethodException>(() => IlMaxStackAnalyzer.Analyze(new BodyBuilder().Nop().Build()));
 
 	[Fact]
-	public void ReturnAtNonZeroHeightIsRejected() {
+	public static void ReturnAtNonZeroHeightIsRejected() {
 		IlMethodBody body = new BodyBuilder().LdcI4(1).Ret().Build();
 
 		Assert.Throws<IlInvalidMethodException>(() => IlMaxStackAnalyzer.Analyze(body));
 	}
 
 	[Fact]
-	public void JmpRequiresEmptyStack() {
+	public static void JmpRequiresEmptyStack() {
 		IlMethodBody body = new BodyBuilder()
 			.LdcI4(1)
 			.Add(ILOpCode.Jmp, new IlMethodOperand(IlTest.Method("Other", IlTest.Void)))
@@ -93,7 +93,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void TailCallMustBeFollowedByReturn() {
+	public static void TailCallMustBeFollowedByReturn() {
 		IlInstructionPrefixes tail = new(IlPrefixFlags.Tail, null, 0, IlSkipChecks.None);
 		BodyBuilder builder = new();
 		builder.Add(ILOpCode.Call, new IlMethodOperand(IlTest.Method("Other", IlTest.Void)), tail).Nop().Ret();
@@ -102,7 +102,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void TailCallFollowedByReturnIsAccepted() {
+	public static void TailCallFollowedByReturnIsAccepted() {
 		IlInstructionPrefixes tail = new(IlPrefixFlags.Tail, null, 0, IlSkipChecks.None);
 		BodyBuilder builder = new();
 		builder.Add(ILOpCode.Call, new IlMethodOperand(IlTest.Method("Other", IlTest.Void)), tail).Ret();
@@ -113,7 +113,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	// ==========================================================================================
 	// unreachable code
 	[Fact]
-	public void UnreachableCodeAfterReturnIsAccepted() {
+	public static void UnreachableCodeAfterReturnIsAccepted() {
 		// ret; ldc.i4; ldc.i4  -> unreachable, falls off the end, contributes 2 to the maximum
 		IlMethodBody body = new BodyBuilder().Ret().LdcI4(1).LdcI4(2).Build();
 
@@ -121,7 +121,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void UnreachableUnderflowIsAccepted() {
+	public static void UnreachableUnderflowIsAccepted() {
 		IlMethodBody body = new BodyBuilder().Ret().Pop().Build();
 
 		Assert.Equal(0, IlMaxStackAnalyzer.Analyze(body));
@@ -130,7 +130,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	// ==========================================================================================
 	// exception handling
 	[Fact]
-	public void CatchHandlerStartsWithExceptionOnTheStack() {
+	public static void CatchHandlerStartsWithExceptionOnTheStack() {
 		// try { leave -> 3 } catch { pop; leave -> 3 } ret
 		BodyBuilder builder = new();
 		builder.Leave(3).Pop().Leave(3).Ret();
@@ -140,7 +140,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void FinallyHandlerStartsEmpty() {
+	public static void FinallyHandlerStartsEmpty() {
 		// try { leave -> 3 } finally { nop; endfinally } ret
 		BodyBuilder builder = new();
 		builder.Leave(3).Nop().Add(ILOpCode.Endfinally).Ret();
@@ -150,7 +150,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void FilterStartsWithExceptionOnTheStack() {
+	public static void FilterStartsWithExceptionOnTheStack() {
 		// try { leave -> 5 } filter { pop; ldc.i4; endfilter } handler { pop; leave -> 5 } ret
 		BodyBuilder builder = new();
 		builder.Pop().Leave(7).LdcI4(1).Add(ILOpCode.Endfilter).Pop().Leave(7).Nop().Ret();
@@ -168,7 +168,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void LeaveEmptiesTheStackAtItsTarget() {
+	public static void LeaveEmptiesTheStackAtItsTarget() {
 		// try { ldc.i4; leave -> 3 } finally { endfinally } ret
 		BodyBuilder builder = new();
 		builder.LdcI4(1).Leave(3).Add(ILOpCode.Endfinally).Ret();
@@ -178,21 +178,21 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void EndfinallyOutsideAHandlerIsRejected() {
+	public static void EndfinallyOutsideAHandlerIsRejected() {
 		IlMethodBody body = new BodyBuilder().Add(ILOpCode.Endfinally).Build();
 
 		Assert.Throws<IlInvalidMethodException>(() => IlMaxStackAnalyzer.Analyze(body));
 	}
 
 	[Fact]
-	public void EndfilterOutsideAFilterIsRejected() {
+	public static void EndfilterOutsideAFilterIsRejected() {
 		IlMethodBody body = new BodyBuilder().LdcI4(1).Add(ILOpCode.Endfilter).Build();
 
 		Assert.Throws<IlInvalidMethodException>(() => IlMaxStackAnalyzer.Analyze(body));
 	}
 
 	[Fact]
-	public void EnteringProtectedRegionWithNonEmptyStackIsRejected() {
+	public static void EnteringProtectedRegionWithNonEmptyStackIsRejected() {
 		// ldc.i4; try { leave -> 3 } finally { endfinally } ret
 		BodyBuilder builder = new();
 		builder.LdcI4(1).Leave(4).Add(ILOpCode.Endfinally).Nop().Ret();
@@ -204,7 +204,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	// ==========================================================================================
 	// signature-dependent effects
 	[Fact]
-	public void CallPopsArgumentsAndReceiver() {
+	public static void CallPopsArgumentsAndReceiver() {
 		IlMethodRef method = IlTest.Method("Instance", IlTest.InstanceSig(IlTest.Void, IlTest.Int32, IlTest.Int32));
 		BodyBuilder builder = new();
 		builder.LdcI4(0).LdcI4(1).LdcI4(2).Call(method).Ret();
@@ -213,7 +213,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void ExplicitThisDoesNotAddAReceiver() {
+	public static void ExplicitThisDoesNotAddAReceiver() {
 		IlMethodRef method = IlTest.Method("Explicit", IlTest.ExplicitThisSig(IlTest.Void, IlTest.Object, IlTest.Int32));
 		BodyBuilder builder = new();
 		builder.LdcI4(0).LdcI4(1).Call(method).Ret();
@@ -222,7 +222,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void VarargCallPopsOptionalParametersToo() {
+	public static void VarargCallPopsOptionalParametersToo() {
 		IlMethodRef method = IlTest.Method(
 			"Sum",
 			IlTest.VarargSig(IlTest.Int32, required: 1, IlTest.Int32, IlTest.Int32, IlTest.Int32)
@@ -234,7 +234,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void NewobjDoesNotPopAReceiver() {
+	public static void NewobjDoesNotPopAReceiver() {
 		IlMethodRef ctor = IlTest.Method(".ctor", IlTest.InstanceSig(IlTest.Void, IlTest.Int32));
 		BodyBuilder builder = new();
 		builder.LdcI4(0).Newobj(ctor).Pop().Ret();
@@ -243,7 +243,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void CalliPopsTheFunctionPointer() {
+	public static void CalliPopsTheFunctionPointer() {
 		BodyBuilder builder = new();
 		builder.LdcI4(0).LdcI4(1).Calli(IlTest.Sig(IlTest.Void, IlTest.Int32)).Ret();
 
@@ -251,7 +251,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	}
 
 	[Fact]
-	public void SwitchReachesEveryTargetAndFallsThrough() {
+	public static void SwitchReachesEveryTargetAndFallsThrough() {
 		// ldc.i4; switch -> 3, 4; nop; nop; ret
 		BodyBuilder builder = new();
 		builder.LdcI4(0).Switch(3, 4).Nop().Nop().Ret();

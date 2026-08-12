@@ -2,9 +2,23 @@
 // SPDX-License-Identifier: MIT
 
 using System.ComponentModel;
-using static Injure.Native.PreciseWait;
+using System.Runtime.InteropServices;
 
 namespace Injure.Time;
+
+internal static partial class PreciseWaitNative {
+	// int precisewait_init(void);
+	[LibraryImport("injuremisc")]
+	public static partial int precisewait_init();
+
+	// void precisewait_deinit(void);
+	[LibraryImport("injuremisc")]
+	public static partial void precisewait_deinit();
+
+	// int precisewait(int64_t ns, int overshoot);
+	[LibraryImport("injuremisc")]
+	public static partial int precisewait(long ns, [MarshalAs(UnmanagedType.Bool)] bool overshoot);
+}
 
 /// <summary>
 /// Simple utility for high-precision sleep.
@@ -32,7 +46,7 @@ public static class PreciseWait {
 
 	static PreciseWait() {
 		if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux() || OperatingSystem.IsFreeBSD())
-			wrap("precisewait_init", precisewait_init());
+			wrap("precisewait_init", PreciseWaitNative.precisewait_init());
 		else
 			throw new PlatformNotSupportedException("PreciseWait is only supported on Windows / MacOS / Linux / FreeBSD");
 	}
@@ -55,7 +69,7 @@ public static class PreciseWait {
 	/// </exception>
 	public static void WaitPreferUndershoot(long ns) {
 		ArgumentOutOfRangeException.ThrowIfNegative(ns);
-		wrap("precisewait", precisewait(ns, false));
+		wrap("precisewait", PreciseWaitNative.precisewait(ns, false));
 	}
 
 	/// <summary>
@@ -76,6 +90,6 @@ public static class PreciseWait {
 	/// </exception>
 	public static void WaitPreferOvershoot(long ns) {
 		ArgumentOutOfRangeException.ThrowIfNegative(ns);
-		wrap("precisewait", precisewait(ns, true));
+		wrap("precisewait", PreciseWaitNative.precisewait(ns, true));
 	}
 }

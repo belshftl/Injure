@@ -1,13 +1,15 @@
 <Solution>
-	<Project Path="IlFixture/IlFixture.csproj" />
-	<Project Path="Injure/Injure.csproj" />
-	<Project Path="Injure.Analyzers/Injure.Analyzers.csproj" />
-	<Project Path="Injure.DevAnalyzers/Injure.DevAnalyzers.csproj" />
-	<Project Path="Injure.Internals.Tests/Injure.Internals.Tests.csproj" />
-	<Project Path="Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj" />
-	<Project Path="Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj" />
-	<Project Path="Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj" />
-	<Project Path="Injure.Mods.Runtime/Injure.Mods.Runtime.csproj" />
-	<Project Path="Injure.Native/Injure.Native.csproj" />
-	<Project Path="Injure.Weaver/Injure.Weaver.csproj" />
+	<Project Path="./eng/Analyzers/Injure.DevAnalyzers/Injure.DevAnalyzers.csproj" />
+	<Project Path="./eng/Fixtures/IlFixture/IlFixture.csproj" />
+
+	<Project Path="./src/Injure/Injure.csproj" />
+	<Project Path="./src/Injure.Analyzers/Injure.Analyzers.csproj" />
+	<Project Path="./src/Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj" />
+	<Project Path="./src/Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj" />
+	<Project Path="./src/Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj" />
+	<Project Path="./src/Injure.Mods.Runtime/Injure.Mods.Runtime.csproj" />
+	<Project Path="./src/Injure.Weaver/Injure.Weaver.csproj" />
+
+	<Project Path="./test/Injure.Mods.Abstractions.Tests/Injure.Mods.Abstractions.Tests.csproj" />
+	<Project Path="./test/Injure.Tests/Injure.Tests.csproj" />
 </Solution>

@@ -134,7 +134,7 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 	/// Thrown if <paramref name="right"/> is less than <paramref name="left"/> or
 	/// if <paramref name="bottom"/> is less than <paramref name="top"/>.
 	/// </exception>
-	public static RectI FromLTRB(int left, int top, int right, int bottom) {
+	public static RectI FromLtrb(int left, int top, int right, int bottom) {
 		if (right < left)
 			throw new ArgumentOutOfRangeException(nameof(right), right, "right edge must be greater than or equal to the left edge");
 		if (bottom < top)
@@ -178,7 +178,7 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 			result = Empty;
 			return false;
 		}
-		result = FromLTRB(left, top, right, bottom);
+		result = FromLtrb(left, top, right, bottom);
 		return true;
 	}
 
@@ -195,7 +195,7 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 			return other.HasArea ? other : Empty;
 		if (!other.HasArea)
 			return this;
-		return FromLTRB(Math.Min(Left, other.Left), Math.Min(Top, other.Top), Math.Max(Right, other.Right), Math.Max(Bottom, other.Bottom));
+		return FromLtrb(Math.Min(Left, other.Left), Math.Min(Top, other.Top), Math.Max(Right, other.Right), Math.Max(Bottom, other.Bottom));
 	}
 
 	/// <summary>
@@ -203,7 +203,7 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 	/// edges, including zero-area rectangles.
 	/// </summary>
 	/// <param name="other">The rectangle to include.</param>
-	public RectI UnionExtents(RectI other) => FromLTRB(Math.Min(Left, other.Left), Math.Min(Top, other.Top), Math.Max(Right, other.Right), Math.Max(Bottom, other.Bottom));
+	public RectI UnionExtents(RectI other) => FromLtrb(Math.Min(Left, other.Left), Math.Min(Top, other.Top), Math.Max(Right, other.Right), Math.Max(Bottom, other.Bottom));
 
 	/// <summary>
 	/// Returns whether this rectangle intersects another rectangle.

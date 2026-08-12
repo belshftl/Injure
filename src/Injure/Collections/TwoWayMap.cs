@@ -51,7 +51,7 @@ public sealed class TwoWayMap<TLeft, TRight> : ITwoWayMap<TLeft, TRight> where T
 		rtl[right] = left;
 	}
 
-	private static (Dictionary<TLeft, TRight> LTR, Dictionary<TRight, TLeft> RTL) make(
+	private static (Dictionary<TLeft, TRight> Ltr, Dictionary<TRight, TLeft> Rtl) make(
 		IEnumerable<(TLeft Left, TRight Right)> pairs,
 		IEqualityComparer<TLeft>? cmpLeft,
 		IEqualityComparer<TRight>? cmpRight
@@ -63,7 +63,7 @@ public sealed class TwoWayMap<TLeft, TRight> : ITwoWayMap<TLeft, TRight> where T
 		return (ltr, rtl);
 	}
 
-	private static (Dictionary<TLeft, TRight> LTR, Dictionary<TRight, TLeft> RTL) make(
+	private static (Dictionary<TLeft, TRight> Ltr, Dictionary<TRight, TLeft> Rtl) make(
 		TLeft[] lefts,
 		TRight[] rights,
 		IEqualityComparer<TLeft>? cmpLeft,

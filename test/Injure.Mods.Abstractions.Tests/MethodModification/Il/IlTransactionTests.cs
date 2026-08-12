@@ -13,7 +13,7 @@ public sealed class IlTransactionTests {
 	// ==========================================================================================
 	// insertion position
 	[Fact]
-	public void InsertionEmitsBeforeBoundaryAnchor() {
+	public static void InsertionEmitsBeforeBoundaryAnchor() {
 		IlMethodBody body = new BodyBuilder().Nop().Ret().Build();
 		IlAnchorId retAnchor = body.GetBoundaryAnchor(1);
 		IlTransactionCore core = open(body);
@@ -26,7 +26,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void ExistingBranchKeepsTargetingItsOriginalInstruction() {
+	public static void ExistingBranchKeepsTargetingItsOriginalInstruction() {
 		IlMethodBody body = new BodyBuilder().Br(2).Nop().Ret().Build();
 		IlTransactionCore core = open(body);
 		core.EmitAtBoundary(2, static e => e.Nop());
@@ -38,7 +38,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void EmittingAtTryStartEmitsOutsideProtectedRegion() {
+	public static void EmittingAtTryStartEmitsOutsideProtectedRegion() {
 		BodyBuilder builder = new();
 		builder.Leave(3).Add(ILOpCode.Endfinally).Nop().Ret();
 		builder.ExceptionRegion(IlExceptionRegionKind.Finally, 0, 1, 1, 2);
@@ -54,7 +54,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void EmittingAtTryEndEmitsInsideProtectedRegion() {
+	public static void EmittingAtTryEndEmitsInsideProtectedRegion() {
 		BodyBuilder builder = new();
 		builder.Leave(3).Add(ILOpCode.Endfinally).Nop().Ret();
 		builder.ExceptionRegion(IlExceptionRegionKind.Finally, 0, 1, 1, 2);
@@ -71,7 +71,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void FragmentsAtOneBoundaryApplyInEmitOrder() {
+	public static void FragmentsAtOneBoundaryApplyInEmitOrder() {
 		IlMethodBody body = new BodyBuilder().Ret().Build();
 		IlTransactionCore core = open(body);
 		core.EmitAtBoundary(0, static e => e.LdcI4(1));
@@ -87,7 +87,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void EmittedInstructionsCarryManipulatorProvenance() {
+	public static void EmittedInstructionsCarryManipulatorProvenance() {
 		IlMethodBody body = new BodyBuilder().Ret().Build();
 		IlTransactionCore core = open(body);
 		core.EmitAtBoundary(0, static e => e.Nop());
@@ -101,7 +101,7 @@ public sealed class IlTransactionTests {
 	// ==========================================================================================
 	// commit atomicity
 	[Fact]
-	public void NoEditsMeansNoPendingWork() {
+	public static void NoEditsMeansNoPendingWork() {
 		IlTransactionCore core = open(new BodyBuilder().Ret().Build());
 
 		Assert.False(core.HasPendingEdits);
@@ -110,7 +110,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void AbortDiscardsEverything() {
+	public static void AbortDiscardsEverything() {
 		IlMethodBody body = new BodyBuilder().Ret().Build();
 		IlTransactionCore core = open(body);
 		core.EmitAtBoundary(0, static e => e.Nop());
@@ -120,7 +120,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void CommitInvalidatesCachedStackHeight() {
+	public static void CommitInvalidatesCachedStackHeight() {
 		IlMethodBody body = new BodyBuilder().Ret().Build();
 		body.ComputedMaxStack = 3;
 		IlTransactionCore core = open(body);
@@ -133,7 +133,7 @@ public sealed class IlTransactionTests {
 	// ==========================================================================================
 	// labels
 	[Fact]
-	public void ForwardBranchToLabelMarkedLaterResolves() {
+	public static void ForwardBranchToLabelMarkedLaterResolves() {
 		IlMethodBody body = new BodyBuilder().Ret().Build();
 		IlTransactionCore core = open(body);
 		IlLabel target = core.DefineLabel();
@@ -150,7 +150,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void LabelMarkedInLaterFragmentResolves() {
+	public static void LabelMarkedInLaterFragmentResolves() {
 		IlMethodBody body = new BodyBuilder().Nop().Ret().Build();
 		IlTransactionCore core = open(body);
 		IlLabel target = core.DefineLabel();
@@ -163,7 +163,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void UnmarkedLabelFailsAtCommit() {
+	public static void UnmarkedLabelFailsAtCommit() {
 		IlMethodBody body = new BodyBuilder().Ret().Build();
 		IlTransactionCore core = open(body);
 		IlLabel target = core.DefineLabel();
@@ -174,7 +174,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void LabelCantBeMarkedTwice() {
+	public static void LabelCantBeMarkedTwice() {
 		IlMethodBody body = new BodyBuilder().Nop().Ret().Build();
 		IlTransactionCore core = open(body);
 		IlLabel target = core.DefineLabel();
@@ -187,7 +187,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void LabelFromAnotherTransactionIsRejected() {
+	public static void LabelFromAnotherTransactionIsRejected() {
 		IlMethodBody body = new BodyBuilder().Ret().Build();
 		IlLabel foreign = open(new BodyBuilder().Ret().Build()).DefineLabel();
 		IlTransactionCore core = open(body);
@@ -198,7 +198,7 @@ public sealed class IlTransactionTests {
 	// ==========================================================================================
 	// matching
 	[Fact]
-	public void PatternsMatchCanonicalInstructions() {
+	public static void PatternsMatchCanonicalInstructions() {
 		IlMethodBody body = new BodyBuilder().LdcI4(0).Pop().LdcI4(0).Pop().Ret().Build();
 		IlTransactionCore core = open(body);
 
@@ -208,7 +208,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void MatchesRemainValidAcrossEmits() {
+	public static void MatchesRemainValidAcrossEmits() {
 		IlMethodBody body = new BodyBuilder().LdcI4(0).Pop().LdcI4(0).Pop().Ret().Build();
 		IlTransactionCore core = open(body);
 		IlMatches matches = core.MatchAll([MatchIl.LdcI4(0), MatchIl.Pop], IlPatternProvenanceConstraint.Any);
@@ -223,7 +223,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void MatchesDontOverlap() {
+	public static void MatchesDontOverlap() {
 		IlMethodBody body = new BodyBuilder().Nop().Nop().Nop().Ret().Build();
 		IlTransactionCore core = open(body);
 
@@ -233,7 +233,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void RequireSingleFailsIfWrongCardinality() {
+	public static void RequireSingleFailsIfWrongCardinality() {
 		IlMethodBody body = new BodyBuilder().Nop().Nop().Ret().Build();
 		IlTransactionCore core = open(body);
 
@@ -251,7 +251,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void ProvenanceConstraintsFilterMatches() {
+	public static void ProvenanceConstraintsFilterMatches() {
 		IlMethodBody body = new BodyBuilder().Nop().Ret().Build();
 		IlTransactionCore first = open(body);
 		first.EmitAtBoundary(0, static e => e.Nop());
@@ -267,7 +267,7 @@ public sealed class IlTransactionTests {
 	}
 
 	[Fact]
-	public void UniformProvenanceRequiresEveryMatchedInstructionToAgree() {
+	public static void UniformProvenanceRequiresEveryMatchedInstructionToAgree() {
 		IlMethodBody body = new BodyBuilder().Nop().Nop().Ret().Build();
 		IlTransactionCore core = open(body);
 

@@ -9,7 +9,7 @@ public sealed class AssetStoreDependencyTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public void ResolverNotHandledDoesntLeakDeps() {
+	public static void ResolverNotHandledDoesntLeakDeps() {
 		AssetStore store = new();
 		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep-a")), "source");
 		store.RegisterResolver(ownerId, new FetchThenNotHandledResolver(new TestDependency("dep-b")), "resolver-a", localPriority: -1);
@@ -22,7 +22,7 @@ public sealed class AssetStoreDependencyTests {
 	}
 
 	[Fact]
-	public void CreatorNotHandledDoesntLeakDeps() {
+	public static void CreatorNotHandledDoesntLeakDeps() {
 		AssetStore store = new();
 		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep-a")), "source");
 		store.RegisterResolver(ownerId, new TestResolver(), "resolver");

@@ -7,7 +7,7 @@ namespace Injure.Tests.Draw.Text;
 
 public sealed class TextLayoutTests {
 	[Fact]
-	public void SkipLeadingWsWorks() {
+	public static void SkipLeadingWsWorks() {
 		ParagraphCluster[] clusters = [
 			new(0, 1, 0, 1, 10, true, LineBreakKind.None),
 			new(1, 1, 1, 1, 10, true, LineBreakKind.None),
@@ -18,7 +18,7 @@ public sealed class TextLayoutTests {
 	}
 
 	[Fact]
-	public void TrimTrailingWsWorks() {
+	public static void TrimTrailingWsWorks() {
 		ParagraphCluster[] clusters = [
 			new(0, 1, 0, 1, 10, false, LineBreakKind.None),
 			new(1, 1, 1, 1, 10, true, LineBreakKind.Soft),
@@ -29,7 +29,7 @@ public sealed class TextLayoutTests {
 	}
 
 	[Fact]
-	public void FlattenSourceOrderClustersWorks() {
+	public static void FlattenSourceOrderClustersWorks() {
 		ParagraphRun[] runs = [
 			new() {
 				Font = null!,
@@ -59,7 +59,7 @@ public sealed class TextLayoutTests {
 	}
 
 	[Fact]
-	public void WrapParaLogicalLinesEmptyParaYieldsSingleEmptyLine() {
+	public static void WrapParaLogicalLinesEmptyParaYieldsSingleEmptyLine() {
 		LogicalLine[] lines = TextLayouter.WrapParaLogicalLines(
 			paraClusters: [],
 			paraAbsoluteStart: 0,
@@ -73,7 +73,7 @@ public sealed class TextLayoutTests {
 	}
 
 	[Fact]
-	public void WrapParaLogicalLinesWorks() {
+	public static void WrapParaLogicalLinesWorks() {
 		ParagraphCluster[] clusters = [
 			new(0, 1, 0, 1, 10, false, LineBreakKind.None),
 			new(1, 1, 1, 1, 10, false, LineBreakKind.None),

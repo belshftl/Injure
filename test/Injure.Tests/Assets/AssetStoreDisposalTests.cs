@@ -9,7 +9,7 @@ public sealed class AssetStoreDisposalTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public async Task PreparedDataIsDisposedAfterInitialMaterialize() {
+	public static async Task PreparedDataIsDisposedAfterInitialMaterialize() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
@@ -23,7 +23,7 @@ public sealed class AssetStoreDisposalTests {
 	}
 
 	[Fact]
-	public async Task PreparedDataIsDisposedAfterSuccessfulReload() {
+	public static async Task PreparedDataIsDisposedAfterSuccessfulReload() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
@@ -39,7 +39,7 @@ public sealed class AssetStoreDisposalTests {
 	}
 
 	[Fact]
-	public async Task PreparedDataIsDisposedWhenFinalizeFails() {
+	public static async Task PreparedDataIsDisposedWhenFinalizeFails() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
@@ -56,7 +56,7 @@ public sealed class AssetStoreDisposalTests {
 	}
 
 	[Fact]
-	public async Task SupersededPendingReloadDisposesPreparedData() {
+	public static async Task SupersededPendingReloadDisposesPreparedData() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");

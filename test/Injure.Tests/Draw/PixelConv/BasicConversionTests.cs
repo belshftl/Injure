@@ -8,7 +8,7 @@ namespace Injure.Tests.Draw.PixelConv;
 
 public sealed class BasicConversionTests {
 	[Fact]
-	public void BasicShufflingWorks() {
+	public static void BasicShufflingWorks() {
 		PixelConversionPlan plan = PixelConverter.CreatePlan(PixelFormat.Rgba32_Unorm, PixelFormat.Bgra32_Unorm);
 		byte[] src = [0x10, 0x20, 0x30, 0x40, 0xa0, 0xb0, 0xc0, 0xd0];
 		byte[] dst = new byte[src.Length];
@@ -17,7 +17,7 @@ public sealed class BasicConversionTests {
 	}
 
 	[Fact]
-	public void AlphaOverrideWorks() {
+	public static void AlphaOverrideWorks() {
 		PixelConversionPlan plan = PixelConverter.CreatePlan(
 			PixelFormat.Rgba32_Unorm,
 			PixelFormat.Bgra32_Unorm,
@@ -45,7 +45,7 @@ public sealed class BasicConversionTests {
 	}
 
 	[Fact]
-	public void FillingMissingChannelsWorks() {
+	public static void FillingMissingChannelsWorks() {
 		PixelConversionPlan plan = PixelConverter.CreatePlan(PixelFormat.R8_Unorm, PixelFormat.Rgba32_Unorm);
 		byte[] src = [0x10, 0x20];
 		byte[] dst = new byte[src.Length * 4];
@@ -54,7 +54,7 @@ public sealed class BasicConversionTests {
 	}
 
 	[Fact]
-	public void DroppingAndNarrowingWorks() {
+	public static void DroppingAndNarrowingWorks() {
 		Assert.Throws<InvalidOperationException>(() => _ = PixelConverter.CreatePlan(PixelFormat.Rgba64_Unorm_Le, PixelFormat.R8_Unorm));
 
 		PixelConversionPlan plan = PixelConverter.CreatePlan(
@@ -69,7 +69,7 @@ public sealed class BasicConversionTests {
 	}
 
 	[Fact]
-	public void StrideWorks() {
+	public static void StrideWorks() {
 		byte[] src = [
 			0x10, 0x20, 0x30, 0x40, 0x00, 0x00,
 			0xa0, 0xb0, 0xc0, 0xd0, 0x00, 0x00,

@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.Mods.Abstractions;
 using Injure.Mods.Abstractions.ManifestReader;
 
 namespace Injure.Mods.Abstractions.Tests;
 
 public sealed class ManifestReaderTests {
-	private static ModManifest parse(string json) => ManifestReader.Parse(new SourceText("<test manifest>", json));
+	private static ModManifest parse(string json) => ManifestReader.ManifestReader.Parse(new SourceText("<test manifest>", json));
 	private static ManifestReadException parseError(string json) => Assert.Throws<ManifestReadException>(() => parse(json));
 
 	private static string validCodeManifest(
@@ -62,7 +61,7 @@ public sealed class ManifestReaderTests {
 """;
 
 	[Fact]
-	public void ParsesCodeManifest() {
+	public static void ParsesCodeManifest() {
 		ModManifest manifest = parse(validCodeManifest());
 		CodeModManifest code = Assert.IsType<CodeModManifest>(manifest);
 		Assert.Equal("jdoe.test-mod", code.OwnerId);
@@ -82,7 +81,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void ParsesContentManifest() {
+	public static void ParsesContentManifest() {
 		ModManifest manifest = parse(validContentManifest());
 		ContentModManifest content = Assert.IsType<ContentModManifest>(manifest);
 		Assert.Equal("jdoe.content-mod", content.OwnerId);
@@ -100,7 +99,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void MissingOptionalSectionsDefaultToEmptyOrNone() {
+	public static void MissingOptionalSectionsDefaultToEmptyOrNone() {
 		string json = """
 {
 	"schema": 0,
@@ -123,7 +122,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void AcceptsCommentsAndTrailingCommas() {
+	public static void AcceptsCommentsAndTrailingCommas() {
 		string json = """
 {
 	// this is a comment
@@ -142,7 +141,7 @@ public sealed class ManifestReaderTests {
 	[Theory]
 	[InlineData("code", typeof(CodeModManifest))]
 	[InlineData("content", typeof(ContentModManifest))]
-	public void EnumValuesMustBeKebabCase(string type, Type expectedManifestType) {
+	public static void EnumValuesMustBeKebabCase(string type, Type expectedManifestType) {
 		string json = $$"""
 {
 	"schema": 0,
@@ -159,7 +158,7 @@ public sealed class ManifestReaderTests {
 	[InlineData("CODE")]
 	[InlineData("co_de")]
 	[InlineData("cod-e")]
-	public void RejectsInvalidEnumSpellings(string type) {
+	public static void RejectsInvalidEnumSpellings(string type) {
 		string json = $$"""
 {
 	"schema": 0,
@@ -175,7 +174,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsUnknownRootProperty() {
+	public static void RejectsUnknownRootProperty() {
 		ManifestReadException ex = parseError(
 			validContentManifest(
 				extra: @",
@@ -188,7 +187,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsUnsupportedSchema() {
+	public static void RejectsUnsupportedSchema() {
 		string json = """
 {
 	"schema": 2,
@@ -206,7 +205,7 @@ public sealed class ManifestReaderTests {
 	[InlineData("")]
 	[InlineData("foo@bar")]
 	[InlineData("Foo Bar")]
-	public void RejectsInvalidOwnerId(string id) {
+	public static void RejectsInvalidOwnerId(string id) {
 		string json = $$"""
 {
 	"schema": 0,
@@ -221,7 +220,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsBadSemver() {
+	public static void RejectsBadSemver() {
 		string json = """
 {
 	"schema": 0,
@@ -236,7 +235,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsLiveReloadableWithoutReloadable() {
+	public static void RejectsLiveReloadableWithoutReloadable() {
 		string json = """
 {
 	"schema": 0,
@@ -254,7 +253,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsLiveReloadableOnContentMods() {
+	public static void RejectsLiveReloadableOnContentMods() {
 		string json = """
 {
 	"schema": 0,
@@ -271,7 +270,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsEntryAssemblyOnContentMods() {
+	public static void RejectsEntryAssemblyOnContentMods() {
 		ManifestReadException ex = parseError(
 			validContentManifest(
 				extra: @",
@@ -284,7 +283,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsMissingEntryAssemblyOnCodeMods() {
+	public static void RejectsMissingEntryAssemblyOnCodeMods() {
 		string json = """
 {
 	"schema": 0,
@@ -312,7 +311,7 @@ public sealed class ManifestReaderTests {
 	[InlineData("dir/../file.dll")]
 	[InlineData("dir/file.dll/")]
 	[InlineData("dir/\u0001/file.dll")]
-	public void RejectsInvalidPaths(string entryAssembly) {
+	public static void RejectsInvalidPaths(string entryAssembly) {
 		string json = $$"""
 {
 	"schema": 0,
@@ -328,7 +327,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void AllowsUnicodeRelativePath() {
+	public static void AllowsUnicodeRelativePath() {
 		string json = """
 {
 	"schema": 0,
@@ -345,7 +344,7 @@ public sealed class ManifestReaderTests {
 	[Theory]
 	[InlineData("tracked", "assets")]
 	[InlineData("manual", "content/assets")]
-	public void ParsesAssetRootWhenRequired(string management, string root) {
+	public static void ParsesAssetRootWhenRequired(string management, string root) {
 		string json = validContentManifest(
 			assets: $$"""
 {
@@ -361,7 +360,7 @@ public sealed class ManifestReaderTests {
 	[Theory]
 	[InlineData("tracked")]
 	[InlineData("manual")]
-	public void RejectsMissingAssetRootWhenRequired(string management) {
+	public static void RejectsMissingAssetRootWhenRequired(string management) {
 		string json = validContentManifest(
 			assets: $$"""
 {
@@ -375,7 +374,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsAssetRootWhenManagementIsNone() {
+	public static void RejectsAssetRootWhenManagementIsNone() {
 		string json = validContentManifest(
 			assets: """
 {
@@ -390,7 +389,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsInvalidAssetRootPath() {
+	public static void RejectsInvalidAssetRootPath() {
 		string json = validContentManifest(
 			assets: """
 {
@@ -405,7 +404,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void ParsesRelationships() {
+	public static void ParsesRelationships() {
 		string relationships = """
 [
 	{
@@ -452,7 +451,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsRequiredRelationshipWithoutVersion() {
+	public static void RejectsRequiredRelationshipWithoutVersion() {
 		string relationships = """
 [
 	{
@@ -467,7 +466,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsDuplicateRelationshipWithSameOwnerAndKind() {
+	public static void RejectsDuplicateRelationshipWithSameOwnerAndKind() {
 		string relationships = """
 [
 	{
@@ -486,7 +485,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void ParsesNativeLibrariesOnNonReloadableMod() {
+	public static void ParsesNativeLibrariesOnNonReloadableMod() {
 		string nativeLibraries = """
 [
 	{
@@ -518,7 +517,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsNativeLibrariesOnReloadableMod() {
+	public static void RejectsNativeLibrariesOnReloadableMod() {
 		string nativeLibraries = """
 [
 	{
@@ -534,7 +533,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsDuplicateNativeLibraryIdAndRid() {
+	public static void RejectsDuplicateNativeLibraryIdAndRid() {
 		string nativeLibraries = """
 [
 	{
@@ -559,7 +558,7 @@ public sealed class ManifestReaderTests {
 	[InlineData("bad id")]
 	[InlineData("bad::id")]
 	[InlineData("@bad")]
-	public void RejectsInvalidNativeLibraryId(string id) {
+	public static void RejectsInvalidNativeLibraryId(string id) {
 		string nativeLibraries = $$"""
 [
 	{
@@ -575,7 +574,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsEmptyNativeLibraryRid() {
+	public static void RejectsEmptyNativeLibraryRid() {
 		string nativeLibraries = """
 [
 	{
@@ -591,15 +590,15 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void ParsesContractAssembliesOnCodeMod() {
+	public static void ParsesContractAssembliesOnCodeMod() {
 		string contractAssemblies = @"[""bin/TestMod.Contracts.dll""]";
 		CodeModManifest manifest = Assert.IsType<CodeModManifest>(parse(validCodeManifest(contractAssemblies: contractAssemblies)));
-		Assert.Single(manifest.ContractAssemblies);
-		Assert.Equal("bin/TestMod.Contracts.dll", manifest.ContractAssemblies[0]);
+		string item = Assert.Single(manifest.ContractAssemblies);
+		Assert.Equal("bin/TestMod.Contracts.dll", item);
 	}
 
 	[Fact]
-	public void RejectsContractAssembliesOnContentMod() {
+	public static void RejectsContractAssembliesOnContentMod() {
 		ManifestReadException ex = parseError(
 			validContentManifest(
 				extra: @",
@@ -612,7 +611,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void ParsesGameCompatibility() {
+	public static void ParsesGameCompatibility() {
 		string json = validContentManifest(assets: """{ "management": "none" }""").Replace(
 			@"""game"": {}",
 			"""
@@ -628,7 +627,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void RejectsInvalidGameMvid() {
+	public static void RejectsInvalidGameMvid() {
 		string json = """
 {
 	"schema": 0,
@@ -646,7 +645,7 @@ public sealed class ManifestReaderTests {
 	}
 
 	[Fact]
-	public void ExceptionCarriesLineAndSpan() {
+	public static void ExceptionCarriesLineAndSpan() {
 		string json = """
 {
 	"schema": 0,

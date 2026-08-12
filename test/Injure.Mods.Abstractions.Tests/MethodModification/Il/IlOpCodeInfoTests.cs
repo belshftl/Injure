@@ -111,7 +111,7 @@ public sealed class IlOpCodeInfoTests {
 	}
 
 	[Fact]
-	public void NoPrefixIsDefinedDespiteRuntimeTableOmission() {
+	public static void NoPrefixIsDefinedDespiteRuntimeTableOmission() {
 		IlOpCodeDescriptor desc = IlOpCodeInfo.GetDescriptor(IlOpCodeInfo.No);
 		Assert.True(desc.IsDefined);
 		Assert.Equal(IlPrefixKind.No, desc.Prefix);
@@ -145,7 +145,7 @@ public sealed class IlOpCodeInfoTests {
 		Assert.False(IlOpCodeInfo.IsDefined((ILOpCode)raw));
 
 	[Fact]
-	public void EveryPrefixIsClassifiedAsOne() {
+	public static void EveryPrefixIsClassifiedAsOne() {
 		ILOpCode[] prefixes = [
 			ILOpCode.Constrained, ILOpCode.Volatile, ILOpCode.Tail,
 			ILOpCode.Unaligned, ILOpCode.Readonly, IlOpCodeInfo.No,
@@ -160,7 +160,7 @@ public sealed class IlOpCodeInfoTests {
 	}
 
 	[Fact]
-	public void BranchClassificationCoversBothOperandWidths() {
+	public static void BranchClassificationCoversBothOperandWidths() {
 		Assert.True(IlOpCodeInfo.IsBranch(ILOpCode.Br));
 		Assert.True(IlOpCodeInfo.IsBranch(ILOpCode.Br_s));
 		Assert.True(IlOpCodeInfo.IsBranch(ILOpCode.Leave_s));

@@ -34,7 +34,7 @@ public sealed class IlProvenanceTests {
 	// ==========================================================================================
 	// stamping
 	[Fact]
-	public void EmittedInstructionsCarryTheEmittingManipulator() {
+	public static void EmittedInstructionsCarryTheEmittingManipulator() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 
@@ -45,7 +45,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void BaselineInstructionsKeepUnknownProvenanceAcrossEdits() {
+	public static void BaselineInstructionsKeepUnknownProvenanceAcrossEdits() {
 		IlMethodBody body = baseline(1);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
@@ -55,7 +55,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void EarlierManipulatorsStampSurvivesLaterCommits() {
+	public static void EarlierManipulatorsStampSurvivesLaterCommits() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
@@ -68,7 +68,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void ManipulatorCantSeeItsOwnEmissionsWithinOneTransaction() {
+	public static void ManipulatorCantSeeItsOwnEmissionsWithinOneTransaction() {
 		IlMethodBody body = baseline(0);
 		IlTransactionCore core = new(body, IlTest.OwnerId, "self");
 		core.EmitAtBoundary(0, static e => { e.Nop(); e.Nop(); });
@@ -79,7 +79,7 @@ public sealed class IlProvenanceTests {
 	// ==========================================================================================
 	// AllFromOwner
 	[Fact]
-	public void AllFromOwnerSpansDifferentLocalIdsOfTheSameOwner() {
+	public static void AllFromOwnerSpansDifferentLocalIdsOfTheSameOwner() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, IlTest.OwnerId, "second");
@@ -92,7 +92,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void AllFromOwnerRejectsRangeSpanningTwoOwners() {
+	public static void AllFromOwnerRejectsRangeSpanningTwoOwners() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
@@ -102,7 +102,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void AllFromOwnerRejectsRangeIncludingUnknownProvenance() {
+	public static void AllFromOwnerRejectsRangeIncludingUnknownProvenance() {
 		IlMethodBody body = baseline(1);
 		stamp(body, IlTest.OwnerId, "first");
 
@@ -111,7 +111,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void AllFromOwnerFindsNothingForOwnerThatEmittedNothing() {
+	public static void AllFromOwnerFindsNothingForOwnerThatEmittedNothing() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first", count: 2);
 
@@ -121,7 +121,7 @@ public sealed class IlProvenanceTests {
 	// ==========================================================================================
 	// AllUniform and AllUnknown
 	[Fact]
-	public void AllUniformAcceptsOneOwnerAcrossSeveralManipulators() {
+	public static void AllUniformAcceptsOneOwnerAcrossSeveralManipulators() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, IlTest.OwnerId, "second");
@@ -130,14 +130,14 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void AllUniformRejectsAllUnknownRange() {
+	public static void AllUniformRejectsAllUnknownRange() {
 		IlMethodBody body = baseline(2);
 
 		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllUniform));
 	}
 
 	[Fact]
-	public void AllUniformRejectsMixOfKnownAndUnknown() {
+	public static void AllUniformRejectsMixOfKnownAndUnknown() {
 		IlMethodBody body = baseline(1);
 		stamp(body, IlTest.OwnerId, "first");
 
@@ -145,7 +145,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void AllUniformRejectsTwoOwners() {
+	public static void AllUniformRejectsTwoOwners() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
@@ -154,7 +154,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void AllUnknownAcceptsOnlyUntouchedInstructions() {
+	public static void AllUnknownAcceptsOnlyUntouchedInstructions() {
 		IlMethodBody body = baseline(2);
 		Assert.Equal(1, countMatches(body, IlPatternProvenanceConstraint.AllUnknown));
 
@@ -164,7 +164,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void AllUnknownRejectsRangeIncludingStampedInstruction() {
+	public static void AllUnknownRejectsRangeIncludingStampedInstruction() {
 		IlMethodBody body = baseline(1);
 		stamp(body, IlTest.OwnerId, "first");
 
@@ -174,7 +174,7 @@ public sealed class IlProvenanceTests {
 	// ==========================================================================================
 	// TryGetUniformProvenance, which intentionally disagrees a bit with AllUniform
 	[Fact]
-	public void TryGetUniformProvenanceTreatsAllUnknownAsUniform() {
+	public static void TryGetUniformProvenanceTreatsAllUnknownAsUniform() {
 		IlMethodBody body = baseline(2);
 		IlTransactionCore core = new(body, IlTest.OwnerId, "reader");
 		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any).RequireSingle();
@@ -186,7 +186,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void TryGetUniformProvenanceReportsTheSharedOwner() {
+	public static void TryGetUniformProvenanceReportsTheSharedOwner() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, IlTest.OwnerId, "second");
@@ -198,7 +198,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void TryGetUniformProvenanceFailsAcrossOwners() {
+	public static void TryGetUniformProvenanceFailsAcrossOwners() {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
@@ -211,7 +211,7 @@ public sealed class IlProvenanceTests {
 	// ==========================================================================================
 	// interning
 	[Fact]
-	public void EqualIdsInternToOneIndex() {
+	public static void EqualIdsInternToOneIndex() {
 		InternalIlProvenance first = new(IlTest.OwnerId, "a");
 		InternalIlProvenance second = new(string.Concat("te", "st"), "a");
 
@@ -220,7 +220,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void DifferentIdsInternToDifferentIndices() {
+	public static void DifferentIdsInternToDifferentIndices() {
 		InternalIlProvenance first = new(IlTest.OwnerId, "a");
 		InternalIlProvenance second = new(otherOwner, "a");
 
@@ -229,7 +229,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void UnknownProvenanceIsIndexZero() {
+	public static void UnknownProvenanceIsIndexZero() {
 		InternalIlProvenance unknown = default;
 
 		Assert.Equal(0, unknown.OwnerIdIndex);
@@ -240,7 +240,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void LocalIdsDoNotAffectOwnerComparison() {
+	public static void LocalIdsDoNotAffectOwnerComparison() {
 		InternalIlProvenance first = new(IlTest.OwnerId, "a");
 		InternalIlProvenance second = new(IlTest.OwnerId, "b");
 
@@ -252,7 +252,7 @@ public sealed class IlProvenanceTests {
 	// ==========================================================================================
 	// baseline provenance
 	[Fact]
-	public void BaselineProvenanceMarksEveryDecodedInstruction() {
+	public static void BaselineProvenanceMarksEveryDecodedInstruction() {
 		InternalIlProvenance baseline = new("game", null);
 		IlMethodBody body = new BodyBuilder().Nop().Nop().Ret().Build(baselineProvenance: baseline);
 
@@ -263,7 +263,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	[Fact]
-	public void BaselineProvenanceIsDistinguishableFromAManipulatorsOwn() {
+	public static void BaselineProvenanceIsDistinguishableFromAManipulatorsOwn() {
 		InternalIlProvenance baseline = new("game", null);
 		IlMethodBody body = new BodyBuilder().Nop().Ret().Build(baselineProvenance: baseline);
 		stamp(body, IlTest.OwnerId, "patch");

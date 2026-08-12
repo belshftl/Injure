@@ -9,19 +9,19 @@ namespace Injure.Tests.Draw.Text;
 
 public sealed class TextBidiTests {
 	[Fact]
-	public void LogicalRunsPureLTRWorks() {
+	public static void LogicalRunsPureLtrWorks() {
 		LogicalBidiRun[] runs = TextAnalysis.GetLogicalBidiRuns("abc");
 		AssertLogicalRuns(runs, (0, "abc".Length, Direction.LeftToRight));
 	}
 
 	[Fact]
-	public void LogicalRunsPureRTLWorks() {
+	public static void LogicalRunsPureRtlWorks() {
 		LogicalBidiRun[] runs = TextAnalysis.GetLogicalBidiRuns("אבג");
 		AssertLogicalRuns(runs, (0, "אבג".Length, Direction.RightToLeft));
 	}
 
 	[Fact]
-	public void LogicalRunsMixedDirWorks() {
+	public static void LogicalRunsMixedDirWorks() {
 		LogicalBidiRun[] runs = TextAnalysis.GetLogicalBidiRuns("abc אבג def");
 		AssertLogicalRuns(
 			runs,
@@ -32,19 +32,19 @@ public sealed class TextBidiTests {
 	}
 
 	[Fact]
-	public void VisualRunsPureLTRWorks() {
+	public static void VisualRunsPureLtrWorks() {
 		VisualBidiRun[] runs = TextAnalysis.GetVisualBidiRunsForLine("abc", 0, "abc".Length);
 		AssertVisualRuns(runs, (0, "abc".Length, Direction.LeftToRight));
 	}
 
 	[Fact]
-	public void VisualRunsPureRTLWorks() {
+	public static void VisualRunsPureRtlWorks() {
 		VisualBidiRun[] runs = TextAnalysis.GetVisualBidiRunsForLine("אבג", 0, "אבג".Length);
 		AssertVisualRuns(runs, (0, "אבג".Length, Direction.RightToLeft));
 	}
 
 	[Fact]
-	public void VisualRunsMixedDirWorks() {
+	public static void VisualRunsMixedDirWorks() {
 		VisualBidiRun[] runs = TextAnalysis.GetVisualBidiRunsForLine("abc אבג def", 0, "abc אבג def".Length);
 		AssertVisualRuns(
 			runs,
@@ -55,7 +55,7 @@ public sealed class TextBidiTests {
 	}
 
 	[Fact]
-	public void VisualRunsSubrangeUsesAbsoluteIndices() {
+	public static void VisualRunsSubrangeUsesAbsoluteIndices() {
 		const string text = "abc אבג def";
 		const int lineStart = 4;
 		const int lineLimit = 7;

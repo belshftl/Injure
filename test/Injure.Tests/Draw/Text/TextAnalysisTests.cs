@@ -18,19 +18,19 @@ public sealed class TextAnalysisTests {
 
 	[Theory]
 	[MemberData(nameof(GraphemeCases))]
-	public void GetGraphemeSpansWorks(string text, (int Start, int Length)[] expected) {
+	public static void GetGraphemeSpansWorks(string text, (int Start, int Length)[] expected) {
 		GraphemeSpan[] spans = TextAnalysis.GetGraphemeSpans(text);
 		AssertSpans(spans, expected);
 	}
 
 	[Fact]
-	public void GetLineBreaksWorks() {
+	public static void GetLineBreaksWorks() {
 		LineBreakOpportunity[] breaks = TextAnalysis.GetLineBreaks("abc def ghi", locale: "en");
 		AssertBreaks(breaks, (4, LineBreakKind.Soft), (8, LineBreakKind.Soft));
 	}
 
 	[Fact]
-	public void GetLineBreaksHandlesNbsp() {
+	public static void GetLineBreaksHandlesNbsp() {
 		LineBreakOpportunity[] breaks = TextAnalysis.GetLineBreaks("abc\u00A0def", locale: "en");
 		Assert.Empty(breaks);
 	}

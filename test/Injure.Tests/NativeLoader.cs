@@ -4,7 +4,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using Injure.Native;
 
 namespace Injure.Tests;
 
@@ -21,7 +20,7 @@ public static class LibmiscNativeLoader {
 		if (!File.Exists(path))
 			throw new FileNotFoundException($"'{path}' not found");
 		injuremisc = NativeLibrary.Load(path);
-		NativeLibrary.SetDllImportResolver(typeof(Unibreak).Assembly, dllImportResolver);
+		NativeLibrary.SetDllImportResolver(typeof(Injure.Draw.Text.Unibreak).Assembly, dllImportResolver);
 	}
 
 	private static string getRID() {
@@ -69,5 +68,4 @@ public sealed class LibmiscNativeFixture {
 }
 
 [CollectionDefinition("needs_libinjuremisc")]
-public sealed class NeedsLibmiscCollection : ICollectionFixture<LibmiscNativeFixture> {
-}
+public sealed class NeedsLibmiscCollection : ICollectionFixture<LibmiscNativeFixture>;

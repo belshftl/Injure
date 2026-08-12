@@ -9,7 +9,7 @@ public sealed class AssetStoreWatcherTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public void WatchersRegisteredBeforeDependencyPublicationAllWatchIt() {
+	public static void WatchersRegisteredBeforeDependencyPublicationAllWatchIt() {
 		AssetStore store = new();
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
@@ -30,7 +30,7 @@ public sealed class AssetStoreWatcherTests {
 	}
 
 	[Fact]
-	public void WatcherRegisteredAfterDependencyPublicationWatchesExistingDependency() {
+	public static void WatcherRegisteredAfterDependencyPublicationWatchesExistingDependency() {
 		AssetStore store = new();
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
@@ -50,7 +50,7 @@ public sealed class AssetStoreWatcherTests {
 	}
 
 	[Fact]
-	public async Task SecondWatcherOfSameTypeCanTriggerReload() {
+	public static async Task SecondWatcherOfSameTypeCanTriggerReload() {
 		AssetStore store = new();
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
@@ -71,7 +71,7 @@ public sealed class AssetStoreWatcherTests {
 	}
 
 	[Fact]
-	public void DependencyReplacementUnwatchesOldDependencyAndWatchesNewDependency() {
+	public static void DependencyReplacementUnwatchesOldDependencyAndWatchesNewDependency() {
 		AssetStore store = new();
 		TestDependency depA = new("dep-a");
 		TestDependency depB = new("dep-b");
@@ -99,7 +99,7 @@ public sealed class AssetStoreWatcherTests {
 	}
 
 	[Fact]
-	public void UnregisteredWatcherNoLongerTriggersReloads() {
+	public static void UnregisteredWatcherNoLongerTriggersReloads() {
 		AssetStore store = new();
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcher = new();

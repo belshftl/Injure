@@ -10,7 +10,7 @@ public sealed class AssetStoreReloadFailureTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public async Task ExplicitPrepareFailureThrowsAndRecordsFailure() {
+	public static async Task ExplicitPrepareFailureThrowsAndRecordsFailure() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		InvalidOperationException ex = new("prepare failed");
@@ -44,7 +44,7 @@ public sealed class AssetStoreReloadFailureTests {
 	}
 
 	[Fact]
-	public async Task WatcherPrepareFailureIsRecordedButDoesntThrowIntoRaise() {
+	public static async Task WatcherPrepareFailureIsRecordedButDoesntThrowIntoRaise() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		TestDependency dep = new("somedep");
@@ -80,7 +80,7 @@ public sealed class AssetStoreReloadFailureTests {
 	}
 
 	[Fact]
-	public async Task FinalizeFailureIsReportedAndKeepsOldVersionLive() {
+	public static async Task FinalizeFailureIsReportedAndKeepsOldVersionLive() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		InvalidOperationException ex = new("finalize failed");
@@ -116,7 +116,7 @@ public sealed class AssetStoreReloadFailureTests {
 	}
 
 	[Fact]
-	public async Task ApplyQueuedReloadsOrThrowThrowsOnFinalizeFailure() {
+	public static async Task ApplyQueuedReloadsOrThrowThrowsOnFinalizeFailure() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		InvalidOperationException ex = new("finalize failed");
@@ -138,7 +138,7 @@ public sealed class AssetStoreReloadFailureTests {
 	}
 
 	[Fact]
-	public async Task SuccessfulReloadAfterFailureClearsLastReloadFailure() {
+	public static async Task SuccessfulReloadAfterFailureClearsLastReloadFailure() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");

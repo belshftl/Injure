@@ -7,7 +7,7 @@ namespace Injure.Tests.Mods;
 
 public sealed class OwnerOrderingTests {
 	[Fact]
-	public void LocalPriorityWorks() {
+	public static void LocalPriorityWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("third", "owner", "b", 2),
 			new("first", "owner", "a", 0),
@@ -18,7 +18,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void TiebreakingWithLocalIdWorks() {
+	public static void TiebreakingWithLocalIdWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("B", "owner", "b", 0),
 			new("A", "owner", "a", 0),
@@ -29,7 +29,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void BeforeOwnerWorks() {
+	public static void BeforeOwnerWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("second", "ownerA", "a"),
 			new("first", "ownerB", "b", before: [OwnerOrderingConstraint.SoftOwner("ownerA")]),
@@ -39,7 +39,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void AfterOwnerWorks() {
+	public static void AfterOwnerWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("second", "ownerA", "a", after: [OwnerOrderingConstraint.SoftOwner("ownerB")]),
 			new("first", "ownerB", "b"),
@@ -49,7 +49,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void UnknownOwnerReferenceIsIgnoredForSoftOwner() {
+	public static void UnknownOwnerReferenceIsIgnoredForSoftOwner() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("first", "ownerA", "a", before: [OwnerOrderingConstraint.SoftOwner("missing")]),
 			new("second", "ownerB", "b"),
@@ -59,7 +59,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void UnknownOwnerReferenceThrowsForHardOwner() {
+	public static void UnknownOwnerReferenceThrowsForHardOwner() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("first", "ownerA", "a", before: [OwnerOrderingConstraint.HardOwner("missing")]),
 			new("second", "ownerB", "b"),
@@ -70,7 +70,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void BeforeEntryWorks() {
+	public static void BeforeEntryWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("second", "ownerA", "target"),
 			new("first", "ownerB", "source", before: [OwnerOrderingConstraint.HardEntry("ownerA", "target")]),
@@ -80,7 +80,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void AfterEntryWorks() {
+	public static void AfterEntryWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("second", "ownerA", "source", after: [OwnerOrderingConstraint.HardEntry("ownerB", "target")]),
 			new("first", "ownerB", "target"),
@@ -90,7 +90,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void EntryConstraintDoesNotOrderWholeOwner() {
+	public static void EntryConstraintDoesNotOrderWholeOwner() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("ownerA first", "ownerA", "a"),
 			new("ownerA second", "ownerA", "b"),
@@ -101,7 +101,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void UnknownEntryReferenceIsIgnoredForSoftEntry() {
+	public static void UnknownEntryReferenceIsIgnoredForSoftEntry() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("first", "ownerA", "a", before: [OwnerOrderingConstraint.SoftEntry("ownerB", "missing")]),
 			new("second", "ownerB", "b"),
@@ -111,7 +111,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void UnknownEntryOwnerIsIgnoredForSoftEntry() {
+	public static void UnknownEntryOwnerIsIgnoredForSoftEntry() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("first", "ownerA", "a", before: [OwnerOrderingConstraint.SoftEntry("missing", "entry")]),
 			new("second", "ownerB", "b"),
@@ -121,7 +121,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void UnknownEntryReferenceThrowsForHardEntry() {
+	public static void UnknownEntryReferenceThrowsForHardEntry() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("first", "ownerA", "a", before: [OwnerOrderingConstraint.HardEntry("ownerB", "missing")]),
 			new("second", "ownerB", "b"),
@@ -132,7 +132,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void ConstraintTargetOverloadWorks() {
+	public static void ConstraintTargetOverloadWorks() {
 		var target = OwnerOrderingConstraintTarget.Entry("ownerA", "target");
 		OwnerOrderedEntry<string>[] entries = [
 			new("second", "ownerA", "target"),
@@ -143,7 +143,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void DuplicateConstraintTargetWithinListThrows() {
+	public static void DuplicateConstraintTargetWithinListThrows() {
 		ArgumentException ex = Assert.Throws<ArgumentException>(() =>
 			new OwnerOrderedEntry<string>(
 				"item",
@@ -159,7 +159,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void DuplicateLocalIdWithinOwnerThrows() {
+	public static void DuplicateLocalIdWithinOwnerThrows() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("x1", "owner", "dup"),
 			new("x2", "owner", "dup"),
@@ -169,7 +169,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void OwnerSelfReferenceThrows() {
+	public static void OwnerSelfReferenceThrows() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("self-ref", "ownerA", "a", before: [OwnerOrderingConstraint.SoftOwner("ownerA")]),
 		];
@@ -178,7 +178,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void EntrySelfReferenceThrows() {
+	public static void EntrySelfReferenceThrows() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("self-ref", "ownerA", "a", before: [OwnerOrderingConstraint.SoftEntry("ownerA", "a")]),
 		];
@@ -188,7 +188,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void SimpleOwnerCycleThrows() {
+	public static void SimpleOwnerCycleThrows() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("cycle 1", "ownerA", "a", before: [OwnerOrderingConstraint.SoftOwner("ownerB")]),
 			new("cycle 2", "ownerB", "b", before: [OwnerOrderingConstraint.SoftOwner("ownerA")]),
@@ -199,7 +199,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void LongerOwnerCycleThrows() {
+	public static void LongerOwnerCycleThrows() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("cycle 1", "ownerA", "a", before: [OwnerOrderingConstraint.SoftOwner("ownerB")]),
 			new("cycle 2", "ownerB", "b", before: [OwnerOrderingConstraint.SoftOwner("ownerC")]),
@@ -212,7 +212,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void SimpleEntryCycleThrows() {
+	public static void SimpleEntryCycleThrows() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("cycle 1", "ownerA", "a", before: [OwnerOrderingConstraint.SoftEntry("ownerB", "b")]),
 			new("cycle 2", "ownerB", "b", before: [OwnerOrderingConstraint.SoftEntry("ownerA", "a")]),
@@ -223,7 +223,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void LongerEntryCycleThrows() {
+	public static void LongerEntryCycleThrows() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("cycle 1", "ownerA", "a", before: [OwnerOrderingConstraint.SoftEntry("ownerB", "b")]),
 			new("cycle 2", "ownerB", "b", before: [OwnerOrderingConstraint.SoftEntry("ownerC", "c")]),
@@ -240,7 +240,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void EntryConstraintConsistentWithLocalPriorityWorks() {
+	public static void EntryConstraintConsistentWithLocalPriorityWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("second", "owner", "b", 1),
 			new("first", "owner", "a", 0, before: [OwnerOrderingConstraint.HardEntry("owner", "b")]),
@@ -250,7 +250,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void EntryConstraintContradictingLocalPriorityThrows() {
+	public static void EntryConstraintContradictingLocalPriorityThrows() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("first", "owner", "a", 0),
 			new("second", "owner", "b", 1, before: [OwnerOrderingConstraint.SoftEntry("owner", "a")]),
@@ -262,7 +262,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void OwnerOrderingThenLocalPriorityWorks() {
+	public static void OwnerOrderingThenLocalPriorityWorks() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("ownerA second", "ownerA", "a", 0),
 			new("ownerA first", "ownerA", "z", -1),
@@ -273,7 +273,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void OwnerConstraintStillOrdersWholeOwnerWhenEntryConstraintsExist() {
+	public static void OwnerConstraintStillOrdersWholeOwnerWhenEntryConstraintsExist() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("ownerA first", "ownerA", "a"),
 			new("ownerA second", "ownerA", "b"),
@@ -296,7 +296,7 @@ public sealed class OwnerOrderingTests {
 	}
 
 	[Fact]
-	public void MixedOwnerAndEntryConstraintsCanInterleaveUnrelatedOwner() {
+	public static void MixedOwnerAndEntryConstraintsCanInterleaveUnrelatedOwner() {
 		OwnerOrderedEntry<string>[] entries = [
 			new("ownerA first", "ownerA", "a"),
 			new("ownerA second", "ownerA", "b"),

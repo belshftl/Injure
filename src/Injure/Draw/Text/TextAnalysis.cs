@@ -27,13 +27,17 @@ internal static unsafe partial class FriBidi {
 	public static partial uint fribidi_get_bracket(uint ch);
 }
 
-internal static unsafe class Unibreak {
+internal static unsafe partial class Unibreak {
+	// void set_linebreaks_utf16(const utf16_t *s, size_t len, const char *lang, char *brks);
+	[LibraryImport("injuremisc", StringMarshalling = StringMarshalling.Utf8)]
+	public static partial void set_linebreaks_utf16(char* s, nuint len, string? lang, byte* brks);
+
 	public static void SetLineBreaks(string text, Span<byte> breaks, string? lang = null) {
 		if (breaks.Length < text.Length)
 			throw new ArgumentException("breaks buffer too small", nameof(breaks));
 		fixed (char* pText = text)
 		fixed (byte* pBreaks = breaks)
-			Native.Unibreak.set_linebreaks_utf16(pText, (nuint)text.Length, lang, pBreaks);
+			set_linebreaks_utf16(pText, (nuint)text.Length, lang, pBreaks);
 	}
 }
 

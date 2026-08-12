@@ -32,7 +32,7 @@ jobs:
         run: dotnet restore
 
       - name: Build libmisc
-        working-directory: Injure.Native/misc
+        working-directory: native/misc
         run: make RID=linux-x64
 
       - name: Build
@@ -94,7 +94,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends libjack-jackd2-dev pkg-config
 
       - name: Build native
-        working-directory: Injure.Native
+        working-directory: native
         run: make OUTDIR=stage MODE=release RID=${{ matrix.rid }}
 
       - name: Upload native artifact
@@ -102,8 +102,8 @@ jobs:
         with:
           name: native-${{ matrix.rid }}
           path: |
-            Injure.Native/stage/${{ matrix.libaudio_out_name }}
-            Injure.Native/stage/${{ matrix.libmisc_out_name }}
+            native/stage/${{ matrix.libaudio_out_name }}
+            native/stage/${{ matrix.libmisc_out_name }}
 
   pack-and-push:
     needs: [test, build-native]
@@ -122,50 +122,46 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: native-osx-arm64
-          path: Injure.Native/pack/osx-arm64
+          path: native/pack/osx-arm64
           merge-multiple: true
 
       - name: Fetch artifact for linux-x64
         uses: actions/download-artifact@v5
         with:
           name: native-linux-x64
-          path: Injure.Native/pack/linux-x64
+          path: native/pack/linux-x64
           merge-multiple: true
 
       - name: Fetch artifact for linux-arm64
         uses: actions/download-artifact@v5
         with:
           name: native-linux-arm64
-          path: Injure.Native/pack/linux-arm64
+          path: native/pack/linux-arm64
           merge-multiple: true
 
       - name: Pack Injure
         run: >
-          dotnet pack Injure/Injure.csproj -c Release -o artifacts/nuget
+          dotnet pack src/Injure/Injure.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Analyzers
         run: >
-          dotnet pack Injure.Analyzers/Injure.Analyzers.csproj -c Release -o artifacts/nuget
+          dotnet pack src/Injure.Analyzers/Injure.Analyzers.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Mods.Abstractions
         run: >
-          dotnet pack Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj -c Release -o artifacts/nuget
+          dotnet pack src/Injure.Mods.Abstractions/Injure.Mods.Abstractions.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Mods.Analyzers
         run: >
-          dotnet pack Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj -c Release -o artifacts/nuget
+          dotnet pack src/Injure.Mods.Analyzers/Injure.Mods.Analyzers.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Mods.Analyzers.CodeFixes
         run: >
-          dotnet pack Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj -c Release -o artifacts/nuget
+          dotnet pack src/Injure.Mods.Analyzers.CodeFixes/Injure.Mods.Analyzers.CodeFixes.csproj -c Release -o artifacts/nuget
 
       - name: Pack Injure.Mods.Runtime
         run: >
-          dotnet pack Injure.Mods.Runtime/Injure.Mods.Runtime.csproj -c Release -o artifacts/nuget
-
-      - name: Pack Injure.Native
-        run: >
-          dotnet pack Injure.Native/Injure.Native.csproj -c Release -o artifacts/nuget
+          dotnet pack src/Injure.Mods.Runtime/Injure.Mods.Runtime.csproj -c Release -o artifacts/nuget
 
       - name: Add GitHub Packages source
         run: >

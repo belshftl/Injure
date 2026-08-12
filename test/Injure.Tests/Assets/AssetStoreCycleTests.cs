@@ -9,7 +9,7 @@ public sealed class AssetStoreCycleTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public void AcyclicChainSucceeds() {
+	public static void AcyclicChainSucceeds() {
 		AssetStore store = new();
 		AssetLoadingResolver resolver = new(
 			store,
@@ -27,7 +27,7 @@ public sealed class AssetStoreCycleTests {
 	}
 
 	[Fact]
-	public void SelfCycleThrows() {
+	public static void SelfCycleThrows() {
 		AssetStore store = new();
 		store.RegisterSource(ownerId, new TestSource(), "source");
 		store.RegisterResolver(
@@ -48,7 +48,7 @@ public sealed class AssetStoreCycleTests {
 	}
 
 	[Fact]
-	public void LongerCyclesThrow() {
+	public static void LongerCyclesThrow() {
 		AssetStore store = new();
 		AssetLoadingResolver resolver = new(
 			store,

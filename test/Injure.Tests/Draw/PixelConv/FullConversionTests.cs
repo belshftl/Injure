@@ -165,13 +165,13 @@ public sealed class FullConversionTests {
 
 	[Theory]
 	[MemberData(nameof(Cases))]
-	public void ConversionsMatchReference(ConversionCase c) {
+	public static void ConversionsMatchReference(ConversionCase c) {
 		assertCaseMatchesReference(c, padSourceRows: false, padDestinationRows: false);
 	}
 
 	[Theory]
 	[MemberData(nameof(Cases))]
-	public void ConversionsMatchReferenceWithPaddedRows(ConversionCase c) {
+	public static void ConversionsMatchReferenceWithPaddedRows(ConversionCase c) {
 		assertCaseMatchesReference(c, padSourceRows: true, padDestinationRows: true);
 	}
 

@@ -9,7 +9,7 @@ public sealed class AssetStoreFetchTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public void OptionalTryFetchReturnsNullForUnhandledAsset() {
+	public static void OptionalTryFetchReturnsNullForUnhandledAsset() {
 		AssetStore store = new();
 		DictionarySource source = new();
 		AssetId mainID = new(ownerId, "main");
@@ -27,7 +27,7 @@ public sealed class AssetStoreFetchTests {
 	}
 
 	[Fact]
-	public void RequiredFetchThrowsForUnhandledAsset() {
+	public static void RequiredFetchThrowsForUnhandledAsset() {
 		AssetStore store = new();
 		DictionarySource source = new();
 		AssetId mainID = new(ownerId, "main");
@@ -42,7 +42,7 @@ public sealed class AssetStoreFetchTests {
 	}
 
 	[Fact]
-	public void NonSeekableSourceStreamIsReplacedAndOriginalIsDisposed() {
+	public static void NonSeekableSourceStreamIsReplacedAndOriginalIsDisposed() {
 		AssetStore store = new();
 		NonSeekableSource source = new();
 		store.RegisterSource(ownerId, source, "source");

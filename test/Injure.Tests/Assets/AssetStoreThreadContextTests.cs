@@ -9,7 +9,7 @@ public sealed class AssetStoreThreadContextTests {
 	private const string ownerId = "test";
 
 	[Fact]
-	public void SameThreadCanAttachToMultipleStores() {
+	public static void SameThreadCanAttachToMultipleStores() {
 		AssetStore a = new();
 		AssetStore b = new();
 		AssetStore c = new();
@@ -22,7 +22,7 @@ public sealed class AssetStoreThreadContextTests {
 	}
 
 	[Fact]
-	public void RetiredVerIsReclaimedOnlyAfterSafeBoundary() {
+	public static void RetiredVerIsReclaimedOnlyAfterSafeBoundary() {
 		AssetStore store = new();
 		using AssetThreadContext mainCtx = store.AttachCurrentThread();
 		store.RegisterSource(ownerId, new TestSource(), "source");
@@ -74,7 +74,7 @@ public sealed class AssetStoreThreadContextTests {
 	}
 
 	[Fact]
-	public void DisposingContextAllowsReclamation() {
+	public static void DisposingContextAllowsReclamation() {
 		AssetStore store = new();
 		using AssetThreadContext mainCtx = store.AttachCurrentThread();
 		store.RegisterSource(ownerId, new TestSource(), "source");
