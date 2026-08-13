@@ -216,7 +216,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 	[Fact]
 	public void ConstructedReferenceResolvesToSameRowAsDecodedReference() {
 		IlMethodBody body = Fixture.Decode(peReader, metadata, "GenericCallers", "Open");
-		BlanketTestsTokenResolver resolver = new(metadata);
+		RoundtripTestsTokenResolver resolver = new(metadata);
 
 		Assert.Equal(
 			resolver.ResolveMethod(Fixture.SoleCall(body, "Pick")),

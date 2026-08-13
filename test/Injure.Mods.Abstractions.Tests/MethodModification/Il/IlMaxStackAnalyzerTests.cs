@@ -11,7 +11,7 @@ public sealed class IlMaxStackAnalyzerTests {
 	// regression tests
 	[Fact]
 	public static void ModifiedVoidReturnStillCountsAsVoid() {
-		IlTypeRef modifiedVoid = new IlModifiedTypeRef(IlTest.Named("System.Runtime.CompilerServices", "IsExternalInit"), IlTest.Void, isRequired: true);
+		IlTypeRef modifiedVoid = new IlModifiedTypeRef(IlTest.Named("System.Runtime.CompilerServices", "IsExternalInit", IlNamedTypeKind.Class), IlTest.Void, isRequired: true);
 		IlMethodBody body = new BodyBuilder().Ret().Build(IlTest.Sig(modifiedVoid));
 		Assert.Equal(0, IlMaxStackAnalyzer.Analyze(body));
 	}

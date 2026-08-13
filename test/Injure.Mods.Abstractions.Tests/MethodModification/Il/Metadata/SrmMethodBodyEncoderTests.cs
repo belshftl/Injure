@@ -8,7 +8,7 @@ using System.Reflection.Metadata.Ecma335;
 using Injure.Mods.Abstractions.MethodModification.Il;
 using Injure.Mods.Abstractions.MethodModification.Il.Metadata;
 
-namespace Injure.Mods.Abstractions.Tests.MethodModification.Il;
+namespace Injure.Mods.Abstractions.Tests.MethodModification.Il.Metadata;
 
 public sealed class SrmMethodBodyEncoderTests {
 	private static IlEncodedMethodBody encode(IlMethodBody body, in IlEncodingOptions options = default) =>

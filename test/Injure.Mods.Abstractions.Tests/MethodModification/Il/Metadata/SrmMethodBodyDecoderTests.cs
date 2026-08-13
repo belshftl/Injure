@@ -7,7 +7,7 @@ using System.Reflection.PortableExecutable;
 using Injure.Mods.Abstractions.MethodModification.Il;
 using Injure.Mods.Abstractions.MethodModification.Il.Metadata;
 
-namespace Injure.Mods.Abstractions.Tests.MethodModification.Il;
+namespace Injure.Mods.Abstractions.Tests.MethodModification.Il.Metadata;
 
 public sealed class SrmMethodBodyDecoderTests : IDisposable {
 	private readonly FileStream stream;

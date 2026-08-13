@@ -57,7 +57,7 @@ public readonly struct IlProvenance : IEquatable<IlProvenance> {
 /// </para>
 /// <para>
 /// The table only ever grows. Growth is bounded by the set of distinct IDs a process ever loads,
-/// and reloading a mod reuses its existing indexes.
+/// and reloading a mod reuses its existing indices.
 /// </para>
 /// </remarks>
 internal static class IlProvenanceInterning {

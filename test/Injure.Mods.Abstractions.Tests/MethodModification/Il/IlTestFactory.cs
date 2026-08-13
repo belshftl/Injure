@@ -4,7 +4,6 @@
 using System.Collections.Immutable;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
-using Injure.Mods.Abstractions;
 using Injure.Mods.Abstractions.MethodModification.Il;
 using Injure.Mods.Abstractions.MethodModification.Il.Metadata;
 
@@ -19,13 +18,14 @@ internal static class IlTest {
 
 	public static IlTypeScope Scope { get; } = new IlTypeScope.Module(new IlModuleIdentity(Guid.Empty, "Test"));
 
-	public static IlTypeRef Void { get; } = new IlPrimitiveTypeRef(PrimitiveTypeCode.Void);
-	public static IlTypeRef Int32 { get; } = new IlPrimitiveTypeRef(PrimitiveTypeCode.Int32);
-	public static IlTypeRef Object { get; } = Named("System", "Object");
-	public static IlTypeRef Exception { get; } = Named("System", "Exception");
+	public static IlPrimitiveTypeRef Void { get; } = new(PrimitiveTypeCode.Void);
+	public static IlPrimitiveTypeRef Int32 { get; } = new(PrimitiveTypeCode.Int32);
+	public static IlPrimitiveTypeRef String { get; } = new(PrimitiveTypeCode.String);
+	public static IlPrimitiveTypeRef Object { get; } = new(PrimitiveTypeCode.Object);
+	public static IlNamedTypeRef Exception { get; } = Named("System", "Exception", IlNamedTypeKind.Class);
 
-	public static IlNamedTypeRef Named(string ns, string name) =>
-		new(Scope, null, ns, name, 0, IlNamedTypeKind.Class);
+	public static IlNamedTypeRef Named(string ns, string name, IlNamedTypeKind kind, int genericArity = 0) =>
+		new(Scope, null, ns, name, genericArity, kind);
 
 	/// <summary>
 	/// A static signature; every parameter is required.

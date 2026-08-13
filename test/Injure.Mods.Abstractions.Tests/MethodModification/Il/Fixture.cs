@@ -45,7 +45,7 @@ internal static class Fixture {
 		string declaringTypeName,
 		string methodName
 	) {
-		IlEncodedMethodBody encoded = SrmMethodBodyEncoder.Prepare(body, new BlanketTestsTokenResolver(metadata));
+		IlEncodedMethodBody encoded = SrmMethodBodyEncoder.Prepare(body, new RoundtripTestsTokenResolver(metadata));
 		byte[] bytes = encoded.ToArray();
 		unsafe {
 			fixed (byte* p = bytes)

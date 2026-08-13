@@ -26,7 +26,7 @@ namespace Injure.Mods.Abstractions.Tests.MethodModification.Il;
 /// form choice is not preserved.
 /// </para>
 /// </remarks>
-public sealed class IlRoundtripBlanketTests {
+public sealed class IlMethodBodyRoundtripTests {
 	private const int failureReportLimit = 25;
 
 	public static TheoryData<string> Assemblies => new() {
@@ -43,7 +43,7 @@ public sealed class IlRoundtripBlanketTests {
 		using FileStream stream = File.OpenRead(assemblyPath);
 		using PEReader peReader = new(stream);
 		MetadataReader metadata = peReader.GetMetadataReader();
-		BlanketTestsTokenResolver resolver = new(metadata);
+		RoundtripTestsTokenResolver resolver = new(metadata);
 
 		int considered = 0;
 		int skipped = 0;
@@ -79,7 +79,7 @@ public sealed class IlRoundtripBlanketTests {
 		}
 	}
 
-	private static void roundtrip(PEReader peReader, MetadataReader metadata, MethodDefinitionHandle handle, BlanketTestsTokenResolver resolver) {
+	private static void roundtrip(PEReader peReader, MetadataReader metadata, MethodDefinitionHandle handle, RoundtripTestsTokenResolver resolver) {
 		MethodDefinition method = metadata.GetMethodDefinition(handle);
 		MethodBodyBlock original = peReader.GetMethodBody(method.RelativeVirtualAddress);
 
@@ -180,7 +180,7 @@ public sealed class IlRoundtripBlanketTests {
 /// an encode failure.
 /// </para>
 /// </remarks>
-internal sealed class BlanketTestsTokenResolver : IIlTokenResolver {
+internal sealed class RoundtripTestsTokenResolver : IIlTokenResolver {
 	private readonly Dictionary<IlTypeRef, EntityHandle> types = new();
 	private readonly Dictionary<IlMethodRef, EntityHandle> methods = new();
 	private readonly Dictionary<IlFieldRef, EntityHandle> fields = new();
@@ -193,18 +193,18 @@ internal sealed class BlanketTestsTokenResolver : IIlTokenResolver {
 	/// </summary>
 	public int LocalSignatureOriginHits { get; private set; }
 
-	public BlanketTestsTokenResolver(MetadataReader metadata) {
+	public RoundtripTestsTokenResolver(MetadataReader metadata) {
 		ArgumentNullException.ThrowIfNull(metadata);
 		SrmReferenceDecoder decoder = new(metadata);
 		moduleIdentity = decoder.ModuleIdentity;
 
 		foreach (TypeDefinitionHandle handle in metadata.TypeDefinitions)
-			tryAdd(types, () => decoder.ResolveType(handle), handle);
+			tryAddType(types, () => decoder.ResolveType(handle), handle);
 		foreach (TypeReferenceHandle handle in metadata.TypeReferences)
-			tryAdd(types, () => decoder.ResolveType(handle), handle);
+			tryAddType(types, () => decoder.ResolveType(handle), handle);
 		forEachRow(metadata, TableIndex.TypeSpec, rowId => {
 			TypeSpecificationHandle handle = MetadataTokens.TypeSpecificationHandle(rowId);
-			tryAdd(types, () => decoder.ResolveType(handle), handle);
+			tryAddType(types, () => decoder.ResolveType(handle), handle);
 		});
 
 		foreach (MethodDefinitionHandle handle in metadata.MethodDefinitions)
@@ -288,6 +288,25 @@ internal sealed class BlanketTestsTokenResolver : IIlTokenResolver {
 		int count = metadata.GetTableRowCount(table);
 		for (int rowId = 1; rowId <= count; rowId++)
 			action(rowId);
+	}
+
+	private static void tryAddType(Dictionary<IlTypeRef, EntityHandle> map, Func<IlTypeRef> resolve, EntityHandle handle) {
+		IlTypeRef type;
+		try {
+			type = resolve();
+		} catch (BadImageFormatException) {
+			return;
+		} catch (NotSupportedException) {
+			return;
+		} catch (Exception ex) {
+			throw new InvalidOperationException($"resolving token 0x{MetadataTokens.GetToken(handle):x8} failed", ex);
+		}
+		map.TryAdd(resolve(), handle);
+		if (type is IlNamedTypeRef named) {
+			map.TryAdd(new IlNamedTypeRef(named.Scope, named.DeclaringType, named.Namespace, named.Name, named.GenericArity, IlNamedTypeKind.Unknown), handle);
+			map.TryAdd(new IlNamedTypeRef(named.Scope, named.DeclaringType, named.Namespace, named.Name, named.GenericArity, IlNamedTypeKind.Class), handle);
+			map.TryAdd(new IlNamedTypeRef(named.Scope, named.DeclaringType, named.Namespace, named.Name, named.GenericArity, IlNamedTypeKind.ValueType), handle);
+		}
 	}
 
 	private static void tryAdd<T>(Dictionary<T, EntityHandle> map, Func<T> resolve, EntityHandle handle) where T : notnull {

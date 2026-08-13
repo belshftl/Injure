@@ -6,7 +6,7 @@ using System.Reflection.Emit;
 using System.Reflection.Metadata;
 using Injure.Mods.Abstractions.MethodModification.Il.Metadata;
 
-namespace Injure.Mods.Abstractions.Tests.MethodModification.Il;
+namespace Injure.Mods.Abstractions.Tests.MethodModification.Il.Metadata;
 
 public sealed class IlOpCodeInfoTests {
 	private static readonly Lazy<TheoryData<string>> allOpCodes = new(static () => {
