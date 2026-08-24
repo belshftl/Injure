@@ -65,8 +65,8 @@ internal static class IlTest {
 /// branch can be written before its target exists.
 /// </remarks>
 internal sealed class BodyBuilder {
-	private readonly List<IlInstruction> instrs = [];
-	private readonly List<IlExceptionRegion> regions = [];
+	private readonly List<IlInstruction> instrs = new();
+	private readonly List<IlExceptionRegion> regions = new();
 	private ulong nextId = 1;
 
 	/// <summary>

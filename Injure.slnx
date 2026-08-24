@@ -11,5 +11,6 @@
 	<Project Path="./src/Injure.Weaver/Injure.Weaver.csproj" />
 
 	<Project Path="./test/Injure.Mods.Abstractions.Tests/Injure.Mods.Abstractions.Tests.csproj" />
+	<Project Path="./test/Injure.Mods.Runtime.Tests/Injure.Mods.Runtime.Tests.csproj" />
 	<Project Path="./test/Injure.Tests/Injure.Tests.csproj" />
 </Solution>

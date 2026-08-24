@@ -47,9 +47,21 @@ public sealed class IlMethodRef : IEquatable<IlMethodRef> {
 	/// </summary>
 	public bool IsGenericInstantiation => !GenericArguments.IsDefaultOrEmpty;
 
+	/// <summary>
+	/// Checks for structural equality with <paramref name="other"/>.
+	/// </summary>
 	public bool Equals(IlMethodRef? other) => IlReferenceEquality.MethodEquals(this, other);
+
+	/// <summary>
+	/// Checks for structural equality with <paramref name="obj"/> if it is an <see cref="IlMethodRef"/>.
+	/// </summary>
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is IlMethodRef other && Equals(other);
+
+	/// <summary>
+	/// Gets a structural hash in correspondence with <see cref="Equals(IlMethodRef?)"/>.
+	/// </summary>
 	public override int GetHashCode() => IlReferenceEquality.MethodHashCode(this);
+
 	public static bool operator ==(IlMethodRef? left, IlMethodRef? right) => left is null ? right is null : left.Equals(right);
 	public static bool operator !=(IlMethodRef? left, IlMethodRef? right) => !(left == right);
 

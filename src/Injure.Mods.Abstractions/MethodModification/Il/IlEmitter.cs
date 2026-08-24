@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Reflection;
 using System.Reflection.Metadata;
 
 namespace Injure.Mods.Abstractions.MethodModification.Il;
@@ -11,7 +12,7 @@ namespace Injure.Mods.Abstractions.MethodModification.Il;
 /// <remarks>
 /// <para>
 /// Emitted instructions are recorded semantically, not encoded. Compact encoding forms are not
-/// preserved: an instruction is stored in its canonical form, so a value that could be written as a
+/// preserved; an instruction is stored in its canonical form, so a value that could be written as a
 /// short form is indistinguishable afterwards from one that could not, both to later manipulators
 /// and to the encoder, which independently chooses the shortest legal encoding.
 /// </para>
@@ -21,10 +22,22 @@ namespace Injure.Mods.Abstractions.MethodModification.Il;
 /// </remarks>
 public readonly ref struct IlEmitter {
 	private IlFragmentBuilder builder => field ?? throw new InvalidOperationException("this IlEmitter value is uninitialized/invalid");
+	private IlOwnerContext ownerContext {
+		get {
+			if (!field.IsValid)
+				throw new InvalidOperationException("this IlEmitter value is uninitialized/invalid");
+			return field;
+		}
+	}
+	private readonly IIlCallDispatch? callDispatch;
 
-	internal IlEmitter(IlFragmentBuilder builder) {
+	internal IlEmitter(IlFragmentBuilder builder, IlOwnerContext ownerContext, IIlCallDispatch? callDispatch) {
 		InternalStateException.ThrowIfNull(builder);
+		if (!ownerContext.IsValid)
+			throw new InternalStateException("IlEmitter constructed with uninitialized/invalid IlOwnerContext");
 		this.builder = builder;
+		this.ownerContext = ownerContext;
+		this.callDispatch = callDispatch;
 	}
 
 	// ======================================================================================
@@ -34,6 +47,81 @@ public readonly ref struct IlEmitter {
 	/// Marks the current fragment position as the target of a previously defined label.
 	/// </summary>
 	public void MarkLabel(IlLabel label) => builder.MarkLabel(label);
+
+	// ======================================================================================
+	// non-instruction emission methods
+
+	/// <summary>
+	/// Emits a sequence of instructions to call <paramref name="method"/> through a dispatch
+	/// table rather than by direct reference. This is the only way to call into a reloadable mod.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="method"/> has no callable entry point (open generic, abstract,
+	/// extern with RVA 0, etc.)
+	/// </exception>
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="method"/>'s <b>signature</b> would create an illegal reference to a
+	/// reloadable mod; see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// This is different from if <paramref name="method"/> itself would create an illegal reference;
+	/// see the paragraph on signature operands' types' restrictions in the aforementioned type docs.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// Takes in a reflection method rather than a structural metadata reference because the
+	/// target has to already be callable now, which is exactly what reflection is for.
+	/// </para>
+	/// <para>
+	/// The sequence emitted is:
+	/// <code>
+	/// ldc.i4 &lt;...&gt;
+	/// call &lt;...&gt;
+	/// calli &lt;signature&gt;
+	/// </code>
+	/// The emitted opcodes are part of the API and a change to them will be treated like an
+	/// API break, but the operands of the <c>ldc.i4</c> and <c>call</c> are not, and should be
+	/// treated as opaque magic values that are stable within a process but may change between
+	/// multiple runs of the process. <c>&lt;signature&gt;</c> is the signature of
+	/// <paramref name="method"/>.
+	/// </para>
+	/// <para>
+	/// Open generics are currently unsupported; <paramref name="method"/> must not have open type
+	/// parameters. Support may come later, and if it is added in the future, the emitted instruction
+	/// sequence will be different for open generic methods (by necessity).
+	/// </para>
+	/// <para>
+	/// Usable in a non-reloadable mod too, though there it's just unnecessary indirection. Never silently
+	/// emits a direct call instead.
+	/// </para>
+	/// </remarks>
+	public void IndirectCall(MethodInfo method) {
+		if (callDispatch is null)
+			throw new InternalStateException("no indirect call dispatch mechanism available here; if this is in an engine test, pass a nonnull IIlCallDispatch to your IlTransactionCore construction");
+
+		ArgumentNullException.ThrowIfNull(method);
+		if (method.IsAbstract)
+			throw new ArgumentException("method is abstract and has no callable entry point", nameof(method));
+		if (method.IsGenericMethodDefinition || method.DeclaringType?.IsGenericTypeDefinition == true)
+			throw new ArgumentException("method is an open generic / on an open generic type and has no callable entry point", nameof(method));
+		if (method.IsGenericMethodDefinition || method.DeclaringType?.IsGenericTypeDefinition == true)
+			throw new ArgumentException("method is an open generic / on an open generic type and has no callable entry point", nameof(method));
+		if (
+			method.GetMethodBody() is null &&
+			(method.Attributes & MethodAttributes.PinvokeImpl) == 0 &&
+			(method.GetMethodImplementationFlags() & (MethodImplAttributes.InternalCall | MethodImplAttributes.Runtime)) == 0 &&
+			!method.IsDefined(typeof(System.Runtime.CompilerServices.UnsafeAccessorAttribute), inherit: false)
+		)
+			throw new ArgumentException("method is a method with no CIL body, P/Invoke impl, runtime management flags, or [UnsafeAccessor], i.e. likely extern with RVA 0", nameof(method));
+
+		IlMethodSignature signature = IlReferenceFactory.Method(method).Signature;
+		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerContext));
+		int slot = callDispatch.AllocateSlot(method);
+		Raw(ILOpCode.Ldc_i4, new IlInt32Operand(slot));
+		Raw(ILOpCode.Call, new IlMethodOperand(callDispatch.ResolveTarget));
+		Raw(ILOpCode.Calli, new IlCallSiteOperand(signature));
+	}
 
 	// ======================================================================================
 	// raw emit
@@ -64,6 +152,11 @@ public readonly ref struct IlEmitter {
 	/// </para>
 	/// <para>
 	/// Raw branch/switch instructions are not supported; use <see cref="Branch(ILOpCode, IlLabel)"/>.
+	/// </para>
+	/// <para>
+	/// No attempt is made to check if the operand makes an illegal reference to a reloadable mod (see
+	/// <see cref="IlCollectibleReferenceException"/>'s type docs for more info); this does not affect
+	/// correctness, but it does mean the failure surfaces later at JIT time rather than immediately.
 	/// </para>
 	/// </remarks>
 	public void Raw(ILOpCode opCode, IlOperand operand) {
@@ -206,7 +299,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public void Ldfld(IlFieldRef field) => Raw(ILOpCode.Ldfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="field"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Ldfld(IlFieldRef field) {
+		ArgumentNullException.ThrowIfNull(field);
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		Raw(ILOpCode.Ldfld, new IlFieldOperand(field));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>ldflda</c> instruction.
@@ -214,7 +315,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public void Ldflda(IlFieldRef field) => Raw(ILOpCode.Ldflda, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="field"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Ldflda(IlFieldRef field) {
+		ArgumentNullException.ThrowIfNull(field);
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldflda {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		Raw(ILOpCode.Ldflda, new IlFieldOperand(field));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>stfld</c> instruction.
@@ -222,7 +331,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public void Stfld(IlFieldRef field) => Raw(ILOpCode.Stfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="field"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Stfld(IlFieldRef field) {
+		ArgumentNullException.ThrowIfNull(field);
+		IlTypeRestrictionCheck.AssertUnrestricted($"stfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		Raw(ILOpCode.Stfld, new IlFieldOperand(field));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>ldsfld</c> instruction.
@@ -230,7 +347,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public void Ldsfld(IlFieldRef field) => Raw(ILOpCode.Ldsfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="field"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Ldsfld(IlFieldRef field) {
+		ArgumentNullException.ThrowIfNull(field);
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldsfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		Raw(ILOpCode.Ldsfld, new IlFieldOperand(field));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>ldsflda</c> instruction.
@@ -238,7 +363,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public void Ldsflda(IlFieldRef field) => Raw(ILOpCode.Ldsflda, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="field"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Ldsflda(IlFieldRef field) {
+		ArgumentNullException.ThrowIfNull(field);
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldsflda {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		Raw(ILOpCode.Ldsflda, new IlFieldOperand(field));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>stsfld</c> instruction.
@@ -246,7 +379,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public void Stsfld(IlFieldRef field) => Raw(ILOpCode.Stsfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="field"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Stsfld(IlFieldRef field) {
+		ArgumentNullException.ThrowIfNull(field);
+		IlTypeRestrictionCheck.AssertUnrestricted($"stsfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		Raw(ILOpCode.Stsfld, new IlFieldOperand(field));
+	}
 
 	// ======================================================================================
 	// calls
@@ -257,7 +398,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
 	/// </exception>
-	public void Call(IlMethodRef method) => Raw(ILOpCode.Call, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="method"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Call(IlMethodRef method) {
+		ArgumentNullException.ThrowIfNull(method);
+		IlTypeRestrictionCheck.AssertUnrestricted($"call {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
+		Raw(ILOpCode.Call, new IlMethodOperand(method));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>callvirt</c> instruction.
@@ -265,7 +414,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
 	/// </exception>
-	public void Callvirt(IlMethodRef method) => Raw(ILOpCode.Callvirt, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="method"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Callvirt(IlMethodRef method) {
+		ArgumentNullException.ThrowIfNull(method);
+		IlTypeRestrictionCheck.AssertUnrestricted($"callvirt {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
+		Raw(ILOpCode.Callvirt, new IlMethodOperand(method));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>calli</c> instruction.
@@ -273,7 +430,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="signature"/> is <see langword="null"/>.
 	/// </exception>
-	public void Calli(IlMethodSignature signature) => Raw(ILOpCode.Calli, new IlCallSiteOperand(signature ?? throw new ArgumentNullException(nameof(signature))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="signature"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Calli(IlMethodSignature signature) {
+		ArgumentNullException.ThrowIfNull(signature);
+		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerContext));
+		Raw(ILOpCode.Calli, new IlCallSiteOperand(signature));
+	}
 
 	// ======================================================================================
 	// object ops
@@ -284,7 +449,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="constructor"/> is <see langword="null"/>.
 	/// </exception>
-	public void Newobj(IlMethodRef constructor) => Raw(ILOpCode.Newobj, new IlMethodOperand(constructor ?? throw new ArgumentNullException(nameof(constructor))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="constructor"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Newobj(IlMethodRef constructor) {
+		ArgumentNullException.ThrowIfNull(constructor);
+		IlTypeRestrictionCheck.AssertUnrestricted($"newobj {constructor}", IlTypeRestrictionCheck.CheckMethodOperand(constructor, ownerContext));
+		Raw(ILOpCode.Newobj, new IlMethodOperand(constructor));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>box</c> instruction.
@@ -292,7 +465,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public void Box(IlTypeRef type) => Raw(ILOpCode.Box, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="type"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Box(IlTypeRef type) {
+		ArgumentNullException.ThrowIfNull(type);
+		IlTypeRestrictionCheck.AssertUnrestricted($"box {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		Raw(ILOpCode.Box, new IlTypeOperand(type));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>unbox.any</c> instruction.
@@ -300,7 +481,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public void UnboxAny(IlTypeRef type) => Raw(ILOpCode.Unbox_any, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="type"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void UnboxAny(IlTypeRef type) {
+		ArgumentNullException.ThrowIfNull(type);
+		IlTypeRestrictionCheck.AssertUnrestricted($"unbox.any {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		Raw(ILOpCode.Unbox_any, new IlTypeOperand(type));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>castclass</c> instruction.
@@ -308,7 +497,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public void Castclass(IlTypeRef type) => Raw(ILOpCode.Castclass, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="type"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Castclass(IlTypeRef type) {
+		ArgumentNullException.ThrowIfNull(type);
+		IlTypeRestrictionCheck.AssertUnrestricted($"castclass {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		Raw(ILOpCode.Castclass, new IlTypeOperand(type));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>isinst</c> instruction.
@@ -316,7 +513,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public void Isinst(IlTypeRef type) => Raw(ILOpCode.Isinst, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="type"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Isinst(IlTypeRef type) {
+		ArgumentNullException.ThrowIfNull(type);
+		IlTypeRestrictionCheck.AssertUnrestricted($"isinst {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		Raw(ILOpCode.Isinst, new IlTypeOperand(type));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>newarr</c> instruction.
@@ -324,7 +529,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public void Newarr(IlTypeRef type) => Raw(ILOpCode.Newarr, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="type"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Newarr(IlTypeRef type) {
+		ArgumentNullException.ThrowIfNull(type);
+		IlTypeRestrictionCheck.AssertUnrestricted($"newarr {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		Raw(ILOpCode.Newarr, new IlTypeOperand(type));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>ldtoken</c> instruction for a type.
@@ -332,7 +545,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public void Ldtoken(IlTypeRef type) => Raw(ILOpCode.Ldtoken, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="type"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Ldtoken(IlTypeRef type) {
+		ArgumentNullException.ThrowIfNull(type);
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		Raw(ILOpCode.Ldtoken, new IlTypeOperand(type));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>ldtoken</c> instruction for a method.
@@ -340,7 +561,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
 	/// </exception>
-	public void Ldtoken(IlMethodRef method) => Raw(ILOpCode.Ldtoken, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="method"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Ldtoken(IlMethodRef method) {
+		ArgumentNullException.ThrowIfNull(method);
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
+		Raw(ILOpCode.Ldtoken, new IlMethodOperand(method));
+	}
 
 	/// <summary>
 	/// Emits the CIL <c>ldtoken</c> instruction for a field.
@@ -348,7 +577,15 @@ public readonly ref struct IlEmitter {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public void Ldtoken(IlFieldRef field) => Raw(ILOpCode.Ldtoken, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="field"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public void Ldtoken(IlFieldRef field) {
+		ArgumentNullException.ThrowIfNull(field);
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		Raw(ILOpCode.Ldtoken, new IlFieldOperand(field));
+	}
 
 	// ======================================================================================
 	// branches

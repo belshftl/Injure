@@ -21,7 +21,7 @@ public sealed class IlPipelineTests {
 	[Fact]
 	public static void NoManipulatorsReturnsBaseline() {
 		IlMethodBody baseline = makeBaseline();
-		IlPipelineResult result = IlPipeline.Transform(baseline, []);
+		IlPipelineResult result = IlPipeline.Transform(baseline, [], default, null);
 		Assert.False(result.Modified);
 		Assert.Same(baseline, result.Body);
 	}
@@ -29,7 +29,7 @@ public sealed class IlPipelineTests {
 	[Fact]
 	public static void NoOpManipulatorsLeaveBodyUnmodified() {
 		IlMethodBody baseline = makeBaseline();
-		IlPipelineResult result = IlPipeline.Transform(baseline, [noOp("a"), noOp("b")]);
+		IlPipelineResult result = IlPipeline.Transform(baseline, [noOp("a"), noOp("b")], default, null);
 		Assert.False(result.Modified);
 		Assert.Same(baseline, result.Body);
 	}
@@ -40,7 +40,7 @@ public sealed class IlPipelineTests {
 	public static void EmittedInstructionsGoIntoCloneNotBaseline() {
 		IlMethodBody baseline = makeBaseline();
 		int before = baseline.Instructions.Count;
-		IlPipelineResult result = IlPipeline.Transform(baseline, [emitsNop("a")]);
+		IlPipelineResult result = IlPipeline.Transform(baseline, [emitsNop("a")], default, null);
 		Assert.True(result.Modified);
 		Assert.NotSame(baseline, result.Body);
 		Assert.Equal(before, baseline.Instructions.Count);
@@ -56,7 +56,9 @@ public sealed class IlPipelineTests {
 				makeManipulator("first", _ => order.Add(0)),
 				makeManipulator("second", _ => order.Add(1)),
 				makeManipulator("third", _ => order.Add(2)),
-			]
+			],
+			default,
+			null
 		);
 		Assert.Equal([0, 1, 2], order);
 	}
@@ -66,41 +68,45 @@ public sealed class IlPipelineTests {
 		int observed = -1;
 		IlPipeline.Transform(
 			makeBaseline(),
-			[emitsNop("first"), makeManipulator("second", ctx => observed = ctx.InstructionCount)]
+			[emitsNop("first"), makeManipulator("second", ctx => observed = ctx.InstructionCount)],
+			default,
+			null
 		);
 		Assert.Equal(3, observed);
 	}
 
 	[Fact]
 	public static void ValidationResultIsCachedOnTheReturnedBody() {
-		IlPipelineResult result = IlPipeline.Transform(makeBaseline(), [emitsNop("a")]);
+		IlPipelineResult result = IlPipeline.Transform(makeBaseline(), [emitsNop("a")], default, null);
 		Assert.NotNull(result.Body.ComputedMaxStack);
 	}
 
 	// ==========================================================================================
 	// failure
-	private sealed class ManipulatorException : Exception {
-		public ManipulatorException() : base() {}
-		public ManipulatorException(string msg) : base(msg) {}
+	private sealed class OtherException : Exception {
+		public OtherException() : base() {}
+		public OtherException(string msg) : base(msg) {}
 	}
 
 	[Fact]
-	public static void ManipulatorExceptionsBubbleOutUnchanged() {
+	public static void ManipulatorExceptionsAreWrapped() {
 		IlMethodBody baseline = makeBaseline();
-		ManipulatorException thrown = new("from the manipulator");
-		ManipulatorException caught = Assert.Throws<ManipulatorException>(
-			() => IlPipeline.Transform(baseline, [makeManipulator("a", _ => throw thrown)])
+		OtherException thrown = new("from the manipulator");
+		IlManipulatorException caught = Assert.Throws<IlManipulatorException>(
+			() => IlPipeline.Transform(baseline, [makeManipulator("a", _ => throw thrown)], default, null)
 		);
-		Assert.Same(thrown, caught);
+		Assert.Same(thrown, caught.InnerException);
 		Assert.Equal(2, baseline.Instructions.Count);
 	}
 
 	[Fact]
 	public static void FailedManipulatorEditsAreDiscarded() {
 		IlMethodBody baseline = makeBaseline();
-		Assert.Throws<ManipulatorException>(() => IlPipeline.Transform(
+		Assert.Throws<IlManipulatorException>(() => IlPipeline.Transform(
 			baseline,
-			[emitsNop("first"), makeManipulator("second", static _ => throw new ManipulatorException())]
+			[emitsNop("first"), makeManipulator("second", static _ => throw new OtherException())],
+			default,
+			null
 		));
 		Assert.Equal(2, baseline.Instructions.Count);
 	}
@@ -115,10 +121,12 @@ public sealed class IlPipelineTests {
 						e.Nop();
 						e.Nop();
 					});
-					throw new ManipulatorException();
+					throw new OtherException();
 				}),
 				emitsNop("good"),
 			],
+			default,
+			null,
 			new IlPipelineOptions { SkipFailingManipulators = true }
 		);
 		Assert.True(result.Modified);
@@ -127,13 +135,15 @@ public sealed class IlPipelineTests {
 
 	[Fact]
 	public static void DuplicateIdentifiersAreRejected() =>
-		Assert.ThrowsAny<Exception>(() => IlPipeline.Transform(makeBaseline(), [noOp("same"), noOp("same")]));
+		Assert.ThrowsAny<Exception>(() => IlPipeline.Transform(makeBaseline(), [noOp("same"), noOp("same")], default, null));
 
 	[Fact]
 	public static void SameLocalIdCanExistInDifferentOwners() {
 		IlPipelineResult result = IlPipeline.Transform(
 			makeBaseline(),
-			[emitsNop("patch"), makeManipulator("patch", ctx => ctx.EmitAtStart(static e => e.Nop()), "test.other")]
+			[emitsNop("patch"), makeManipulator("patch", ctx => ctx.EmitAtStart(static e => e.Nop()), "test.other")],
+			default,
+			null
 		);
 		Assert.Equal(4, result.Body.Instructions.Count);
 	}
@@ -143,7 +153,7 @@ public sealed class IlPipelineTests {
 	[Fact]
 	public static void InvalidBodyIsAValidationFailure() {
 		IlPipelineValidationException ex = Assert.Throws<IlPipelineValidationException>(
-			static () => IlPipeline.Transform(makeBaseline(), [emitsUnderflow("bad")])
+			static () => IlPipeline.Transform(makeBaseline(), [emitsUnderflow("bad")], default, null)
 		);
 		Assert.Equal(IlTest.OwnerId, ex.OwnerId);
 		Assert.Equal("bad", ex.LocalId);
@@ -152,7 +162,12 @@ public sealed class IlPipelineTests {
 	[Fact]
 	public static void AttributionNamesCulprit() {
 		IlPipelineValidationException ex = Assert.Throws<IlPipelineValidationException>(
-			static () => IlPipeline.Transform(makeBaseline(), [emitsNop("innocent"), emitsUnderflow("guilty"), emitsNop("later")])
+			static () => IlPipeline.Transform(
+				makeBaseline(),
+				[emitsNop("innocent"), emitsUnderflow("guilty"), emitsNop("later")],
+				default,
+				null
+			)
 		);
 		Assert.Equal("guilty", ex.LocalId);
 	}
@@ -166,7 +181,9 @@ public sealed class IlPipelineTests {
 			[
 				makeManipulator("first", ctx => { count("first"); ctx.EmitAtStart(e => e.Nop()); }),
 				makeManipulator("bad", ctx => { count("bad"); ctx.EmitAtStart(e => e.Pop()); }),
-			]
+			],
+			default,
+			null
 		));
 		Assert.Equal(2, invocations["first"]);
 		Assert.Equal(2, invocations["bad"]);
@@ -178,6 +195,8 @@ public sealed class IlPipelineTests {
 		IlPipelineValidationException ex = Assert.Throws<IlPipelineValidationException>(() => IlPipeline.Transform(
 			makeBaseline(),
 			[makeManipulator("bad", ctx => { invocations++; ctx.EmitAtStart(e => e.Pop()); })],
+			default,
+			null,
 			new IlPipelineOptions { SkipFailureAttribution = true }
 		));
 		Assert.Null(ex.OwnerId);
@@ -195,9 +214,11 @@ public sealed class IlPipelineTests {
 					if (invocations++ == 0)
 						ctx.EmitAtStart(static e => e.Pop());
 					else
-						throw new ManipulatorException("only on the second run");
+						throw new OtherException("only on the second run");
 				}),
-			]
+			],
+			default,
+			null
 		));
 		Assert.Null(ex.OwnerId);
 	}
@@ -207,6 +228,8 @@ public sealed class IlPipelineTests {
 		IlPipelineResult result = IlPipeline.Transform(
 			makeBaseline(),
 			[emitsUnderflow("bad")],
+			default,
+			null,
 			new IlPipelineOptions { SkipFinalValidation = true }
 		);
 		Assert.True(result.Modified);
@@ -219,6 +242,8 @@ public sealed class IlPipelineTests {
 		Assert.ThrowsAny<Exception>(() => IlPipeline.Transform(
 			makeBaseline(),
 			[emitsUnderflow("bad"), makeManipulator("after", _ => ranAfter++)],
+			default,
+			null,
 			new IlPipelineOptions { ValidateAfterEachManipulator = true }
 		));
 		Assert.Equal(0, ranAfter);

@@ -30,9 +30,21 @@ public sealed class IlFieldRef : IEquatable<IlFieldRef> {
 		FieldType = fieldType;
 	}
 
+	/// <summary>
+	/// Checks for structural equality with <paramref name="other"/>.
+	/// </summary>
 	public bool Equals(IlFieldRef? other) => IlReferenceEquality.FieldEquals(this, other);
+
+	/// <summary>
+	/// Checks for structural equality with <paramref name="obj"/> if it is an <see cref="IlFieldRef"/>.
+	/// </summary>
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is IlFieldRef other && Equals(other);
+
+	/// <summary>
+	/// Gets a structural hash in correspondence with <see cref="Equals(IlFieldRef?)"/>.
+	/// </summary>
 	public override int GetHashCode() => IlReferenceEquality.FieldHashCode(this);
+
 	public static bool operator ==(IlFieldRef? left, IlFieldRef? right) => left is null ? right is null : left.Equals(right);
 	public static bool operator !=(IlFieldRef? left, IlFieldRef? right) => !(left == right);
 

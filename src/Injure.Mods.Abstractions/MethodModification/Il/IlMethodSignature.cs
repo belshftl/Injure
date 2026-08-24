@@ -80,9 +80,21 @@ public sealed class IlMethodSignature : IEquatable<IlMethodSignature> {
 	/// </summary>
 	public int OptionalParameterCount => ParameterTypes.Length - RequiredParameterCount;
 
+	/// <summary>
+	/// Checks for structural equality with <paramref name="other"/>.
+	/// </summary>
 	public bool Equals(IlMethodSignature? other) => IlReferenceEquality.SignatureEquals(this, other);
+
+	/// <summary>
+	/// Checks for structural equality with <paramref name="obj"/> if it is an <see cref="IlMethodSignature"/>.
+	/// </summary>
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is IlMethodSignature other && Equals(other);
+
+	/// <summary>
+	/// Gets a structural hash in correspondence with <see cref="Equals(IlMethodSignature?)"/>.
+	/// </summary>
 	public override int GetHashCode() => IlReferenceEquality.SignatureHashCode(this);
+
 	public static bool operator ==(IlMethodSignature? left, IlMethodSignature? right) => left is null ? right is null : left.Equals(right);
 	public static bool operator !=(IlMethodSignature? left, IlMethodSignature? right) => !(left == right);
 

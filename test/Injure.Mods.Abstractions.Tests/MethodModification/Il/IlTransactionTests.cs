@@ -7,7 +7,7 @@ using Injure.Mods.Abstractions.MethodModification.Il;
 namespace Injure.Mods.Abstractions.Tests.MethodModification.Il;
 
 public sealed class IlTransactionTests {
-	private static IlTransactionCore open(IlMethodBody body) => new(body, IlTest.OwnerId, IlTest.LocalId);
+	private static IlTransactionCore open(IlMethodBody body) => new(body, IlTest.OwnerId, IlTest.LocalId, default, null);
 	private static int boundaryOf(IlMethodBody body, IlAnchorId anchor) => body.GetAnchorBoundary(anchor);
 
 	// ==========================================================================================

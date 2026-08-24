@@ -87,6 +87,8 @@ internal static class IlPipeline {
 	public static IlPipelineResult Transform(
 		IlMethodBody baseline,
 		IReadOnlyList<IlManipulatorRegistration> manipulators,
+		IlOwnerContext ownerContext,
+		IIlCallDispatch? callDispatch,
 		in IlPipelineOptions options = default
 	) {
 		InternalStateException.ThrowIfNull(baseline);
@@ -96,7 +98,15 @@ internal static class IlPipeline {
 		validateUnique(manipulators);
 
 		IlMethodBody working = baseline.Clone();
-		bool modified = run(working, manipulators, options, options.ValidateAfterEachManipulator, out _);
+		bool modified = run(
+			working,
+			manipulators,
+			ownerContext,
+			callDispatch,
+			options,
+			options.ValidateAfterEachManipulator,
+			out _
+		);
 		if (!modified)
 			return new IlPipelineResult(baseline, false);
 
@@ -104,7 +114,7 @@ internal static class IlPipeline {
 			try {
 				IlMaxStackAnalyzer.Analyze(working);
 			} catch (IlInvalidMethodException ex) {
-				throw attribute(baseline, manipulators, options, ex);
+				throw attribute(baseline, manipulators, ownerContext, callDispatch, options, ex);
 			}
 		}
 
@@ -114,6 +124,8 @@ internal static class IlPipeline {
 	private static bool run(
 		IlMethodBody working,
 		IReadOnlyList<IlManipulatorRegistration> manipulators,
+		IlOwnerContext ownerContext,
+		IIlCallDispatch? callDispatch,
 		in IlPipelineOptions options,
 		bool validateEachStep,
 		out IlManipulatorRegistration? culprit
@@ -122,12 +134,17 @@ internal static class IlPipeline {
 		bool modified = false;
 		foreach (IlManipulatorRegistration registration in manipulators) {
 			InternalStateException.ThrowIfNull(registration);
-			IlTransactionCore core = new(working, registration.OwnerId, registration.LocalId);
+			InternalStateException.ThrowIfInvalidOwnerId(registration.OwnerId);
+			InternalStateException.ThrowIfInvalidLocalId(registration.LocalId);
+			IlTransactionCore core = new(working, registration.OwnerId, registration.LocalId, ownerContext, callDispatch);
 			try {
 				registration.Invoke(core);
 			} catch (Exception) when (options.SkipFailingManipulators) {
 				core.Abort();
 				continue;
+			} catch (Exception ex) {
+				core.Abort();
+				throw new IlManipulatorException(registration.OwnerId, registration.LocalId, ex);
 			}
 			if (!core.HasPendingEdits) {
 				core.Abort();
@@ -155,6 +172,8 @@ internal static class IlPipeline {
 	private static IlPipelineValidationException attribute(
 		IlMethodBody baseline,
 		IReadOnlyList<IlManipulatorRegistration> manipulators,
+		IlOwnerContext ownerContext,
+		IIlCallDispatch? callDispatch,
 		in IlPipelineOptions options,
 		IlInvalidMethodException failure
 	) {
@@ -164,7 +183,7 @@ internal static class IlPipeline {
 		IlManipulatorRegistration? culprit = null;
 		IlInvalidMethodException attributed = failure;
 		try {
-			run(baseline.Clone(), manipulators, options, validateEachStep: true, out culprit);
+			run(baseline.Clone(), manipulators, ownerContext, callDispatch, options, validateEachStep: true, out culprit);
 		} catch (IlInvalidMethodException ex) {
 			attributed = ex;
 		} catch (Exception) {
@@ -181,6 +200,8 @@ internal static class IlPipeline {
 		HashSet<(string OwnerId, string LocalId)> seen = new(manipulators.Count);
 		foreach (IlManipulatorRegistration registration in manipulators) {
 			InternalStateException.ThrowIfNull(registration);
+			InternalStateException.ThrowIfInvalidOwnerId(registration.OwnerId);
+			InternalStateException.ThrowIfInvalidLocalId(registration.LocalId);
 			if (!seen.Add((registration.OwnerId, registration.LocalId)))
 				throw new InternalStateException($"manipulator '{registration.OwnerId}::{registration.LocalId}' got registered more than once");
 		}

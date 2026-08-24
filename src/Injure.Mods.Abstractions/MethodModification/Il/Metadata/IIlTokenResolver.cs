@@ -30,10 +30,6 @@ internal readonly record struct IlLocalSignatureOrigin(IlModuleIdentity Module, 
 /// <summary>
 /// Resolves backend-neutral IL references into metadata handles valid for one output module.
 /// </summary>
-/// <remarks>
-/// This interface is internal because it is implemented by the mod runtime through
-/// <see cref="System.Runtime.CompilerServices.InternalsVisibleToAttribute"/>.
-/// </remarks>
 internal interface IIlTokenResolver {
 	EntityHandle ResolveType(IlTypeRef type);
 	EntityHandle ResolveMethod(IlMethodRef method);

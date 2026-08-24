@@ -11,3 +11,4 @@
 /src/**/obj/
 /test/**/bin/
 /test/**/obj/
+/TestResults/

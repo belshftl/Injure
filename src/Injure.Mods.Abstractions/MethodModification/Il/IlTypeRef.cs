@@ -36,9 +36,21 @@ public abstract class IlTypeRef : IEquatable<IlTypeRef> {
 	/// </summary>
 	public bool IsVoid => Unmodified is IlPrimitiveTypeRef { Code: PrimitiveTypeCode.Void };
 
+	/// <summary>
+	/// Checks for structural equality with <paramref name="other"/>.
+	/// </summary>
 	public bool Equals(IlTypeRef? other) => IlReferenceEquality.TypeEquals(this, other);
+
+	/// <summary>
+	/// Checks for structural equality with <paramref name="obj"/> if it is an <see cref="IlTypeRef"/>.
+	/// </summary>
 	public sealed override bool Equals([NotNullWhen(true)] object? obj) => obj is IlTypeRef other && Equals(other);
+
+	/// <summary>
+	/// Gets a structural hash in correspondence with <see cref="Equals(IlTypeRef?)"/>.
+	/// </summary>
 	public sealed override int GetHashCode() => IlReferenceEquality.TypeHashCode(this);
+
 	public static bool operator ==(IlTypeRef? left, IlTypeRef? right) => left is null ? right is null : left.Equals(right);
 	public static bool operator !=(IlTypeRef? left, IlTypeRef? right) => !(left == right);
 }

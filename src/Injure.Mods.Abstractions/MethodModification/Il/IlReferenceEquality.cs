@@ -6,33 +6,6 @@ using System.Collections.Immutable;
 namespace Injure.Mods.Abstractions.MethodModification.Il;
 
 internal static class IlReferenceEquality {
-	private sealed class TypeComparerImpl : IEqualityComparer<IlTypeRef> {
-		public bool Equals(IlTypeRef? x, IlTypeRef? y) => TypeEquals(x, y);
-		public int GetHashCode(IlTypeRef obj) => TypeHashCode(obj);
-	}
-	private sealed class ScopeComparerImpl : IEqualityComparer<IlTypeScope> {
-		public bool Equals(IlTypeScope? x, IlTypeScope? y) => ScopeEquals(x, y);
-		public int GetHashCode(IlTypeScope obj) => ScopeHashCode(obj);
-	}
-	private sealed class SignatureComparerImpl : IEqualityComparer<IlMethodSignature> {
-		public bool Equals(IlMethodSignature? x, IlMethodSignature? y) => SignatureEquals(x, y);
-		public int GetHashCode(IlMethodSignature obj) => SignatureHashCode(obj);
-	}
-	private sealed class MethodComparerImpl : IEqualityComparer<IlMethodRef> {
-		public bool Equals(IlMethodRef? x, IlMethodRef? y) => MethodEquals(x, y);
-		public int GetHashCode(IlMethodRef obj) => MethodHashCode(obj);
-	}
-	private sealed class FieldComparerImpl : IEqualityComparer<IlFieldRef> {
-		public bool Equals(IlFieldRef? x, IlFieldRef? y) => FieldEquals(x, y);
-		public int GetHashCode(IlFieldRef obj) => FieldHashCode(obj);
-	}
-
-	public static IEqualityComparer<IlTypeRef> TypeComparer { get; } = new TypeComparerImpl();
-	public static IEqualityComparer<IlTypeScope> ScopeComparer { get; } = new ScopeComparerImpl();
-	public static IEqualityComparer<IlMethodSignature> SignatureComparer { get; } = new SignatureComparerImpl();
-	public static IEqualityComparer<IlMethodRef> MethodComparer { get; } = new MethodComparerImpl();
-	public static IEqualityComparer<IlFieldRef> FieldComparer { get; } = new FieldComparerImpl();
-
 	internal static bool TypeEquals(IlTypeRef? left, IlTypeRef? right) {
 		if (ReferenceEquals(left, right))
 			return true;

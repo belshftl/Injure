@@ -22,6 +22,9 @@ namespace Injure.Mods.Abstractions.MethodModification.Il;
 /// </para>
 /// </remarks>
 public static class MatchIl {
+	// ======================================================================================
+	// wildcard
+
 	/// <summary>
 	/// Matches any single CIL instruction.
 	/// </summary>

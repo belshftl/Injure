@@ -137,7 +137,7 @@ internal sealed class SrmReferenceDecoder : ISignatureTypeProvider<IlTypeRef, Il
 			scope = declaring.Scope;
 			break;
 		case HandleKind.AssemblyReference:
-			scope = new IlTypeScope.Assembly(resolveAssemblyIdentity((AssemblyReferenceHandle)reference.ResolutionScope));
+			scope = new IlTypeScope.Assembly(ResolveAssemblyIdentity((AssemblyReferenceHandle)reference.ResolutionScope));
 			break;
 		case HandleKind.ModuleReference:
 			scope = new IlTypeScope.ModuleReference(
@@ -228,7 +228,7 @@ internal sealed class SrmReferenceDecoder : ISignatureTypeProvider<IlTypeRef, Il
 		_ => throw new BadImageFormatException($"unsupported MemberRef parent {parent.Kind}"),
 	};
 
-	private IlAssemblyIdentity resolveAssemblyIdentity(AssemblyReferenceHandle handle) =>
+	public IlAssemblyIdentity ResolveAssemblyIdentity(AssemblyReferenceHandle handle) =>
 		IlAssemblyIdentityFactory.FromReference(reader, reader.GetAssemblyReference(handle));
 
 	private static IlNamedTypeKind toNamedTypeKind(SignatureTypeKind kind) => kind switch {

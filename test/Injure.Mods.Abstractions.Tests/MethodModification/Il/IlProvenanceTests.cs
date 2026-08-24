@@ -6,6 +6,7 @@ using Injure.Mods.Abstractions.MethodModification.Il;
 namespace Injure.Mods.Abstractions.Tests.MethodModification.Il;
 
 public sealed class IlProvenanceTests {
+	private static IlTransactionCore open(IlMethodBody body) => new(body, IlTest.OwnerId, IlTest.LocalId, default, null);
 	private const string otherOwner = "other";
 
 	private static IlMethodBody baseline(int nops = 2) {
@@ -16,7 +17,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	private static void stamp(IlMethodBody body, string ownerId, string localId, int count = 1) {
-		IlTransactionCore core = new(body, ownerId, localId);
+		IlTransactionCore core = new(body, ownerId, localId, default, null);
 		core.EmitAtBoundary(0, e => {
 			for (int i = 0; i < count; i++)
 				e.Nop();
@@ -25,7 +26,7 @@ public sealed class IlProvenanceTests {
 	}
 
 	private static int countMatches(IlMethodBody body, IlPatternProvenanceConstraint constraint, int length = 2) {
-		IlTransactionCore core = new(body, IlTest.OwnerId, "reader");
+		IlTransactionCore core = open(body);
 		var pattern = new IlPatternElement[length];
 		Array.Fill(pattern, MatchIl.Nop);
 		return core.MatchAll(pattern, constraint).Count;
@@ -70,7 +71,7 @@ public sealed class IlProvenanceTests {
 	[Fact]
 	public static void ManipulatorCantSeeItsOwnEmissionsWithinOneTransaction() {
 		IlMethodBody body = baseline(0);
-		IlTransactionCore core = new(body, IlTest.OwnerId, "self");
+		IlTransactionCore core = open(body);
 		core.EmitAtBoundary(0, static e => { e.Nop(); e.Nop(); });
 		Assert.Equal(0, core.MatchAll([MatchIl.Nop], IlPatternProvenanceConstraint.Any).Count);
 		core.Commit();
@@ -176,7 +177,7 @@ public sealed class IlProvenanceTests {
 	[Fact]
 	public static void TryGetUniformProvenanceTreatsAllUnknownAsUniform() {
 		IlMethodBody body = baseline(2);
-		IlTransactionCore core = new(body, IlTest.OwnerId, "reader");
+		IlTransactionCore core = open(body);
 		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any).RequireSingle();
 
 		Assert.True(match.TryGetUniformProvenance(out IlProvenance provenance));
@@ -190,7 +191,7 @@ public sealed class IlProvenanceTests {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, IlTest.OwnerId, "second");
-		IlTransactionCore core = new(body, IlTest.OwnerId, "reader");
+		IlTransactionCore core = open(body);
 		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any).RequireSingle();
 
 		Assert.True(match.TryGetUniformProvenance(out IlProvenance provenance));
@@ -202,7 +203,7 @@ public sealed class IlProvenanceTests {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
-		IlTransactionCore core = new(body, IlTest.OwnerId, "reader");
+		IlTransactionCore core = open(body);
 		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any).RequireSingle();
 
 		Assert.False(match.TryGetUniformProvenance(out _));

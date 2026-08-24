@@ -4,7 +4,7 @@
 namespace Injure.Mods.Abstractions.MethodModification.Il;
 
 /// <summary>
-/// Exceptiont thrown when a transformed method body cannot be encoded into a CLR method body.
+/// Exception thrown when a transformed method body cannot be encoded into a CLR method body.
 /// </summary>
 /// <remarks>
 /// This covers token resolution failures, operands that cannot be represented in the target module,

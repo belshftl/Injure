@@ -55,7 +55,9 @@ internal sealed class IlTransactionCore {
 	private bool committed;
 
 	public string OwnerId { get; }
-	public string LocalId { get; }
+	public string? LocalId { get; }
+	public IlOwnerContext OwnerContext { get; }
+	public IIlCallDispatch? CallDispatch { get; }
 	public string TargetMethodDisplayName => working.Method.ToString();
 	public IlMethodRef TargetMethod {
 		get {
@@ -82,10 +84,16 @@ internal sealed class IlTransactionCore {
 	/// </remarks>
 	public bool HasPendingEdits => insertions.Count > 0;
 
-	public IlTransactionCore(IlMethodBody working, string ownerId, string localId) {
+	public IlTransactionCore(
+		IlMethodBody working,
+		string ownerId,
+		string? localId,
+		IlOwnerContext ownerContext,
+		IIlCallDispatch? callDispatch
+	) {
 		InternalStateException.ThrowIfNull(working);
 		InternalStateException.ThrowIfInvalidOwnerId(ownerId);
-		InternalStateException.ThrowIfInvalidLocalId(localId);
+		InternalStateException.ThrowIfNonnullAndInvalidLocalId(localId);
 		this.working = working;
 		provenance = new InternalIlProvenance(ownerId, localId);
 		snapshot = new IlSnapshot(working);
@@ -95,6 +103,8 @@ internal sealed class IlTransactionCore {
 			throw new InternalStateException("transaction ID counter wrapped to zero");
 		OwnerId = ownerId;
 		LocalId = localId;
+		OwnerContext = ownerContext;
+		CallDispatch = callDispatch;
 	}
 
 	public IlLabel DefineLabel() {
@@ -119,7 +129,7 @@ internal sealed class IlTransactionCore {
 			throw new ArgumentOutOfRangeException(nameof(boundary));
 
 		IlFragmentBuilder builder = new(transactionId, labels.Keys.ToHashSet());
-		emit(new IlEmitter(builder));
+		emit(new IlEmitter(builder, OwnerContext, CallDispatch));
 		IlFragment fragment = builder.Finish();
 
 		foreach (int labelId in fragment.MarkedLabels)

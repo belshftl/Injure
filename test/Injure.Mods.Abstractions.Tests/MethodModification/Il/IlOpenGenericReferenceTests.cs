@@ -166,7 +166,9 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 				IlManipulatorRegistration.Create<TestL>(IlTest.OwnerId, "find", ctx => {
 					matches = ctx.MatchAll([MatchIl.Call(target)], IlPatternProvenanceConstraint.Any).Count;
 				}),
-			]
+			],
+			default,
+			null
 		);
 
 		Assert.Equal(1, matches);
@@ -193,7 +195,9 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 							e.Pop();
 						})
 				),
-			]
+			],
+			default,
+			null
 		);
 
 		Assert.True(result.Modified);

@@ -59,7 +59,7 @@ internal sealed class IlMethodBody {
 		InternalStateException.ThrowIfNull(anchors);
 		InternalStateException.ThrowIfNull(exRegions);
 		Method = method;
-		InitLocals = initLocals && !locals.IsEmpty;
+		InitLocals = initLocals && !locals.IsDefaultOrEmpty;
 		Locals = locals.IsDefault ? [] : locals;
 		LocalSignatureOrigin = localSignatureOrigin;
 		this.instrs = instrs;
