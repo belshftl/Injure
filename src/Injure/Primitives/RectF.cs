@@ -102,7 +102,7 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// <summary>
 	/// The rectangle's size.
 	/// </summary>
-	public SizeF Size => new(Width, Height);
+	public Vector2 Size => new(Width, Height);
 
 	/// <summary>
 	/// X coordinate of the rectangle's center.
@@ -292,10 +292,10 @@ public sealed class RectFJsonConverter : JsonConverter<RectF> {
 			}
 
 			if (reader.TokenType != JsonTokenType.PropertyName)
-				throw new JsonException();
+				throw new JsonException("was expecting PropertyName json token");
 			string? name = reader.GetString();
 			if (!reader.Read())
-				throw new JsonException();
+				throw new JsonException("unexpected end of json");
 
 			if (eq(name, "x", options))
 				x = reader.GetSingle();
@@ -306,7 +306,7 @@ public sealed class RectFJsonConverter : JsonConverter<RectF> {
 			else if (eq(name, "height", options))
 				height = reader.GetSingle();
 			else
-				reader.Skip();
+				throw new JsonException($"unexpected json property '{name}'");
 		}
 		throw new JsonException("unexpected end of json");
 	}

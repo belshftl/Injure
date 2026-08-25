@@ -5,8 +5,8 @@ using System.Text;
 
 namespace Injure.Sched.Coro;
 
-internal static class CoroutineDiagnostics {
-	public static string FormatFault(CoroutineUnhandledFaultInfo fault) {
+internal static class CoroDiagnostics {
+	public static string FormatFault(CoroUnhandledFaultInfo fault) {
 		StringBuilder sb = new();
 
 		const string indent = "   ";
@@ -26,7 +26,7 @@ internal static class CoroutineDiagnostics {
 		if (fault.Trace is not null && fault.Trace.Frames.Count > 0) {
 			sb.AppendLine($"{indent}stacktrace:");
 			for (int i = fault.Trace.Frames.Count - 1; i >= 0; i--) {
-				CoroutineTraceFrame frame = fault.Trace.Frames[i];
+				CoroTraceFrame frame = fault.Trace.Frames[i];
 				sb.Append($"{indent}{indent}- ");
 				sb.Append(!string.IsNullOrEmpty(frame.DebugName) ? frame.DebugName : frame.EnumeratorTypeName);
 				if (!string.IsNullOrEmpty(frame.SourceMember))

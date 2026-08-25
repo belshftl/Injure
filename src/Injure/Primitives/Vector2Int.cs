@@ -37,17 +37,17 @@ public sealed class Vector2IntJsonConverter : JsonConverter<Vector2Int> {
 			}
 
 			if (reader.TokenType != JsonTokenType.PropertyName)
-				throw new JsonException();
+				throw new JsonException("was expecting PropertyName json token");
 			string? name = reader.GetString();
 			if (!reader.Read())
-				throw new JsonException();
+				throw new JsonException("unexpected end of json");
 
 			if (eq(name, "x", options))
 				x = reader.GetInt32();
 			else if (eq(name, "y", options))
 				y = reader.GetInt32();
 			else
-				reader.Skip();
+				throw new JsonException($"unexpected json property '{name}'");
 		}
 		throw new JsonException("unexpected end of json");
 	}

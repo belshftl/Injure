@@ -6,7 +6,7 @@ using Injure.DevAnalyzers.Attributes;
 namespace Injure.Sched.Coro;
 
 [ClosedEnum(DefaultIsInvalid = true)]
-public readonly partial struct CoroutineStatus {
+public readonly partial struct CoroStatus {
 	public enum Case {
 		Running = 1,
 		Paused,

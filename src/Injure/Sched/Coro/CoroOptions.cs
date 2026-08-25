@@ -3,7 +3,7 @@
 
 namespace Injure.Sched.Coro;
 
-public sealed class CoroutineOptions {
+public sealed class CoroOptions {
 	public string? Name { get; init; }
 	public int MaxStepsPerTick { get; init; } = 1024;
 }

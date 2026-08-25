@@ -3,23 +3,23 @@
 
 namespace Injure.Sched.Coro;
 
-public readonly struct CoroutineContext {
-	public CoroutineScheduler Scheduler { get; }
-	public CoroutineHandle Handle { get; }
-	public CoroutineScope Scope { get; }
+public readonly struct CoroContext {
+	public CoroScheduler Scheduler { get; }
+	public CoroHandle Handle { get; }
+	public CoroScope Scope { get; }
 	public double DeltaTime { get; }
 	public double RawDeltaTime { get; }
 	public CoroUpdatePhase Phase { get; }
-	public CoroutineTick Tick { get; }
+	public CoroTick Tick { get; }
 
-	internal CoroutineContext(
-		CoroutineScheduler sched,
-		CoroutineHandle handle,
-		CoroutineScope scope,
+	internal CoroContext(
+		CoroScheduler sched,
+		CoroHandle handle,
+		CoroScope scope,
 		double dt,
 		double rawDt,
 		CoroUpdatePhase phase,
-		CoroutineTick tick
+		CoroTick tick
 	) {
 		Scheduler = sched;
 		Handle = handle;

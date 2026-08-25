@@ -8,17 +8,17 @@ using Injure.Mods;
 namespace Injure.Sched.Coro;
 
 /// <summary>
-/// Schedules and runs coroutines bound to <see cref="CoroutineScope"/>s.
+/// Schedules and runs coroutines bound to <see cref="CoroScope"/>s.
 /// </summary>
 /// <remarks>
 /// Coroutines are advanced by calling <see cref="Tick(double, double, CoroUpdatePhase)"/>.
 /// When in the middle of a coroutine step, control operations (cancel/pause/resume) are
 /// deferred to be applied at safe points instead of interrupting execution on the spot.
 /// </remarks>
-public sealed class CoroutineScheduler : IDisposable {
+public sealed class CoroScheduler : IDisposable {
 	// ==========================================================================
 	// internal types
-	private sealed class CoroutineStackFrame(IEnumerator<CoroYield> iterator, string debugName, string sourceFile = "", int sourceLine = 0, string sourceMember = "") : IDisposable {
+	private sealed class CoroStackFrame(IEnumerator<CoroYield> iterator, string debugName, string sourceFile = "", int sourceLine = 0, string sourceMember = "") : IDisposable {
 		public IEnumerator<CoroYield> Iterator = iterator;
 		public string DebugName = debugName;
 		public string SourceFile = sourceFile;
@@ -34,29 +34,29 @@ public sealed class CoroutineScheduler : IDisposable {
 		Resume,
 	}
 
-	private sealed class CoroutineInstance {
-		public required CoroutineHandle Handle { get; init; }
-		public required CoroutineScope? Scope { get => terminated ? null : field; init; }
-		public required CoroutineOptions Options { get; init; }
+	private sealed class CoroInstance {
+		public required CoroHandle Handle { get; init; }
+		public required CoroScope? Scope { get => terminated ? null : field; init; }
+		public required CoroOptions Options { get; init; }
 		public CoroWait? Wait { get; private set; }
-		public CoroutineStatus Status;
+		public CoroStatus Status;
 		public Exception? Fault;
 		public CoroCancellationReason? CancellationReason;
 		public CoroCancellationReason? PendingCancellationReason;
 		public PendingControlAction PendingControl;
 		public CoroUpdatePhase LastPhase;
-		public CoroutineTick StartTick;
-		public CoroutineTick TerminalTick;
-		public CoroutineTrace? PreservedTerminalTrace;
+		public CoroTick StartTick;
+		public CoroTick TerminalTick;
+		public CoroTrace? PreservedTerminalTrace;
 		private bool terminated = false;
 
-		// not a Stack<CoroutineStackFrame> because there was kind of no reason to and this
+		// not a Stack<CoroStackFrame> because there was kind of no reason to and this
 		// makes dumping the entire stack / accessing a frame N deep / etc easier
-		private readonly List<CoroutineStackFrame> stack = new();
+		private readonly List<CoroStackFrame> stack = new();
 		public int StackDepth => stack.Count;
 
 		// not named Stack because it's a list not a stack
-		public IReadOnlyList<CoroutineStackFrame> StackFrames => stack;
+		public IReadOnlyList<CoroStackFrame> StackFrames => stack;
 
 		public void StackPush(
 			IEnumerator<CoroYield> iterator,
@@ -65,16 +65,16 @@ public sealed class CoroutineScheduler : IDisposable {
 			int sourceLine = 0,
 			string sourceMember = ""
 		) =>
-			stack.Add(new CoroutineStackFrame(iterator, debugName, sourceFile, sourceLine, sourceMember));
+			stack.Add(new CoroStackFrame(iterator, debugName, sourceFile, sourceLine, sourceMember));
 
-		public CoroutineStackFrame StackPeek() =>
+		public CoroStackFrame StackPeek() =>
 			stack.Count > 0 ? stack[^1] : throw new InternalStateException("coroutine instance stack is empty");
 
 		public void StackPopAndDispose() {
 			if (stack.Count == 0)
 				throw new InternalStateException("coroutine instance stack is empty");
 			int idx = stack.Count - 1;
-			CoroutineStackFrame frame = stack[idx];
+			CoroStackFrame frame = stack[idx];
 			try { frame.Dispose(); } catch {}
 			stack.RemoveAt(idx);
 		}
@@ -90,7 +90,7 @@ public sealed class CoroutineScheduler : IDisposable {
 			terminated = true;
 		}
 
-		public bool TrySetWait(CoroutineScheduler sched, CoroWait wait, [NotNullWhen(false)] out Exception? ex) {
+		public bool TrySetWait(CoroScheduler sched, CoroWait wait, [NotNullWhen(false)] out Exception? ex) {
 			// TODO: this is kind of bolted on as opposed to properly delegated somewhere
 			if (wait is CoroWaitForHandle hwait) {
 				if (hwait.TargetHandle == Handle) {
@@ -107,7 +107,7 @@ public sealed class CoroutineScheduler : IDisposable {
 			return true;
 		}
 
-		public void ClearWait(CoroutineScheduler sched, CoroCancellationReason? reason = null) {
+		public void ClearWait(CoroScheduler sched, CoroCancellationReason? reason = null) {
 			if (Wait is null)
 				return;
 			if (reason is CoroCancellationReason r)
@@ -119,53 +119,53 @@ public sealed class CoroutineScheduler : IDisposable {
 			Wait = null;
 		}
 
-		public void TransitionToCompleted(CoroutineTick currTick) {
+		public void TransitionToCompleted(CoroTick currTick) {
 			if (StackDepth != 0)
 				throw new InternalStateException("cannot transition coroutine to Completed with a non-empty stack");
 			if (Wait is not null)
 				throw new InternalStateException("cannot transition coroutine to Completed with an attached wait");
 			clearScope();
-			Status = CoroutineStatus.Completed;
+			Status = CoroStatus.Completed;
 			TerminalTick = currTick;
 		}
 
-		public void TransitionToCancelled(CoroutineScheduler sched, CoroCancellationReason reason, CoroutineTick currTick) {
+		public void TransitionToCancelled(CoroScheduler sched, CoroCancellationReason reason, CoroTick currTick) {
 			ClearWait(sched, reason);
 			clearScope();
 			unwind();
-			Status = CoroutineStatus.Cancelled;
+			Status = CoroStatus.Cancelled;
 			CancellationReason = reason;
 			TerminalTick = currTick;
 		}
 
-		public void TransitionToFaulted(CoroutineScheduler sched, Exception ex, CoroutineTick currTick) {
+		public void TransitionToFaulted(CoroScheduler sched, Exception ex, CoroTick currTick) {
 			ClearWait(sched, CoroCancellationReason.FaultPropagation);
 			clearScope();
 			unwind();
-			Status = CoroutineStatus.Faulted;
+			Status = CoroStatus.Faulted;
 			Fault = ex;
 			TerminalTick = currTick;
 		}
 	}
 
-	private sealed class CoroutineSlot {
+	private sealed class CoroSlot {
 		public int Generation;
-		public CoroutineInstance? Instance;
-		public CoroutineInfo? TerminalInfo;
-		public CoroutineTrace? TerminalTrace;
+		public CoroInstance? Instance;
+		public CoroInfo? TerminalInfo;
+		public CoroTrace? TerminalTrace;
 		public int RetainCount;
 	}
 
 	// ==========================================================================
 	// internal objects / properties
-	private readonly List<CoroutineSlot> slots = new();
+	private readonly List<CoroSlot> slots = new();
 	private readonly Queue<int> freeSlots = new();
 	private readonly List<int> activeSlots = new();
 	private readonly List<int> pendingActivation = new();
 	private readonly HashSet<int> pendingReap = new();
-	private readonly List<CoroutineUnhandledFaultInfo> pendingUnhandledFaults = new();
+	private readonly List<CoroUnhandledFaultInfo> pendingUnhandledFaults = new();
 	private bool ticking;
-	private CoroutineTick tick;
+	private CoroTick tick;
 
 	/// <summary>
 	/// How unhandled coroutine faults are processed after the scheduler is finished
@@ -197,26 +197,26 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// bookkeeping for the faulting coroutine. Throwing from this callback will
 	/// abort fault processing for the tick.
 	/// </remarks>
-	public Action<CoroutineUnhandledFaultInfo>? UnhandledFault { get; set; } = null;
+	public Action<CoroUnhandledFaultInfo>? UnhandledFault { get; set; } = null;
 
 	// ==========================================================================
 	// public api
-	private CoroutineHandle start(IEnumerator<CoroYield> iterator, CoroutineScope scope, bool defer, CoroutineOptions? options, string callerFile, int callerLine, string callerMember) {
+	private CoroHandle start(IEnumerator<CoroYield> iterator, CoroScope scope, bool defer, CoroOptions? options, string callerFile, int callerLine, string callerMember) {
 		ArgumentNullException.ThrowIfNull(iterator);
 		ArgumentNullException.ThrowIfNull(scope);
 		if (!ReferenceEquals(scope.Scheduler, this))
 			throw new ArgumentException("scope belongs to a different scheduler", nameof(scope));
-		options ??= new CoroutineOptions();
+		options ??= new CoroOptions();
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MaxStepsPerTick);
 		if (scope.Cancelled)
 			throw new InvalidOperationException("scope is already cancelled");
 
-		CoroutineHandle handle = makeHandle();
-		CoroutineInstance inst = new() {
+		CoroHandle handle = makeHandle();
+		CoroInstance inst = new() {
 			Handle = handle,
 			Scope = scope,
 			Options = options,
-			Status = CoroutineStatus.Running,
+			Status = CoroStatus.Running,
 			StartTick = tick,
 		};
 		string debugName = options.Name ?? iterDebugName(iterator) ?? CoroNameCleanup.Clean(iterator.GetType().Name);
@@ -260,16 +260,16 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="options"/> specifies a negative or zero
-	/// <see cref="CoroutineOptions.MaxStepsPerTick"/>.
+	/// <see cref="CoroOptions.MaxStepsPerTick"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="scope"/> is a cancelled scope or registering the coroutine
 	/// handle in the scope failed.
 	/// </exception>
-	public CoroutineHandle Start(
+	public CoroHandle Start(
 		IEnumerator<CoroYield> iterator,
-		CoroutineScope scope,
-		CoroutineOptions? options = null,
+		CoroScope scope,
+		CoroOptions? options = null,
 		[CallerFilePath] string callerFile = "",
 		[CallerLineNumber] int callerLine = 0,
 		[CallerMemberName] string callerMember = ""
@@ -296,23 +296,23 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="options"/> specifies a negative or zero
-	/// <see cref="CoroutineOptions.MaxStepsPerTick"/>.
+	/// <see cref="CoroOptions.MaxStepsPerTick"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the scheduler is currently executing a tick, or for the same reasons as
-	/// <see cref="Start(IEnumerator{CoroYield}, CoroutineScope, CoroutineOptions, string, int, string)"/>:
+	/// <see cref="Start(IEnumerator{CoroYield}, CoroScope, CoroOptions, string, int, string)"/>:
 	/// <paramref name="scope"/> is a cancelled scope or registering the coroutine handle in
 	/// the scope failed.
 	/// </exception>
 	/// <remarks>
 	/// Coroutines can only be started when the scheduler is idle; as such, to create
 	/// a coroutine during a tick and defer its first execution to the next tick, use
-	/// <see cref="Start(IEnumerator{CoroYield}, CoroutineScope, CoroutineOptions, string, int, string)"/> instead.
+	/// <see cref="Start(IEnumerator{CoroYield}, CoroScope, CoroOptions, string, int, string)"/> instead.
 	/// </remarks>
-	public CoroutineHandle StartImmediately(
+	public CoroHandle StartImmediately(
 		IEnumerator<CoroYield> iterator,
-		CoroutineScope scope,
-		CoroutineOptions? options = null,
+		CoroScope scope,
+		CoroOptions? options = null,
 		[CallerFilePath] string callerFile = "",
 		[CallerLineNumber] int callerLine = 0,
 		[CallerMemberName] string callerMember = ""
@@ -322,10 +322,10 @@ public sealed class CoroutineScheduler : IDisposable {
 		return start(iterator, scope, defer: false, options, callerFile, callerLine, callerMember);
 	}
 
-	internal bool TryCancel(CoroutineHandle handle, CoroCancellationReason reason) {
-		if (!tryGetInstance(handle, out CoroutineInstance? inst))
+	internal bool TryCancel(CoroHandle handle, CoroCancellationReason reason) {
+		if (!tryGetInstance(handle, out CoroInstance? inst))
 			return false;
-		if (inst.Status != CoroutineStatus.Running && inst.Status != CoroutineStatus.Paused)
+		if (inst.Status != CoroStatus.Running && inst.Status != CoroStatus.Paused)
 			return false;
 		inst.PendingCancellationReason ??= reason;
 		if (!ticking)
@@ -351,7 +351,7 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// <see cref="CoroCancellationReason.ManualStop"/> is recorded as the cancellation reason.
 	/// </para>
 	/// </remarks>
-	public bool TryCancel(CoroutineHandle handle) => TryCancel(handle, CoroCancellationReason.ManualStop);
+	public bool TryCancel(CoroHandle handle) => TryCancel(handle, CoroCancellationReason.ManualStop);
 
 	/// <summary>
 	/// Requests that a running coroutine be paused.
@@ -367,10 +367,10 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// at a safe point instead of interrupting execution immediately. While paused,
 	/// the coroutine does not advance and its current wait does not progress.
 	/// </remarks>
-	public bool TryPause(CoroutineHandle handle) {
-		if (!tryGetInstance(handle, out CoroutineInstance? inst))
+	public bool TryPause(CoroHandle handle) {
+		if (!tryGetInstance(handle, out CoroInstance? inst))
 			return false;
-		if (inst.Status != CoroutineStatus.Running)
+		if (inst.Status != CoroStatus.Running)
 			return false;
 		inst.PendingControl = PendingControlAction.Pause;
 		if (!ticking)
@@ -391,10 +391,10 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// When in the middle of a coroutine step, resuming is deferred to be applied
 	/// at a safe point instead of interrupting execution immediately.
 	/// </remarks>
-	public bool TryResume(CoroutineHandle handle) {
-		if (!tryGetInstance(handle, out CoroutineInstance? inst))
+	public bool TryResume(CoroHandle handle) {
+		if (!tryGetInstance(handle, out CoroInstance? inst))
 			return false;
-		if (inst.Status != CoroutineStatus.Paused)
+		if (inst.Status != CoroStatus.Paused)
 			return false;
 		inst.PendingControl = PendingControlAction.Resume;
 		if (!ticking)
@@ -419,8 +419,8 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// continues to be until the handle is invalidated, typically when the internal
 	/// slot is reused for a newer coroutine.
 	/// </remarks>
-	public bool TryGetInfo(CoroutineHandle handle, out CoroutineInfo info) {
-		if (!tryGetSlot(handle, out CoroutineSlot? slot)) {
+	public bool TryGetInfo(CoroHandle handle, out CoroInfo info) {
+		if (!tryGetSlot(handle, out CoroSlot? slot)) {
 			info = default;
 			return false;
 		}
@@ -456,13 +456,13 @@ public sealed class CoroutineScheduler : IDisposable {
 		int cnt = activeSlots.Count;
 		try {
 			for (int i = 0; i < cnt; i++) {
-				CoroutineInstance? inst = slots[activeSlots[i]].Instance;
-				if (inst is not null && inst.Status == CoroutineStatus.Running)
+				CoroInstance? inst = slots[activeSlots[i]].Instance;
+				if (inst is not null && inst.Status == CoroStatus.Running)
 					runInstance(inst, dt, rawDt, phase);
 			}
 		} finally {
 			for (int i = 0; i < cnt; i++) {
-				CoroutineInstance? inst = slots[activeSlots[i]].Instance;
+				CoroInstance? inst = slots[activeSlots[i]].Instance;
 				if (inst is not null)
 					applyPending(inst);
 			}
@@ -477,18 +477,18 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// Returns a snapshot of info records for all currently active coroutines.
 	/// </summary>
 	/// <returns>
-	/// An array containing a <see cref="CoroutineInfo"/> record for each
+	/// An array containing a <see cref="CoroInfo"/> record for each
 	/// currently active coroutine.
 	/// </returns>
 	/// <remarks>
 	/// The returned records describe the scheduler state at the moment the snapshot is taken.
-	/// Terminal records are not included; use <see cref="TryGetInfo(CoroutineHandle, out CoroutineInfo)"/>
+	/// Terminal records are not included; use <see cref="TryGetInfo(CoroHandle, out CoroInfo)"/>
 	/// to get information for a specific completed/cancelled/faulted coroutine by handle.
 	/// </remarks>
-	public CoroutineInfo[] SnapshotActive() {
-		List<CoroutineInfo> ret = new(activeSlots.Count);
+	public CoroInfo[] SnapshotActive() {
+		List<CoroInfo> ret = new(activeSlots.Count);
 		for (int i = 0; i < activeSlots.Count; i++) {
-			CoroutineInstance? inst = slots[activeSlots[i]].Instance;
+			CoroInstance? inst = slots[activeSlots[i]].Instance;
 			if (inst is not null)
 				ret.Add(makeInfo(inst));
 		}
@@ -512,11 +512,11 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// continue to be until the handle is invalidated, typically when the internal
 	/// slot is reused for a newer coroutine.
 	/// </remarks>
-	public bool TryGetTrace(CoroutineHandle handle, [NotNullWhen(true)] out CoroutineTrace? trace) {
+	public bool TryGetTrace(CoroHandle handle, [NotNullWhen(true)] out CoroTrace? trace) {
 		trace = null;
-		if (!tryGetSlot(handle, out CoroutineSlot? slot))
+		if (!tryGetSlot(handle, out CoroSlot? slot))
 			return false;
-		if (slot.Instance is CoroutineInstance inst) {
+		if (slot.Instance is CoroInstance inst) {
 			trace = makeTrace(inst);
 			return true;
 		}
@@ -535,13 +535,13 @@ public sealed class CoroutineScheduler : IDisposable {
 	/// </remarks>
 	public void Dispose() {
 		foreach (int slotidx in pendingActivation)
-			if (slots[slotidx].Instance is CoroutineInstance inst)
+			if (slots[slotidx].Instance is CoroInstance inst)
 				instCancel(inst, CoroCancellationReason.SchedulerDisposed);
 		pendingActivation.Clear();
 
 		int[] active = activeSlots.ToArray();
 		foreach (int slotidx in active)
-			if (slots[slotidx].Instance is CoroutineInstance inst)
+			if (slots[slotidx].Instance is CoroInstance inst)
 				instCancel(inst, CoroCancellationReason.SchedulerDisposed);
 
 		reapAll();
@@ -572,7 +572,7 @@ public sealed class CoroutineScheduler : IDisposable {
 		List<Exception> failures = new();
 		int cancelled = 0;
 		foreach (int slotidx in activeSlots) {
-			CoroutineInstance? inst = slots[slotidx].Instance;
+			CoroInstance? inst = slots[slotidx].Instance;
 			if (inst?.Scope?.OwnerId == ownerId)
 				try {
 					if (TryCancel(inst.Handle, CoroCancellationReason.OwnerRemoved))
@@ -588,15 +588,15 @@ public sealed class CoroutineScheduler : IDisposable {
 
 	// ==========================================================================
 	// internal api
-	internal bool TryRetainHandle(CoroutineHandle handle) {
-		if (!tryGetSlot(handle, out CoroutineSlot? slot))
+	internal bool TryRetainHandle(CoroHandle handle) {
+		if (!tryGetSlot(handle, out CoroSlot? slot))
 			return false;
 		slot.RetainCount++;
 		return true;
 	}
 
-	internal void ReleaseRetainedHandle(CoroutineHandle handle) {
-		if (!tryGetSlot(handle, out CoroutineSlot? slot))
+	internal void ReleaseRetainedHandle(CoroHandle handle) {
+		if (!tryGetSlot(handle, out CoroSlot? slot))
 			return;
 		if (slot.RetainCount < 0)
 			throw new InternalStateException($"slot has invalid RetainCount value of {slot.RetainCount}");
@@ -609,19 +609,19 @@ public sealed class CoroutineScheduler : IDisposable {
 
 	// ==========================================================================
 	// coroutine info/metadata creation
-	private CoroutineHandle makeHandle() {
+	private CoroHandle makeHandle() {
 		while (freeSlots.Count > 0) {
 			int idx = freeSlots.Dequeue();
-			CoroutineSlot slot = slots[idx];
+			CoroSlot slot = slots[idx];
 			if (slot.Instance is not null || slot.RetainCount != 0)
 				continue;
 			slot.Generation = Math.Max(slot.Generation + 1, 1); // clamp to >=1 to validate
 			slot.TerminalInfo = null;
 			slot.TerminalTrace = null;
-			return new CoroutineHandle(idx, slot.Generation);
+			return new CoroHandle(idx, slot.Generation);
 		}
 		slots.Add(
-			new CoroutineSlot {
+			new CoroSlot {
 				Generation = 1,
 				Instance = null,
 				TerminalInfo = null,
@@ -629,10 +629,10 @@ public sealed class CoroutineScheduler : IDisposable {
 				RetainCount = 0,
 			}
 		);
-		return new CoroutineHandle(slots.Count - 1, 1);
+		return new CoroHandle(slots.Count - 1, 1);
 	}
 
-	private static string? getDebugWaitDesc(CoroutineInstance inst) {
+	private static string? getDebugWaitDesc(CoroInstance inst) {
 		try {
 			return inst.Wait?.GetDebugWaitDescription();
 		} catch {
@@ -640,12 +640,12 @@ public sealed class CoroutineScheduler : IDisposable {
 		}
 	}
 
-	private static CoroutineInfo makeInfo(CoroutineInstance inst) {
+	private static CoroInfo makeInfo(CoroInstance inst) {
 		string? desc = getDebugWaitDesc(inst);
 		string? name = inst.Options?.Name;
 		if (string.IsNullOrEmpty(name) && inst.StackDepth > 0)
 			name = inst.StackPeek().DebugName;
-		return new CoroutineInfo {
+		return new CoroInfo {
 			Handle = inst.Handle,
 			Name = name,
 			OwnerId = inst.Scope?.OwnerId,
@@ -661,11 +661,11 @@ public sealed class CoroutineScheduler : IDisposable {
 		};
 	}
 
-	private static CoroutineTrace makeTrace(CoroutineInstance inst) {
-		var frames = new CoroutineTraceFrame[inst.StackDepth];
+	private static CoroTrace makeTrace(CoroInstance inst) {
+		var frames = new CoroTraceFrame[inst.StackDepth];
 		for (int i = 0; i < inst.StackDepth; i++) {
-			CoroutineStackFrame frame = inst.StackFrames[i];
-			frames[i] = new CoroutineTraceFrame {
+			CoroStackFrame frame = inst.StackFrames[i];
+			frames[i] = new CoroTraceFrame {
 				DebugName = frame.DebugName,
 				EnumeratorTypeName = frame.Iterator.GetType().FullName ?? "<null>",
 				SourceFile = frame.SourceFile,
@@ -677,7 +677,7 @@ public sealed class CoroutineScheduler : IDisposable {
 		string? name = inst.Options?.Name;
 		if (string.IsNullOrEmpty(name) && inst.StackDepth > 0)
 			name = inst.StackPeek().DebugName;
-		return new CoroutineTrace {
+		return new CoroTrace {
 			Handle = inst.Handle,
 			Name = name,
 			ScopeName = inst.Scope?.Name,
@@ -697,7 +697,7 @@ public sealed class CoroutineScheduler : IDisposable {
 
 	// ==========================================================================
 	// coroutine get/lifecycle
-	private bool tryGetSlot(CoroutineHandle handle, [NotNullWhen(true)] out CoroutineSlot? slot) {
+	private bool tryGetSlot(CoroHandle handle, [NotNullWhen(true)] out CoroSlot? slot) {
 		slot = null;
 		if (!handle.IsValid)
 			return false;
@@ -708,26 +708,26 @@ public sealed class CoroutineScheduler : IDisposable {
 			return false;
 		if (slot.Instance is not null)
 			return true;
-		if (slot.TerminalInfo is CoroutineInfo info && info.Handle == handle)
+		if (slot.TerminalInfo is CoroInfo info && info.Handle == handle)
 			return true;
 		slot = null;
 		return false;
 	}
 
-	private bool tryGetInstance(CoroutineHandle handle, [NotNullWhen(true)] out CoroutineInstance? inst) {
+	private bool tryGetInstance(CoroHandle handle, [NotNullWhen(true)] out CoroInstance? inst) {
 		inst = null;
 		if (!handle.IsValid)
 			return false;
 		if (handle.Slot < 0 || handle.Slot >= slots.Count)
 			return false;
-		CoroutineSlot slot = slots[handle.Slot];
+		CoroSlot slot = slots[handle.Slot];
 		if (slot.Generation != handle.Generation)
 			return false;
 		inst = slot.Instance;
 		return slot.Instance is not null;
 	}
 
-	private void applyPending(CoroutineInstance inst) {
+	private void applyPending(CoroInstance inst) {
 		if (inst.PendingCancellationReason is CoroCancellationReason reason) {
 			inst.PendingCancellationReason = null;
 			instCancel(inst, reason);
@@ -737,13 +737,13 @@ public sealed class CoroutineScheduler : IDisposable {
 		switch (inst.PendingControl) {
 		case PendingControlAction.Pause:
 			inst.PendingControl = PendingControlAction.None;
-			if (inst.Status == CoroutineStatus.Running)
-				inst.Status = CoroutineStatus.Paused;
+			if (inst.Status == CoroStatus.Running)
+				inst.Status = CoroStatus.Paused;
 			break;
 		case PendingControlAction.Resume:
 			inst.PendingControl = PendingControlAction.None;
-			if (inst.Status == CoroutineStatus.Paused)
-				inst.Status = CoroutineStatus.Running;
+			if (inst.Status == CoroStatus.Paused)
+				inst.Status = CoroStatus.Running;
 			break;
 		}
 	}
@@ -760,8 +760,8 @@ public sealed class CoroutineScheduler : IDisposable {
 		foreach (int slotidx in pendingReap) {
 			if (slotidx < 0 || slotidx >= slots.Count)
 				throw new InternalStateException($"pending-reap queue contains invalid slot index {slotidx}");
-			CoroutineSlot slot = slots[slotidx];
-			CoroutineInstance? inst = slot.Instance;
+			CoroSlot slot = slots[slotidx];
+			CoroInstance? inst = slot.Instance;
 			if (inst is null)
 				continue;
 			slot.Instance = null;
@@ -784,17 +784,17 @@ public sealed class CoroutineScheduler : IDisposable {
 
 	// ==========================================================================
 	// coroutine execution
-	private void runInstance(CoroutineInstance inst, double dt, double rawDt, CoroUpdatePhase phase) {
+	private void runInstance(CoroInstance inst, double dt, double rawDt, CoroUpdatePhase phase) {
 		int steps = 0;
 
 		for (;;) {
 			applyPending(inst);
-			if (inst.Status != CoroutineStatus.Running)
+			if (inst.Status != CoroStatus.Running)
 				return;
 			if (inst.Scope is null)
 				throw new InternalStateException("expected coro instance scope to be nonnull");
 			inst.LastPhase = phase;
-			CoroutineContext ctx = new(this, inst.Handle, inst.Scope, dt, rawDt, phase, tick);
+			CoroContext ctx = new(this, inst.Handle, inst.Scope, dt, rawDt, phase, tick);
 			if (inst.Wait is not null) {
 				bool shouldWait;
 				try {
@@ -812,12 +812,12 @@ public sealed class CoroutineScheduler : IDisposable {
 				return;
 			}
 			if (++steps > inst.Options.MaxStepsPerTick) {
-				if (!inst.TrySetWait(this, new CoroWaitUntilTick(tick + (CoroutineTick)1), out Exception? setWaitEx))
+				if (!inst.TrySetWait(this, new CoroWaitUntilTick(tick + (CoroTick)1), out Exception? setWaitEx))
 					instFault(inst, setWaitEx);
 				return;
 			}
 
-			CoroutineStackFrame frame = inst.StackPeek();
+			CoroStackFrame frame = inst.StackPeek();
 			bool moved;
 			CoroYield yielded;
 			try {
@@ -858,12 +858,12 @@ public sealed class CoroutineScheduler : IDisposable {
 		}
 	}
 
-	private void instComplete(CoroutineInstance inst) {
+	private void instComplete(CoroInstance inst) {
 		inst.TransitionToCompleted(tick);
 		requestReap(inst.Handle.Slot);
 	}
 
-	private void instCancel(CoroutineInstance inst, CoroCancellationReason reason) {
+	private void instCancel(CoroInstance inst, CoroCancellationReason reason) {
 		// capture stacktrace here before the unwind
 		inst.PreservedTerminalTrace = makeTrace(inst);
 
@@ -871,14 +871,14 @@ public sealed class CoroutineScheduler : IDisposable {
 		requestReap(inst.Handle.Slot);
 	}
 
-	private void instFault(CoroutineInstance inst, Exception ex) {
+	private void instFault(CoroInstance inst, Exception ex) {
 		// capture stacktrace here before the unwind
 		inst.PreservedTerminalTrace = makeTrace(inst);
 
 		inst.TransitionToFaulted(this, ex, tick);
 		if (slots[inst.Handle.Slot].RetainCount == 0) // TODO: better policy for what counts as "unhandled"
 			pendingUnhandledFaults.Add(
-				new CoroutineUnhandledFaultInfo {
+				new CoroUnhandledFaultInfo {
 					Exception = ExceptionSnapshot.FromException(ex),
 					Info = makeInfo(inst),
 					Trace = inst.PreservedTerminalTrace,
@@ -892,14 +892,14 @@ public sealed class CoroutineScheduler : IDisposable {
 			return;
 		try {
 			for (int i = 0; i < pendingUnhandledFaults.Count; i++) {
-				CoroutineUnhandledFaultInfo info = pendingUnhandledFaults[i];
+				CoroUnhandledFaultInfo info = pendingUnhandledFaults[i];
 				UnhandledFault?.Invoke(info);
 				if (UnhandledFaultMode.Tag is CoroUnhandledFaultMode.Case.LogAfterTick or CoroUnhandledFaultMode.Case.LogAndThrowAfterTick)
-					DiagnosticLogSink?.Invoke(CoroutineDiagnostics.FormatFault(info));
+					DiagnosticLogSink?.Invoke(CoroDiagnostics.FormatFault(info));
 			}
 			if (UnhandledFaultMode.Tag is CoroUnhandledFaultMode.Case.ThrowAfterTick or CoroUnhandledFaultMode.Case.LogAndThrowAfterTick) {
-				CoroutineUnhandledFaultInfo[] arr = pendingUnhandledFaults.ToArray();
-				throw new CoroutineUnhandledFaultsException(arr);
+				CoroUnhandledFaultInfo[] arr = pendingUnhandledFaults.ToArray();
+				throw new CoroUnhandledFaultsException(arr);
 			}
 		} finally {
 			pendingUnhandledFaults.Clear();

@@ -11,16 +11,16 @@ namespace Injure.Layers;
 
 internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	public LayerTimeDomain Time { get; }
-	public CoroutineScheduler Coroutines { get; }
-	public CoroutineScope CoroutineScope { get; }
+	public CoroScheduler Coroutines { get; }
+	public CoroScope CoroutineScope { get; }
 
 	private readonly List<IMonoTickReceiver> toUpdate;
 	private ActionContext? actionCtx;
 
 	public LayerRuntime() {
 		Time = new LayerTimeDomain();
-		Coroutines = new CoroutineScheduler();
-		CoroutineScope = CoroutineScope.CreateRoot(Coroutines, "Layer", EngineInfo.OwnerId); // TODO think about what owner ID this should use
+		Coroutines = new CoroScheduler();
+		CoroutineScope = CoroScope.CreateRoot(Coroutines, "Layer", EngineInfo.OwnerId); // TODO think about what owner ID this should use
 		toUpdate = new List<IMonoTickReceiver>();
 	}
 

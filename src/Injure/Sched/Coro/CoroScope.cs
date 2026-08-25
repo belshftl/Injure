@@ -6,21 +6,21 @@ using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Sched.Coro;
 
-public sealed class CoroutineScope : IReloadTeardown, IDisposable {
-	private readonly CoroutineScheduler scheduler;
-	private readonly CoroutineScope? parent;
-	private readonly HashSet<CoroutineHandle> members = new();
-	private readonly List<CoroutineScope> children = new();
+public sealed class CoroScope : IReloadTeardown, IDisposable {
+	private readonly CoroScheduler scheduler;
+	private readonly CoroScope? parent;
+	private readonly HashSet<CoroHandle> members = new();
+	private readonly List<CoroScope> children = new();
 	private CoroCancellationReason? cancellationReason = null;
 	private int cancelled = 0;
 
-	public CoroutineScheduler Scheduler => scheduler;
-	public CoroutineScope? Parent => parent;
+	public CoroScheduler Scheduler => scheduler;
+	public CoroScope? Parent => parent;
 	public string Name { get; }
 	public string OwnerId { get; }
 	public bool Cancelled => Volatile.Read(ref cancelled) != 0;
 
-	private CoroutineScope(CoroutineScheduler scheduler, CoroutineScope? parent, string name, string ownerId) {
+	private CoroScope(CoroScheduler scheduler, CoroScope? parent, string name, string ownerId) {
 		ArgumentNullException.ThrowIfNull(scheduler);
 		ArgumentNullException.ThrowIfNull(name);
 		ModMetadataValidation.ValidateOwnerIdOrThrow(ownerId);
@@ -37,19 +37,19 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 		}
 	}
 
-	public static CoroutineScope CreateRoot(CoroutineScheduler scheduler, string name, string ownerId) => new(scheduler, null, name, ownerId);
-	public CoroutineScope CreateChild(string name, string ownerId) => !Cancelled
-		? new CoroutineScope(scheduler, this, name, ownerId)
+	public static CoroScope CreateRoot(CoroScheduler scheduler, string name, string ownerId) => new(scheduler, null, name, ownerId);
+	public CoroScope CreateChild(string name, string ownerId) => !Cancelled
+		? new CoroScope(scheduler, this, name, ownerId)
 		: throw new InvalidOperationException("cannot create a child from a cancelled scope");
 
 	internal void Cancel(CoroCancellationReason reason) {
 		if (Interlocked.Exchange(ref cancelled, 1) != 0)
 			return;
 		cancellationReason = reason;
-		CoroutineScope[] childrenSnap = children.Count > 0 ? new CoroutineScope[children.Count] : Array.Empty<CoroutineScope>();
+		CoroScope[] childrenSnap = children.Count > 0 ? new CoroScope[children.Count] : Array.Empty<CoroScope>();
 		if (childrenSnap.Length > 0)
 			children.CopyTo(childrenSnap);
-		var membersSnap = new CoroutineHandle[members.Count];
+		var membersSnap = new CoroHandle[members.Count];
 		members.CopyTo(membersSnap);
 		for (int i = 0; i < childrenSnap.Length; i++)
 			childrenSnap[i].Cancel(reason);
@@ -70,8 +70,8 @@ public sealed class CoroutineScope : IReloadTeardown, IDisposable {
 		return false;
 	}
 
-	internal bool TryRegister(CoroutineHandle handle) => !Cancelled && members.Add(handle);
-	internal void Unregister(CoroutineHandle handle) => members.Remove(handle);
+	internal bool TryRegister(CoroHandle handle) => !Cancelled && members.Add(handle);
+	internal void Unregister(CoroHandle handle) => members.Remove(handle);
 
 	public void Teardown(in ReloadTeardownContext ctx) => Cancel();
 

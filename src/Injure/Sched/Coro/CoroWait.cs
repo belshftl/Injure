@@ -6,12 +6,12 @@ using System.Diagnostics;
 namespace Injure.Sched.Coro;
 
 public static class CoroWaits {
-	public static CoroWaitForTicks Ticks(CoroutineTick ticks) =>
-		ticks >= CoroutineTick.Zero ? new CoroWaitForTicks(ticks) : throw new ArgumentOutOfRangeException(nameof(ticks));
-	public static CoroWaitForTicks Ticks(int ticks) => Ticks((CoroutineTick)ticks); // quality of life overload for int literals
+	public static CoroWaitForTicks Ticks(CoroTick ticks) =>
+		ticks >= CoroTick.Zero ? new CoroWaitForTicks(ticks) : throw new ArgumentOutOfRangeException(nameof(ticks));
+	public static CoroWaitForTicks Ticks(int ticks) => Ticks((CoroTick)ticks); // quality of life overload for int literals
 	public static CoroWaitForSeconds Seconds(double seconds) =>
 		seconds >= 0 ? new CoroWaitForSeconds(seconds) : throw new ArgumentOutOfRangeException(nameof(seconds));
-	public static CoroWaitForHandle ForHandle(CoroutineHandle handle, bool propagateFault = true, bool throwOnChildCancelled = false) =>
+	public static CoroWaitForHandle ForHandle(CoroHandle handle, bool propagateFault = true, bool throwOnChildCancelled = false) =>
 		new(handle, propagateFault, throwOnChildCancelled);
 	public static CoroWaitUntilPredicate Until(Func<bool> predicate, string? debugDesc = null) =>
 		new(predicate ?? throw new ArgumentNullException(nameof(predicate)), invert: false, debugDesc);
@@ -28,40 +28,40 @@ public sealed class CoroSignal {
 }
 
 public abstract class CoroWait {
-	public abstract bool KeepWaiting(in CoroutineContext ctx);
+	public abstract bool KeepWaiting(in CoroContext ctx);
 	public virtual void OnCancel(CoroCancellationReason reason) {}
 	public abstract string GetDebugWaitDescription();
 }
 
-public sealed class CoroWaitForTicks(CoroutineTick ticks) : CoroWait {
-	private readonly CoroutineTick total = ticks;
-	private CoroutineTick remaining = ticks;
-	public override bool KeepWaiting(in CoroutineContext ctx) => remaining > CoroutineTick.Zero && --remaining > CoroutineTick.Zero;
+public sealed class CoroWaitForTicks(CoroTick ticks) : CoroWait {
+	private readonly CoroTick total = ticks;
+	private CoroTick remaining = ticks;
+	public override bool KeepWaiting(in CoroContext ctx) => remaining > CoroTick.Zero && --remaining > CoroTick.Zero;
 	public override string GetDebugWaitDescription() => $"for {remaining} more ticks (started at {total})";
 }
 
-public sealed class CoroWaitUntilTick(CoroutineTick targetTick) : CoroWait {
-	private readonly CoroutineTick target = targetTick;
-	public override bool KeepWaiting(in CoroutineContext ctx) => ctx.Tick < target;
+public sealed class CoroWaitUntilTick(CoroTick targetTick) : CoroWait {
+	private readonly CoroTick target = targetTick;
+	public override bool KeepWaiting(in CoroContext ctx) => ctx.Tick < target;
 	public override string GetDebugWaitDescription() => $"until tick {target}";
 }
 
 public sealed class CoroWaitForSeconds(double seconds) : CoroWait {
 	private readonly double total = seconds;
 	private double remaining = seconds;
-	public override bool KeepWaiting(in CoroutineContext ctx) => (remaining -= ctx.DeltaTime) > 0f;
+	public override bool KeepWaiting(in CoroContext ctx) => (remaining -= ctx.DeltaTime) > 0f;
 	public override string GetDebugWaitDescription() => $"for {Math.Max(remaining, 0f):0.###} more seconds (started at {total:0.###})";
 }
 
-public sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFault, bool throwOnChildCancelled) : CoroWait {
-	private readonly CoroutineHandle handle = handle;
+public sealed class CoroWaitForHandle(CoroHandle handle, bool propagateFault, bool throwOnChildCancelled) : CoroWait {
+	private readonly CoroHandle handle = handle;
 	private readonly bool propagateFault = propagateFault;
 	private readonly bool throwOnChildCancelled = throwOnChildCancelled;
 	private bool attached = false;
 
-	public CoroutineHandle TargetHandle => handle;
+	public CoroHandle TargetHandle => handle;
 
-	internal bool EnsureAttached(CoroutineScheduler scheduler) {
+	internal bool EnsureAttached(CoroScheduler scheduler) {
 		if (attached)
 			return true;
 		if (!scheduler.TryRetainHandle(handle))
@@ -70,33 +70,33 @@ public sealed class CoroWaitForHandle(CoroutineHandle handle, bool propagateFaul
 		return true;
 	}
 
-	internal void Detach(CoroutineScheduler scheduler) {
+	internal void Detach(CoroScheduler scheduler) {
 		if (!attached)
 			return;
 		scheduler.ReleaseRetainedHandle(handle);
 		attached = false;
 	}
 
-	public override bool KeepWaiting(in CoroutineContext ctx) {
+	public override bool KeepWaiting(in CoroContext ctx) {
 		if (handle == ctx.Handle)
 			throw new InvalidOperationException($"coroutine {ctx.Handle} tried to wait on its own handle");
-		if (!ctx.Scheduler.TryGetInfo(handle, out CoroutineInfo info))
+		if (!ctx.Scheduler.TryGetInfo(handle, out CoroInfo info))
 			throw new InvalidOperationException($"failed to get info for coroutine handle {handle}");
 		switch (info.Status.Tag) {
-		case CoroutineStatus.Case.Running:
-		case CoroutineStatus.Case.Paused:
+		case CoroStatus.Case.Running:
+		case CoroStatus.Case.Paused:
 			return true;
-		case CoroutineStatus.Case.Completed:
+		case CoroStatus.Case.Completed:
 			return false;
-		case CoroutineStatus.Case.Cancelled:
+		case CoroStatus.Case.Cancelled:
 			if (throwOnChildCancelled)
-				throw new CoroutineCancelledException(handle, info.CancellationReason ?? CoroCancellationReason.ManualStop);
+				throw new CoroCancelledException(handle, info.CancellationReason ?? CoroCancellationReason.ManualStop);
 			return false;
-		case CoroutineStatus.Case.Faulted:
+		case CoroStatus.Case.Faulted:
 			if (info.Fault is null)
 				throw new InternalStateException("expected Fault to be nonnull on Faulted status");
 			if (propagateFault)
-				throw new CoroutineChildFaultException(handle, info.Fault);
+				throw new CoroChildFaultException(handle, info.Fault);
 			return false;
 		default:
 			throw new UnreachableException();
@@ -109,7 +109,7 @@ public sealed class CoroWaitUntilPredicate(Func<bool> predicate, bool invert, st
 	private readonly Func<bool> predicate = predicate;
 	private readonly bool invert = invert;
 	private readonly string? debugDesc = debugDesc;
-	public override bool KeepWaiting(in CoroutineContext ctx) {
+	public override bool KeepWaiting(in CoroContext ctx) {
 		bool v = predicate();
 		return invert ? v : !v;
 	}
@@ -119,6 +119,6 @@ public sealed class CoroWaitUntilPredicate(Func<bool> predicate, bool invert, st
 public sealed class CoroWaitForSignal(CoroSignal signal, string? debugDesc = null) : CoroWait {
 	private readonly CoroSignal signal = signal;
 	private readonly string? debugDesc = debugDesc;
-	public override bool KeepWaiting(in CoroutineContext ctx) => !signal.TryConsumeSignal();
+	public override bool KeepWaiting(in CoroContext ctx) => !signal.TryConsumeSignal();
 	public override string GetDebugWaitDescription() => debugDesc ?? "for a signal";
 }

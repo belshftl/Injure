@@ -5,7 +5,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using WebGPU;
 
 namespace Injure.Primitives;
 
@@ -19,26 +18,50 @@ namespace Injure.Primitives;
 /// </list>
 /// </summary>
 /// <remarks>
+/// <para>
+/// Intended for both usage as a general type and as an unmanaged, blittable primitive.
+/// The memory layout is fixed by <c>[StructLayout(LayoutKind.Explicit, Size = 4, Pack = 1)]</c>, not incidental.
+/// Safe for P/Invoke, <c>stackalloc Color32[]</c>, reinterprets with <c>Unsafe.As</c> / <c>Unsafe.BitCast</c> or
+/// span reinterprets with <c>MemoryMarshal.Cast</c>, etc.
+/// </para>
+/// <para>
+/// All currently supported .NET runtime targets are little-endian, so the bit pattern of the packed
+/// <see cref="uint"/> equivalent (as provided by e.g. <see cref="ReinterpretToU32()"/>) is always
+/// <c>0xAABBGGRR</c>. This is a platform observation, not a guarantee; the .NET runtime may support
+/// big-endian targets in the future.
+/// </para>
+/// <para>
 /// No colorspace/premultiplied-alpha information is encoded, for obvious reasons.
 /// Don't assume anything; check in with the API producing the values.
+/// </para>
 /// </remarks>
 [StructLayout(LayoutKind.Explicit, Size = 4, Pack = 1)]
 public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatable<Color32>, ISpanParsable<Color32> {
-	/// <summary>Red value, at byte offset 0.</summary>
+	/// <summary>
+	/// Red value, at byte offset 0.
+	/// </summary>
 	[FieldOffset(0)] public readonly byte R = r;
-	/// <summary>Green value, at byte offset 1.</summary>
+	/// <summary>
+	/// Green value, at byte offset 1.
+	/// </summary>
 	[FieldOffset(1)] public readonly byte G = g;
-	/// <summary>Blue value, at byte offset 2.</summary>
+	/// <summary>
+	/// Blue value, at byte offset 2.
+	/// </summary>
 	[FieldOffset(2)] public readonly byte B = b;
-	/// <summary>Alpha value, at byte offset 3.</summary>
+	/// <summary>
+	/// Alpha value, at byte offset 3.
+	/// </summary>
 	[FieldOffset(3)] public readonly byte A = a;
 
-	/// <summary>Size of a <see cref="Color32"/> value in bytes. Equal to 4.</summary>
+	/// <summary>
+	/// Size of a <see cref="Color32"/> value in bytes. Equal to 4.
+	/// </summary>
 	public const int Size = 4;
 
 #if DEBUG
 	static Color32() {
-		if (Unsafe.SizeOf<Color32>() != 4)
+		if (Unsafe.SizeOf<Color32>() != Size)
 			throw new InternalStateException("expected Color32 size to be 4 bytes");
 		if (Marshal.OffsetOf<Color32>(nameof(R)) != 0)
 			throw new InternalStateException("expected Color32 R offset to be 0");
@@ -52,95 +75,117 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 #endif
 
 	/// <summary>
-	/// Reads the <paramref name="n"/>th byte of this <see cref="Color32"/> value.
+	/// Reads the <paramref name="n"/>th byte of this <see cref="Color32"/> value without
+	/// checking if <paramref name="n"/> is in bounds.
 	/// </summary>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="n"/> is not in the range [0, 3].
-	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// The caller must make sure <paramref name="n"/> is in the range [0, 3]; other values
+	/// will cause out-of-bounds reads.
+	/// </para>
+	/// <para>
+	/// A test under Godbolt, .NET 10.0 CoreCLR, produced:
+	/// <code>
+	/// movzx rax, byte ptr [rdi+rsi]
+	/// ret
+	/// </code>
+	/// Obviously, no API guarantees can be made about what this gets compiled / JIT'ed to;
+	/// this is merely a remark about the purpose of this method and whether using it incurs
+	/// significant overhead or not.
+	/// </para>
+	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public readonly byte GetByte(int n) {
-		if ((uint)n >= 4)
-			throw new ArgumentOutOfRangeException(nameof(n), n, "Color32 only has 4 bytes");
+	public readonly byte GetByteUnchecked(nuint n) {
 		ref byte b0 = ref Unsafe.As<Color32, byte>(ref Unsafe.AsRef(in this));
 		return Unsafe.Add(ref b0, n);
 	}
 
 	/// <summary>
-	/// Reads the <paramref name="n"/>th byte of this <see cref="Color32"/> value without
-	/// checking if <paramref name="n"/> is in bounds.
+	/// Produces a new <see cref="Color32"/> value with its <see cref="R"/> component replaced.
 	/// </summary>
-	/// <remarks>
-	/// The caller must make sure <paramref name="n"/> is in the range [0, 3]; other values
-	/// will cause out-of-bounds reads.
-	/// </remarks>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public readonly byte GetByteUnchecked(int n) {
-		ref byte b0 = ref Unsafe.As<Color32, byte>(ref Unsafe.AsRef(in this));
-		return Unsafe.Add(ref b0, n);
-	}
-
-	/// <summary>Produces a new <see cref="Color32"/> value with its <see cref="R"/> component replaced.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public Color32 WithR(byte r) => new(r, G, B, A);
 
-	/// <summary>Produces a new <see cref="Color32"/> value with its <see cref="G"/> component replaced.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	/// <summary>
+	/// Produces a new <see cref="Color32"/> value with its <see cref="G"/> component replaced.
+	/// </summary>
 	public Color32 WithG(byte g) => new(R, g, B, A);
 
-	/// <summary>Produces a new <see cref="Color32"/> value with its <see cref="B"/> component replaced.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	/// <summary>
+	/// Produces a new <see cref="Color32"/> value with its <see cref="B"/> component replaced.
+	/// </summary>
 	public Color32 WithB(byte b) => new(R, G, b, A);
 
-	/// <summary>Produces a new <see cref="Color32"/> value with its <see cref="A"/> component replaced.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	/// <summary>
+	/// Produces a new <see cref="Color32"/> value with its <see cref="A"/> component replaced.
+	/// </summary>
 	public Color32 WithA(byte a) => new(R, G, B, a);
 
-	/// <summary>Converts this value to a <c>0xRRGGBBAA</c> u32 integer.</summary>
+	/// <summary>
+	/// Converts this value to a <c>0xRRGGBBAA</c> u32 integer.
+	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// This is not the same as reinterpreting the bytes; for example, on little-endian,
 	/// the resulting integer has memory layout <c>AABBGGRR</c> (when going lower -> higher memory address).
+	/// </para>
+	/// <para>
+	/// Since all currently supported .NET runtime targets are little-endian (see remark on <see cref="Color32"/>),
+	/// this happens to actually be the same as reinterpreting the bytes. It will, however, not be the same
+	/// if the runtime ever supports big-endian targets.
+	/// </para>
 	/// </remarks>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint ToLogicalRgba32() => (uint)R << 24 | (uint)G << 16 | (uint)B << 8 | A;
 
-	/// <summary>Converts this value to a 0xAARRGGBB u32 integer.</summary>
+	/// <summary>
+	/// Converts this value to a 0xAARRGGBB u32 integer.
+	/// </summary>
 	/// <remarks>
 	/// This is not the same as reinterpreting the bytes; for example, on little-endian,
 	/// the resulting integer has memory layout <c>BBGGRRAA</c> (when going lower -> higher memory address).
 	/// </remarks>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint ToLogicalArgb32() => (uint)A << 24 | (uint)R << 16 | (uint)G << 8 | B;
 
-	/// <summary>Converts this value to a 0xAABBGGRR u32 integer.</summary>
+	/// <summary>
+	/// Converts this value to a 0xAABBGGRR u32 integer.
+	/// </summary>
 	/// <remarks>
 	/// This is not the same as reinterpreting the bytes; for example, on little-endian,
 	/// the resulting integer has memory layout <c>RRGGBBAA</c> (when going lower -> higher memory address).
 	/// </remarks>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint ToLogicalAbgr32() => (uint)A << 24 | (uint)B << 16 | (uint)G << 8 | R;
 
-	/// <summary>Converts this value to a <c>0xBBGGRRAA</c> u32 integer.</summary>
+	/// <summary>
+	/// Converts this value to a <c>0xBBGGRRAA</c> u32 integer.
+	/// </summary>
 	/// <remarks>
 	/// This is not the same as reinterpreting the bytes; for example, on little-endian,
 	/// the resulting integer has memory layout <c>AARRGGBB</c> (when going lower -> higher memory address).
 	/// </remarks>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public uint ToLogicalBgra32() => (uint)B << 24 | (uint)G << 16 | (uint)R << 8 | A;
 
-	/// <summary>Converts a 0xRRGGBBAA u32 integer to a <see cref="Color32"/> value.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	/// <summary>
+	/// Converts a 0xRRGGBBAA u32 integer to a <see cref="Color32"/> value.
+	/// </summary>
+	/// <remarks>
+	/// Since all currently supported .NET runtime targets are little-endian (see remark on <see cref="Color32"/>),
+	/// this happens to be the same as reinterpreting the bytes. It will, however, not be the same if the
+	/// runtime ever supports big-endian targets.
+	/// </remarks>
 	public static Color32 FromLogicalRgba32(uint rgba) => new((byte)(rgba >> 24), (byte)(rgba >> 16), (byte)(rgba >> 8), (byte)rgba);
 
-	/// <summary>Converts a 0xAARRGGBB u32 integer to a <see cref="Color32"/> value.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	/// <summary>
+	/// Converts a 0xAARRGGBB u32 integer to a <see cref="Color32"/> value.
+	/// </summary>
 	public static Color32 FromLogicalArgb32(uint argb) => new((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb, (byte)(argb >> 24));
 
-	/// <summary>Converts a 0xAABBGGRR u32 integer to a <see cref="Color32"/> value.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	/// <summary>
+	/// Converts a 0xAABBGGRR u32 integer to a <see cref="Color32"/> value.
+	/// </summary>
 	public static Color32 FromLogicalAbgr32(uint abgr) => new((byte)abgr, (byte)(abgr >> 8), (byte)(abgr >> 16), (byte)(abgr >> 24));
 
-	/// <summary>Converts a <c>0xBBGGRRAA</c> u32 integer to a <see cref="Color32"/> value.</summary>
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	/// <summary>
+	/// Converts a <c>0xBBGGRRAA</c> u32 integer to a <see cref="Color32"/> value.
+	/// </summary>
 	public static Color32 FromLogicalBgra32(uint bgra) => new((byte)(bgra >> 8), (byte)(bgra >> 16), (byte)(bgra >> 24), (byte)bgra);
 
 	/// <summary>
@@ -248,7 +293,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// <summary>
 	/// Converts this value to a <see cref="WebGPU.WGPUColor"/> with each channel in the range [0, 1].
 	/// </summary>
-	internal WGPUColor ToWebGPUColor() => new(R / 255.0, G / 255.0, B / 255.0, A / 255.0);
+	internal WebGPU.WGPUColor ToWebGPUColor() => new(R / 255.0, G / 255.0, B / 255.0, A / 255.0);
 
 	public bool Equals(Color32 other) => R == other.R && G == other.G && B == other.B && A == other.A;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is Color32 other && Equals(other);
@@ -277,7 +322,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 
 	/// <summary>
 	/// Parses a <see cref="Color32"/> from a hex-code string. Alpha may be omitted to mean opaque, and
-	/// an optional leading <c>#</c> character is accepted.
+	/// an optional leading <c>#</c> character is accepted. Case-insensitive.
 	/// </summary>
 	/// <param name="span">Span of characters to parse.</param>
 	/// <param name="val">On success, the parsed value.</param>
@@ -329,7 +374,7 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 
 	/// <summary>
 	/// Parses a <see cref="Color32"/> from a hex-code string. Alpha may be omitted to mean opaque, and
-	/// an optional leading <c>#</c> character is accepted.
+	/// an optional leading <c>#</c> character is accepted. Case-insensitive.
 	/// </summary>
 	/// <param name="span">Span of characters to parse.</param>
 	/// <returns>
@@ -373,24 +418,44 @@ public readonly struct Color32(byte r, byte g, byte b, byte a = 0xff) : IEquatab
 	/// </remarks>
 	public static Color32 Parse([NotNull] string? s, IFormatProvider? provider) => Parse((s ?? throw new ArgumentNullException(nameof(s))).AsSpan());
 
-	/// <summary>The color <c>#00000000</c>.</summary>
+	/// <summary>
+	/// The color <c>#00000000</c>.
+	/// </summary>
 	public static readonly Color32 Transparent = new(0x00, 0x00, 0x00, 0x00);
-	/// <summary>The color <c>#FFFFFFFF</c>.</summary>
+	/// <summary>
+	/// The color <c>#FFFFFFFF</c>.
+	/// </summary>
 	public static readonly Color32 White = new(0xff, 0xff, 0xff, 0xff);
-	/// <summary>The color <c>#000000FF</c>.</summary>
+	/// <summary>
+	/// The color <c>#000000FF</c>.
+	/// </summary>
 	public static readonly Color32 Black = new(0x00, 0x00, 0x00, 0xff);
-	/// <summary>The color <c>#FF0000FF</c>.</summary>
+	/// <summary>
+	/// The color <c>#FF0000FF</c>.
+	/// </summary>
 	public static readonly Color32 Red = new(0xff, 0x00, 0x00, 0xff);
-	/// <summary>The color <c>#00FF00FF</c>.</summary>
+	/// <summary>
+	/// The color <c>#00FF00FF</c>.
+	/// </summary>
 	public static readonly Color32 Green = new(0x00, 0xff, 0x00, 0xff);
-	/// <summary>The color <c>#0000FFFF</c>.</summary>
+	/// <summary>
+	/// The color <c>#0000FFFF</c>.
+	/// </summary>
 	public static readonly Color32 Blue = new(0x00, 0x00, 0xff, 0xff);
-	/// <summary>The color <c>#FFFF00FF</c>.</summary>
+	/// <summary>
+	/// The color <c>#FFFF00FF</c>.
+	/// </summary>
 	public static readonly Color32 Yellow = new(0xff, 0xff, 0x00, 0xff);
-	/// <summary>The color <c>#00FFFFFF</c>.</summary>
+	/// <summary>
+	/// The color <c>#00FFFFFF</c>.
+	/// </summary>
 	public static readonly Color32 Cyan = new(0x00, 0xff, 0xff, 0xff);
-	/// <summary>The color <c>#FF00FFFF</c>.</summary>
+	/// <summary>
+	/// The color <c>#FF00FFFF</c>.
+	/// </summary>
 	public static readonly Color32 Magenta = new(0xff, 0x00, 0xff, 0xff);
-	/// <summary>The color <c>#00008BFF</c>.</summary>
+	/// <summary>
+	/// The color <c>#00008BFF</c>.
+	/// </summary>
 	public static readonly Color32 DarkBlue = new(0x00, 0x00, 0x8b, 0xff);
 }

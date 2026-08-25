@@ -1,8 +1,0 @@
-// SPDX-FileCopyrightText: 2026 belshftl
-// SPDX-License-Identifier: MIT
-
-namespace Injure.Sched.Coro;
-
-public sealed class CoroutineUnhandledFaultsException(IReadOnlyList<CoroutineUnhandledFaultInfo> faults) : Exception($"{faults.Count} unhandled coroutine faults occurred") {
-	public IReadOnlyList<CoroutineUnhandledFaultInfo> Faults { get; } = faults;
-}

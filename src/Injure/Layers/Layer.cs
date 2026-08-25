@@ -67,7 +67,7 @@ public abstract class Layer {
 	/// <remarks>
 	/// This is an activation-bound service.
 	/// </remarks>
-	protected CoroutineScheduler Coroutines => Runtime?.Coroutines ?? throw new InvalidOperationException(eMsg);
+	protected CoroScheduler Coroutines => Runtime?.Coroutines ?? throw new InvalidOperationException(eMsg);
 
 	/// <summary>
 	/// Runtime-provided coroutine scope for this layer, intended to be paired with <see cref="Coroutines"/>.
@@ -75,7 +75,7 @@ public abstract class Layer {
 	/// <remarks>
 	/// This is an activation-bound service.
 	/// </remarks>
-	protected CoroutineScope CoroutineScope => Runtime?.CoroutineScope ?? throw new InvalidOperationException(eMsg);
+	protected CoroScope CoroutineScope => Runtime?.CoroutineScope ?? throw new InvalidOperationException(eMsg);
 
 	/// <summary>
 	/// Runtime-provided automatic updater of <see cref="Time.IMonoTickReceiver"/>

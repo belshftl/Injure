@@ -16,8 +16,8 @@ public readonly partial struct CoroUnhandledFaultMode {
 	}
 }
 
-public sealed class CoroutineUnhandledFaultInfo {
+public sealed class CoroUnhandledFaultInfo {
 	public required ExceptionSnapshot Exception { get; init; }
-	public required CoroutineInfo Info { get; init; }
-	public required CoroutineTrace Trace { get; init; }
+	public required CoroInfo Info { get; init; }
+	public required CoroTrace Trace { get; init; }
 }

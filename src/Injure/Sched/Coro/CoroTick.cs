@@ -6,5 +6,5 @@ using Injure.DevAnalyzers.Attributes;
 namespace Injure.Sched.Coro;
 
 [StronglyTypedInt(typeof(long))]
-public readonly partial struct CoroutineTick {
+public readonly partial struct CoroTick {
 }
