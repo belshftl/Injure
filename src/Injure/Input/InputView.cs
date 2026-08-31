@@ -22,10 +22,10 @@ public readonly struct InputSnapshot(KeyboardState keyboard, PointerState pointe
 /// beyond the current input-processing phase.
 /// </remarks>
 public readonly ref struct InputEventView {
-	private readonly RingBufferView<InputEvent> ringView;
+	private readonly RingView<InputEvent> ringView;
 	private readonly bool hasRingView;
 
-	internal InputEventView(RingBufferView<InputEvent> ringView) {
+	internal InputEventView(RingView<InputEvent> ringView) {
 		this.ringView = ringView;
 		hasRingView = true;
 	}

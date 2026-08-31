@@ -46,12 +46,12 @@ public sealed class ActionRegistry {
 		}
 	}
 
-	// FrozenSnapshotTwoWayMap isn't safe for concurrent writes without external mutexing,
+	// FrozenSnapshotBijectiveMap isn't safe for concurrent writes without external mutexing,
 	// it won't corrupt state but if writes race only the winner's snapshot update makes
 	// it in and the other changes get lost
 	private readonly Lock writeLock = new();
 
-	private readonly FrozenSnapshotTwoWayMap<string, ActionId> actions = new(cmpLeft: StringComparer.Ordinal);
+	private readonly FrozenSnapshotBijectiveMap<string, ActionId> actions = new(cmpLeft: StringComparer.Ordinal);
 	private uint nextId = 0; // first will be 1 since this gets incremented upfront
 
 	// for now just do this

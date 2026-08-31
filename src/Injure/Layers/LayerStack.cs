@@ -277,7 +277,7 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input) : ID
 				rt.UpdateTickFed(info.ActualAt);
 
 				ControlView controls = rt.UpdateControls(info.ActualAt, inputView);
-				LayerTickContext ctx = new(
+				LayerTickCtx ctx = new(
 					tickInfo: info,
 					dt: dt,
 					rawDt: rawDt,

@@ -1,9 +1,10 @@
 /.DS_Store/
-/*/.DS_Store/
+/**/.DS_Store/
 /.idea/
 /eng/**/bin/
 /eng/**/obj/
 /native/audio/target/
+/native/clrprof/target/
 /native/misc/obj/
 /native/misc/out/
 /native/pack/
@@ -11,4 +12,5 @@
 /src/**/obj/
 /test/**/bin/
 /test/**/obj/
+/test/**/TestResults/
 /TestResults/

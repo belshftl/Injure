@@ -14,6 +14,7 @@
 		<!-- Injure internals: -->
 		<ProjectReference Include="../../eng/Analyzers/Injure.DevAnalyzers/Injure.DevAnalyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 		<InternalsVisibleTo Include="Injure.Mods.Runtime.Tests" />
+		<InternalsVisibleTo Include="Injure.Mods.Runtime.Tests.Modif.E2e" />
 
 		<!-- public packages: -->
 		<ProjectReference Include="../Injure/Injure.csproj" />
@@ -21,6 +22,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.4" PrivateAssets="compile;contentfiles;build;analyzers" />
+		<None Include="../../native/pack/osx-arm64/libinjureclrprof.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
+		<None Include="../../native/pack/linux-x64/libinjureclrprof.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
+		<None Include="../../native/pack/linux-arm64/libinjureclrprof.so" Pack="true" PackagePath="runtimes/linux-arm64/native/" />
 	</ItemGroup>
 </Project>

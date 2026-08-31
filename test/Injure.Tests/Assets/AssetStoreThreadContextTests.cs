@@ -13,9 +13,9 @@ public sealed class AssetStoreThreadContextTests {
 		AssetStore a = new();
 		AssetStore b = new();
 		AssetStore c = new();
-		using AssetThreadContext ctxA = a.AttachCurrentThread();
-		using AssetThreadContext ctxB = b.AttachCurrentThread();
-		using AssetThreadContext ctxC = c.AttachCurrentThread();
+		using AssetThreadCtx ctxA = a.AttachCurrentThread();
+		using AssetThreadCtx ctxB = b.AttachCurrentThread();
+		using AssetThreadCtx ctxC = c.AttachCurrentThread();
 		ctxA.AtSafeBoundary();
 		ctxB.AtSafeBoundary();
 		ctxC.AtSafeBoundary();
@@ -24,7 +24,7 @@ public sealed class AssetStoreThreadContextTests {
 	[Fact]
 	public static void RetiredVerIsReclaimedOnlyAfterSafeBoundary() {
 		AssetStore store = new();
-		using AssetThreadContext mainCtx = store.AttachCurrentThread();
+		using AssetThreadCtx mainCtx = store.AttachCurrentThread();
 		store.RegisterSource(ownerId, new TestSource(), "source");
 		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
 		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
@@ -37,7 +37,7 @@ public sealed class AssetStoreThreadContextTests {
 		Exception? ex = null;
 		Thread thread = new(() => {
 				try {
-					using AssetThreadContext ctx = store.AttachCurrentThread();
+					using AssetThreadCtx ctx = store.AttachCurrentThread();
 					first.Wait();
 					ctx.AtSafeBoundary();
 					second.Wait();
@@ -76,7 +76,7 @@ public sealed class AssetStoreThreadContextTests {
 	[Fact]
 	public static void DisposingContextAllowsReclamation() {
 		AssetStore store = new();
-		using AssetThreadContext mainCtx = store.AttachCurrentThread();
+		using AssetThreadCtx mainCtx = store.AttachCurrentThread();
 		store.RegisterSource(ownerId, new TestSource(), "source");
 		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
 		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
@@ -88,7 +88,7 @@ public sealed class AssetStoreThreadContextTests {
 		Exception? ex = null;
 		Thread thread = new(() => {
 				try {
-					using AssetThreadContext ctx = store.AttachCurrentThread();
+					using AssetThreadCtx ctx = store.AttachCurrentThread();
 					ckp.Wait();
 					// dispose happens here from `using`
 				} catch (Exception caught) {

@@ -15,7 +15,7 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	public CoroScope CoroutineScope { get; }
 
 	private readonly List<IMonoTickReceiver> toUpdate;
-	private ActionContext? actionCtx;
+	private ActionCtx? actionCtx;
 
 	public LayerRuntime() {
 		Time = new LayerTimeDomain();
@@ -31,7 +31,7 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	}
 
 	public void InitActions(ActionProfile? profile) {
-		actionCtx = profile is null ? null : new ActionContext(profile);
+		actionCtx = profile is null ? null : new ActionCtx(profile);
 	}
 
 	public void UpdateTickFed(MonoTick tick) {

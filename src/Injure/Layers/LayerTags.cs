@@ -89,8 +89,8 @@ public sealed class LayerTagRegistry {
 	private static ulong nextRegistryId = 0; // first ID will be 1 since this gets incremented upfront
 	internal readonly ulong RegistryId = Interlocked.Increment(ref nextRegistryId);
 
-	private readonly TwoWayMap<string, ulong> namespaces = new(cmpLeft: StringComparer.Ordinal);
-	private readonly TwoWayMap<TagKey, LayerTag> tags = new();
+	private readonly BijectiveMap<string, ulong> namespaces = new(cmpLeft: StringComparer.Ordinal);
+	private readonly BijectiveMap<TagKey, LayerTag> tags = new();
 
 	// first will be 1 since these get incremented upfront
 	private ulong nextNamespaceId = 0;

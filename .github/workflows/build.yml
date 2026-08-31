@@ -50,23 +50,28 @@ jobs:
           - rid: osx-arm64
             runs_on: macos-14
             libaudio_out_name: libinjureaudio.dylib
+            libclrprof_out_name: libinjureclrprof.dylib
             libmisc_out_name: libinjuremisc.dylib
           - rid: linux-x64
             runs_on: ubuntu-24.04
             libaudio_out_name: libinjureaudio.so
+            libclrprof_out_name: libinjureclrprof.so
             libmisc_out_name: libinjuremisc.so
           - rid: linux-arm64
             runs_on: ubuntu-24.04-arm
             libaudio_out_name: libinjureaudio.so
+            libclrprof_out_name: libinjureclrprof.so
             libmisc_out_name: libinjuremisc.so
           # TODO:
           # - rid: osx-x64
           #   runs_on: macos-15-intel
           #   libaudio_out_name: libinjureaudio.dylib
+          #   libclrprof_out_name: libinjureclrprof.dylib
           #   libmisc_out_name: libinjuremisc.dylib
           # - rid: win-x64
           #   runs_on: windows-2025
           #   libaudio_out_name: injureaudio.dll
+          #   libclrprof_out_name: injureclrprof.dll
           #   libmisc_out_name: injuremisc.dll
 
     runs-on: ${{ matrix.runs_on }}
@@ -103,6 +108,7 @@ jobs:
           name: native-${{ matrix.rid }}
           path: |
             native/stage/${{ matrix.libaudio_out_name }}
+            native/stage/${{ matrix.libclrprof_out_name }}
             native/stage/${{ matrix.libmisc_out_name }}
 
   pack-and-push:

@@ -22,7 +22,7 @@ internal sealed class InputSystem : IInputSource {
 	}
 
 	private readonly object cursorSourceToken = new();
-	private readonly RingBuffer<InputEvent> events;
+	private readonly Ring<InputEvent> events;
 
 	private ulong nextSeq = 0;
 
@@ -43,7 +43,7 @@ internal sealed class InputSystem : IInputSource {
 
 	public InputSystem(int maxBufferedEvents) {
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferedEvents);
-		events = new RingBuffer<InputEvent>(maxBufferedEvents);
+		events = new Ring<InputEvent>(maxBufferedEvents);
 	}
 
 	public InputSnapshot CurrentState => new(

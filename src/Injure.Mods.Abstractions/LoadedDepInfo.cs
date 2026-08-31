@@ -37,20 +37,20 @@ public readonly struct UntypedLoadedCodeDepInfo<L> where L : struct, IModLifetim
 	}
 }
 
-public readonly struct LoadedCodeDepInfo<L, LDependency> where L : struct, IModLifetimeIdentity where LDependency : struct, IModLifetimeIdentity {
+public readonly struct LoadedCodeDepInfo<L, LDep> where L : struct, IModLifetimeIdentity where LDep : struct, IModLifetimeIdentity {
 	public string OwnerId { get; }
 	public Semver Version { get; }
 	public ReloadGeneration Generation { get; }
-	public IBoundedScope<LDependency> Scope { get; }
-	public IModExportTable<L, LDependency> Exports { get; }
+	public IBoundedScope<LDep> Scope { get; }
+	public IModExportTable<L, LDep> Exports { get; }
 	public Assembly Assembly { get; }
 
 	internal LoadedCodeDepInfo(
 		string ownerId,
 		Semver version,
 		ReloadGeneration generation,
-		IBoundedScope<LDependency> scope,
-		IModExportTable<L, LDependency> exports,
+		IBoundedScope<LDep> scope,
+		IModExportTable<L, LDep> exports,
 		Assembly assembly
 	) {
 		OwnerId = ownerId;

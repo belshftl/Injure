@@ -313,7 +313,7 @@ public enum ModificationPointEffects {
 /// roll something of your own that doesn't depend on runtime patching.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, AllowMultiple = true, Inherited = false)]
-public sealed class PlausibleMethodModificationPointAttribute : Attribute {
+public sealed class PlausibleModifPointAttribute : Attribute {
 	public ModificationPointReloadBoundary ReloadBoundary { get; init; } = ModificationPointReloadBoundary.Unspecified;
 	public ModificationPointThreadAffinity ThreadAffinity { get; init; } = ModificationPointThreadAffinity.Unspecified;
 	public ModificationPointBlockingPolicy Blocking { get; init; } = ModificationPointBlockingPolicy.Unspecified;

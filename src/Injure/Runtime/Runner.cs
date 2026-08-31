@@ -229,7 +229,7 @@ public static unsafe class Runner {
 			)
 		);
 		AssetStore? assets = null;
-		AssetThreadContext? assetCtx = null;
+		AssetThreadCtx? assetCtx = null;
 		if (svconf.Assets) {
 			assets = new AssetStore();
 			BuiltinAssetRegistrations.RegisterBaseInto(assets);

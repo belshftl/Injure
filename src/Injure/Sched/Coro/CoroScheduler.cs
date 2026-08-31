@@ -794,7 +794,7 @@ public sealed class CoroScheduler : IDisposable {
 			if (inst.Scope is null)
 				throw new InternalStateException("expected coro instance scope to be nonnull");
 			inst.LastPhase = phase;
-			CoroContext ctx = new(this, inst.Handle, inst.Scope, dt, rawDt, phase, tick);
+			CoroCtx ctx = new(this, inst.Handle, inst.Scope, dt, rawDt, phase, tick);
 			if (inst.Wait is not null) {
 				bool shouldWait;
 				try {

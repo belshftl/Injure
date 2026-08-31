@@ -37,7 +37,7 @@ public readonly record struct LayerBlockRule(LayerBlockMask Blocked, LayerTagSet
 /// </summary>
 /// <remarks>
 /// <para>
-/// A layer has a mandatory <see cref="Update(in LayerTickContext, in TickDeadline)"/> driven
+/// A layer has a mandatory <see cref="Update(in LayerTickCtx, in TickDeadline)"/> driven
 /// by the ticker it was pushed with and may optionally render or receive input.
 /// </para>
 /// <para>
@@ -151,7 +151,7 @@ public abstract class Layer {
 	/// </summary>
 	/// <param name="ctx">Tick context containing timing/input.</param>
 	/// <param name="deadline">Target tick deadline, as provided by the ticker callback.</param>
-	public abstract void Update(in LayerTickContext ctx, in TickDeadline deadline);
+	public abstract void Update(in LayerTickCtx ctx, in TickDeadline deadline);
 
 	/// <summary>
 	/// Called during rendering if this layer has the render feature and render is not blocked by a higher layer.

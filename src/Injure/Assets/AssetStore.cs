@@ -73,7 +73,7 @@ public sealed class AssetStoreRegistration : IReloadTeardown {
 /// </para>
 /// <para>
 /// Threads may attach to the store with <see cref="AttachCurrentThread()"/> and
-/// report quiescent points with <see cref="AssetThreadContext.AtSafeBoundary()"/> (or the convenience
+/// report quiescent points with <see cref="AssetThreadCtx.AtSafeBoundary()"/> (or the convenience
 /// method <see cref="AtSafeBoundary()"/>). When reloads are published, previously live versions are
 /// not reclaimed immediately; instead, the reclamation is deferred until every attached thread
 /// has passed a safe boundary after that publication. In other words, call <see cref="AtSafeBoundary()"/>
@@ -656,8 +656,8 @@ public sealed class AssetStore {
 	private ulong publishedEpoch = 0;
 	internal ulong GetPublishedEpoch() => Volatile.Read(ref publishedEpoch);
 
-	[ThreadStatic] private static Dictionary<ulong, AssetThreadContext>? tlsContextsByStoreId;
-	private readonly ConcurrentDictionary<ulong, AssetThreadContext> attachedContextsByCtxId = new();
+	[ThreadStatic] private static Dictionary<ulong, AssetThreadCtx>? tlsContextsByStoreId;
+	private readonly ConcurrentDictionary<ulong, AssetThreadCtx> attachedContextsByCtxId = new();
 
 	// ==========================================================================
 	// dependency bookkeeping
@@ -668,7 +668,7 @@ public sealed class AssetStore {
 	// ==========================================================================
 	// log/report/failure bookkeeping
 	private readonly Lock reloadFailureLock = new();
-	private readonly RingBuffer<AssetReloadFailure> reloadFailures = new(MaxBufferedReloadFailures);
+	private readonly Ring<AssetReloadFailure> reloadFailures = new(MaxBufferedReloadFailures);
 
 	/// <summary>
 	/// The maximum number of reload failure records retained by this store's reload-failure buffer.
@@ -709,7 +709,7 @@ public sealed class AssetStore {
 	/// asset version reclamation tracking.
 	/// </summary>
 	/// <returns>
-	/// An <see cref="AssetThreadContext"/> object representing this thread's participation
+	/// An <see cref="AssetThreadCtx"/> object representing this thread's participation
 	/// in this store's safe-boundary / deferred-reclaim model.
 	/// </returns>
 	/// <remarks>
@@ -719,9 +719,9 @@ public sealed class AssetStore {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the current thread is already attached to this store.
 	/// </exception>
-	public AssetThreadContext AttachCurrentThread() {
-		AssetThreadContext ctx = new(this);
-		tlsContextsByStoreId ??= new Dictionary<ulong, AssetThreadContext>();
+	public AssetThreadCtx AttachCurrentThread() {
+		AssetThreadCtx ctx = new(this);
+		tlsContextsByStoreId ??= new Dictionary<ulong, AssetThreadCtx>();
 		if (tlsContextsByStoreId.ContainsKey(StoreId))
 			throw new InvalidOperationException("current thread is already attached to this AssetStore");
 		if (!attachedContextsByCtxId.TryAdd(ctx.Id, ctx))
@@ -735,14 +735,14 @@ public sealed class AssetStore {
 	/// Reports a safe boundary for the current thread's attached context in this store.
 	/// </summary>
 	/// <remarks>
-	/// This method is a convenience wrapper over <see cref="AssetThreadContext.AtSafeBoundary()"/>
+	/// This method is a convenience wrapper over <see cref="AssetThreadCtx.AtSafeBoundary()"/>
 	/// for the current thread's attached context in this store.
 	/// </remarks>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the current thread is not attached to this store.
 	/// </exception>
 	public void AtSafeBoundary() {
-		if (tlsContextsByStoreId is null || !tlsContextsByStoreId.TryGetValue(StoreId, out AssetThreadContext? ctx))
+		if (tlsContextsByStoreId is null || !tlsContextsByStoreId.TryGetValue(StoreId, out AssetThreadCtx? ctx))
 			throw new InvalidOperationException(
 				"the current thread is not attached to this AssetStore. if you're using Task/etc., crossing an await is not guaranteed to resume on the same physical thread, use a real Thread"
 			);
@@ -1292,7 +1292,7 @@ public sealed class AssetStore {
 
 	// ==========================================================================
 	// internal api
-	internal void DetachThread(AssetThreadContext ctx) {
+	internal void DetachThread(AssetThreadCtx ctx) {
 		attachedContextsByCtxId.TryRemove(ctx.Id, out _);
 		if (tlsContextsByStoreId is null || !tlsContextsByStoreId.Remove(StoreId))
 			throw new InvalidOperationException(
@@ -1314,7 +1314,7 @@ public sealed class AssetStore {
 
 	internal void TryCollectRetired() {
 		ulong cutoff = ulong.MaxValue;
-		foreach (AssetThreadContext ctx in attachedContextsByCtxId.Values) {
+		foreach (AssetThreadCtx ctx in attachedContextsByCtxId.Values) {
 			ulong e = Volatile.Read(ref ctx.QuiescentEpoch);
 			cutoff = Math.Min(e, cutoff);
 		}

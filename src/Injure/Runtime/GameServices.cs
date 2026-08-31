@@ -78,9 +78,9 @@ public sealed class InputServices {
 public sealed class AdvancedServices {
 	private readonly GameServiceLifetime lifetime;
 	public EngineResourceStore EngineResources => Alive(lifetime, field);
-	public AssetThreadContext AssetMainThreadContext => AliveAndNonnull(lifetime, field, "assets subsystem is not enabled");
+	public AssetThreadCtx AssetMainThreadContext => AliveAndNonnull(lifetime, field, "assets subsystem is not enabled");
 
-	internal AdvancedServices(GameServiceLifetime lifetime, EngineResourceStore engineResources, AssetThreadContext? assetMainThreadCtx) {
+	internal AdvancedServices(GameServiceLifetime lifetime, EngineResourceStore engineResources, AssetThreadCtx? assetMainThreadCtx) {
 		this.lifetime = lifetime;
 		EngineResources = engineResources;
 		AssetMainThreadContext = assetMainThreadCtx;
@@ -90,7 +90,7 @@ public sealed class AdvancedServices {
 public sealed class GameServices {
 	private readonly GameServiceLifetime lifetime;
 	private readonly AssetStore? assets;
-	private readonly AssetThreadContext? assetMainThreadCtx;
+	private readonly AssetThreadCtx? assetMainThreadCtx;
 	private readonly TextSystem? text;
 
 	// required:
@@ -116,7 +116,7 @@ public sealed class GameServices {
 		ActionRegistry actionRegistry,
 		EngineResourceStore engineResources,
 		AssetStore? assets,
-		AssetThreadContext? assetMainThreadCtx,
+		AssetThreadCtx? assetMainThreadCtx,
 		TextSystem? text
 	) {
 		if (assets is null ^ assetMainThreadCtx is null)

@@ -1,0 +1,302 @@
+// SPDX-FileCopyrightText: 2026 belshftl
+// SPDX-License-Identifier: MIT
+
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using Injure.Mods.Abstractions.Modif.Il;
+
+namespace Injure.Mods.Abstractions.Tests.Modif.Il;
+
+public sealed class IlOpenGenericReferenceTests : IDisposable {
+	private readonly FileStream stream;
+	private readonly PEReader peReader;
+	private readonly MetadataReader metadata;
+
+	public IlOpenGenericReferenceTests() {
+		string location = typeof(IlFixture.GenericCallers).Assembly.Location;
+		Assert.SkipWhen(string.IsNullOrEmpty(location), "fixture assembly has no on-disk location");
+		stream = File.OpenRead(location);
+		peReader = new PEReader(stream);
+		metadata = peReader.GetMetadataReader();
+	}
+
+	public void Dispose() {
+		peReader.Dispose();
+		stream.Dispose();
+	}
+
+	// ==========================================================================================
+	// building references
+	private static IlNamedTypeRef innerDefinition => Assert.IsType<IlNamedTypeRef>(
+		IlRefFactory.Type(typeof(IlFixture.Outer<>).GetNestedType("Inner`1")!)
+	);
+
+	private static IlNamedTypeRef boxDefinition => Assert.IsType<IlNamedTypeRef>(
+		IlRefFactory.Type(typeof(IlFixture.Box<>))
+	);
+
+	/// <summary>
+	/// <c>Outer&lt;!!0&gt;.Inner&lt;!!1&gt;::Pick&lt;!!2&gt;</c> as it appears inside
+	/// <c>GenericCallers.Open&lt;A, B, V&gt;</c>.
+	/// </summary>
+	/// <remarks>
+	/// The declaring instantiation and the method arguments are written in the call site's parameter
+	/// space, but the signature is written in <c>Pick</c>'s own; its parameters are <c>!0</c>
+	/// (<c>Outer</c>'s <c>T</c>), <c>!1</c> (<c>Inner</c>'s <c>U</c>), and <c>!!0</c> (<c>Pick</c>'s <c>V</c>).
+	/// </remarks>
+	private static IlMethodRef pickInOpenCaller() {
+		IlGenericInstanceTypeRef declaring = IlRefFactory.GenericInstance(
+			innerDefinition,
+			IlRefFactory.MethodGenericParameter(0),
+			IlRefFactory.MethodGenericParameter(1)
+		);
+		IlMethodSignature signature = IlRefFactory.Signature(
+			returnType: IlRefFactory.MethodGenericParameter(0),
+			genericParameterCount: 1,
+			parameterTypes: [
+				IlRefFactory.TypeGenericParameter(0),
+				IlRefFactory.TypeGenericParameter(1),
+				IlRefFactory.MethodGenericParameter(0),
+			]
+		);
+		IlMethodRef definition = IlRefFactory.Method(declaring, "Pick", signature);
+		return IlRefFactory.GenericMethod(definition, IlRefFactory.MethodGenericParameter(2));
+	}
+
+	/// <summary>
+	/// <c>!0 Box&lt;!!0&gt;::Value</c> as it appears inside <c>FieldCallers.ReadOpen&lt;V&gt;</c>.
+	/// </summary>
+	private static IlFieldRef valueInOpenReader() => IlRefFactory.Field(
+		IlRefFactory.GenericInstance(boxDefinition, IlRefFactory.MethodGenericParameter(0)),
+		"Value",
+		IlRefFactory.TypeGenericParameter(0)
+	);
+
+	// ==========================================================================================
+	// structural agreement with the decoder
+	[Fact]
+	public void HandBuiltOpenGenericMethodMatchesDecodedOne() {
+		IlMethodBody body = Fixture.Decode(peReader, metadata, "GenericCallers", "Open");
+		IlMethodRef decoded = Fixture.SoleCall(body, "Pick");
+
+		Assert.Equal(decoded, pickInOpenCaller());
+	}
+
+	[Fact]
+	public void HandBuiltOpenGenericFieldMatchesDecodedOne() {
+		IlMethodBody body = Fixture.Decode(peReader, metadata, "FieldCallers", "ReadOpen");
+		IlFieldRef decoded = body.Instructions
+			.Where(i => i.OpCode is ILOpCode.Ldfld)
+			.Select(i => ((IlFieldOperand)i.Operand).Field)
+			.Single();
+
+		Assert.Equal(decoded, valueInOpenReader());
+	}
+
+	[Fact]
+	public void SignatureIsWrittenInDeclaringTypesParameterSpace() {
+		IlMethodBody body = Fixture.Decode(peReader, metadata, "GenericCallers", "Open");
+		IlMethodRef decoded = Fixture.SoleCall(body, "Pick");
+
+		Assert.Equal(IlRefFactory.TypeGenericParameter(0), decoded.Signature.ParameterTypes[0]);
+		Assert.Equal(IlRefFactory.TypeGenericParameter(1), decoded.Signature.ParameterTypes[1]);
+		Assert.Equal(IlRefFactory.MethodGenericParameter(0), decoded.Signature.ParameterTypes[2]);
+		Assert.Equal(1, decoded.Signature.GenericParameterCount);
+		Assert.Equal(IlRefFactory.MethodGenericParameter(2), Assert.Single(decoded.GenericArguments));
+	}
+
+	[Fact]
+	public static void MixingParameterSpacesProducesADifferentReference() {
+		IlMethodSignature wrong = IlRefFactory.Signature(
+			returnType: IlRefFactory.MethodGenericParameter(2),
+			genericParameterCount: 1,
+			parameterTypes: [
+				IlRefFactory.MethodGenericParameter(0),
+				IlRefFactory.MethodGenericParameter(1),
+				IlRefFactory.MethodGenericParameter(2),
+			]
+		);
+		IlMethodRef wrongRef = IlRefFactory.GenericMethod(
+			IlRefFactory.Method(
+				IlRefFactory.GenericInstance(
+					innerDefinition,
+					IlRefFactory.MethodGenericParameter(0),
+					IlRefFactory.MethodGenericParameter(1)
+				),
+				"Pick",
+				wrong
+			),
+			IlRefFactory.MethodGenericParameter(2)
+		);
+
+		Assert.NotEqual(pickInOpenCaller(), wrongRef);
+	}
+
+	// ==========================================================================================
+	// matching
+	[Fact]
+	public void ConstructedOpenGenericReferenceMatchesCallSite() {
+		IlMethodBody baseline = Fixture.Decode(peReader, metadata, "GenericCallers", "Open");
+		int matches = -1;
+
+		IlMethodRef target = IlRefFactory.GenericMethod(
+			IlRefFactory.Method(
+				IlRefFactory.GenericInstance(
+					innerDefinition,
+					IlRefFactory.MethodGenericParameter(0),
+					IlRefFactory.MethodGenericParameter(1)
+				),
+				"Pick",
+				IlRefFactory.Signature(
+					returnType: IlRefFactory.MethodGenericParameter(0),
+					genericParameterCount: 1,
+					parameterTypes: [
+						IlRefFactory.TypeGenericParameter(0),
+						IlRefFactory.TypeGenericParameter(1),
+						IlRefFactory.MethodGenericParameter(0),
+					]
+				)
+			),
+			IlRefFactory.MethodGenericParameter(2)
+		);
+
+		IlPipeline.Transform(
+			baseline,
+			[
+				IlManipulatorRegistration.Create<TestL>(IlTest.OwnerId, "find", ctx => {
+					matches = ctx.MatchAll([MatchIl.Call(target)], IlPatternProvenanceConstraint.Any).Count;
+				}),
+			],
+			default,
+			null
+		);
+
+		Assert.Equal(1, matches);
+	}
+
+	// ==========================================================================================
+	// emission
+	[Fact]
+	public void ConstructedOpenGenericCallCanBeEmittedAndSurvivesEncoding() {
+		IlMethodBody baseline = Fixture.Decode(peReader, metadata, "GenericCallers", "Open");
+		IlMethodRef target = pickInOpenCaller();
+
+		IlPipelineResult result = IlPipeline.Transform(
+			baseline,
+			[
+				IlManipulatorRegistration.Create<TestL>(IlTest.OwnerId, "patch", ctx =>
+					ctx.MatchAll([MatchIl.Call(target)], IlPatternProvenanceConstraint.Any)
+						.RequireSingle()
+						.EmitBefore(e => {
+							e.Ldarg(0);
+							e.Ldarg(1);
+							e.Ldarg(2);
+							e.Call(target);
+							e.Pop();
+						})
+				),
+			],
+			default,
+			null
+		);
+
+		Assert.True(result.Modified);
+		IlMethodBody redecoded = Fixture.RoundtripThroughMetadata(
+			peReader,
+			metadata,
+			result.Body,
+			"GenericCallers",
+			"Open"
+		);
+
+		IlMethodRef[] picks = redecoded.Instructions
+			.Where(i => i.OpCode is ILOpCode.Call && ((IlMethodOperand)i.Operand).Method.Name == "Pick")
+			.Select(i => ((IlMethodOperand)i.Operand).Method)
+			.ToArray();
+		Assert.Equal(2, picks.Length);
+		Assert.All(picks, pick => Assert.Equal(target, pick));
+	}
+
+	[Fact]
+	public void ConstructedReferenceResolvesToSameRowAsDecodedReference() {
+		IlMethodBody body = Fixture.Decode(peReader, metadata, "GenericCallers", "Open");
+		RoundtripTestsTokenResolver resolver = new(metadata);
+
+		Assert.Equal(
+			resolver.ResolveMethod(Fixture.SoleCall(body, "Pick")),
+			resolver.ResolveMethod(pickInOpenCaller())
+		);
+	}
+
+	// ==========================================================================================
+	// validation
+	[Fact]
+	public static void MethodsCannotBeDeclaredOnTypesThatDeclareNothing() {
+		IlMethodSignature signature = IlRefFactory.Signature(IlTest.Void);
+
+		Assert.Throws<ArgumentException>(
+			() => IlRefFactory.Method(IlRefFactory.ByRef(IlTest.Int32), "M", signature)
+		);
+		Assert.Throws<ArgumentException>(
+			() => IlRefFactory.Method(IlRefFactory.Pointer(IlTest.Int32), "M", signature)
+		);
+		Assert.Throws<ArgumentException>(
+			() => IlRefFactory.Method(IlRefFactory.FunctionPointer(signature), "M", signature)
+		);
+	}
+
+	[Fact]
+	public static void PrimitiveDeclaringTypesAreAllowedDueToNormalization() {
+		// System.String is a TypeDefinition in corelib and normalizes to a primitive, so a member on it
+		// would be unnameable if primitives were rejected here
+		IlMethodRef getLength = IlRefFactory.Method(
+			new IlPrimitiveTypeRef(PrimitiveTypeCode.String),
+			"get_Length",
+			IlRefFactory.Signature(IlTest.Int32)
+		);
+
+		Assert.Equal("get_Length", getLength.Name);
+	}
+
+	[Fact]
+	public static void ArrayDeclaringTypesAreAllowedForPseudoMethods() {
+		IlMethodRef get = IlRefFactory.Method(
+			IlRefFactory.Array(IlTest.Int32, rank: 2),
+			"Get",
+			IlRefFactory.Signature(IlTest.Int32, IlTest.Int32, IlTest.Int32)
+		);
+
+		Assert.Equal("Get", get.Name);
+	}
+
+	[Fact]
+	public static void ConstructedMethodsAreNeverInstantiations() {
+		IlMethodRef definition = IlRefFactory.Method(
+			IlRefFactory.GenericInstance(
+				innerDefinition,
+				IlRefFactory.MethodGenericParameter(0),
+				IlRefFactory.MethodGenericParameter(1)
+			),
+			"Pick",
+			IlRefFactory.Signature(
+				returnType: IlRefFactory.MethodGenericParameter(0),
+				genericParameterCount: 1,
+				parameterTypes: [IlRefFactory.MethodGenericParameter(0)]
+			)
+		);
+
+		Assert.False(definition.IsGenericInstantiation);
+		Assert.True(
+			IlRefFactory.GenericMethod(definition, IlTest.Int32).IsGenericInstantiation
+		);
+	}
+
+	[Fact]
+	public static void NamesAreRequired() {
+		IlMethodSignature signature = IlRefFactory.Signature(IlTest.Void);
+
+		Assert.Throws<ArgumentException>(() => IlRefFactory.Method(IlTest.Object, "", signature));
+		Assert.Throws<ArgumentNullException>(() => IlRefFactory.Method(IlTest.Object, null!, signature));
+		Assert.Throws<ArgumentException>(() => IlRefFactory.Field(IlTest.Object, "", IlTest.Int32));
+	}
+}

@@ -7,7 +7,7 @@ using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Mods.Abstractions;
 
-public readonly record struct ReloadWeakReferenceSnapshot(
+public readonly record struct ReloadWeakRefSnapshot(
 	ReloadGeneration Generation,
 	string Category,
 	string Description,

@@ -12,5 +12,6 @@
 
 	<Project Path="./test/Injure.Mods.Abstractions.Tests/Injure.Mods.Abstractions.Tests.csproj" />
 	<Project Path="./test/Injure.Mods.Runtime.Tests/Injure.Mods.Runtime.Tests.csproj" />
+	<Project Path="./test/Injure.Mods.Runtime.Tests.Modif.E2e/Injure.Mods.Runtime.Tests.Modif.E2e.csproj" />
 	<Project Path="./test/Injure.Tests/Injure.Tests.csproj" />
 </Solution>

@@ -53,7 +53,7 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// out to dependents during link.
 	/// </para>
 	/// </remarks>
-	ValueTask LoadAsync(IModLoadContext<TGameApi, L> ctx, BoundedCt<L> ct);
+	ValueTask LoadAsync(IModLoadCtx<TGameApi, L> ctx, BoundedCt<L> ct);
 
 	/// <summary>
 	/// Integrates the current generation with its loaded declared dependencies.
@@ -64,14 +64,14 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// All enabled mods have completed <see cref="LoadAsync"/> before linking begins.
 	/// Link calls are scheduled according to the resolved dependency graph.
 	/// </remarks>
-	ValueTask LinkAsync(IModLinkContext<TGameApi, L> ctx, BoundedCt<L> ct);
+	ValueTask LinkAsync(IModLinkCtx<TGameApi, L> ctx, BoundedCt<L> ct);
 
 	/// <summary>
 	/// Activates the current generation against the now-attached game.
 	/// </summary>
 	/// <param name="ctx">Activation-time mod context.</param>
 	/// <param name="ct">Cancellation token for this particular invocation.</param>
-	ValueTask ActivateAsync(IModActivateContext<TGameApi, L> ctx, BoundedCt<L> ct);
+	ValueTask ActivateAsync(IModActivateCtx<TGameApi, L> ctx, BoundedCt<L> ct);
 
 	/// <summary>
 	/// Deactivates the current generation before the game is detached, the mod
@@ -103,6 +103,6 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 public sealed class ModReloadEntrypointAttribute : Attribute;
 
 public interface IModReloadEntrypoint<in TGameApi, L> where L : struct, IModLifetimeIdentity {
-	ValueTask<ModLiveStateBlob> SaveStateAsync(IModReloadContext<TGameApi, L> ctx, BoundedCt<L> ct);
-	ValueTask RestoreStateAsync(IModReloadContext<TGameApi, L> ctx, ModLiveStateBlob state, BoundedCt<L> ct);
+	ValueTask<ModLiveStateBlob> SaveStateAsync(IModReloadCtx<TGameApi, L> ctx, BoundedCt<L> ct);
+	ValueTask RestoreStateAsync(IModReloadCtx<TGameApi, L> ctx, ModLiveStateBlob state, BoundedCt<L> ct);
 }

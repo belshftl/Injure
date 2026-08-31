@@ -10,7 +10,7 @@ public interface IModExportContract<L> where L : struct, IModLifetimeIdentity {
 }
 
 [DontImplement]
-public interface IModExportDeclarations<L> where L : struct, IModLifetimeIdentity {
+public interface IModExportDecl<L> where L : struct, IModLifetimeIdentity {
 	void Add<TContract>(TContract impl) where TContract : class, IModExportContract<L>;
 }
 
