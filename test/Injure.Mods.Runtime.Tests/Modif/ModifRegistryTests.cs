@@ -11,24 +11,10 @@ using Injure.Mods.Runtime.Modif.Profiler;
 
 namespace Injure.Mods.Runtime.Tests.Modif;
 
-internal sealed class LoadOrder(params string[] owners) : IComparer<string> {
-	private readonly string[] owners = owners;
-
-	public int Compare(string? x, string? y) => indexOf(x).CompareTo(indexOf(y));
-
-	private int indexOf(string? owner) {
-		int index = Array.IndexOf(owners, owner);
-		return index < 0 ? owners.Length : index;
-	}
-}
-
 public sealed class ModifRegistryTests {
 	private static readonly MethodIdentity methodA = new(new ModuleId(1), 0x06000001);
 	private static readonly MethodIdentity methodB = new(new ModuleId(1), 0x06000002);
 	private static readonly MethodIdentity otherModule = new(new ModuleId(2), 0x06000001);
-
-	private static ModifRegistry makeRegistry(params string[] loadOrder) =>
-		new(new LoadOrder(loadOrder.Length == 0 ? ["first", "second", "third"] : loadOrder));
 
 	private static IlManipulatorRegistration makeManipulator(string ownerId, string localId) =>
 		IlManipulatorRegistration.Create<TestL>(ownerId, localId, _ => { });
@@ -37,16 +23,30 @@ public sealed class ModifRegistryTests {
 		new(ownerId, localId, impl);
 
 	private static readonly MethodBase impl =
-		typeof(ModifRegistryTests).GetMethod(nameof(stub), BindingFlags.NonPublic | BindingFlags.Static)!;
+		typeof(ModifRegistryTests).GetMethod(nameof(stub), BindingFlags.Static | BindingFlags.NonPublic)!;
 
 	private static void stub() {
 	}
+
+	private static OwnerOrderedEntry<IlManipulatorRegistration> entry(
+		IlManipulatorRegistration registration,
+		int localOrder = 0,
+		IEnumerable<OwnerOrderingConstraint>? before = null,
+		IEnumerable<OwnerOrderingConstraint>? after = null
+	) => new(registration, registration.OwnerId, registration.LocalId, localOrder, before, after);
+
+	private static OwnerOrderedEntry<DetourRegistration> entry(
+		DetourRegistration registration,
+		int localOrder = 0,
+		IEnumerable<OwnerOrderingConstraint>? before = null,
+		IEnumerable<OwnerOrderingConstraint>? after = null
+	) => new(registration, registration.OwnerId, registration.LocalId, localOrder, before, after);
 
 	// ==========================================================================================
 	// generations
 	[Fact]
 	public static void UnregisteredMethodHasNoGeneration() {
-		ModifRegistry registry = makeRegistry();
+		ModifRegistry registry = new();
 
 		Assert.Equal(MethodGeneration.None, registry.GetGeneration(methodA));
 		Assert.False(registry.GetGeneration(methodA).IsModified);
@@ -56,23 +56,23 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void EachManipulatorBumpsThePatchGeneration() {
-		ModifRegistry registry = makeRegistry();
+		ModifRegistry registry = new();
 
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 		Assert.Equal(new MethodGeneration(1, false), registry.GetGeneration(methodA));
 
-		registry.AddManipulator(methodA, makeManipulator("first", "b"));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "b")));
 		Assert.Equal(new MethodGeneration(2, false), registry.GetGeneration(methodA));
 	}
 
 	[Fact]
 	public static void OnlyFirstDetourChangesGeneration() {
-		ModifRegistry registry = makeRegistry();
+		ModifRegistry registry = new();
 
-		registry.AddDetour(methodA, makeDetour("first", "a"));
+		registry.AddDetour(methodA, entry(makeDetour("first", "a")));
 		MethodGeneration afterFirst = registry.GetGeneration(methodA);
-		registry.AddDetour(methodA, makeDetour("first", "b"));
-		registry.AddDetour(methodA, makeDetour("second", "c"));
+		registry.AddDetour(methodA, entry(makeDetour("first", "b")));
+		registry.AddDetour(methodA, entry(makeDetour("second", "c")));
 
 		Assert.True(afterFirst.HasDetourPrologue);
 		Assert.Equal(afterFirst, registry.GetGeneration(methodA));
@@ -80,9 +80,9 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void OnlyLastDetourRemovalChangesGeneration() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddDetour(methodA, makeDetour("first", "a"));
-		registry.AddDetour(methodA, makeDetour("first", "b"));
+		ModifRegistry registry = new();
+		registry.AddDetour(methodA, entry(makeDetour("first", "a")));
+		registry.AddDetour(methodA, entry(makeDetour("first", "b")));
 		MethodGeneration detoured = registry.GetGeneration(methodA);
 
 		registry.Remove(methodA, "first", "b");
@@ -94,21 +94,21 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void PatchAndDetourGenerationsAreIndependent() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddDetour(methodA, makeDetour("first", "d"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		registry.AddDetour(methodA, entry(makeDetour("first", "d")));
 
 		Assert.Equal(new MethodGeneration(1, true), registry.GetGeneration(methodA));
 
-		registry.AddManipulator(methodA, makeManipulator("first", "b"));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "b")));
 		Assert.Equal(new MethodGeneration(2, true), registry.GetGeneration(methodA));
 	}
 
 	[Fact]
-	public static void RemovingManipulatorBumpsNotRewinds() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddManipulator(methodA, makeManipulator("first", "b"));
+	public static void RemovingAManipulatorBumpsNotRewinds() {
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "b")));
 
 		registry.Remove(methodA, "first", "b");
 
@@ -117,10 +117,10 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void GenerationsAreTrackedPerMethod() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddManipulator(methodA, makeManipulator("first", "b"));
-		registry.AddManipulator(methodB, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "b")));
+		registry.AddManipulator(methodB, entry(makeManipulator("first", "a")));
 
 		Assert.Equal(2, registry.GetGeneration(methodA).Patch);
 		Assert.Equal(1, registry.GetGeneration(methodB).Patch);
@@ -129,84 +129,105 @@ public sealed class ModifRegistryTests {
 	// ==========================================================================================
 	// ordering
 	[Fact]
-	public static void ManipulatorsAreOrderedByOwner() {
-		ModifRegistry registry = makeRegistry("first", "second", "third");
-		registry.AddManipulator(methodA, makeManipulator("third", "a"));
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddManipulator(methodA, makeManipulator("second", "a"));
+	public static void ManipulatorsSortByOwnerIdThenLocalIdWithNoConstraints() {
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("charlie", "a")));
+		registry.AddManipulator(methodA, entry(makeManipulator("alpha", "a")));
+		registry.AddManipulator(methodA, entry(makeManipulator("bravo", "a")));
 
-		Assert.Equal(["first", "second", "third"], registry.GetManipulators(methodA).Select(static m => m.OwnerId));
+		Assert.Equal(
+			["alpha", "bravo", "charlie"],
+			registry.GetManipulators(methodA).Select(m => m.OwnerId)
+		);
 	}
 
 	[Fact]
-	public static void OneOwnersManipulatorsKeepRegistrationOrder() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "c"));
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddManipulator(methodA, makeManipulator("first", "b"));
+	public static void OneOwnersManipulatorEntriesSortByLocalIdWithNoConstraints() {
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "c")));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "b")));
 
-		Assert.Equal(["c", "a", "b"], registry.GetManipulators(methodA).Select(m => m.LocalId));
+		Assert.Equal(
+			["a", "b", "c"],
+			registry.GetManipulators(methodA).Select(m => m.LocalId)
+		);
 	}
 
 	[Fact]
-	public static void OrderingHoldsAcrossOwnersAndRegistrationOrderTogether() {
-		ModifRegistry registry = makeRegistry("first", "second");
-		registry.AddManipulator(methodA, makeManipulator("second", "s1"));
-		registry.AddManipulator(methodA, makeManipulator("first", "f1"));
-		registry.AddManipulator(methodA, makeManipulator("second", "s2"));
-		registry.AddManipulator(methodA, makeManipulator("first", "f2"));
+	public static void DetoursAlsoSortByOwnerIdThenLocalIdWithNoConstraints() {
+		ModifRegistry registry = new();
+		registry.AddDetour(methodA, entry(makeDetour("charlie", "a")));
+		registry.AddDetour(methodA, entry(makeDetour("alpha", "a")));
+		registry.AddDetour(methodA, entry(makeDetour("bravo", "a")));
 
-		Assert.Equal(["f1", "f2", "s1", "s2"], registry.GetManipulators(methodA).Select(m => m.LocalId));
+		Assert.Equal(
+			["alpha", "bravo", "charlie"],
+			registry.GetDetours(methodA).Select(m => m.OwnerId)
+		);
 	}
 
 	[Fact]
-	public static void DetoursUseTheSameOrdering() {
-		ModifRegistry registry = makeRegistry("first", "second");
-		registry.AddDetour(methodA, makeDetour("second", "b"));
-		registry.AddDetour(methodA, makeDetour("first", "a"));
+	public static void OneOwnersDetourEntriesAlsoSortByLocalIdWithNoConstraints() {
+		ModifRegistry registry = new();
+		registry.AddDetour(methodA, entry(makeDetour("first", "c")));
+		registry.AddDetour(methodA, entry(makeDetour("first", "a")));
+		registry.AddDetour(methodA, entry(makeDetour("first", "b")));
 
-		Assert.Equal(["first", "second"], registry.GetDetours(methodA).Select(d => d.OwnerId));
+		Assert.Equal(
+			["a", "b", "c"],
+			registry.GetDetours(methodA).Select(m => m.LocalId)
+		);
+	}
+
+	[Fact]
+	public static void LowerLocalOrderSortsFirst() {
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "z-first"), localOrder: 0));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a-second"), localOrder: 1));
+
+		Assert.Equal(["z-first", "a-second"], registry.GetManipulators(methodA).Select(m => m.LocalId));
 	}
 
 	// ==========================================================================================
 	// id pair uniqueness
 	[Fact]
 	public static void DuplicateManipulatorIdPairIsRejected() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 
-		Assert.Throws<InternalStateException>(() => registry.AddManipulator(methodA, makeManipulator("first", "a")));
+		Assert.Throws<InternalStateException>(() => registry.AddManipulator(methodA, entry(makeManipulator("first", "a"))));
 	}
 
 	[Fact]
 	public static void DuplicateDetourIdPairIsRejected() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddDetour(methodA, makeDetour("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddDetour(methodA, entry(makeDetour("first", "a")));
 
-		Assert.Throws<InternalStateException>(() => registry.AddDetour(methodA, makeDetour("first", "a")));
+		Assert.Throws<InternalStateException>(() => registry.AddDetour(methodA, entry(makeDetour("first", "a"))));
 	}
 
 	[Fact]
 	public static void IdPairIsExclusiveToOneModification() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "shared"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "shared")));
 
-		Assert.Throws<InternalStateException>(() => registry.AddDetour(methodA, makeDetour("first", "shared")));
+		Assert.Throws<InternalStateException>(() => registry.AddDetour(methodA, entry(makeDetour("first", "shared"))));
 	}
 
 	[Fact]
 	public static void IdPairIsExclusiveToOneModificationInTheOtherDirectionToo() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddDetour(methodA, makeDetour("first", "shared"));
+		ModifRegistry registry = new();
+		registry.AddDetour(methodA, entry(makeDetour("first", "shared")));
 
-		Assert.Throws<InternalStateException>(() => registry.AddManipulator(methodA, makeManipulator("first", "shared")));
+		Assert.Throws<InternalStateException>(() => registry.AddManipulator(methodA, entry(makeManipulator("first", "shared"))));
 	}
 
 	[Fact]
 	public static void IdPairsAreScopedToOneMethod() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddManipulator(methodB, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		registry.AddManipulator(methodB, entry(makeManipulator("first", "a")));
 
 		Assert.Single(registry.GetManipulators(methodA));
 		Assert.Single(registry.GetManipulators(methodB));
@@ -214,23 +235,32 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void IdPairIsReusableOnceRemoved() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 		registry.Remove(methodA, "first", "a");
 
-		registry.AddDetour(methodA, makeDetour("first", "a"));
+		registry.AddDetour(methodA, entry(makeDetour("first", "a")));
 
 		Assert.Single(registry.GetDetours(methodA));
+	}
+
+	[Fact]
+	public static void WrapperCantDisagreeWithTheRegistrationItWraps() {
+		ModifRegistry registry = new();
+		IlManipulatorRegistration registration = makeManipulator("first", "a");
+		OwnerOrderedEntry<IlManipulatorRegistration> mismatched = new(registration, "first", "b");
+
+		Assert.Throws<InternalStateException>(() => registry.AddManipulator(methodA, mismatched));
 	}
 
 	// ==========================================================================================
 	// removal
 	[Fact]
 	public static void RemovingOwnerReportsOnlyMethodsItTouched() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddManipulator(methodB, makeManipulator("second", "a"));
-		registry.AddDetour(otherModule, makeDetour("first", "d"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		registry.AddManipulator(methodB, entry(makeManipulator("second", "a")));
+		registry.AddDetour(otherModule, entry(makeDetour("first", "d")));
 
 		ImmutableArray<MethodIdentity> affected = registry.RemoveOwner("first");
 
@@ -240,10 +270,10 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void RemovingOwnerTakesBothKinds() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "m"));
-		registry.AddDetour(methodA, makeDetour("first", "d"));
-		registry.AddManipulator(methodA, makeManipulator("second", "m"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "m")));
+		registry.AddDetour(methodA, entry(makeDetour("first", "d")));
+		registry.AddManipulator(methodA, entry(makeManipulator("second", "m")));
 
 		registry.RemoveOwner("first");
 
@@ -254,39 +284,39 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void RemovingOwnerWithNoRegistrationsReportsNothing() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 
 		Assert.Empty(registry.RemoveOwner("second"));
 	}
 
 	[Fact]
 	public static void RemovingMissingModificationReportsFalse() {
-		ModifRegistry registry = makeRegistry();
+		ModifRegistry registry = new();
 
 		Assert.False(registry.Remove(methodA, "first", "a"));
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 		Assert.False(registry.Remove(methodA, "first", "b"));
 		Assert.True(registry.Remove(methodA, "first", "a"));
 	}
 
 	[Fact]
 	public static void MethodWithNothingLeftIsForgotten() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 		registry.Remove(methodA, "first", "a");
 
 		Assert.Empty(registry.ModifiedMethods);
 		// the entry is gone, so a later registration starts over rather than continuing
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 		Assert.Equal(1, registry.GetGeneration(methodA).Patch);
 	}
 
 	[Fact]
 	public static void RemovingModuleDropsItsMethodsWithoutDirtyingThem() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddManipulator(otherModule, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		registry.AddManipulator(otherModule, entry(makeManipulator("first", "a")));
 		registry.DrainDirty();
 
 		registry.RemoveModule(otherModule.Module);
@@ -297,8 +327,8 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void RemovingModuleClearsPendingDirtyEntriesForIt() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(otherModule, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(otherModule, entry(makeManipulator("first", "a")));
 
 		registry.RemoveModule(otherModule.Module);
 
@@ -309,10 +339,10 @@ public sealed class ModifRegistryTests {
 	// dirty tracking
 	[Fact]
 	public static void BatchOfRegistrationsDrainsAsOneSetOfMethods() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
-		registry.AddManipulator(methodA, makeManipulator("first", "b"));
-		registry.AddManipulator(methodB, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "b")));
+		registry.AddManipulator(methodB, entry(makeManipulator("first", "a")));
 
 		ImmutableArray<MethodIdentity> drained = registry.DrainDirty();
 
@@ -323,8 +353,8 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void DrainingIsDestructive() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 
 		Assert.Single(registry.DrainDirty());
 		Assert.Empty(registry.DrainDirty());
@@ -332,33 +362,33 @@ public sealed class ModifRegistryTests {
 
 	[Fact]
 	public static void ChangeAfterADrainReappears() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 		registry.DrainDirty();
 
-		registry.AddManipulator(methodA, makeManipulator("first", "b"));
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "b")));
 
 		Assert.Equal([methodA], registry.DrainDirty());
 	}
 
 	[Fact]
 	public static void RejectedRegistrationDirtiesNothing() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddManipulator(methodA, makeManipulator("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 		registry.DrainDirty();
 
-		Assert.Throws<InternalStateException>(() => registry.AddManipulator(methodA, makeManipulator("first", "a")));
+		Assert.Throws<InternalStateException>(() => registry.AddManipulator(methodA, entry(makeManipulator("first", "a"))));
 
 		Assert.Empty(registry.DrainDirty());
 	}
 
 	[Fact]
 	public static void AnAdditionalDetourDirtiesNothing() {
-		ModifRegistry registry = makeRegistry();
-		registry.AddDetour(methodA, makeDetour("first", "a"));
+		ModifRegistry registry = new();
+		registry.AddDetour(methodA, entry(makeDetour("first", "a")));
 		registry.DrainDirty();
 
-		registry.AddDetour(methodA, makeDetour("first", "b"));
+		registry.AddDetour(methodA, entry(makeDetour("first", "b")));
 
 		// the prologue reads the chain head at run time, so the emitted body is unchanged
 		Assert.Empty(registry.DrainDirty());

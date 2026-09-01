@@ -25,9 +25,9 @@ public sealed class AssetStoreThreadContextTests {
 	public static void RetiredVerIsReclaimedOnlyAfterSafeBoundary() {
 		AssetStore store = new();
 		using AssetThreadCtx mainCtx = store.AttachCurrentThread();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		TestAsset v = asset.Borrow().Value;
@@ -77,9 +77,9 @@ public sealed class AssetStoreThreadContextTests {
 	public static void DisposingContextAllowsReclamation() {
 		AssetStore store = new();
 		using AssetThreadCtx mainCtx = store.AttachCurrentThread();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		TestAsset v = asset.Borrow().Value;

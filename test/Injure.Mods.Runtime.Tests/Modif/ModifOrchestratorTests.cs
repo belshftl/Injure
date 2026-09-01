@@ -44,7 +44,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 	private const string otherMethod = nameof(IlFixture.Mechanism.Peek);
 
 	private readonly FakeProfilerHost host = new();
-	private readonly ModifRegistry registry = new(new LoadOrder("first", "second"));
+	private readonly ModifRegistry registry = new();
 	private readonly MethodTransformCache cache = new();
 	private readonly RecordingDetourTransform detours = new();
 	private readonly ModifOrchestrator orchestrator;
@@ -68,30 +68,36 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 	// ==========================================================================================
 	// helpers
-	private static IlManipulatorRegistration nop(string ownerId, string localId) =>
-		IlManipulatorRegistration.Create<TestL>(ownerId, localId, static ctx => ctx.EmitAtStart(static e => e.Nop()));
+	private static OwnerOrderedEntry<IlManipulatorRegistration> nop(string ownerId, string localId) =>
+		wrap(IlManipulatorRegistration.Create<TestL>(ownerId, localId, static ctx => ctx.EmitAtStart(static e => e.Nop())));
 
-	private static IlManipulatorRegistration throws(string ownerId, string localId) =>
-		IlManipulatorRegistration.Create<TestL>(
+	private static OwnerOrderedEntry<IlManipulatorRegistration> throws(string ownerId, string localId) =>
+		wrap(IlManipulatorRegistration.Create<TestL>(
 			ownerId, localId, static _ => throw new InvalidTimeZoneException("from the manipulator")
-		);
+		));
 
-	private static IlManipulatorRegistration invalid(string ownerId, string localId) =>
-		IlManipulatorRegistration.Create<TestL>(ownerId, localId, static ctx => ctx.EmitAtStart(static e => e.Pop()));
+	private static OwnerOrderedEntry<IlManipulatorRegistration> invalid(string ownerId, string localId) =>
+		wrap(IlManipulatorRegistration.Create<TestL>(ownerId, localId, static ctx => ctx.EmitAtStart(static e => e.Pop())));
 
-	private static IlManipulatorRegistration callsExternal(string ownerId, string localId) =>
-		IlManipulatorRegistration.Create<TestL>(ownerId, localId, static ctx =>
+	private static OwnerOrderedEntry<IlManipulatorRegistration> callsExternal(string ownerId, string localId) =>
+		wrap(IlManipulatorRegistration.Create<TestL>(ownerId, localId, static ctx =>
 			ctx.EmitAtStart(static e => e.Call(IlRefFactory.Method(
 				typeof(ModifOrchestratorTests).GetMethod(
 					nameof(stub), BindingFlags.Static | BindingFlags.NonPublic
 				)!
 			)))
-		);
+		));
 
-	private static DetourRegistration detour(string ownerId, string localId) =>
-		new(ownerId, localId, typeof(ModifOrchestratorTests).GetMethod(
+	private static OwnerOrderedEntry<DetourRegistration> detour(string ownerId, string localId) =>
+		wrap(new DetourRegistration(ownerId, localId, typeof(ModifOrchestratorTests).GetMethod(
 			nameof(stub), BindingFlags.Static | BindingFlags.NonPublic
-		)!);
+		)!));
+
+	private static OwnerOrderedEntry<IlManipulatorRegistration> wrap(IlManipulatorRegistration registration) =>
+		new(registration, registration.OwnerId, registration.LocalId);
+
+	private static OwnerOrderedEntry<DetourRegistration> wrap(DetourRegistration registration) =>
+		new(registration, registration.OwnerId, registration.LocalId);
 
 	private static void stub() {
 	}
@@ -197,6 +203,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		orchestrator.ApplyPending();
 
 		Assert.Equal((target, 1), Assert.Single(detours.Calls));
+		Assert.True(detours.HasChain(target));
 		Assert.Equal(before + 1, instructionCountOf(target));
 	}
 
@@ -241,6 +248,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		orchestrator.ApplyPending();
 
 		Assert.Equal(before + 1, instructionCountOf(target));
+		Assert.False(detours.HasChain(target));
 	}
 
 	[Fact]
@@ -254,29 +262,6 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		orchestrator.ApplyPending();
 
 		Assert.Equal((target, 2), Assert.Single(detours.Calls));
-	}
-
-	// ==========================================================================================
-	// chain
-	[Fact]
-	public void EveryInstalledPrologueHasAChain() {
-		registry.AddDetour(target, detour("first", "a"));
-		orchestrator.ApplyPending();
-
-		Assert.True(detours.HasChain(target));
-	}
-
-	[Fact]
-	public void AdditionalDetourResyncsTheChainDespiteNoRetransform() {
-		registry.AddDetour(target, detour("first", "a"));
-		orchestrator.ApplyPending();
-		detours.ChainUpdates.Clear();
-
-		registry.AddDetour(target, detour("first", "b"));
-		orchestrator.SyncDetourChain(target);
-
-		Assert.Contains((target, 2), detours.ChainUpdates);
-		Assert.True(detours.HasChain(target));
 	}
 
 	// ==========================================================================================
@@ -345,6 +330,41 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		Assert.Equal(1, registry.GetGeneration(target).Patch);
 		Assert.Equal(before + 1, instructionCountOf(target));
+	}
+
+	// ==========================================================================================
+	// chain
+	[Fact]
+	public void EveryInstalledPrologueHasAChain() {
+		registry.AddDetour(target, detour("first", "a"));
+		orchestrator.ApplyPending();
+
+		Assert.True(detours.HasChain(target));
+	}
+
+	[Fact]
+	public void AdditionalDetourResyncsTheChainDespiteNoRetransform() {
+		registry.AddDetour(target, detour("first", "a"));
+		orchestrator.ApplyPending();
+		detours.ChainUpdates.Clear();
+
+		registry.AddDetour(target, detour("first", "b"));
+		orchestrator.SyncDetourChain(target);
+
+		Assert.Contains((target, 2), detours.ChainUpdates);
+		Assert.True(detours.HasChain(target));
+	}
+
+	[Fact]
+	public void RevertingReleasesTheChain() {
+		registry.AddDetour(target, detour("first", "d"));
+		orchestrator.ApplyPending();
+		Assert.True(detours.HasChain(target));
+
+		registry.RemoveOwner("first");
+		orchestrator.ApplyPending();
+
+		Assert.False(detours.HasChain(target));
 	}
 
 	// ==========================================================================================

@@ -4,10 +4,13 @@
 using System.Collections.Concurrent;
 using System.Text;
 using Injure.Assets;
+using Injure.Mods;
 
 namespace Injure.Tests.Assets;
 
 public static class Extensions {
+	private const string ownerId = "test";
+
 	public static byte[] ReadAll(this Stream stream) {
 		using MemoryStream ms = new();
 		stream.CopyTo(ms);
@@ -19,6 +22,33 @@ public static class Extensions {
 		for (int i = 0; i < span.Length; i++)
 			arr[i] = (TCast)span[i];
 		return arr;
+	}
+
+	extension(AssetStore store) {
+		public AssetStoreRegistration RegisterSource(IAssetSource source, string localId, int localOrder = 0) => store.RegisterSource(
+			new OwnerOrderedEntry<IAssetSource>(source, ownerId, localId, localOrder)
+		);
+
+		public AssetStoreRegistration RegisterResolver(IAssetResolver resolver, string localId, int localOrder = 0) => store.RegisterResolver(
+			new OwnerOrderedEntry<IAssetResolver>(resolver, ownerId, localId, localOrder)
+		);
+
+		public AssetStoreRegistration RegisterCreator<T>(IAssetCreator<T> creator, string localId, int localOrder = 0) where T : class => store.RegisterCreator(
+			new OwnerOrderedEntry<IAssetCreator<T>>(creator, ownerId, localId, localOrder)
+		);
+
+		public AssetStoreRegistration RegisterStagedCreator<T, TPrepared>(IAssetStagedCreator<T, TPrepared> creator, string localId, int localOrder = 0)
+			where T : class
+			where TPrepared : AssetPreparedData
+		=> store.RegisterStagedCreator(
+			new OwnerOrderedEntry<IAssetStagedCreator<T, TPrepared>>(creator, ownerId, localId, localOrder)
+		);
+
+		public AssetStoreRegistration RegisterDependencyWatcher<TDependency>(IAssetDependencyWatcher<TDependency> watcher, string localId, int localOrder = 0)
+			where TDependency : IAssetDependency
+		=> store.RegisterDependencyWatcher(
+			new OwnerOrderedEntry<IAssetDependencyWatcher<TDependency>>(watcher, ownerId, localId, localOrder)
+		);
 	}
 }
 

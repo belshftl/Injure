@@ -14,11 +14,11 @@ public sealed class AssetStoreWatcherTests {
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
 		TestDependencyWatcher watcherB = new();
-		store.RegisterSource(ownerId, new TestSource(dep), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
-		store.RegisterDependencyWatcher(ownerId, watcherA, "watcher-a");
-		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
+		store.RegisterSource(new TestSource(dep), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
+		store.RegisterDependencyWatcher(watcherA, "watcher-a");
+		store.RegisterDependencyWatcher(watcherB, "watcher-b");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm(TestContext.Current.CancellationToken);
@@ -35,15 +35,15 @@ public sealed class AssetStoreWatcherTests {
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
 		TestDependencyWatcher watcherB = new();
-		store.RegisterSource(ownerId, new TestSource(dep), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
-		store.RegisterDependencyWatcher(ownerId, watcherA, "watcher-a");
+		store.RegisterSource(new TestSource(dep), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
+		store.RegisterDependencyWatcher(watcherA, "watcher-a");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm(TestContext.Current.CancellationToken);
 
-		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
+		store.RegisterDependencyWatcher(watcherB, "watcher-b");
 
 		Assert.Equal(["watch:dep"], watcherB.Log);
 		Assert.Contains(dep, watcherB.Watched);
@@ -55,11 +55,11 @@ public sealed class AssetStoreWatcherTests {
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcherA = new();
 		TestDependencyWatcher watcherB = new();
-		store.RegisterSource(ownerId, new TestSource(dep), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
-		store.RegisterDependencyWatcher(ownerId, watcherA, "watcher-a");
-		store.RegisterDependencyWatcher(ownerId, watcherB, "watcher-b");
+		store.RegisterSource(new TestSource(dep), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
+		store.RegisterDependencyWatcher(watcherA, "watcher-a");
+		store.RegisterDependencyWatcher(watcherB, "watcher-b");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken);
@@ -76,17 +76,16 @@ public sealed class AssetStoreWatcherTests {
 		TestDependency depA = new("dep-a");
 		TestDependency depB = new("dep-b");
 		TestDependencyWatcher watcher = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
 		store.RegisterCreator(
-			ownerId,
 			new SteppingCreator(
 				new Step("step-a", Handled: true, depA),
 				new Step("step-b", Handled: true, depB)
 			),
 			"creator"
 		);
-		store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
+		store.RegisterDependencyWatcher(watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm(TestContext.Current.CancellationToken);
@@ -103,10 +102,10 @@ public sealed class AssetStoreWatcherTests {
 		AssetStore store = new();
 		TestDependency dep = new("dep");
 		TestDependencyWatcher watcher = new();
-		store.RegisterSource(ownerId, new TestSource(dep), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
-		AssetStoreRegistration r = store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
+		store.RegisterSource(new TestSource(dep), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
+		AssetStoreRegistration r = store.RegisterDependencyWatcher(watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm(TestContext.Current.CancellationToken);

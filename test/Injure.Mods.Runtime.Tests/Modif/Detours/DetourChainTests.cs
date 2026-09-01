@@ -118,7 +118,7 @@ public sealed class DetourChainTests {
 	}
 
 	[Fact]
-	public static void FirstInChainIsOutermost() {
+	public static void FirstInChainIsOutermostAssumingEachCallsNext() {
 		Installed chain = build(
 			nameof(compute),
 			detour("outer", nameof(doubles)),

@@ -12,10 +12,10 @@ public sealed class AssetStoreBasicTests {
 	public static async Task BasicFunctionality() {
 		AssetStore store = new();
 		TestDependencyWatcher watcher = new();
-		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep")), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		AssetStoreRegistration cr = store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
-		AssetStoreRegistration wr = store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
+		store.RegisterSource(new TestSource(new TestDependency("dep")), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		AssetStoreRegistration cr = store.RegisterStagedCreator(new TestCreator(), "creator");
+		AssetStoreRegistration wr = store.RegisterDependencyWatcher(watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		Assert.False(asset.IsLoaded);
@@ -56,10 +56,9 @@ public sealed class AssetStoreBasicTests {
 	[Fact]
 	public static void ReloadingWorks() {
 		AssetStore store = new();
-		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep-source")), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterSource(new TestSource(new TestDependency("dep-source")), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
 		store.RegisterCreator(
-			ownerId,
 			new SteppingCreator(
 				new Step("step1", Handled: true, new TestDependency("dep-creator-1")),
 				new Step("step2", Handled: true, new TestDependency("dep-creator-2"))
@@ -87,9 +86,9 @@ public sealed class AssetStoreBasicTests {
 	[Fact]
 	public static void RevocationWorks() {
 		AssetStore store = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		TestAsset v = asset.Borrow().Value;
@@ -105,10 +104,9 @@ public sealed class AssetStoreBasicTests {
 	[Fact]
 	public static void DepsAreDeduplicated() {
 		AssetStore store = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
 		store.RegisterCreator(
-			ownerId,
 			new SteppingCreator(
 				new Step("step", Handled: true, new TestDependency("dep-duplicate"), new TestDependency("dep-duplicate"))
 			),

@@ -186,14 +186,14 @@ internal sealed class ModifOrchestrator : IDisposable {
 	/// <remarks>
 	/// <para>
 	/// Basically only the part of <c>prepare()</c> (private method in this class) that resyncs
-	/// the chain. <see cref="ModifRegistry.AddDetour(MethodIdentity, DetourRegistration)"/>
+	/// the chain. <see cref="ModifRegistry.AddDetour(MethodIdentity, OwnerOrderedEntry{DetourRegistration})"/>
 	/// (intentionally) only dirties the method when its detour count goes from 0 to 1, so
 	/// registering a 2nd+ detour on a method needs another means of syncing the chain, which is
 	/// exactly what this does.
 	/// </para>
 	/// <para>
 	/// Detour registration should call this immediately after
-	/// <see cref="ModifRegistry.AddDetour(MethodIdentity, DetourRegistration)"/>. Most tests
+	/// <see cref="ModifRegistry.AddDetour(MethodIdentity, OwnerOrderedEntry{DetourRegistration})"/>. Most tests
 	/// currently don't call it purely because they happen to not need it. No-op if the method
 	/// has no detour prologue yet, so over-calling doesn't incur an extra cost.
 	/// </para>
@@ -223,6 +223,8 @@ internal sealed class ModifOrchestrator : IDisposable {
 			ImmutableArray<DetourRegistration> curr = registry.GetDetours(method);
 			detours.UpdateChain(method, curr);
 			final = detours.Apply(method, transformed.Clone(), curr);
+		} else if (detours.HasChain(method)) {
+			detours.UpdateChain(method, []);
 		}
 
 		IlEncodedMethodBody encoded = SrmMethodBodyEncoder.Prepare(final, ctx.Resolver);
@@ -231,6 +233,8 @@ internal sealed class ModifOrchestrator : IDisposable {
 	}
 
 	private bool revert(MethodIdentity method) {
+		if (detours.HasChain(method))
+			detours.UpdateChain(method, []);
 		cache.EvictDerived(method);
 		if (!installed.Remove(method))
 			return false;

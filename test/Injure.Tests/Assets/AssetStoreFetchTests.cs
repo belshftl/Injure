@@ -16,9 +16,9 @@ public sealed class AssetStoreFetchTests {
 		AssetId optionalID = new(ownerId, "missing");
 		OptionalExtraFetchResolver resolver = new(optionalID);
 		source.Set(mainID, "main-value");
-		store.RegisterSource(ownerId, source, "source");
-		store.RegisterResolver(ownerId, resolver, "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(source, "source");
+		store.RegisterResolver(resolver, "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(mainID);
 		asset.Warm(TestContext.Current.CancellationToken);
@@ -33,9 +33,9 @@ public sealed class AssetStoreFetchTests {
 		AssetId mainID = new(ownerId, "main");
 		AssetId extraID = new(ownerId, "missing");
 		source.Set(mainID, "main-value");
-		store.RegisterSource(ownerId, source, "source");
-		store.RegisterResolver(ownerId, new RequiredExtraFetchResolver(extraID), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(source, "source");
+		store.RegisterResolver(new RequiredExtraFetchResolver(extraID), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(mainID);
 		Assert.Throws<AssetUnhandledException>(() => asset.Warm(TestContext.Current.CancellationToken));
@@ -45,9 +45,9 @@ public sealed class AssetStoreFetchTests {
 	public static void NonSeekableSourceStreamIsReplacedAndOriginalIsDisposed() {
 		AssetStore store = new();
 		NonSeekableSource source = new();
-		store.RegisterSource(ownerId, source, "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(source, "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		asset.Warm(TestContext.Current.CancellationToken);

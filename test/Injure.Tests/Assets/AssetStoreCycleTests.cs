@@ -18,9 +18,9 @@ public sealed class AssetStoreCycleTests {
 				[new AssetId(ownerId, "assetB")] = new(ownerId, "assetC"),
 			}
 		);
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, resolver, "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(resolver, "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "assetA"));
 		asset.Warm(TestContext.Current.CancellationToken);
@@ -29,9 +29,8 @@ public sealed class AssetStoreCycleTests {
 	[Fact]
 	public static void SelfCycleThrows() {
 		AssetStore store = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
+		store.RegisterSource(new TestSource(), "source");
 		store.RegisterResolver(
-			ownerId,
 			new AssetLoadingResolver(
 				store,
 				new Dictionary<AssetId, AssetId> {
@@ -40,7 +39,7 @@ public sealed class AssetStoreCycleTests {
 			),
 			"resolver"
 		);
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "assetA"));
 		AssetLoadCycleException ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm(TestContext.Current.CancellationToken));
@@ -57,9 +56,9 @@ public sealed class AssetStoreCycleTests {
 				[new AssetId(ownerId, "assetB")] = new(ownerId, "assetA"),
 			}
 		);
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, resolver, "resolver");
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(resolver, "resolver");
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "assetA"));
 		AssetLoadCycleException ex = Assert.Throws<AssetLoadCycleException>(() => asset.Warm(TestContext.Current.CancellationToken));

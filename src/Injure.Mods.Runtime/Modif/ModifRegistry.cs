@@ -10,10 +10,6 @@ namespace Injure.Mods.Runtime.Modif;
 
 /// <remarks>
 /// <para>
-/// Ordering is by owner first, then by intra-owner registration order. The owner order comes from
-/// the caller because resolving it is the job of whatever higher up handles load order.
-/// </para>
-/// <para>
 /// Changes are accumulated into a dirty set rather than immediately running work, so a mod load that
 /// registers a thousand patches produces one re-transform pass and not a thousand.
 /// </para>
@@ -22,74 +18,19 @@ namespace Injure.Mods.Runtime.Modif;
 /// </para>
 /// </remarks>
 internal sealed class ModifRegistry {
-	private readonly record struct Ordered<T>(T Registration, ulong Sequence);
-
 	private sealed class MethodEntry {
-		public List<Ordered<IlManipulatorRegistration>> Manipulators { get; } = new();
-		public List<Ordered<DetourRegistration>> Detours { get; } = new();
-		public Dictionary<string, HashSet<string>> TakenIdPairs { get; } = new();
+		public UnsafeOwnerOrderedRegistry<IlManipulatorRegistration> Manipulators { get; } = new();
+		public UnsafeOwnerOrderedRegistry<DetourRegistration> Detours { get; } = new();
+
 		public MethodGeneration Generation { get; private set; } = MethodGeneration.None;
 
-		public bool TryOccupyIdPair(string ownerId, string localId) {
-			if (TakenIdPairs.TryGetValue(ownerId, out HashSet<string>? localIds)) {
-				return localIds.Add(localId);
-			} else {
-				localIds = new HashSet<string>(StringComparer.Ordinal) { localId };
-				TakenIdPairs.Add(ownerId, localIds);
-				return true;
-			}
-		}
-
-		public void RemoveIdPair(string ownerId, string localId) {
-			if (!TakenIdPairs.TryGetValue(ownerId, out HashSet<string>? localIds) || !localIds.Remove(localId))
-				throw new InternalStateException($"nothing is registered under '{ownerId}::{localId}'");
-			if (localIds.Count == 0)
-				_ = TakenIdPairs.Remove(ownerId);
-		}
-
-		public void RemoveIdsByOwner(string ownerId) {
-			if (!TakenIdPairs.Remove(ownerId))
-				throw new InternalStateException($"nothing is registered under owner ID '{ownerId}'");
-		}
-
 		public void BumpPatch() => Generation = Generation with { Patch = Generation.Patch + 1 };
-
 		public void SetDetoured(bool detoured) => Generation = Generation with { HasDetourPrologue = detoured };
-
-		public ImmutableArray<IlManipulatorRegistration> OrderedManipulators(IComparer<string> ownerOrder) =>
-			order(Manipulators, ownerOrder, static r => r.OwnerId);
-
-		public ImmutableArray<DetourRegistration> OrderedDetours(IComparer<string> ownerOrder) =>
-			order(Detours, ownerOrder, static r => r.OwnerId);
-
-		private static ImmutableArray<T> order<T>(
-			List<Ordered<T>> registrs,
-			IComparer<string> ownerOrder,
-			Func<T, string> ownerOf
-		) {
-			Ordered<T>[] sorted = registrs.ToArray();
-			Array.Sort(sorted, (a, b) => {
-				int byOwner = ownerOrder.Compare(ownerOf(a.Registration), ownerOf(b.Registration));
-				return byOwner != 0 ? byOwner : a.Sequence.CompareTo(b.Sequence);
-			});
-			return sorted.Select(static o => o.Registration).ToImmutableArray();
-		}
 	}
 
-	private readonly IComparer<string> ownerOrder;
 	private readonly Lock @lock = new();
 	private readonly Dictionary<MethodIdentity, MethodEntry> entries = new();
 	private readonly HashSet<MethodIdentity> dirty = new();
-	private ulong nextSeq;
-
-	/// <param name="ownerOrder">
-	/// Orders owners against each other. Is an <see cref="IComparer{T}"/> to avoid the registry from
-	/// having to reinvent load order resolution or be aware of it.
-	/// </param>
-	public ModifRegistry(IComparer<string> ownerOrder) {
-		InternalStateException.ThrowIfNull(ownerOrder);
-		this.ownerOrder = ownerOrder;
-	}
 
 	public ImmutableArray<MethodIdentity> ModifiedMethods {
 		get {
@@ -112,7 +53,9 @@ internal sealed class ModifRegistry {
 	/// </summary>
 	public ImmutableArray<IlManipulatorRegistration> GetManipulators(MethodIdentity method) {
 		lock (@lock)
-			return entries.TryGetValue(method, out MethodEntry? entry) ? entry.OrderedManipulators(ownerOrder) : [];
+			return entries.TryGetValue(method, out MethodEntry? entry)
+				? entry.Manipulators.ReadSnapshot().ToImmutableArray()
+				: [];
 	}
 
 	/// <summary>
@@ -120,7 +63,9 @@ internal sealed class ModifRegistry {
 	/// </summary>
 	public ImmutableArray<DetourRegistration> GetDetours(MethodIdentity method) {
 		lock (@lock)
-			return entries.TryGetValue(method, out MethodEntry? entry) ? entry.OrderedDetours(ownerOrder) : [];
+			return entries.TryGetValue(method, out MethodEntry? entry)
+				? entry.Detours.ReadSnapshot().ToImmutableArray()
+				: [];
 	}
 
 	/// <summary>
@@ -144,38 +89,41 @@ internal sealed class ModifRegistry {
 				return false;
 			}
 			generation = entry.Generation;
-			manipulators = entry.OrderedManipulators(ownerOrder);
-			detours = entry.OrderedDetours(ownerOrder);
+			manipulators = entry.Manipulators.ReadSnapshot().ToImmutableArray();
+			detours = entry.Detours.ReadSnapshot().ToImmutableArray();
 			return true;
 		}
 	}
 
-
 	// ==========================================================================================
 	// mutation
-	public void AddManipulator(MethodIdentity method, IlManipulatorRegistration reg) {
-		InternalStateException.ThrowIfNull(reg);
+	public void AddManipulator(MethodIdentity method, OwnerOrderedEntry<IlManipulatorRegistration> entry) {
+		InternalStateException.ThrowIfNull(entry);
+		requireMatchingIdentifier(entry, entry.Item.OwnerId, entry.Item.LocalId);
+
 		lock (@lock) {
-			MethodEntry entry = entryFor(method);
-			if (!entry.TryOccupyIdPair(reg.OwnerId, reg.LocalId))
-				throw new InternalStateException($"'{reg.OwnerId}::{reg.LocalId}' is already registered against {method}");
-			entry.Manipulators.Add(new Ordered<IlManipulatorRegistration>(reg, checked(nextSeq++)));
-			entry.BumpPatch();
+			MethodEntry target = entryFor(method);
+			requireUnusedIdentifier(target, entry.OwnerId, entry.LocalId);
+
+			target.Manipulators.RegisterLocked(entry);
+			target.BumpPatch();
 			dirty.Add(method);
 		}
 	}
 
-	public void AddDetour(MethodIdentity method, DetourRegistration reg) {
-		InternalStateException.ThrowIfNull(reg);
+	public void AddDetour(MethodIdentity method, OwnerOrderedEntry<DetourRegistration> entry) {
+		InternalStateException.ThrowIfNull(entry);
+		requireMatchingIdentifier(entry, entry.Item.OwnerId, entry.Item.LocalId);
+
 		lock (@lock) {
-			MethodEntry entry = entryFor(method);
-			if (!entry.TryOccupyIdPair(reg.OwnerId, reg.LocalId))
-				throw new InternalStateException($"'{reg.OwnerId}::{reg.LocalId}' is already registered against {method}");
-			bool wasDetoured = entry.Detours.Count > 0;
-			entry.Detours.Add(new Ordered<DetourRegistration>(reg, checked(nextSeq++)));
-			// only the transition into being detoured changes the emitted body
+			MethodEntry target = entryFor(method);
+			requireUnusedIdentifier(target, entry.OwnerId, entry.LocalId);
+
+			bool wasDetoured = target.Detours.ReadSnapshot().Count > 0;
+			target.Detours.RegisterLocked(entry);
+
 			if (!wasDetoured) {
-				entry.SetDetoured(true);
+				target.SetDetoured(true);
 				dirty.Add(method);
 			}
 		}
@@ -192,20 +140,23 @@ internal sealed class ModifRegistry {
 	public ImmutableArray<MethodIdentity> RemoveOwner(string ownerId) {
 		InternalStateException.ThrowIfInvalidOwnerId(ownerId);
 		lock (@lock) {
-			List<MethodIdentity> affected = new();
+			List<MethodIdentity> affected = [];
 			foreach ((MethodIdentity method, MethodEntry entry) in entries.ToArray()) {
-				bool wasDetoured = entry.Detours.Count > 0;
-				int manipulators = entry.Manipulators.RemoveAll(m => m.Registration.OwnerId == ownerId);
-				int detours = entry.Detours.RemoveAll(m => m.Registration.OwnerId == ownerId);
-				if (manipulators == 0 && detours == 0)
+				bool wasDetoured = entry.Detours.ReadSnapshot().Count > 0;
+
+				OwnerOrderedEntry<IlManipulatorRegistration>[] removedManipulators =
+					entry.Manipulators.UnregisterAllByOwnerIdLocked(ownerId);
+				OwnerOrderedEntry<DetourRegistration>[] removedDetours =
+					entry.Detours.UnregisterAllByOwnerIdLocked(ownerId);
+
+				if (removedManipulators.Length == 0 && removedDetours.Length == 0)
 					continue;
 
-				entry.RemoveIdsByOwner(ownerId);
-
-				if (manipulators > 0)
+				if (removedManipulators.Length > 0)
 					entry.BumpPatch();
-				if (wasDetoured && entry.Detours.Count == 0)
+				if (wasDetoured && entry.Detours.ReadSnapshot().Count == 0)
 					entry.SetDetoured(false);
+
 				dirty.Add(method);
 				affected.Add(method);
 				pruneIfEmpty(method, entry);
@@ -224,24 +175,19 @@ internal sealed class ModifRegistry {
 			if (!entries.TryGetValue(method, out MethodEntry? entry))
 				return false;
 
-			int manipulators = entry.Manipulators.RemoveAll(m => m.Registration.OwnerId == ownerId && m.Registration.LocalId == localId);
-			bool wasDetoured = entry.Detours.Count > 0;
-			int detours = entry.Detours.RemoveAll(d => d.Registration.OwnerId == ownerId && d.Registration.LocalId == localId);
-			if (manipulators == 0 && detours == 0)
+			bool wasDetoured = entry.Detours.ReadSnapshot().Count > 0;
+			bool removedManipulator = entry.Manipulators.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out _);
+			bool removedDetour = !removedManipulator
+				&& entry.Detours.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out _);
+
+			if (!removedManipulator && !removedDetour)
 				return false;
 
-			if (manipulators > 1)
-				throw new InternalStateException($"method had more than 1 manipulator registered under '{ownerId}::{localId}'");
-			if (detours > 1)
-				throw new InternalStateException($"method had more than 1 detour registered under '{ownerId}::{localId}'");
-			if (manipulators == 1 && detours == 1)
-				throw new InternalStateException($"method had both a manipulator and a detour registered under '{ownerId}::{localId}'");
-			entry.RemoveIdPair(ownerId, localId);
-
-			if (manipulators == 1)
+			if (removedManipulator)
 				entry.BumpPatch();
-			if (wasDetoured && entry.Detours.Count == 0)
+			if (wasDetoured && entry.Detours.ReadSnapshot().Count == 0)
 				entry.SetDetoured(false);
+
 			dirty.Add(method);
 			pruneIfEmpty(method, entry);
 			return true;
@@ -308,8 +254,24 @@ internal sealed class ModifRegistry {
 		return entry;
 	}
 
+	private static void requireMatchingIdentifier<T>(OwnerOrderedEntry<T> entry, string ownerId, string localId) {
+		if (entry.OwnerId != ownerId || entry.LocalId != localId)
+			throw new InternalStateException($"OwnerOrderedEntry '{entry.OwnerId}::{entry.LocalId}' doesn't match the registration it wraps '{ownerId}::{localId}'");
+	}
+
+	private static void requireUnusedIdentifier(MethodEntry entry, string ownerId, string localId) {
+		if (
+			isUsed(entry.Manipulators.GetLocalIdsByOwnerLocked(), ownerId, localId) ||
+			isUsed(entry.Detours.GetLocalIdsByOwnerLocked(), ownerId, localId)
+		)
+			throw new InternalStateException($"'{ownerId}::{localId}' is already registered against this method as a patch/detour");
+	}
+
+	private static bool isUsed(IReadOnlyDictionary<string, IReadOnlySet<string>> byOwner, string ownerId, string localId) =>
+		byOwner.TryGetValue(ownerId, out IReadOnlySet<string>? used) && used.Contains(localId);
+
 	private void pruneIfEmpty(MethodIdentity method, MethodEntry entry) {
-		if (entry.Manipulators.Count == 0 && entry.Detours.Count == 0)
+		if (entry.Manipulators.ReadSnapshot().Count == 0 && entry.Detours.ReadSnapshot().Count == 0)
 			entries.Remove(method);
 	}
 }

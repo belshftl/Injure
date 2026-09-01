@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Injure.DevAnalyzers.Attributes;
@@ -13,8 +14,7 @@ namespace Injure.Mods;
 /// <param name="message">
 /// Message describing the invalid entry, missing hard target, self-reference, or constraint cycle.
 /// </param>
-public sealed class OwnerOrderingException(string message) : Exception(message) {
-}
+public sealed class OwnerOrderingException(string message) : Exception(message);
 
 /// <summary>
 /// Specifies how an ordering constraint behaves when its target is absent.
@@ -28,7 +28,9 @@ public sealed class OwnerOrderingException(string message) : Exception(message) 
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct OwnerOrderingConstraintKind {
-	/// <summary>Raw switch tag for <see cref="OwnerOrderingConstraintKind"/>.</summary>
+	/// <summary>
+	/// Raw switch tag for <see cref="OwnerOrderingConstraintKind"/>.
+	/// </summary>
 	public enum Case {
 		/// <summary>
 		/// The constraint is to be ignored if its target is absent.
@@ -51,6 +53,9 @@ public readonly partial struct OwnerOrderingConstraintKind {
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct OwnerOrderingConstraintTargetKind {
+	/// <summary>
+	/// Raw switch tag for <see cref="OwnerOrderingConstraintTargetKind"/>.
+	/// </summary>
 	public enum Case {
 		Owner = 1,
 		Entry,
@@ -155,7 +160,7 @@ public sealed class OwnerOrderedEntry<T> {
 	public T Item { get; }
 	public string OwnerId { get; }
 	public string LocalId { get; }
-	public int LocalPriority { get; }
+	public int LocalOrder { get; }
 
 	public IReadOnlyList<OwnerOrderingConstraint> Before => before;
 	public IReadOnlyList<OwnerOrderingConstraint> After => after;
@@ -164,7 +169,7 @@ public sealed class OwnerOrderedEntry<T> {
 		T item,
 		string ownerId,
 		string localId,
-		int localPriority = 0,
+		int localOrder = 0,
 		IEnumerable<OwnerOrderingConstraint>? before = null,
 		IEnumerable<OwnerOrderingConstraint>? after = null
 	) {
@@ -174,10 +179,18 @@ public sealed class OwnerOrderedEntry<T> {
 		Item = item;
 		OwnerId = ownerId;
 		LocalId = localId;
-		LocalPriority = localPriority;
+		LocalOrder = localOrder;
 		this.before = fold(before, nameof(before));
 		this.after = fold(after, nameof(after));
 	}
+
+	public OwnerOrderedEntry<TNew> Transform<TNew>(Func<T, TNew> transform) => new(
+		transform(Item), OwnerId, LocalId, LocalOrder, Before, After
+	);
+
+	public OwnerOrderedEntry<TNew> Substitute<TNew>(TNew item) => new(
+		item, OwnerId, LocalId, LocalOrder, Before, After
+	);
 
 	private static OwnerOrderingConstraint[] fold(IEnumerable<OwnerOrderingConstraint>? constraints, string paramName) {
 		if (constraints is null)
@@ -237,7 +250,7 @@ public static class OwnerOrderedSorter {
 
 		foreach (OwnerNode<T> owner in owners.Values)
 			owner.Entries.Sort(static (a, b) => {
-					int cmp = a.Entry.LocalPriority.CompareTo(b.Entry.LocalPriority);
+					int cmp = a.Entry.LocalOrder.CompareTo(b.Entry.LocalOrder);
 					if (cmp != 0)
 						return cmp;
 					cmp = StringComparer.Ordinal.Compare(a.Entry.LocalId, b.Entry.LocalId);
@@ -527,7 +540,7 @@ public static class OwnerOrderedSorter {
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is single-writer, multiple-reader. Writes (or any other methods that end in `<c>Locked</c>`)
+/// This is single-writer, multiple-reader. Writes, or any other methods that end in <c>Locked</c>,
 /// must be externally mutexed/synchronized, otherwise they will race and corrupt state.
 /// </para>
 /// <para>
@@ -722,6 +735,12 @@ public sealed class UnsafeOwnerOrderedRegistry<T> {
 		}
 	}
 
+	// so it turns out that `out` parameters are counted as full read-write byrefs by
+	// eligible-for-covariance analysis, so `IReadOnlyDictionary<TKey, TValue>` is not covariant
+	// on `TValue` because of `TryGetValue`
+	public IReadOnlyDictionary<string, IReadOnlySet<string>> GetLocalIdsByOwnerLocked() =>
+		localIdsByOwner.ToImmutableDictionary(static kvp => kvp.Key, static kvp => (IReadOnlySet<string>)kvp.Value, StringComparer.Ordinal);
+
 	public IReadOnlyList<T> ReadSnapshot() => Volatile.Read(ref snapshot);
 
 	private ulong addEntry(OwnerOrderedEntry<T> entry, List<AddedEntry> added) {
@@ -831,6 +850,14 @@ public sealed class OwnerOrderedRegistry<T> {
 	public ulong[] ReplaceMany(IReadOnlySet<ulong> remove, IReadOnlyList<OwnerOrderedEntry<T>> add) {
 		lock (@lock)
 			return inner.ReplaceManyLocked(remove, add);
+	}
+
+	/// <remarks>
+	/// The same mutex used for writes is acquired by this method too.
+	/// </remarks>
+	public IReadOnlyDictionary<string, IReadOnlySet<string>> GetLocalIdsByOwner() {
+		lock (@lock)
+			return inner.GetLocalIdsByOwnerLocked();
 	}
 
 	public IReadOnlyList<T> ReadSnapshot() => inner.ReadSnapshot();

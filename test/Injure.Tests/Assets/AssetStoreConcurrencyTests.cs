@@ -12,9 +12,9 @@ public sealed class AssetStoreConcurrencyTests {
 	public static async Task ColdConcurrentBorrowsMaterializeOnce() {
 		AssetStore store = new();
 		TestCreator creator = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		Assert.False(asset.IsLoaded);
@@ -30,9 +30,9 @@ public sealed class AssetStoreConcurrencyTests {
 	public static async Task ColdConcurrentWarmsMaterializeOnce() {
 		AssetStore store = new();
 		TestCreator creator = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		Assert.False(asset.IsLoaded);
@@ -48,9 +48,9 @@ public sealed class AssetStoreConcurrencyTests {
 	public static async Task ConcurrentQueueReloadsWork() {
 		AssetStore store = new();
 		TestCreator creator = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -69,9 +69,9 @@ public sealed class AssetStoreConcurrencyTests {
 	public static async Task ConcurrentQueueReloadsFromThreadPoolWork() {
 		AssetStore store = new();
 		TestCreator creator = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -92,10 +92,10 @@ public sealed class AssetStoreConcurrencyTests {
 		AssetStore store = new();
 		TestCreator creator = new();
 		TestDependencyWatcher watcher = new();
-		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep")), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
-		store.RegisterDependencyWatcher(ownerId, watcher, "watcher");
+		store.RegisterSource(new TestSource(new TestDependency("dep")), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
+		store.RegisterDependencyWatcher(watcher, "watcher");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -122,9 +122,9 @@ public sealed class AssetStoreConcurrencyTests {
 		source.Set(a, "A");
 		source.Set(b, "B");
 		TestCreator creator = new(onPrepareAsync: (_, ct) => ckp.WaitAsync(ct));
-		store.RegisterSource(ownerId, source, "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(source, "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> assetA = store.GetAsset<TestAsset>(a);
 		AssetRef<TestAsset> assetB = store.GetAsset<TestAsset>(b);
@@ -145,9 +145,9 @@ public sealed class AssetStoreConcurrencyTests {
 		AssetStore store = new();
 		TaskCheckpoint ckp = new();
 		TestCreator creator = new(onPrepareAsync: (_, ct) => ckp.WaitAsync(ct));
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		using CancellationTokenSource cts1 = new();
@@ -174,9 +174,9 @@ public sealed class AssetStoreConcurrencyTests {
 		AssetStore store = new();
 		BlockingOnNthPrepare block = new(2);
 		TestCreator creator = new(onPrepareAsync: block.OnPrepareAsync);
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);

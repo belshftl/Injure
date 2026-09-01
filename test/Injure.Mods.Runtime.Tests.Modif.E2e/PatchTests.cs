@@ -13,8 +13,8 @@ namespace Injure.Mods.Runtime.Tests.Modif.E2e;
 public sealed class PatchTests(E2eFixture fixture) {
 	private readonly E2eFixture fxt = fixture;
 
-	private static IlManipulatorRegistration writesToSlot(string ownerId, string localId, Type targetType, int value) =>
-		IlManipulatorRegistration.Create<E2eL>(ownerId, localId, ctx => {
+	private static OwnerOrderedEntry<IlManipulatorRegistration> writesToSlot(string ownerId, string localId, Type targetType, int value) {
+		var reg = IlManipulatorRegistration.Create<E2eL>(ownerId, localId, ctx => {
 			IlFieldRef slot = IlRefFactory.Field(targetType.GetField(
 				nameof(Target.Slot),
 				BindingFlags.Static | BindingFlags.Public
@@ -24,6 +24,8 @@ public sealed class PatchTests(E2eFixture fixture) {
 				e.Stsfld(slot);
 			});
 		});
+		return new OwnerOrderedEntry<IlManipulatorRegistration>(reg, ownerId, localId);
+	}
 
 	// ============================================================================================
 	private static class Target {

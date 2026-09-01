@@ -11,10 +11,10 @@ public sealed class AssetStoreDependencyTests {
 	[Fact]
 	public static void ResolverNotHandledDoesntLeakDeps() {
 		AssetStore store = new();
-		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep-a")), "source");
-		store.RegisterResolver(ownerId, new FetchThenNotHandledResolver(new TestDependency("dep-b")), "resolver-a", localPriority: -1);
-		store.RegisterResolver(ownerId, new TestResolver(new TestDependency("dep-c")), "resolver-b", localPriority: 0);
-		store.RegisterStagedCreator(ownerId, new TestCreator(), "creator");
+		store.RegisterSource(new TestSource(new TestDependency("dep-a")), "source");
+		store.RegisterResolver(new FetchThenNotHandledResolver(new TestDependency("dep-b")), "resolver-a", localOrder: -1);
+		store.RegisterResolver(new TestResolver(new TestDependency("dep-c")), "resolver-b", localOrder: 0);
+		store.RegisterStagedCreator(new TestCreator(), "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		AssetLease<TestAsset> lease = asset.Borrow();
@@ -24,10 +24,10 @@ public sealed class AssetStoreDependencyTests {
 	[Fact]
 	public static void CreatorNotHandledDoesntLeakDeps() {
 		AssetStore store = new();
-		store.RegisterSource(ownerId, new TestSource(new TestDependency("dep-a")), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterCreator(ownerId, new SteppingCreator(new Step("step1", Handled: false, new TestDependency("dep-b"))), "creator-a", localPriority: -1);
-		store.RegisterCreator(ownerId, new SteppingCreator(new Step("step1", Handled: true, new TestDependency("dep-c"))), "creator-b", localPriority: 0);
+		store.RegisterSource(new TestSource(new TestDependency("dep-a")), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterCreator(new SteppingCreator(new Step("step1", Handled: false, new TestDependency("dep-b"))), "creator-a", localOrder: -1);
+		store.RegisterCreator(new SteppingCreator(new Step("step1", Handled: true, new TestDependency("dep-c"))), "creator-b", localOrder: 0);
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		AssetLease<TestAsset> lease = asset.Borrow();

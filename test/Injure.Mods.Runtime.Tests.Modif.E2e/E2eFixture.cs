@@ -19,9 +19,7 @@ public sealed class E2eFixture : IDisposable {
 	private readonly ConcurrentDictionary<ModuleId, Module> reflectionModuleById = new();
 
 	internal ProfilerHost Host { get; }
-	// make every owner compare equal so ordering falls back to registration sequence
-	// none of the e2e tests currently need genuine correct by-name ordering so this happens to work
-	internal ModifRegistry Registry { get; } = new(Comparer<string>.Create((_, _) => 0));
+	internal ModifRegistry Registry { get; } = new();
 	internal MethodTransformCache Cache { get; } = new();
 	internal DetourTransform Detours { get; }
 	internal ModifOrchestrator Orchestrator { get; }

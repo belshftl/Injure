@@ -203,6 +203,18 @@ internal sealed class DetourChain {
 	}
 
 	/// <summary>
+	/// Checks that a detour impl is valid for a given target, throwing if it isn't.
+	/// </summary>
+	/// <exception cref="ArgumentException">
+	/// Thrown if the impl's signature does not match the target.
+	/// </exception>
+	public static void ValidateShape(DetourRegistration detour, MethodBase target) {
+		InternalStateException.ThrowIfNull(detour);
+		InternalStateException.ThrowIfNull(target);
+		Shape.Validate(detour, returnTypeOf(target), parameterTypesOf(target));
+	}
+
+	/// <summary>
 	/// Builds the chain for one method.
 	/// </summary>
 	/// <param name="target">The method being detoured, as the runtime sees it.</param>

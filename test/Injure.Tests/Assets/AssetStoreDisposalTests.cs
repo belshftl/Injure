@@ -12,9 +12,9 @@ public sealed class AssetStoreDisposalTests {
 	public static async Task PreparedDataIsDisposedAfterInitialMaterialize() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -26,9 +26,9 @@ public sealed class AssetStoreDisposalTests {
 	public static async Task PreparedDataIsDisposedAfterSuccessfulReload() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -42,9 +42,9 @@ public sealed class AssetStoreDisposalTests {
 	public static async Task PreparedDataIsDisposedWhenFinalizeFails() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -59,9 +59,9 @@ public sealed class AssetStoreDisposalTests {
 	public static async Task SupersededPendingReloadDisposesPreparedData() {
 		AssetStore store = new();
 		ControllableCreator creator = new();
-		store.RegisterSource(ownerId, new TestSource(), "source");
-		store.RegisterResolver(ownerId, new TestResolver(), "resolver");
-		store.RegisterStagedCreator(ownerId, creator, "creator");
+		store.RegisterSource(new TestSource(), "source");
+		store.RegisterResolver(new TestResolver(), "resolver");
+		store.RegisterStagedCreator(creator, "creator");
 
 		AssetRef<TestAsset> asset = store.GetAsset<TestAsset>(new AssetId(ownerId, "asset"));
 		await asset.WarmAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);

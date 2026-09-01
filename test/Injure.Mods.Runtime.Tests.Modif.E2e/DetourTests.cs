@@ -22,6 +22,9 @@ public sealed class DetourTests(E2eFixture fixture) {
 	private static MethodInfo method(string name) =>
 		typeof(DetourTests).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)!;
 
+	private static OwnerOrderedEntry<DetourRegistration> entry(DetourRegistration reg) =>
+		new(reg, reg.OwnerId, reg.LocalId);
+
 	// ============================================================================================
 	private static class SingleTarget {
 		[MethodImpl(MethodImplOptions.NoInlining)]
@@ -34,7 +37,7 @@ public sealed class DetourTests(E2eFixture fixture) {
 			nameof(SingleTarget.Compute),
 			BindingFlags.Static | BindingFlags.Public
 		)!);
-		fxt.Registry.AddDetour(m, new DetourRegistration("e2e.detour.single", "detour", method(nameof(add10))));
+		fxt.Registry.AddDetour(m, entry(new DetourRegistration("e2e.detour.single", "detour", method(nameof(add10)))));
 
 		ApplyResult result = fxt.Orchestrator.ApplyPending();
 
@@ -49,17 +52,22 @@ public sealed class DetourTests(E2eFixture fixture) {
 	}
 
 	[Fact]
-	public void DetourChainRunsInRegistrationOrder() {
+	public void DetourChainRunsInOrder() {
 		MethodIdentity m = fxt.GetIdentity(typeof(ChainTarget).GetMethod(
 			nameof(ChainTarget.Compute),
 			BindingFlags.Static | BindingFlags.Public
 		)!);
-		fxt.Registry.AddDetour(m, new DetourRegistration("e2e.detour.chain", "a", method(nameof(add10))));
-		fxt.Registry.AddDetour(m, new DetourRegistration("e2e.detour.chain", "b", method(nameof(@double))));
+		fxt.Registry.AddDetour(m, entry(new DetourRegistration("e2e.detour.chain", "a", method(nameof(add10)))));
+		fxt.Registry.AddDetour(m, entry(new DetourRegistration("e2e.detour.chain", "b", method(nameof(@double)))));
 
 		fxt.Orchestrator.ApplyPending();
 
-		// Compute(3) is 4, doubled is 8, +10 is 18; reverse order would yield 28
+		// Compute() detours to add10()
+		// -> add10() calls next(), i.e. double()
+		//   -> double() calls next() which is the original Compute()
+		//     -> Compute(3) is 4
+		//   -> 4 doubled is 8
+		// -> 8 + 10 is 18
 		Assert.Equal(18, ChainTarget.Compute(3));
 	}
 
@@ -75,7 +83,7 @@ public sealed class DetourTests(E2eFixture fixture) {
 			nameof(RemoveTarget.Compute),
 			BindingFlags.Static | BindingFlags.Public
 		)!);
-		fxt.Registry.AddDetour(m, new DetourRegistration("e2e.detour.remove", "detour", method(nameof(add10))));
+		fxt.Registry.AddDetour(m, entry(new DetourRegistration("e2e.detour.remove", "detour", method(nameof(add10)))));
 		fxt.Orchestrator.ApplyPending();
 		Assert.Equal(14, RemoveTarget.Compute(3));
 
@@ -98,8 +106,8 @@ public sealed class DetourTests(E2eFixture fixture) {
 
 	private static int add100(next_Read next) => next() + 100;
 
-	private static IlManipulatorRegistration writesToSlot(int value) =>
-		IlManipulatorRegistration.Create<E2eL>("e2e.combined", "patch", ctx => {
+	private static OwnerOrderedEntry<IlManipulatorRegistration> writesToSlot(int value) {
+		var reg = IlManipulatorRegistration.Create<E2eL>("e2e.combined", "patch", ctx => {
 			IlFieldRef slot = IlRefFactory.Field(typeof(CombinedTarget).GetField(
 				nameof(CombinedTarget.Slot),
 				BindingFlags.Static | BindingFlags.Public
@@ -109,6 +117,8 @@ public sealed class DetourTests(E2eFixture fixture) {
 				e.Stsfld(slot);
 			});
 		});
+		return new OwnerOrderedEntry<IlManipulatorRegistration>(reg, "e2e.combined", "patch");
+	}
 
 	[Fact]
 	public void PatchAndDetourOnTheSameMethodCompose() {
@@ -117,7 +127,7 @@ public sealed class DetourTests(E2eFixture fixture) {
 			BindingFlags.Static | BindingFlags.Public
 		)!);
 		fxt.Registry.AddManipulator(m, writesToSlot(5));
-		fxt.Registry.AddDetour(m, new DetourRegistration("e2e.combined", "detour", method(nameof(add100))));
+		fxt.Registry.AddDetour(m, entry(new DetourRegistration("e2e.combined", "detour", method(nameof(add100)))));
 
 		fxt.Orchestrator.ApplyPending();
 

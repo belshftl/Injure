@@ -829,50 +829,16 @@ public sealed class AssetStore {
 	/// <summary>
 	/// Registers an asset source.
 	/// </summary>
-	/// <param name="ownerId">Owner ID to register the source under.</param>
-	/// <param name="source">Source to register.</param>
-	/// <param name="localId">Local ID for the source, used for deterministic ordering and tie-breaking.</param>
-	/// <param name="localPriority">
-	/// Owner-local priority; lower (closer to negative infinity) priority sources within the same owner are tried first.
-	/// </param>
-	/// <param name="beforeOwners">
-	/// If not <see langword="null"/>, this source will be tried before any sources registered
-	/// under one of the specified owner IDs, with the specified constraint kinds.
-	/// </param>
-	/// <param name="afterOwners">
-	/// If not <see langword="null"/>, this source will only be tried after all sources registered
-	/// under one of the specified owner IDs, with the specified constraint kinds.
-	/// </param>
 	/// <returns>
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
-	/// <remarks>
-	/// <paramref name="localId"/> must be unique among all other sources registered in
-	/// this <see cref="AssetStore"/> instance under this <paramref name="ownerId"/>.
-	/// </remarks>
 	/// <exception cref="OwnerOrderingException">
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
-	public AssetStoreRegistration RegisterSource(
-		string ownerId,
-		IAssetSource source,
-		string localId,
-		int localPriority = 0,
-		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
-		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
-	) {
+	public AssetStoreRegistration RegisterSource(OwnerOrderedEntry<IAssetSource> source) {
 		ArgumentNullException.ThrowIfNull(source);
 		lock (registryLock) {
-			ulong id = sources.RegisterLocked(
-				new OwnerOrderedEntry<IAssetSource>(
-					source,
-					ownerId,
-					localId,
-					localPriority,
-					beforeOwners,
-					afterOwners
-				)
-			);
+			ulong id = sources.RegisterLocked(source);
 			return new AssetStoreRegistration(this, AssetRegistrationKind.Source, id, null);
 		}
 	}
@@ -880,78 +846,28 @@ public sealed class AssetStore {
 	/// <summary>
 	/// Registers an asset resolver.
 	/// </summary>
-	/// <param name="ownerId">Owner ID to register the resolver under.</param>
-	/// <param name="resolver">Resolver to regiIf not <see langword="null"/>ster.</param>
-	/// <param name="localId">Local ID for the resolver, used for deterministic ordering and tie-breaking.</param>
-	/// <param name="localPriority">
-	/// Owner-local priority; lower (closer to negative infinity) priority resolvers within the same owner are tried first.
-	/// </param>
-	/// <param name="beforeOwners">
-	/// If not <see langword="null"/>, this resolver will be tried before any resolvers registered
-	/// under one of the specified owner IDs, with the specified constraint kinds.
-	/// </param>
-	/// <param name="afterOwners">
-	/// If not <see langword="null"/>, this resolver will only be tried after all resolvers registered
-	/// under one of the specified owner IDs, with the specified constraint kinds.
-	/// </param>
 	/// <returns>
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
-	/// <remarks>
-	/// <paramref name="localId"/> must be unique among all other resolvers registered in
-	/// this <see cref="AssetStore"/> instance under this <paramref name="ownerId"/>.
-	/// </remarks>
 	/// <exception cref="OwnerOrderingException">
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
-	public AssetStoreRegistration RegisterResolver(
-		string ownerId,
-		IAssetResolver resolver,
-		string localId,
-		int localPriority = 0,
-		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
-		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
-	) {
+	public AssetStoreRegistration RegisterResolver(OwnerOrderedEntry<IAssetResolver> resolver) {
 		ArgumentNullException.ThrowIfNull(resolver);
 		lock (registryLock) {
-			ulong id = resolvers.RegisterLocked(
-				new OwnerOrderedEntry<IAssetResolver>(
-					resolver,
-					ownerId,
-					localId,
-					localPriority,
-					beforeOwners,
-					afterOwners
-				)
-			);
+			ulong id = resolvers.RegisterLocked(resolver);
 			return new AssetStoreRegistration(this, AssetRegistrationKind.Resolver, id, null);
 		}
 	}
 
-	private AssetStoreRegistration registerCreatorLocked(
-		string ownerId,
-		IUntypedAssetCreator creator,
-		Type type,
-		string localId,
-		int localPriority = 0,
-		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
-		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
-	) {
-		OwnerOrderedEntry<IUntypedAssetCreator> ent = new(
-			creator,
-			ownerId,
-			localId,
-			localPriority,
-			beforeOwners,
-			afterOwners
-		);
+	private AssetStoreRegistration registerCreatorLocked(OwnerOrderedEntry<IUntypedAssetCreator> creator, Type type) {
 		ImmutableDictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>> old = creators;
 		ulong id;
 		if (old.TryGetValue(type, out UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>? reg)) {
-			id = reg.RegisterLocked(ent);
+			id = reg.RegisterLocked(creator);
 		} else {
 			reg = new UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>();
-			id = reg.RegisterLocked(ent);
+			id = reg.RegisterLocked(creator);
 			Volatile.Write(ref creators, old.Add(type, reg));
 		}
 		return new AssetStoreRegistration(this, AssetRegistrationKind.Creator, id, type);
@@ -961,50 +877,18 @@ public sealed class AssetStore {
 	/// Registers an asset creator of a specific asset type.
 	/// </summary>
 	/// <typeparam name="T">Asset type produced by the creator.</typeparam>
-	/// <param name="ownerId">Owner ID to register the creator under.</param>
-	/// <param name="creator">Creator to register.</param>
-	/// <param name="localId">Local ID for the creator, used for deterministic ordering and tie-breaking.</param>
-	/// <param name="localPriority">
-	/// Owner-local priority; lower (closer to negative infinity) priority creators within the same owner are tried first.
-	/// </param>
-	/// <param name="beforeOwners">
-	/// If not <see langword="null"/>, this creator will be tried before any creators registered
-	/// under one of the specified owner IDs, with the specified constraint kinds.
-	/// </param>
-	/// <param name="afterOwners">
-	/// If not <see langword="null"/>, this creator will only be tried after all creators registered
-	/// under one of the specified owner IDs, with the specified constraint kinds.
-	/// </param>
 	/// <returns>
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
-	/// <remarks>
-	/// <paramref name="localId"/> must be unique among all other creators for the type <typeparamref name="T"/>
-	/// registered in this <see cref="AssetStore"/> instance under this <paramref name="ownerId"/>.
-	/// </remarks>
 	/// <exception cref="OwnerOrderingException">
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
-	public AssetStoreRegistration RegisterCreator<T>(
-		string ownerId,
-		IAssetCreator<T> creator,
-		string localId,
-		int localPriority = 0,
-		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
-		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
-	) where T : class {
+	public AssetStoreRegistration RegisterCreator<T>(OwnerOrderedEntry<IAssetCreator<T>> creator) where T : class {
 		ArgumentNullException.ThrowIfNull(creator);
-		lock (registryLock) {
-			return registerCreatorLocked(
-				ownerId,
-				new UntypedDirectAssetCreator<T>(creator),
-				typeof(T),
-				localId,
-				localPriority,
-				beforeOwners,
-				afterOwners
-			);
-		}
+		lock (registryLock)
+			return registerCreatorLocked(creator.Transform<IUntypedAssetCreator>(
+				static c => new UntypedDirectAssetCreator<T>(c)
+			), typeof(T));
 	}
 
 	/// <summary>
@@ -1012,50 +896,21 @@ public sealed class AssetStore {
 	/// </summary>
 	/// <typeparam name="T">Asset type produced by the creator.</typeparam>
 	/// <typeparam name="TPrepared">Prepared-data intermediate type used by the creator.</typeparam>
-	/// <inheritdoc cref="RegisterCreator{T}(string, IAssetCreator{T}, string, int, IEnumerable{OwnerOrderingConstraint}?, IEnumerable{OwnerOrderingConstraint}?)"/>
+	/// <inheritdoc cref="RegisterCreator{T}(OwnerOrderedEntry{IAssetCreator{T}})"/>
 	public AssetStoreRegistration RegisterStagedCreator<T, TPrepared>(
-		string ownerId,
-		IAssetStagedCreator<T, TPrepared> creator,
-		string localId,
-		int localPriority = 0,
-		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
-		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
+		OwnerOrderedEntry<IAssetStagedCreator<T, TPrepared>> creator
 	) where T : class where TPrepared : AssetPreparedData {
 		ArgumentNullException.ThrowIfNull(creator);
-		lock (registryLock) {
-			return registerCreatorLocked(
-				ownerId,
-				new UntypedStagedAssetCreator<T, TPrepared>(creator),
-				typeof(T),
-				localId,
-				localPriority,
-				beforeOwners,
-				afterOwners
-			);
-		}
+		lock (registryLock)
+			return registerCreatorLocked(creator.Transform<IUntypedAssetCreator>(
+				static c => new UntypedStagedAssetCreator<T, TPrepared>(c)
+			), typeof(T));
 	}
 
 	/// <summary>
 	/// Registers a watcher for a specific dependency type.
 	/// </summary>
 	/// <typeparam name="TDependency">Dependency type handled by the watcher.</typeparam>
-	/// <param name="ownerId">Owner ID to register the watcher under.</param>
-	/// <param name="watcher">Watcher to register.</param>
-	/// <param name="localId">Local ID for the watcher, used for deterministic ordering and tie-breaking.</param>
-	/// <param name="localPriority">
-	/// Owner-local priority; lower (closer to negative infinity) priority watchers within the same owner will
-	/// be subscribed to new dependencies first.
-	/// </param>
-	/// <param name="beforeOwners">
-	/// If not <see langword="null"/>, this watcher will be subscribed to new dependencies before
-	/// any of the watchers registered under one of the specified owner IDs, with the specified
-	/// constraint kinds (also see remarks on unsubscribe order).
-	/// </param>
-	/// <param name="afterOwners">
-	/// If not <see langword="null"/>, this watcher will be subscribed to new dependencies only after
-	/// all of the watchers registered under one of the specified owner IDs, with the specified
-	/// constraint kinds (also see remarks on unsubscribe order).
-	/// </param>
 	/// <returns>
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
@@ -1073,24 +928,12 @@ public sealed class AssetStore {
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
 	public AssetStoreRegistration RegisterDependencyWatcher<TDependency>(
-		string ownerId,
-		IAssetDependencyWatcher<TDependency> watcher,
-		string localId,
-		int localPriority = 0,
-		IEnumerable<OwnerOrderingConstraint>? beforeOwners = null,
-		IEnumerable<OwnerOrderingConstraint>? afterOwners = null
+		OwnerOrderedEntry<IAssetDependencyWatcher<TDependency>> watcher
 	) where TDependency : IAssetDependency {
 		ArgumentNullException.ThrowIfNull(watcher);
-		UntypedAssetDependencyWatcher<TDependency> untyped = new(watcher);
 		lock (dependencyLock) {
-			OwnerOrderedEntry<IUntypedAssetDependencyWatcher> ent = new(
-				untyped,
-				ownerId,
-				localId,
-				localPriority,
-				beforeOwners,
-				afterOwners
-			);
+			UntypedAssetDependencyWatcher<TDependency> untyped = new(watcher.Item);
+			OwnerOrderedEntry<IUntypedAssetDependencyWatcher> ent = watcher.Substitute<IUntypedAssetDependencyWatcher>(untyped);
 			Dictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>> old = watchers;
 			ulong id;
 			if (old.TryGetValue(typeof(TDependency), out UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg)) {
@@ -1106,7 +949,7 @@ public sealed class AssetStore {
 			untyped.Changed += onDependencyChanged;
 			foreach ((IAssetDependency dep, _) in slotsByDependency)
 				if (dep.GetType() == typeof(TDependency))
-					watcher.Watch((TDependency)dep);
+					watcher.Item.Watch((TDependency)dep);
 			return new AssetStoreRegistration(this, AssetRegistrationKind.DependencyWatcher, id, typeof(TDependency));
 		}
 	}

@@ -43,18 +43,22 @@ public sealed class ProfilerExtraTests(E2eFixture fixture) {
 
 		fxt.Registry.AddManipulator(
 			method,
-			IlManipulatorRegistration.Create<E2eL>("e2e.corelib", "call-max", ctx => {
-				IlFieldRef slot = IlRefFactory.Field(typeof(ResultHolder).GetField(
-					nameof(ResultHolder.Value),
-					BindingFlags.Static | BindingFlags.Public
-				)!);
-				ctx.EmitAtStart(e => {
-					e.LdcI4(3);
-					e.LdcI4(7);
-					e.Call(max);
-					e.Stsfld(slot);
-				});
-			})
+			new OwnerOrderedEntry<IlManipulatorRegistration>(
+				IlManipulatorRegistration.Create<E2eL>("e2e.corelib", "call-max", ctx => {
+					IlFieldRef slot = IlRefFactory.Field(typeof(ResultHolder).GetField(
+						nameof(ResultHolder.Value),
+						BindingFlags.Static | BindingFlags.Public
+					)!);
+					ctx.EmitAtStart(e => {
+						e.LdcI4(3);
+						e.LdcI4(7);
+						e.Call(max);
+						e.Stsfld(slot);
+					});
+				}),
+				"e2e.corelib",
+				"call-max"
+			)
 		);
 
 		ApplyResult result = fxt.Orchestrator.ApplyPending();
