@@ -7,6 +7,4 @@ namespace Injure.Mods.Weaver;
 
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed class ModifTargetStoreAttribute(Type storeType) : Attribute {
-	public Type StoreType { get; } = storeType;
-}
+public sealed class ModifInjectedAttribute : Attribute;

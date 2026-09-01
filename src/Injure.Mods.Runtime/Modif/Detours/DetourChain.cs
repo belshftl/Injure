@@ -139,6 +139,11 @@ internal sealed class DetourChain {
 						$"detour impl '{detour}' takes '{widened[i]}' where the target takes '{parameters[i]}'; byref/pointer parameters must match exactly",
 						nameof(detour)
 					);
+				if (parameters[i].IsByRefLike || widened[i].IsByRefLike)
+					throw new ArgumentException(
+						$"detour impl '{detour}' takes '{widened[i]}' where the target takes '{parameters[i]}'; ref struct parameters must match exactly as they cannot be boxed",
+						nameof(detour)
+					);
 				if (!widened[i].IsAssignableFrom(parameters[i]))
 					throw new ArgumentException(
 						$"detour impl '{detour}' takes '{widened[i]}' where the target takes '{parameters[i]}'; expected exact match or possible upcast/assignability",
@@ -407,8 +412,13 @@ internal sealed class DetourChain {
 		ParameterInfo[] declared = target.GetParameters();
 		var types = new Type[declared.Length + (target.IsStatic ? 0 : 1)];
 		int offset = 0;
-		if (!target.IsStatic)
-			types[offset++] = target.DeclaringType ?? throw new ArgumentException("an instance method must have a declaring type", nameof(target));
+		if (!target.IsStatic) {
+			if (target.DeclaringType is null)
+				throw new ArgumentException("an instance method must have a declaring type", nameof(target));
+			types[offset++] = target.DeclaringType.IsValueType
+				? target.DeclaringType.MakeByRefType()
+				: target.DeclaringType;
+		}
 		foreach (ParameterInfo parameter in declared)
 			types[offset++] = parameter.ParameterType;
 		return types;

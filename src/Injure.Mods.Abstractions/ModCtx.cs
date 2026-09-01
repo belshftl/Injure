@@ -31,8 +31,8 @@ public interface IModCtx<out TGameApi, L> where L : struct, IModLifetimeIdentity
 [DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModLoadCtx<out TGameApi, L> : IModCtx<TGameApi, L> where L : struct, IModLifetimeIdentity {
-	IModDetourDecl<L> LoadDetours { get; }
-	IModPatchDecl<L> LoadPatches { get; }
+	IDetourDecl<L> LoadDetours { get; }
+	IPatchDecl<L> LoadPatches { get; }
 	IModExportDecl<L> Exports { get; }
 }
 

@@ -9,14 +9,14 @@ namespace Injure.Mods.Abstractions.Modif;
 
 [DontCache("detour declarations for a given phase are closed after the corresponding mod lifecycle method returns")]
 [DontImplement]
-public interface IModDetourDecl<L> where L : struct, IModLifetimeIdentity {
-	void Declare(string targetId, MethodInfo impl, in ModDetourConfig config);
-	void Declare(MethodBase targetMethod, MethodInfo impl, in ModDetourConfig config);
+public interface IDetourDecl<L> where L : struct, IModLifetimeIdentity {
+	void Declare(string targetId, MethodInfo impl, in DetourConfig config);
+	void Declare(MethodBase targetMethod, MethodInfo impl, in DetourConfig config);
 }
 
 [DontCache("patch declarations for a given phase are closed after the corresponding mod lifecycle method returns")]
 [DontImplement]
-public interface IModPatchDecl<L> where L : struct, IModLifetimeIdentity {
-	void Declare(string targetId, IlManipulator<L> manipulator, in ModPatchConfig config);
-	void Declare(MethodBase targetMethod, IlManipulator<L> manipulator, in ModPatchConfig config);
+public interface IPatchDecl<L> where L : struct, IModLifetimeIdentity {
+	void Declare(string targetId, IlManipulator<L> manipulator, in PatchConfig config);
+	void Declare(MethodBase targetMethod, IlManipulator<L> manipulator, in PatchConfig config);
 }
