@@ -8,7 +8,21 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
 /// Represents a structural method reference or generic method instantiation.
+/// New instances are created through <see cref="IlRefFactory"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The difference between <see cref="System.Reflection.MethodInfo"/> and <see cref="IlMethodRef"/> is
+/// that a <see cref="System.Reflection.MethodInfo"/> is a real method that is part of a currently loaded
+/// type and exists at runtime, whereas <see cref="IlMethodRef"/> is pure metadata, consisting of the
+/// declaring type's metadata, method name, signature, and generic arguments.
+/// </para>
+/// <para>
+/// This means that a <see cref="System.Reflection.MethodInfo"/> can be "converted" to
+/// <see cref="IlMethodRef"/>, but the reverse is impossible; it would be like trying to convert
+/// (a fancier form of) the name of a method to the method itself.
+/// </para>
+/// </remarks>
 public sealed class IlMethodRef : IEquatable<IlMethodRef> {
 	/// <summary>
 	/// The declaring type, which may itself be a generic instantiation.

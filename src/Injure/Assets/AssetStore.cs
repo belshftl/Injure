@@ -92,7 +92,6 @@ public sealed class AssetStoreRegistration : IReloadTeardown {
 /// and automatically queue reloads when the underlying external resources change.
 /// </para>
 /// </remarks>
-[GameCentralized]
 public sealed class AssetStore {
 	// ==========================================================================
 	// versions/slots

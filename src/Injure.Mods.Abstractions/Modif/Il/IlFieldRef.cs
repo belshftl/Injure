@@ -6,8 +6,21 @@ using System.Diagnostics.CodeAnalysis;
 namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
-/// Represents a structural field reference.
+/// Represents a structural field reference. New instances are created through <see cref="IlRefFactory"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The difference between <see cref="System.Reflection.FieldInfo"/> and <see cref="IlFieldRef"/> is
+/// that a <see cref="System.Reflection.FieldInfo"/> is a real field that is part of a currently loaded
+/// type and exists at runtime, whereas <see cref="IlFieldRef"/> is pure metadata, consisting of the
+/// declaring type's metadata, field name, and field type's metadata.
+/// </para>
+/// <para>
+/// This means that a <see cref="System.Reflection.FieldInfo"/> can be "converted" to
+/// <see cref="IlFieldRef"/>, but the reverse is impossible; it would be like trying to convert
+/// (a fancier form of) the name of a field to the field itself.
+/// </para>
+/// </remarks>
 public sealed class IlFieldRef : IEquatable<IlFieldRef> {
 	/// <summary>
 	/// The declaring type.

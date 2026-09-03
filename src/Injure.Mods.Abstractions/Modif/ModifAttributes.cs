@@ -40,20 +40,20 @@ public abstract class PatchAttribute : Attribute {
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
 [MethodAttributeUsage(MethodConstraints.Static | MethodConstraints.NonGeneric)]
-public sealed class LoadDetourAttribute(string targetId) : DetourAttribute {
-	public string TargetId { get; } = targetId;
+public sealed class LoadDetourAttribute(Type generatedTargetType) : DetourAttribute {
+	public Type GeneratedTargetType { get; } = generatedTargetType;
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
 [MethodAttributeUsage(MethodConstraints.Static | MethodConstraints.NonGeneric | MethodConstraints.ReturnsVoid)]
-public sealed class LoadPatchAttribute(string targetId) : PatchAttribute {
-	public string TargetId { get; } = targetId;
+public sealed class LoadPatchAttribute(Type generatedTargetType) : PatchAttribute {
+	public Type GeneratedTargetType { get; } = generatedTargetType;
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
 [MethodAttributeUsage(MethodConstraints.Static | MethodConstraints.NonGeneric)]
-public sealed class LoadMethodDetourAttribute(Type targetType, string methodName, BindingFlags bindingFlags) : DetourAttribute {
-	public Type TargetType { get; } = targetType;
+public sealed class LoadMethodDetourAttribute(Type declaringType, string methodName, BindingFlags bindingFlags) : DetourAttribute {
+	public Type DeclaringType { get; } = declaringType;
 	public string MethodName { get; } = methodName;
 	public BindingFlags BindingFlags { get; } = bindingFlags;
 
@@ -62,8 +62,8 @@ public sealed class LoadMethodDetourAttribute(Type targetType, string methodName
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
 [MethodAttributeUsage(MethodConstraints.Static | MethodConstraints.NonGeneric | MethodConstraints.ReturnsVoid)]
-public sealed class LoadMethodPatchAttribute(Type targetType, string methodName, BindingFlags bindingFlags) : PatchAttribute {
-	public Type TargetType { get; } = targetType;
+public sealed class LoadMethodPatchAttribute(Type declaringType, string methodName, BindingFlags bindingFlags) : PatchAttribute {
+	public Type DeclaringType { get; } = declaringType;
 	public string MethodName { get; } = methodName;
 	public BindingFlags BindingFlags { get; } = bindingFlags;
 

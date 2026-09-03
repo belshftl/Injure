@@ -9,6 +9,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
 /// Represents a structural method or standalone callsite signature.
+/// New instances are created through <see cref="IlRefFactory"/>.
 /// </summary>
 public sealed class IlMethodSignature : IEquatable<IlMethodSignature> {
 	/// <summary>

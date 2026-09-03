@@ -9,12 +9,25 @@ using Injure.DevAnalyzers.Attributes;
 namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
-/// Base type for IL type references.
+/// Base type for IL type references. New instances are created through <see cref="IlRefFactory"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The difference between <see cref="Type"/> and <see cref="IlTypeRef"/> is that a <see cref="Type"/>
+/// is a real type that is currently loaded and exists at runtime, whereas <see cref="IlTypeRef"/> is
+/// pure metadata; for instance, <see cref="IlNamedTypeRef"/> primarily consists of two strings for
+/// a namespace + name and an integer for generic arity.
+/// </para>
+/// <para>
+/// This means that a <see cref="Type"/> can be "converted" to <see cref="IlTypeRef"/>, but the reverse
+/// is impossible; it would be like trying to convert (a fancier form of) the name of a type to the
+/// type itself.
+/// </para>
 /// <para>
 /// Equality is structural and includes the scope, so the same type resolved through two different
 /// modules is not equal. Pattern matching uses a slightly looser comparison.
 /// </para>
+/// </remarks>
 public abstract class IlTypeRef : IEquatable<IlTypeRef> {
 	private protected IlTypeRef() {
 	}
@@ -268,7 +281,7 @@ public sealed class IlSzArrayTypeRef : IlTypeRef {
 }
 
 /// <summary>
-/// Represents an unmanaged pointer type.
+/// Represents a pointer type.
 /// </summary>
 public sealed class IlPointerTypeRef : IlTypeRef {
 	/// <summary>
@@ -282,11 +295,11 @@ public sealed class IlPointerTypeRef : IlTypeRef {
 }
 
 /// <summary>
-/// Represents a managed byref type.
+/// Represents a byref type.
 /// </summary>
 public sealed class IlByRefTypeRef : IlTypeRef {
 	/// <summary>
-	/// The referenced type.
+	/// The referenced/pointee type.
 	/// </summary>
 	public IlTypeRef ElementType { get; }
 
@@ -300,9 +313,10 @@ public sealed class IlByRefTypeRef : IlTypeRef {
 /// </summary>
 /// <remarks>
 /// "Pinned" is a property of a local variable type and is only relevant when decoding metadata
-/// signatures, so this type is internal.
+/// signatures, so this type is only public to keep the whole <see cref="IlTypeRef"/> closed
+/// hierarchy matchable on.
 /// </remarks>
-internal sealed class IlPinnedTypeRef : IlTypeRef {
+public sealed class IlPinnedTypeRef : IlTypeRef {
 	/// <summary>
 	/// The pinned type.
 	/// </summary>
@@ -310,7 +324,7 @@ internal sealed class IlPinnedTypeRef : IlTypeRef {
 
 	internal IlPinnedTypeRef(IlTypeRef elementType) => ElementType = elementType;
 
-	public override string ToString() => $"pinned {ElementType}";
+	public override string ToString() => $"pin {ElementType}";
 }
 
 /// <summary>
@@ -360,9 +374,10 @@ public sealed class IlFunctionPointerTypeRef : IlTypeRef {
 /// </summary>
 /// <remarks>
 /// The metadata <c>&lt;Module&gt;</c> pseudo-type is mostly useful for decoding or representing
-/// global methods/fields and is not a regular signature type, so this type is internal.
+/// global methods/fields and is not a regular signature type, so this type is only public to keep
+/// the whole <see cref="IlTypeRef"/> closed hierarchy matchable on.
 /// </remarks>
-internal sealed class IlGlobalModuleTypeRef : IlTypeRef {
+public sealed class IlGlobalModuleTypeRef : IlTypeRef {
 	/// <summary>
 	/// The containing metadata scope.
 	/// </summary>

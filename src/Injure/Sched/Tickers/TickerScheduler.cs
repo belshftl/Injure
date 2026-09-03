@@ -257,7 +257,6 @@ public readonly record struct TickerSchedulerOptions(
 	TickerBudgetOptions Budget = default
 );
 
-[GameCentralized]
 public sealed class TickerScheduler(in TickerSchedulerOptions options) : ITickerRegistry {
 	private enum TickerSlotState {
 		Empty,

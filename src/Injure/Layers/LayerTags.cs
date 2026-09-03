@@ -84,7 +84,6 @@ public readonly struct LayerTagSet {
 	public ReadOnlySpan<LayerTag> AsSpan() => items is null ? ReadOnlySpan<LayerTag>.Empty : items;
 }
 
-[GameCentralized]
 public sealed class LayerTagRegistry {
 	private static ulong nextRegistryId = 0; // first ID will be 1 since this gets incremented upfront
 	internal readonly ulong RegistryId = Interlocked.Increment(ref nextRegistryId);

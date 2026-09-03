@@ -12,7 +12,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// </summary>
 public static class IlRefFactory {
 	/// <summary>
-	/// Converts a reflection type to a structural IL type reference.
+	/// "Converts" a reflection type to a structural IL type reference. The "conversion" is irreversible.
 	/// </summary>
 	/// <param name="type">The reflection type.</param>
 	/// <exception cref="ArgumentNullException">
@@ -384,7 +384,8 @@ public static class IlRefFactory {
 	}
 
 	/// <summary>
-	/// Converts a reflection method or constructor to a structural IL method reference.
+	/// "Converts" a reflection method or constructor to a structural IL method reference.
+	/// The "conversion" is irreversible.
 	/// </summary>
 	/// <param name="method">The reflection method or constructor.</param>
 	/// <exception cref="ArgumentNullException">
@@ -473,7 +474,8 @@ public static class IlRefFactory {
 	}
 
 	/// <summary>
-	/// Converts a reflection field to a structural IL field reference.
+	/// "Converts" a reflection field to a structural IL field reference.
+	/// The "conversion" is irreversible.
 	/// </summary>
 	/// <param name="field">The reflection field.</param>
 	/// <exception cref="ArgumentNullException">
@@ -621,10 +623,10 @@ public static class IlRefFactory {
 		else if (type == typeof(float)) code = PrimitiveTypeCode.Single;
 		else if (type == typeof(double)) code = PrimitiveTypeCode.Double;
 		else if (type == typeof(string)) code = PrimitiveTypeCode.String;
-		else if (type == typeof(object)) code = PrimitiveTypeCode.Object;
+		else if (type == typeof(TypedReference)) code = PrimitiveTypeCode.TypedReference;
 		else if (type == typeof(IntPtr)) code = PrimitiveTypeCode.IntPtr;
 		else if (type == typeof(UIntPtr)) code = PrimitiveTypeCode.UIntPtr;
-		else if (type == typeof(TypedReference)) code = PrimitiveTypeCode.TypedReference;
+		else if (type == typeof(object)) code = PrimitiveTypeCode.Object;
 		else return false;
 		return true;
 	}

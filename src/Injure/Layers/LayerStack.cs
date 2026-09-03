@@ -9,7 +9,6 @@ using Injure.Sched.Tickers;
 
 namespace Injure.Layers;
 
-[GameCentralized]
 public sealed class LayerStack(ITickerRegistry tickers, IInputSource input) : IDisposable {
 	// ==========================================================================
 	// internal types

@@ -40,14 +40,15 @@ internal sealed class DetourLinkState {
 	/// The caller is intended to follow with <c>unbox.any</c>.
 	/// </remarks>
 	public object? Narrow(object? value, int index) {
-		Type expected = Expected[index];
+		Type declared = Expected[index];
+		Type checkType = declared.IsByRef ? declared.GetElementType()! : declared;
 		if (value is null) {
-			if (expected.IsValueType)
-				throw new DetourArgumentException(OwnerId, LocalId, index, expected, null);
+			if (checkType.IsValueType)
+				throw new DetourArgumentException(OwnerId, LocalId, index, checkType, null);
 			return null;
 		}
-		if (!expected.IsInstanceOfType(value))
-			throw new DetourArgumentException(OwnerId, LocalId, index, expected, value);
+		if (!checkType.IsInstanceOfType(value))
+			throw new DetourArgumentException(OwnerId, LocalId, index, checkType, value);
 		return value;
 	}
 }
@@ -134,9 +135,15 @@ internal sealed class DetourChain {
 				widened[i] = declared[i + 1].ParameterType;
 				if (widened[i] == parameters[i])
 					continue;
-				if (parameters[i].IsByRef || parameters[i].IsPointer || widened[i].IsByRef || widened[i].IsPointer)
+
+				bool boxableByrefReceiver = parameters[i].IsByRef
+					&& widened[i] == typeof(object)
+					&& parameters[i].GetElementType()!.IsValueType
+					&& !parameters[i].GetElementType()!.IsByRefLike;
+
+				if (!boxableByrefReceiver && (parameters[i].IsByRef || parameters[i].IsPointer || widened[i].IsByRef || widened[i].IsPointer))
 					throw new ArgumentException(
-						$"detour impl '{detour}' takes '{widened[i]}' where the target takes '{parameters[i]}'; byref/pointer parameters must match exactly",
+						$"detour impl '{detour}' takes '{widened[i]}' where the target takes '{parameters[i]}'; byref/pointer parameters must match exactly, except for a byref to an ordinary value type which may be boxed to 'object'",
 						nameof(detour)
 					);
 				if (parameters[i].IsByRefLike || widened[i].IsByRefLike)
@@ -144,9 +151,9 @@ internal sealed class DetourChain {
 						$"detour impl '{detour}' takes '{widened[i]}' where the target takes '{parameters[i]}'; ref struct parameters must match exactly as they cannot be boxed",
 						nameof(detour)
 					);
-				if (!widened[i].IsAssignableFrom(parameters[i]))
+				if (!boxableByrefReceiver && !widened[i].IsAssignableFrom(parameters[i]))
 					throw new ArgumentException(
-						$"detour impl '{detour}' takes '{widened[i]}' where the target takes '{parameters[i]}'; expected exact match or possible upcast/assignability",
+						$"detour impl '{detour}' takes '{widened[i]}' where the target takes '{parameters[i]}'; expected exact match or possible upcast/assignability/box",
 						nameof(detour)
 					);
 			}
@@ -390,8 +397,15 @@ internal sealed class DetourChain {
 	// ==========================================================================================
 	// conversions
 	private static void emitWiden(ILGenerator il, Type from, Type to) {
-		if (from != to && from.IsValueType)
+		if (from == to)
+			return;
+		if (from.IsByRef) {
+			Type pointee = from.GetElementType()!;
+			il.Emit(OpCodes.Ldobj, pointee);
+			il.Emit(OpCodes.Box, pointee);
+		} else if (from.IsValueType) {
 			il.Emit(OpCodes.Box, from);
+		}
 	}
 
 	private static void emitNarrowedArgument(ILGenerator il, Type from, Type to, int index) {
@@ -403,7 +417,10 @@ internal sealed class DetourChain {
 		il.Emit(OpCodes.Ldarg, index + 1);
 		il.Emit(OpCodes.Ldc_I4, index);
 		il.Emit(OpCodes.Callvirt, narrowMethod);
-		il.Emit(OpCodes.Unbox_Any, to);
+		if (to.IsByRef)
+			il.Emit(OpCodes.Unbox, to.GetElementType()!);
+		else
+			il.Emit(OpCodes.Unbox_Any, to);
 	}
 
 	// ==========================================================================================
