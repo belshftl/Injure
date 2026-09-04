@@ -40,6 +40,9 @@ public sealed class GenericMap {
 		foreach (TypeSignature sig in referenced)
 			walk(sig, needed);
 
+		for (int i = 0; i < methodParams.Count; i++)
+			needed.Add((true, i));
+
 		bool changed = true;
 		while (changed) {
 			changed = false;

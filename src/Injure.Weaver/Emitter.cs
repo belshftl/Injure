@@ -150,8 +150,9 @@ public sealed class Emitter(Context ctx) {
 
 	private void annotateSelfNotNull(MethodDefinition source, TypeSignature selfSig, ParameterDefinition selfParam, GenericMap map) {
 		int declaringArity = source.DeclaringType?.GenericParameters.Count ?? 0;
-		if (declaringArity > 0 && map.Sources.Count < declaringArity)
-			return; // some declaring-type parameter was probably optimized out, skip rather than risk a slot miscount
+		for (int i = 0; i < declaringArity; i++)
+			if (i >= map.Sources.Count || map.Sources[i] != source.DeclaringType!.GenericParameters[i])
+				return; // some declaring-type parameter was probably optimized out by us, slot indices would misalign
 
 		byte[]? slots = selfSig is CorLibTypeSignature { ElementType: ElementType.Object }
 			? [1]
