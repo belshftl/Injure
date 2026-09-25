@@ -14,6 +14,9 @@ namespace Injure.Mods.Runtime.Tests.Modif.Detours;
 /// profiler.
 /// </remarks>
 public sealed class DetourChainTests {
+	// XXX: some of these still weren't properly updated after a particular bandaid fix; they should
+	// wait until the actual fix replaces it since that will require changing again
+
 	private delegate int NextCompute(int value);
 	private delegate int NextComputeWidened(object value);
 	private delegate void NextRecord(string text);

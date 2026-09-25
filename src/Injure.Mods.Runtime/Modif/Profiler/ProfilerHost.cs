@@ -151,7 +151,7 @@ internal sealed unsafe class ProfilerHost : IProfilerHost, IProfilerEvents, IDis
 	// il
 	public ImmutableArray<byte> GetBaselineIl(MethodIdentity method) {
 		ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
-		nuint module = (nuint)method.Module.Value;
+		nuint module = method.Module.Value;
 		uint token = (uint)method.MethodDefToken;
 
 		nuint needed;
@@ -176,7 +176,7 @@ internal sealed unsafe class ProfilerHost : IProfilerHost, IProfilerEvents, IDis
 		fixed (byte* p = body)
 			chk(
 				Native.prof_set_prepared(
-					(nuint)method.Module.Value,
+					method.Module.Value,
 					(uint)method.MethodDefToken,
 					p,
 					(nuint)body.Length
@@ -206,7 +206,7 @@ internal sealed unsafe class ProfilerHost : IProfilerHost, IProfilerEvents, IDis
 		nuint[] modules = new nuint[methods.Length];
 		uint[] tokens = new uint[methods.Length];
 		for (int i = 0; i < methods.Length; i++) {
-			modules[i] = (nuint)methods[i].Module.Value;
+			modules[i] = methods[i].Module.Value;
 			tokens[i] = (uint)methods[i].MethodDefToken;
 		}
 
@@ -267,7 +267,7 @@ internal sealed unsafe class ProfilerHost : IProfilerHost, IProfilerEvents, IDis
 
 	private static bool tryDescribe(ModuleId module, out ModuleInfo info) {
 		info = default;
-		nuint moduleId = (nuint)module.Value;
+		nuint moduleId = module.Value;
 
 		int collectible = Native.prof_module_is_collectible(moduleId);
 		if (collectible < 0)

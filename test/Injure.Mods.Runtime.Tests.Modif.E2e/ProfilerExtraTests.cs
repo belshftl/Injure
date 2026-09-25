@@ -99,14 +99,14 @@ public sealed class ProfilerExtraTests(E2eFixture fixture) {
 		Assert.Equal(777, FailureTarget.Compute());
 
 		byte[] malformed = [((10 << 2) | 0x02)]; // tiny header, declares 10 code bytes, supplies 0
-		fxt.Host.SetPreparedBody(method, malformed);
-		fxt.Host.RequestReJit([method]);
+		fxt.Prof.SetPreparedBody(method, malformed);
+		fxt.Prof.RequestReJit([method]);
 
 		// RequestReJit alone doesn't force an immediate ReJIT; this seems to do the trick
 		// the exception is thrown out of the call synchronously rather than later on another thread
 		Assert.Throws<InvalidProgramException>(() => RuntimeHelpers.PrepareMethod(target.MethodHandle));
 
-		fxt.Host.RequestRevert([method]);
+		fxt.Prof.RequestRevert([method]);
 
 		Assert.Equal(777, FailureTarget.Compute());
 	}
@@ -129,7 +129,7 @@ public sealed class ProfilerExtraTests(E2eFixture fixture) {
 			)!
 		);
 
-		ModuleInfo info = fxt.Host.GetLoadedModules().Single(m => m.Id == identity.Module);
+		ModuleInfo info = fxt.Prof.GetLoadedModules().Single(m => m.Id == identity.Module);
 
 		Assert.False(info.IsCollectible);
 		Assert.False(string.IsNullOrEmpty(info.Path));

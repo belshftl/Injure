@@ -442,14 +442,14 @@ public static class IlRefFactory {
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// This is an advanced overload. Most of the time, <see cref="Method(MethodBase)"/> is sufficient.
+	/// <b>This is an advanced overload</b>. Most of the time, <see cref="Method(MethodBase)"/> is sufficient.
 	/// </para>
 	/// <para>
-	/// This is the only way to name a method whose declaring type can't be expressed as a
-	/// <see cref="MethodBase"/>, which is most importantly a method on a generic instantiation whose
+	/// This is the only way to create one for a method whose declaring type can't be expressed as a
+	/// <see cref="MethodBase"/>, i.e., among other things, a method on a generic instantiation whose
 	/// arguments are the patched method's own generic parameters, such as
-	/// <c>Outer&lt;!!0&gt;.Inner&lt;!!1&gt;::Method&lt;!!2&gt;</c>. Reflection has no handle for those, so
-	/// <see cref="Method(MethodBase)"/> isn't usable.
+	/// <c>Outer&lt;!!0&gt;.Inner&lt;!!1&gt;::Method&lt;!!2&gt;</c>. Reflection has no way to make a
+	/// handle for that, so <see cref="Method(MethodBase)"/> isn't usable.
 	/// </para>
 	/// <para>
 	/// <paramref name="signature"/> is the method's definition signature, written in the declaring
@@ -496,7 +496,7 @@ public static class IlRefFactory {
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// This is an advanced overload. Most of the time, <see cref="Field(FieldInfo)"/> is sufficient.
+	/// <b>This is an advanced overload.</b> Most of the time, <see cref="Field(FieldInfo)"/> is sufficient.
 	/// </para>
 	/// <para>
 	/// The field counterpart to <see cref="Method(IlTypeRef, string, IlMethodSignature)"/>. See its docs

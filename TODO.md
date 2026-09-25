@@ -1,0 +1,90 @@
+there is a *long* way to go to v0.1 because the goal for that is "first practically usable version" and for a game framework that is a lot of work.
+the amount of work from alpha to v0.1 is likely going to be much higher than, say, v0.1 to v0.2
+
+"here be dragons" means there's more past what is listed but my future foresight ends there, and the list may grow in that spot as time passes
+
+anyhow, to v0.1:
+- [ ] finish the rewrite of the mod loader
+  - [x] get rid of monomod as the public api
+  - [x] get rid of Mono.Cecil types in the public api
+  - [x] throw out Mono.Cecil as the patching abstraction and switch to System.Reflection.Metadata
+  - [x] throw out MonoMod as the detouring/patching backend and switch to a custom clr profiler
+  - [x] migrate over the existing bits of `Mods.Runtime.*`
+  - [ ] add an api for declaring locals to `IlTransactionCore`, this was initially planned for a little bit later but it became urgent
+  - [ ] replace the bandaid `DetourTransform` fix with a proper fix; this needs `IlTransactionCore` to be able to declare locals
+  - [ ] wire declaring locals into the public api
+  - [ ] fix some more bugs, i'm sure there's a few
+- [ ] write a readme, properly outline the design philosophy
+- [ ] for now, temporarily silence our own analyzer warning for foreign types exposed through public apis, it's planned to be properly dealt with later down the line
+- [ ] document the mod loader properly:
+  - [ ] write doc comments for all of `Mods.*`, this is the highest-priority one of all the pending doc comments
+  - [ ] clear out the existing `docs/*` (that's already planned) except for maybe `docs/conventions/dangerous-get.md`, and document it under `docs/mods/*`, its design, the load/reload/unload process, the purpose of `IModLifetimeIdentity`/`<L>`, the dependency semantics, etc.
+  - [ ] document all the terminology too; notable are "modif" (both as a noun and a verb), "detour", "patch", "detour impl", "detour chain", and "manipulator"
+  - [ ] add something on generic type parameters in `docs/conventions/`
+- [ ] pause for a bit to write a *lot* of tests and doc comments for the rest of the project; not writing them as development goes in the past was a mistake that needs to be patched up before it's too late:
+  - [ ] tests for the collections
+  - [ ] doc comments for the layers system
+  - [ ] doc comments for the input system
+  - [ ] doc comments for `Io.*`, currently just `FileHotReloadMonitor`
+  - [ ] doc comments for `Sched.*` (both coroutines and tickers)
+  - [ ] miscellaneous doc comments: `Primitives.Vector2Int` and `Common.OneOf`
+  - [ ] tests for the coroutine and ticker systems, though tickers should probably wait for the deadline rework
+  - [ ] tests for the input system wherever possible
+  - [ ] look into what else is testable
+- [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
+- [ ] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
+  - [ ] make a lot of currently only internally constructible types constructible and manageable by the game
+  - [ ] remove `Boot*` entirely
+  - [ ] rethink the `Runner`/`IGame` model, make the config less monolithic
+  - [ ] make `Runner`/`IGame` merely conveniences rather than required, and support the game driving a custom event loop (either driving a ticker scheduler or completely custom)
+  - [ ] think about what to do with `MonoTick` since it has to be explicitly documented that it only starts ticking when sdl is up, probably rename it too
+  - [ ] rename the rest of the types too to signal "convenience" more
+- [ ] unsilence the previously silenced warning from our own analyzer, clean up a lot of the apis that currently expose foreign types
+- [ ] get back to the mod loader:
+  - [ ] implement `target-version`/`target-build-mvid`, they're currently sitting there doing nothing
+  - [ ] update the analyzer, remove now-unnecessary diagnostics, add more new ones, add basic interprocedural obligation tracking
+  - [ ] finally think out the semantics of link-time modifs and implement them
+  - [ ] do some practical testing and think about the intended model for mods to have nuget dependencies, including nuget dependencies that package native runtimes
+  - [ ] implement load-from-zip
+  - [ ] mutation il edits, explicitly marked as advanced/unsafe
+  - [ ] removal il edits, explicitly marked as advanced/unsafe
+  - [ ] il authoring api to declare locals and exception regions
+- [ ] `Layers.Ecs` system for entities and components:
+  - [ ] a notable design point i'm thinking of is that entities/components should be generic over the particular type of parent they expect, so the base classes are abstract `Entity<TParent> : IUntypedEntity where TParent : Layer` and `Component<TParent> : IUntypedComponent where TParent : IUntypedEntity`, and a particular entity is either `MyEntity : Entity<Level>` if it needs a particular type of layer or `MyEntity<TParent> : Entity<TParent> where TParent : Layer` if it's layer-agnostic
+  - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad
+  - [ ] standardize on a bunch of things (maybe by using more derived abstract types? or interfaces? unsure) like entities with a notion of position, entities with a notion of collision, entities that can serialize/deserialize, perhaps entities that "bind" in some way to a reloadable mod generation and need `<L>`, etc. the important thing isn't really that adding `public Vector2 Position` to your entity is hard, but that having everyone on the same page on how it's done is very valuable
+  - [ ] here be dragons
+- [ ] flatten `Rendering/{Enums,Structs}` into the main dir for namespace <-> directory-layout consistency
+- [ ] write dedicated docs for:
+  - [ ] more `conventions`, maybe one on type naming
+  - [ ] probably write a better `exception-recording.md`, provide practical examples of when exceptions cause alc retention
+  - [ ] the standard flow for a hello-world game project and where to expand from there
+  - [ ] the `Rendering` system
+  - [ ] the `Draw` system
+  - [ ] the collections/primitives/`Common` namespaces (three separate `docs/` directories, not one)
+  - [ ] the asset system
+  - [ ] the layers system
+  - [ ] the input system
+  - [ ] whatever else still doesn't have doc comments
+- [ ] get to the audio engine:
+  - [x] figure out how audio is even gonna work considering c# is garbage collected
+  - [x] set up the native packaging churn
+  - [x] jack backend
+  - [x] play some audio
+  - [x] rudimentary sound/voice api
+  - [ ] rudimentary scheduling api
+  - [ ] playback rate
+  - [ ] voice state query / events
+  - [ ] voice parameter commands
+  - [ ] gain ramps
+  - [ ] wasapi backend
+  - [ ] eventually asio backend, i haven't looked much into whether it'd be viable but i really hope so, i'd imagine it'd have to be a separate `.Audio.Asio` package due to the gplv3 licensing
+  - [ ] here be dragons
+- [ ] something more first-class for embedding into e.g. an avalonia child surface via `IRenderOutput` and such, including dedicated docs on how to do it
+- [ ] add quite a bit more to `Draw`; support custom shaders, maybe allow for some more optional low-level control
+- [ ] maybe make `AssetRef<T>` hold an owner-ordered list of slots rather than one slot, and devise some api to allow mods to cleanly override assets; i'm really not sure though
+- [ ] sourcegen conveniences for the asset system, it's not very nice to use right now for the overwhelmingly common usecase of just having a bunch of assets known ahead of time
+- [ ] a bunch of stuff for `[ClosedEnum]`/`[ClosedEnumMirror]`/`[ClosedFlags]` needs to be defined, like serialization behavior and ffi semantics and such
+  - [ ] also consider making them public
+- [ ] proper support for user-implemented custom input sources; the input system is already designed for it but actual custom input sources are missing right now
+- [ ] here be dragons

@@ -14,8 +14,8 @@ internal sealed class DetourTransform : IDetourTransform {
 	private readonly Dictionary<MethodIdentity, int> slots = new();
 	private readonly Lock slotsLock = new();
 
-	private static readonly IlMethodRef enterAndCheckRef = IlRefFactory.Method(
-		typeof(DetourDispatch).GetMethod(nameof(DetourDispatch.EnterAndCheck), BindingFlags.Static | BindingFlags.Public)!
+	private static readonly IlMethodRef shouldRunChainRef = IlRefFactory.Method(
+		typeof(DetourDispatch).GetMethod(nameof(DetourDispatch.ShouldRunChain), BindingFlags.Static | BindingFlags.Public)!
 	);
 	private static readonly IlMethodRef getChainEntryRef = IlRefFactory.Method(
 		typeof(DetourDispatch).GetMethod(nameof(DetourDispatch.GetChainEntry), BindingFlags.Static | BindingFlags.Public)!
@@ -69,7 +69,7 @@ internal sealed class DetourTransform : IDetourTransform {
 	/// Something like this is emitted:
 	/// <code>
 	///     ldc.i4    &lt;slot&gt;
-	///     call      bool DetourDispatch::EnterAndCheck(int32)
+	///     call      bool DetourDispatch::ShouldRunChain(int32)
 	///     brfalse   original
 	///     ldarg.0 ... ldarg n
 	///     ldc.i4    &lt;slot&gt;
@@ -93,6 +93,8 @@ internal sealed class DetourTransform : IDetourTransform {
 		IlMethodBody body,
 		ImmutableArray<DetourRegistration> detours
 	) {
+		// XXX: see the note in DetourDispatch.cs, in short, this has to change once declaring locals is a thing
+
 		InternalStateException.ThrowIfNull(body);
 		int slot = slotFor(method);
 		IlMethodSignature signature = chainSignature(body.Method);
@@ -104,7 +106,7 @@ internal sealed class DetourTransform : IDetourTransform {
 		// it must be updated accordingly
 		core.EmitAtBoundary(0, e => {
 			e.LdcI4(slot);
-			e.Call(enterAndCheckRef);
+			e.Call(shouldRunChainRef);
 			e.Brfalse(original);
 			for (int arg = 0; arg < signature.ParameterTypes.Length; arg++)
 				e.Ldarg(arg);

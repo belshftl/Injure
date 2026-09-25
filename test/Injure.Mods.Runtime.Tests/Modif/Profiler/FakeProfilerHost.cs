@@ -56,7 +56,7 @@ internal sealed class FakeProfilerHost : IProfilerHost, IProfilerEvents, IDispos
 
 	private readonly Dictionary<ModuleId, FakeModule> modules = new();
 	private readonly Dictionary<MethodIdentity, byte[]> preparedBodies = new();
-	private ulong nextModuleId = 1;
+	private nuint nextModuleId = 1;
 
 	/// <summary>
 	/// Every batch passed to <see cref="RequestReJit"/>, in order.

@@ -3,6 +3,7 @@
 
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Injure.Mods.Runtime.Modif.CallDispatch;
 
 namespace Injure.Mods.Runtime.Modif.Detours;
 
@@ -55,6 +56,18 @@ public static class DetourDispatch {
 	private static int nextSlot = 0;
 	private static readonly Lock @lock = new();
 
+	// XXX: the current code is kind of a bandaid fix, once IlTransactionCore can declare locals the
+	// actual fix would be to merge into one `IntPtr Enter(int slot)` and make the prologue something like:
+	//     ldc.i4 slot
+	//     call Enter
+	//     stloc tmp
+	//     ldloc tmp
+	//     brfalse original
+	//     ldarg.0 .. ldarg n
+	//     ldloc tmp
+	//     calli signature
+	//     ret
+
 	/// <summary>
 	/// Whether the calling entry should run the detour chain.
 	/// </summary>
@@ -73,6 +86,20 @@ public static class DetourDispatch {
 	}
 
 	/// <summary>
+	/// Whether the calling prologue should run the detour chain.
+	/// </summary>
+	/// <remarks>
+	/// Token consumption must happen first and unconditionally, so a terminus whose chain was cleared
+	/// mid-call still has its token consumed; the empty-slot check only runs if no token applied.
+	/// </remarks>
+	public static bool ShouldRunChain(int slot) {
+		if (!EnterAndCheck(slot))
+			return false;
+		SlotEntry?[] s = Volatile.Read(ref slots);
+		return (uint)slot < (uint)s.Length && (s[slot]?.Entry ?? IntPtr.Zero) != IntPtr.Zero;
+	}
+
+	/// <summary>
 	/// The entry point of a slot's detour chain.
 	/// </summary>
 	/// <remarks>
@@ -81,7 +108,8 @@ public static class DetourDispatch {
 	/// </remarks>
 	public static IntPtr GetChainEntry(int slot) {
 		SlotEntry?[] s = Volatile.Read(ref slots);
-		return (uint)slot < (uint)s.Length ? s[slot]?.Entry ?? IntPtr.Zero : IntPtr.Zero;
+		IntPtr entry = (uint)slot < (uint)s.Length ? s[slot]?.Entry ?? IntPtr.Zero : IntPtr.Zero;
+		return entry != IntPtr.Zero ? entry : throw new DispatchUnavailableException(slot, "detour chain was cleared mid-entry");
 	}
 
 	// ==========================================================================================

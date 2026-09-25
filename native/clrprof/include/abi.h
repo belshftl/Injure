@@ -49,7 +49,7 @@ typedef struct {
 	ModuleID module;
 	mdMethodDef token;
 	HRESULT hresult;
-} Event; // aligned to 8 bytes on 64 bit and 4 bytes on 32 bit
+} Event; /* aligned to 8 bytes on 64 bit and 4 bytes on 32 bit */
 
 /*
  * ============================================================================

@@ -18,7 +18,7 @@ public sealed class E2eFixture : IDisposable {
 	private readonly ConcurrentDictionary<Guid, ModuleId> moduleByMvid = new();
 	private readonly ConcurrentDictionary<ModuleId, Module> reflectionModuleById = new();
 
-	internal ProfilerHost Host { get; }
+	internal ProfilerHost Prof { get; }
 	internal ModifRegistry Registry { get; } = new();
 	internal MethodTransformCache Cache { get; } = new();
 	internal DetourTransform Detours { get; }
@@ -28,19 +28,19 @@ public sealed class E2eFixture : IDisposable {
 		if (Native.prof_is_attached() == 0)
 			throw new InvalidOperationException("the profiler is not attached; these tests must be launched through run-with-profiler.sh");
 
-		Host = new ProfilerHost();
-		foreach (ModuleInfo info in Host.GetLoadedModules())
+		Prof = new ProfilerHost();
+		foreach (ModuleInfo info in Prof.GetLoadedModules())
 			moduleByMvid[info.Mvid] = info.Id;
-		Host.ModuleLoaded += info => moduleByMvid[info.Mvid] = info.Id;
+		Prof.ModuleLoaded += info => moduleByMvid[info.Mvid] = info.Id;
 
 		Detours = new DetourTransform(resolveMethod);
-		Orchestrator = new ModifOrchestrator(Host, Registry, Cache, default, null, Detours);
-		Orchestrator.Attach(Host);
+		Orchestrator = new ModifOrchestrator(Prof, Registry, Cache, default, null, Detours);
+		Orchestrator.Attach(Prof);
 	}
 
 	public void Dispose() {
 		Orchestrator.Dispose();
-		Host.Dispose();
+		Prof.Dispose();
 	}
 
 	internal MethodIdentity GetIdentity(MethodBase method) {

@@ -43,7 +43,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 	private const string targetMethod = nameof(IlFixture.Mechanism.Sizeof);
 	private const string otherMethod = nameof(IlFixture.Mechanism.Peek);
 
-	private readonly FakeProfilerHost host = new();
+	private readonly FakeProfilerHost prof = new();
 	private readonly ModifRegistry registry = new();
 	private readonly MethodTransformCache cache = new();
 	private readonly RecordingDetourTransform detours = new();
@@ -55,15 +55,15 @@ public sealed class ModifOrchestratorTests : IDisposable {
 	public ModifOrchestratorTests() {
 		string location = typeof(IlFixture.Mechanism).Assembly.Location;
 		Assert.SkipWhen(string.IsNullOrEmpty(location), "fixture assembly has no on-disk location");
-		module = host.LoadModule(location);
-		target = host.FindMethod(module.Id, targetType, targetMethod);
-		other = host.FindMethod(module.Id, targetType, otherMethod);
-		orchestrator = new ModifOrchestrator(host, registry, cache, default, null, detours);
+		module = prof.LoadModule(location);
+		target = prof.FindMethod(module.Id, targetType, targetMethod);
+		other = prof.FindMethod(module.Id, targetType, otherMethod);
+		orchestrator = new ModifOrchestrator(prof, registry, cache, null, null, detours);
 	}
 
 	public void Dispose() {
 		orchestrator.Dispose();
-		host.Dispose();
+		prof.Dispose();
 	}
 
 	// ==========================================================================================
@@ -103,23 +103,23 @@ public sealed class ModifOrchestratorTests : IDisposable {
 	}
 
 	private int instructionCountOf(MethodIdentity method) {
-		byte[] body = host.GetPreparedBody(method) ?? throw new InvalidOperationException("no prepared body");
+		byte[] body = prof.GetPreparedBody(method) ?? throw new InvalidOperationException("no prepared body");
 		var handle = (MethodDefinitionHandle)MetadataTokens.EntityHandle(method.MethodDefToken);
 		unsafe {
 			fixed (byte* p = body)
 				return SrmMethodBodyDecoder
-					.Decode(host.GetMetadata(method.Module), handle, new BlobReader(p, body.Length), default)
+					.Decode(prof.GetMetadata(method.Module), handle, new BlobReader(p, body.Length), default)
 					.Instructions.Count;
 		}
 	}
 
 	private int baselineInstructionCount(MethodIdentity method) {
-		ImmutableArray<byte> il = host.GetBaselineIl(method);
+		ImmutableArray<byte> il = prof.GetBaselineIl(method);
 		var handle = (MethodDefinitionHandle)MetadataTokens.EntityHandle(method.MethodDefToken);
 		unsafe {
 			fixed (byte* p = il.AsSpan())
 				return SrmMethodBodyDecoder
-					.Decode(host.GetMetadata(method.Module), handle, new BlobReader(p, il.Length), default)
+					.Decode(prof.GetMetadata(method.Module), handle, new BlobReader(p, il.Length), default)
 					.Instructions.Count;
 		}
 	}
@@ -132,7 +132,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		Assert.Empty(result.Applied);
 		Assert.Empty(result.Reverted);
-		Assert.Empty(host.ReJitRequests);
+		Assert.Empty(prof.ReJitRequests);
 	}
 
 	[Fact]
@@ -143,7 +143,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		ApplyResult result = orchestrator.ApplyPending();
 
 		Assert.Equal([target], result.Applied);
-		Assert.Equal([target], Assert.Single(host.ReJitRequests));
+		Assert.Equal([target], Assert.Single(prof.ReJitRequests));
 		Assert.Equal(before + 1, instructionCountOf(target));
 	}
 
@@ -166,7 +166,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		ApplyResult result = orchestrator.ApplyPending();
 
 		Assert.Equal(2, result.Applied.Length);
-		Assert.Equal(2, Assert.Single(host.ReJitRequests).Length);
+		Assert.Equal(2, Assert.Single(prof.ReJitRequests).Length);
 	}
 
 	[Fact]
@@ -176,7 +176,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		orchestrator.ApplyPending();
 
-		FakeMetadataEmitter emitter = host.GetEmitter(module.Id);
+		FakeMetadataEmitter emitter = prof.GetEmitter(module.Id);
 		Assert.NotEmpty(emitter.Defined);
 		Assert.Equal(1, emitter.Commits);
 	}
@@ -190,7 +190,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		Assert.Empty(result.Applied);
 		Assert.Equal(1, result.UpToDate);
-		Assert.Single(host.ReJitRequests);
+		Assert.Single(prof.ReJitRequests);
 	}
 
 	// ==========================================================================================
@@ -233,7 +233,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		Assert.Empty(result.Applied);
 		Assert.Single(detours.Calls);
-		Assert.Single(host.ReJitRequests);
+		Assert.Single(prof.ReJitRequests);
 	}
 
 	[Fact]
@@ -278,7 +278,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		Assert.Equal([target], result.Applied);
 		Assert.Empty(result.Reverted);
-		Assert.Empty(host.RevertRequests);
+		Assert.Empty(prof.RevertRequests);
 		Assert.Equal(before + 1, instructionCountOf(target));
 	}
 
@@ -291,8 +291,8 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		ApplyResult result = orchestrator.ApplyPending();
 
 		Assert.Equal([target], result.Reverted);
-		Assert.Equal([target], Assert.Single(host.RevertRequests));
-		Assert.Null(host.GetPreparedBody(target));
+		Assert.Equal([target], Assert.Single(prof.RevertRequests));
+		Assert.Null(prof.GetPreparedBody(target));
 	}
 
 	[Fact]
@@ -300,7 +300,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		ApplyResult result = orchestrator.Apply([target]);
 
 		Assert.Empty(result.Reverted);
-		Assert.Empty(host.RevertRequests);
+		Assert.Empty(prof.RevertRequests);
 	}
 
 	[Fact]
@@ -398,7 +398,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		Assert.Throws<ModifException>(orchestrator.ApplyPending);
 
-		Assert.Empty(host.ReJitRequests);
+		Assert.Empty(prof.ReJitRequests);
 	}
 
 	[Fact]
@@ -432,7 +432,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		Assert.Throws<ModifException>(orchestrator.ApplyPending);
 
-		Assert.Equal([target], Assert.Single(host.RevertRequests));
+		Assert.Equal([target], Assert.Single(prof.RevertRequests));
 		// the reverted method has no entry, so it is not dirtied back into the next pass
 		Assert.Equal([other], registry.DrainDirty());
 	}
@@ -444,7 +444,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		registry.AddManipulator(target, nop("first", "a"));
 		orchestrator.ApplyPending();
 
-		orchestrator.OnModuleUnloading(module.Id);
+		orchestrator.ForgetModule(module.Id);
 
 		Assert.Empty(registry.ModifiedMethods);
 		Assert.Equal(0, cache.Count);
@@ -455,12 +455,12 @@ public sealed class ModifOrchestratorTests : IDisposable {
 	public void UnloadingDoesntRequestAnything() {
 		registry.AddManipulator(target, nop("first", "a"));
 		orchestrator.ApplyPending();
-		host.ReJitRequests.Clear();
+		prof.ReJitRequests.Clear();
 
-		orchestrator.OnModuleUnloading(module.Id);
+		orchestrator.ForgetModule(module.Id);
 		orchestrator.ApplyPending();
 
-		Assert.Empty(host.ReJitRequests);
-		Assert.Empty(host.RevertRequests);
+		Assert.Empty(prof.ReJitRequests);
+		Assert.Empty(prof.RevertRequests);
 	}
 }

@@ -33,9 +33,10 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// </para>
 /// <para>
 /// Notably, this means that seemingly fundamental patterns like emitting a <c>call</c> to a method
-/// declared in a reloadable mod are illegal. Calls in particular should use (TODO: cref to <c>CallIndirect</c> when it exists),
-/// which sidesteps the issue by using <c>calli</c> indirection. For other patterns, either
-/// restructure/redesign to not rely on raw IL emission, or make your mod non-reloadable.
+/// declared in a reloadable mod are illegal. Calls in particular should use
+/// <see cref="IlEmitter.IndirectCall(System.Reflection.MethodInfo)"/>, which sidesteps the issue by
+/// using <c>calli</c> indirection. For other patterns, either restructure/redesign to not rely on
+/// raw IL emission, or make your mod non-reloadable.
 /// </para>
 /// <para>
 /// The behavior described above was derived empirically under CoreCLR 10.0.11 with a profiler.

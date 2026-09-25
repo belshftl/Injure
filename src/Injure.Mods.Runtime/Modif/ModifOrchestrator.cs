@@ -65,10 +65,10 @@ internal sealed class ModifOrchestrator : IDisposable {
 		ProfilerTokenResolver Resolver
 	);
 
-	private readonly IProfilerHost host;
+	private readonly IProfilerHost prof;
 	private readonly ModifRegistry registry;
 	private readonly MethodTransformCache cache;
-	private readonly IlOwnerCtx ownerContext;
+	private readonly IIlOwnerCtxProvider? ownerCtxProvider;
 	private readonly IIlCallDispatch? callDispatch;
 	private readonly IDetourTransform detours;
 	private readonly Lock @lock = new();
@@ -77,28 +77,28 @@ internal sealed class ModifOrchestrator : IDisposable {
 	private byte[] scratch = new byte[512];
 
 	public ModifOrchestrator(
-		IProfilerHost host,
+		IProfilerHost prof,
 		ModifRegistry registry,
 		MethodTransformCache cache,
-		IlOwnerCtx ownerContext,
+		IIlOwnerCtxProvider? ownerCtxProvider,
 		IIlCallDispatch? callDispatch,
 		IDetourTransform detours
 	) {
-		InternalStateException.ThrowIfNull(host);
+		InternalStateException.ThrowIfNull(prof);
 		InternalStateException.ThrowIfNull(registry);
 		InternalStateException.ThrowIfNull(cache);
 		InternalStateException.ThrowIfNull(detours);
-		this.host = host;
+		this.prof = prof;
 		this.registry = registry;
 		this.cache = cache;
-		this.ownerContext = ownerContext;
+		this.ownerCtxProvider = ownerCtxProvider;
 		this.callDispatch = callDispatch;
 		this.detours = detours;
 	}
 
 	public void Attach(IProfilerEvents events) {
 		ArgumentNullException.ThrowIfNull(events);
-		events.ModuleUnloading += OnModuleUnloading;
+		events.ModuleUnloading += ForgetModule;
 	}
 
 	public void Dispose() {
@@ -108,12 +108,11 @@ internal sealed class ModifOrchestrator : IDisposable {
 		}
 	}
 
-	/// <remarks>
-	/// Must complete before the module's <see cref="ModuleId"/> becomes invalid. Registrations go too,
-	/// since if the methods no longer exist, there's nothing to re-transform and nothing to revert.
-	/// </remarks>
-	public void OnModuleUnloading(ModuleId module) {
+	public void ForgetModule(ModuleId module) {
 		lock (@lock) {
+			foreach (MethodIdentity method in registry.ModifiedMethods)
+				if (method.Module == module && detours.HasChain(method))
+					detours.UpdateChain(method, []);
 			registry.RemoveModule(module);
 			cache.EvictModule(module);
 			modules.Remove(module);
@@ -171,7 +170,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 			commit(touchedModules);
 
 			if (prepared.Count > 0) {
-				host.RequestReJit(prepared.ToArray());
+				prof.RequestReJit(prepared.ToArray());
 				foreach (MethodIdentity method in prepared)
 					installed.Add(method);
 			}
@@ -214,7 +213,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 
 		if (!cache.TryGetTransformed(method, generation.Patch, out IlMethodBody transformed)) {
 			ImmutableArray<IlManipulatorRegistration> manipulators = registry.GetManipulators(method);
-			transformed = IlPipeline.Transform(baseline, manipulators, ownerContext, callDispatch).Body;
+			transformed = IlPipeline.Transform(baseline, manipulators, ownerCtxProvider, callDispatch).Body;
 			cache.SetTransformed(method, generation.Patch, transformed);
 		}
 
@@ -229,7 +228,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 
 		IlEncodedMethodBody encoded = SrmMethodBodyEncoder.Prepare(final, ctx.Resolver);
 		cache.SetEncoded(method, generation, encoded);
-		host.SetPreparedBody(method, write(encoded));
+		prof.SetPreparedBody(method, write(encoded));
 	}
 
 	private bool revert(MethodIdentity method) {
@@ -238,7 +237,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 		cache.EvictDerived(method);
 		if (!installed.Remove(method))
 			return false;
-		host.RequestRevert([method]);
+		prof.RequestRevert([method]);
 		return true;
 	}
 
@@ -250,7 +249,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 	}
 
 	private IlMethodBody decode(ModuleContext context, MethodIdentity method) {
-		ImmutableArray<byte> il = host.GetBaselineIl(method);
+		ImmutableArray<byte> il = prof.GetBaselineIl(method);
 		var handle = (MethodDefinitionHandle)MetadataTokens.EntityHandle(method.MethodDefToken);
 		unsafe {
 			fixed (byte* p = il.AsSpan())
@@ -269,12 +268,12 @@ internal sealed class ModifOrchestrator : IDisposable {
 		if (modules.TryGetValue(module, out ModuleContext? existing))
 			return existing;
 
-		MetadataReader metadata = host.GetMetadata(module);
+		MetadataReader metadata = prof.GetMetadata(module);
 		SrmReferenceDecoder decoder = new(metadata);
 		ModuleContext context = new(
 			metadata,
 			decoder,
-			new ProfilerTokenResolver(metadata, host.GetMetadataEmitter(module), decoder)
+			new ProfilerTokenResolver(metadata, prof.GetMetadataEmitter(module), decoder)
 		);
 		modules[module] = context;
 		return context;

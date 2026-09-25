@@ -11,7 +11,7 @@ using Injure.Mods.Runtime.Modif.Profiler;
 namespace Injure.Mods.Runtime.Tests.Modif.Profiler;
 
 public sealed class ProfilerTokenResolverTests : IDisposable {
-	private readonly FakeProfilerHost host = new();
+	private readonly FakeProfilerHost prof = new();
 	private readonly ModuleInfo module;
 	private readonly ProfilerTokenResolver resolver;
 	private readonly FakeMetadataEmitter emitter;
@@ -21,14 +21,14 @@ public sealed class ProfilerTokenResolverTests : IDisposable {
 	public ProfilerTokenResolverTests() {
 		string location = typeof(IlFixture.Mechanism).Assembly.Location;
 		Assert.SkipWhen(string.IsNullOrEmpty(location), "fixture assembly has no on-disk location");
-		module = host.LoadModule(location);
-		metadata = host.GetMetadata(module.Id);
-		emitter = host.GetEmitter(module.Id);
+		module = prof.LoadModule(location);
+		metadata = prof.GetMetadata(module.Id);
+		emitter = prof.GetEmitter(module.Id);
 		decoder = new SrmReferenceDecoder(metadata);
 		resolver = new ProfilerTokenResolver(metadata, emitter, decoder);
 	}
 
-	public void Dispose() => host.Dispose();
+	public void Dispose() => prof.Dispose();
 
 	// ==========================================================================================
 	// reuse
@@ -273,9 +273,9 @@ public sealed class ProfilerTokenResolverTests : IDisposable {
 	// ==========================================================================================
 	// helpers
 	private IlMethodBody decodeBody(string declaringTypeName, string methodName) {
-		MethodIdentity identity = host.FindMethod(module.Id, declaringTypeName, methodName);
+		MethodIdentity identity = prof.FindMethod(module.Id, declaringTypeName, methodName);
 		var handle = (MethodDefinitionHandle)MetadataTokens.EntityHandle(identity.MethodDefToken);
-		ImmutableArray<byte> il = host.GetBaselineIl(identity);
+		ImmutableArray<byte> il = prof.GetBaselineIl(identity);
 		unsafe {
 			fixed (byte* p = il.AsSpan())
 				return SrmMethodBodyDecoder.Decode(metadata, handle, new BlobReader(p, il.Length), default);

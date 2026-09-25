@@ -13,16 +13,20 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// and no declared dependencies by the current owner.
 /// </remarks>
 internal readonly struct IlOwnerCtx {
-	public bool IsValid => ModInfo is not null;
+	public bool IsValid => CodeOwnerInfo is not null;
 
-	public FrozenDictionary<string, (string OwnerId, bool IsReloadable)> ModInfo => field ?? FrozenDictionary<string, (string OwnerId, bool IsReloadable)>.Empty;
+	/// <summary>
+	/// Info on loaded code owners (engine, game, and code mods), in the form of simple assembly names (keys)
+	/// to owner ID + reloadability (values).
+	/// </summary>
+	public FrozenDictionary<string, (string OwnerId, bool IsReloadable)> CodeOwnerInfo => field ?? FrozenDictionary<string, (string OwnerId, bool IsReloadable)>.Empty;
 	public FrozenSet<string> DeclaredDeps => field ?? [];
 
-	public IlOwnerCtx(IReadOnlyDictionary<string, (string OwnerId, bool isReloadable)> modInfo, IReadOnlySet<string> declaredDeps) {
-		InternalStateException.ThrowIfNull(modInfo);
+	public IlOwnerCtx(IReadOnlyDictionary<string, (string OwnerId, bool isReloadable)> codeOwnerInfo, IReadOnlySet<string> declaredDeps) {
+		InternalStateException.ThrowIfNull(codeOwnerInfo);
 		InternalStateException.ThrowIfNull(declaredDeps);
-		ModInfo = modInfo.ToFrozenDictionary(StringComparer.Ordinal);
-		foreach ((string ownerId, _) in ModInfo.Values)
+		CodeOwnerInfo = codeOwnerInfo.ToFrozenDictionary(StringComparer.Ordinal);
+		foreach ((string ownerId, _) in CodeOwnerInfo.Values)
 			InternalStateException.ThrowIfInvalidOwnerId(ownerId);
 		DeclaredDeps = declaredDeps.ToFrozenSet(StringComparer.Ordinal);
 		foreach (string ownerId in DeclaredDeps)
@@ -49,7 +53,7 @@ internal readonly struct IlOwnerCtx {
 	/// </remarks>
 	public bool IsReloadable(IlTypeScope scope) => scope switch {
 		IlTypeScope.Assembly asm =>
-			ModInfo.TryGetValue(asm.Identity.Name, out (string _, bool IsReloadable) info) && info.IsReloadable,
+			CodeOwnerInfo.TryGetValue(asm.Identity.Name, out (string _, bool IsReloadable) info) && info.IsReloadable,
 		IlTypeScope.Module or IlTypeScope.ModuleReference => false,
 		_ => throw new InternalStateException($"unknown IlTypeScope derived type '{scope.GetType()}'"),
 	};

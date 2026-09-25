@@ -86,7 +86,7 @@ public static class IndirectCallDispatch {
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// Part of mod unload; must run before the methods calling through those slots are reverted.
+	/// Part of mod unload; must run after the methods calling through those slots are reverted.
 	/// </para>
 	/// <para>
 	/// The slot itself is kept, since a patched body just has a <c>ldc.i4</c> literal and assigning

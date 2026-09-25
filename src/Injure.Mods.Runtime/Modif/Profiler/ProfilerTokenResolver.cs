@@ -54,6 +54,9 @@ internal sealed class ProfilerTokenResolver : IIlTokenResolver {
 	private sealed class TypeArrayComparer : IEqualityComparer<ImmutableArray<IlTypeRef>> {
 		public static TypeArrayComparer Instance { get; } = new();
 
+		private TypeArrayComparer() {
+		}
+
 		public bool Equals(ImmutableArray<IlTypeRef> x, ImmutableArray<IlTypeRef> y) {
 			if (x.Length != y.Length)
 				return false;

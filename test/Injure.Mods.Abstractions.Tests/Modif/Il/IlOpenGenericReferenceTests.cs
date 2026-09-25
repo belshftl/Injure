@@ -167,7 +167,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 					matches = ctx.MatchAll([MatchIl.Call(target)], IlPatternProvenanceConstraint.Any).Count;
 				}),
 			],
-			default,
+			null,
 			null
 		);
 
@@ -196,7 +196,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 						})
 				),
 			],
-			default,
+			null,
 			null
 		);
 

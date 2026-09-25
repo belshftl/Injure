@@ -7,6 +7,9 @@ using Injure.Mods.Runtime.Modif.Detours;
 namespace Injure.Mods.Runtime.Tests.Modif.Detours;
 
 public sealed class DetourDispatchTests {
+	// XXX: some of these still weren't properly updated after a particular bandaid fix; they should
+	// wait until the actual fix replaces it since that will require changing again
+
 	private static int mkSlot() => DetourDispatch.AllocateSlot();
 
 	[Fact]

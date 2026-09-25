@@ -13,7 +13,8 @@ namespace Injure.Collections;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Not thread-safe/synchronized.</b> Concurrent mutating operations must be externally mutexed.
+/// <b>Not thread-safe/synchronized.</b> Concurrent mutating operations must be externally mutexed,
+/// including with reads.
 /// </para>
 /// <para>
 /// Index <c>0</c> refers to the oldest element currently stored in the ring, and index
@@ -37,7 +38,7 @@ namespace Injure.Collections;
 /// directly at the newest physical element and does not scan for it.
 /// </para>
 /// </remarks>
-[DebuggerDisplay("Count = {Count}, Capacity = {Capacity}, Head = {head}")]
+[DebuggerDisplay("Capacity = {Capacity}, Count = {Count}, Head = {head}")]
 [DebuggerTypeProxy(typeof(RingDebuggerTypeProxy<>))]
 public sealed class Ring<T> : IReadOnlyList<T> {
 	private readonly T[] buf;
@@ -469,10 +470,6 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 	/// of the ring may change the values visible through them or cause them to no longer
 	/// represent the current logical contents.
 	/// </para>
-	/// <para>
-	/// See <see cref="GetMemory(int, int, out ReadOnlyMemory{T}, out ReadOnlyMemory{T})"/> for a similar
-	/// method that returns <see cref="ReadOnlyMemory{T}"/> regions instead.
-	/// </para>
 	/// </remarks>
 	public void GetSegments(int start, int length, out ReadOnlySpan<T> first, out ReadOnlySpan<T> second) {
 		validateSlice(start, length);
@@ -543,7 +540,7 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 	/// <summary>
 	/// Returns a non-copying, read-only <see cref="RingView{T}"/> over the current logical contents.
 	/// </summary>
-	public RingView<T> View() => View(0, count);
+	public RingView<T> View() => View(..count);
 
 	/// <summary>
 	/// Returns a non-copying, read-only <see cref="RingView{T}"/> over a slice of the current
@@ -652,6 +649,9 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 			physicalIdx = ringbuf.decr(ringbuf.head);
 		}
 
+		/// <summary>
+		/// Does nothing.
+		/// </summary>
 		public readonly void Dispose() {
 		}
 	}
@@ -732,6 +732,9 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 			physicalIdx = ringbuf.physicalIndex(ringbuf.count);
 		}
 
+		/// <summary>
+		/// Does nothing.
+		/// </summary>
 		public readonly void Dispose() {
 		}
 	}
@@ -790,7 +793,7 @@ public readonly ref struct RingView<T> {
 	private RingView<T> sliceUnchecked(int start, int length) {
 		if (start < first.Length) {
 			int firstLength = Math.Min(length, first.Length - start);
-			return new RingView<T>(owner, version, first.Slice(start, firstLength), second.Slice(0, length - firstLength));
+			return new RingView<T>(owner, version, first.Slice(start, firstLength), second[..(length - firstLength)]);
 		}
 		return new RingView<T>(owner, version, second.Slice(start - first.Length, length), ReadOnlySpan<T>.Empty);
 	}

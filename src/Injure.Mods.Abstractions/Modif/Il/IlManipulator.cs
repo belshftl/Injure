@@ -19,18 +19,18 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// returns successfully; if it throws, the edits are discarded.
 /// </para>
 /// <para>
-/// A manipulator may be invoked more than once for a single transformation and must be able to
-/// tolerate that. Manipulators are heavily encouraged to avoid causing any side effects other than
-/// authoring IL edits through <paramref name="ctx"/>; any side effects they do cause must be safe
-/// to be caused multiple times.
+/// A manipulator may be invoked more than once for a single transformation and <b>must</b> be able
+/// to tolerate that. Manipulators are heavily encouraged to avoid causing any side effects other
+/// than authoring IL edits through <paramref name="ctx"/>; any side effects they do cause must be
+/// safe to be caused an indeterminate, possibly-higher-than-1 number of times.
 /// </para>
 /// </remarks>
 public delegate void IlManipulator<L>(IlCtx<L> ctx) where L : struct, IModLifetimeIdentity;
 
 internal sealed class IlManipulatorRegistration {
-	private readonly Action<IlTransactionCore> invoke;
 	public string OwnerId { get; }
 	public string LocalId { get; }
+	private readonly Action<IlTransactionCore> invoke;
 
 	private IlManipulatorRegistration(string ownerId, string localId, Action<IlTransactionCore> invoke) {
 		InternalStateException.ThrowIfInvalidOwnerId(ownerId);

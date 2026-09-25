@@ -13,7 +13,7 @@ public abstract class DetourAttribute : Attribute {
 	}
 
 	public string? LocalIdOverride { get; init; }
-	public int LocalPriority { get; init; }
+	public int LocalOrder { get; init; }
 
 	public string[]? SoftBefore { get; init; }
 	public string[]? SoftAfter { get; init; }
@@ -29,7 +29,7 @@ public abstract class PatchAttribute : Attribute {
 	}
 
 	public string? LocalIdOverride { get; init; }
-	public int LocalPriority { get; init; }
+	public int LocalOrder { get; init; }
 
 	public string[]? SoftBefore { get; init; }
 	public string[]? SoftAfter { get; init; }

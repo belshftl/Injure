@@ -15,7 +15,7 @@ namespace Injure.Mods.Runtime.Modif.Profiler;
 /// whatever per-module lock the resolver used while emitting a batch.
 /// </remarks>
 internal sealed unsafe class ProfilerMetadataEmitter(ModuleId module) : IMetadataEmitter {
-	private readonly nuint module = (nuint)module.Value;
+	private readonly nuint module = module.Value;
 
 	public int DefineAssemblyReference(IlAssemblyIdentity identity) {
 		string name = identity.Name;

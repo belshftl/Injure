@@ -9,7 +9,7 @@ namespace Injure.Weaver;
 
 public static class Program {
 	public static int Main(string[] args) {
-		string argv0 = Path.GetFileNameWithoutExtension(Environment.GetCommandLineArgs()[0]);
+		string argv0 = Path.GetFileName(Environment.GetCommandLineArgs()[0]);
 
 		if (args.Length == 0) {
 			Console.Error.WriteLine($"""
