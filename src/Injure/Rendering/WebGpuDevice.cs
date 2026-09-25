@@ -328,7 +328,7 @@ public sealed unsafe class WebGpuDevice : IDisposable {
 		void* userdata1,
 		void* userdata2
 	) {
-		var h = GCHandle.FromIntPtr((IntPtr)userdata1);
+		var h = GCHandle.FromIntPtr((nint)userdata1);
 		var req = (Request<WGPURequestAdapterStatus, WGPUAdapter>)h.Target!;
 		req.Status = status;
 		req.Object = adapter;
@@ -376,7 +376,7 @@ public sealed unsafe class WebGpuDevice : IDisposable {
 		void* userdata1,
 		void* userdata2
 	) {
-		var h = GCHandle.FromIntPtr((IntPtr)userdata1);
+		var h = GCHandle.FromIntPtr((nint)userdata1);
 		var req = (Request<WGPURequestDeviceStatus, WGPUDevice>)h.Target!;
 		req.Status = status;
 		req.Object = device;

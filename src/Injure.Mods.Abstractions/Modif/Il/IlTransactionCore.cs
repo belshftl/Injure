@@ -48,6 +48,7 @@ internal sealed class IlTransactionCore {
 	private readonly IlFormatCtx formatContext;
 	private readonly ulong transactionId;
 	private readonly Dictionary<int, LabelState> labels = new();
+	private readonly List<IlTypeRef> declaredLocals = new();
 	private readonly List<Insertion> insertions = new();
 	private int nextLabelId;
 	private int nextInsertionSequence;
@@ -112,6 +113,40 @@ internal sealed class IlTransactionCore {
 		int id = checked(++nextLabelId);
 		labels.Add(id, new LabelState());
 		return new IlLabel(transactionId, id);
+	}
+
+	/// <summary>
+	/// Declares a new local, appended after the method's existing locals.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A declared local starts uninit if the method has <c>localsinit</c> set to false and it is a
+	/// non-GC local, and zeroed otherwise. A method with no existing locals is treated as zeroing, so
+	/// declaring its first local sets <c>localsinit</c>, which also makes the method's <c>localloc</c>
+	/// buffers now zeroed rather than uninit, which is a safe behavioral change.
+	/// </para>
+	/// <para>
+	/// The local exists only once the transaction commits, and a transaction that emits no instructions
+	/// commits nothing, including its declared locals.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="type"/> is a value type from a reloadable mod, by value, and as such
+	/// would create an illegal reference to a reloadable mod; see
+	/// <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	public IlLocal DeclareLocal(IlTypeRef type) {
+		EnsureAuthoringOpen();
+		ArgumentNullException.ThrowIfNull(type);
+		if (type.IsVoid)
+			throw new ArgumentException("a local cannot be of type void", nameof(type));
+		IlTypeRestrictionCheck.AssertUnrestricted($"local of type {type}", IlTypeRestrictionCheck.CheckSignatureType(type, OwnerContext));
+
+		int index = snapshot.Locals.Length + declaredLocals.Count;
+		if (index > ushort.MaxValue)
+			throw new IlPipelineException($"{TargetMethodDisplayName} would exceed the maximum local index of {ushort.MaxValue}");
+		declaredLocals.Add(type);
+		return new IlLocal(transactionId, index);
 	}
 
 	/// <summary>
@@ -293,7 +328,7 @@ internal sealed class IlTransactionCore {
 		}
 
 		validateIndices(instrs);
-		working.ReplaceInstructions(instrs, finalAnchors);
+		working.ReplaceInstructions(instrs, finalAnchors, declaredLocals);
 		committed = true;
 	}
 
@@ -359,12 +394,13 @@ internal sealed class IlTransactionCore {
 
 	private void validateIndices(List<IlInstruction> instrs) {
 		int argumentCount = working.Method.Signature.ParameterTypes.Length + (working.Method.Signature.HasThis ? 1 : 0);
+		int localCount = snapshot.Locals.Length + declaredLocals.Count;
 		foreach (IlInstruction instr in instrs)
 			switch (instr.Operand) {
-			case IlArgumentOperand argument when (uint)argument.Index >= (uint)argumentCount:
+			case IlArgumentOperand argument when unchecked((uint)argument.Index >= (uint)argumentCount):
 				throw new IlPipelineException($"{instr.Id} references argument {argument.Index}, but the method has {argumentCount} IL arguments");
-			case IlLocalOperand local when (uint)local.Index >= (uint)working.Locals.Length:
-				throw new IlPipelineException($"{instr.Id} references local {local.Index}, but the method has {working.Locals.Length} locals");
+			case IlLocalOperand local when unchecked((uint)local.Index >= (uint)localCount):
+				throw new IlPipelineException($"{instr.Id} references local {local.Index}, but the method has {localCount} locals");
 			}
 	}
 

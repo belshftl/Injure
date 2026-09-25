@@ -26,10 +26,10 @@ internal sealed class ModAlc(string entryAssemblyPath, IEnumerable<string> share
 		return path is null ? null : LoadFromAssemblyPath(path);
 	}
 
-	protected override IntPtr LoadUnmanagedDll(string unmanagedDllName) {
+	protected override nint LoadUnmanagedDll(string unmanagedDllName) {
 		ArgumentNullException.ThrowIfNull(unmanagedDllName);
 		string? path = resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-		return path is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(path);
+		return path is null ? 0 : LoadUnmanagedDllFromPath(path);
 	}
 }
 

@@ -28,7 +28,7 @@ internal static unsafe partial class Native {
 
 	static Native() {
 #if DEBUG
-		if (IntPtr.Size == 8) {
+		if (nint.Size == 8) {
 			if (Unsafe.SizeOf<Event>() != 24)
 				throw new InternalStateException("expected Event size to be 24 bytes");
 			// c# has no alignof; skip alignment assertion
@@ -40,7 +40,7 @@ internal static unsafe partial class Native {
 				throw new InternalStateException("expected Event Token offset to be 16");
 			if (Marshal.OffsetOf<Event>(nameof(Event.Hresult)) != 20)
 				throw new InternalStateException("expected Event Hresult offset to be 20");
-		} else if (IntPtr.Size == 4) {
+		} else if (nint.Size == 4) {
 			if (Unsafe.SizeOf<Event>() != 16)
 				throw new InternalStateException("expected Event size to be 16 bytes");
 			// c# has no alignof; skip alignment assertion
@@ -58,11 +58,11 @@ internal static unsafe partial class Native {
 #endif
 		NativeLibrary.SetDllImportResolver(
 			typeof(Native).Assembly,
-			static (name, assembly, searchPath) => name == clrprof ? load() : IntPtr.Zero
+			static (name, assembly, searchPath) => name == clrprof ? load() : 0
 		);
 	}
 
-	private static IntPtr load() {
+	private static nint load() {
 		string? path = Environment.GetEnvironmentVariable("CORECLR_PROFILER_PATH");
 		if (string.IsNullOrEmpty(path))
 			throw new InvalidOperationException(

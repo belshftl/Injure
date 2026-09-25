@@ -21,13 +21,13 @@ internal sealed class IlMethodBody {
 
 	public IlMethodRef Method { get; }
 	public bool InitLocals { get; set; }
-	public ImmutableArray<IlTypeRef> Locals { get; }
+	public ImmutableArray<IlTypeRef> Locals { get; private set; }
 
 	/// <summary>
-	/// Where <see cref="Locals"/> was decoded from, when this body came from metadata. Encoding-only
+	/// Where <see cref="Locals"/> was decoded from when this body came from metadata. Encoding-only
 	/// optimization hint; never part of identity.
 	/// </summary>
-	public IlLocalSignatureOrigin LocalSignatureOrigin { get; }
+	public IlLocalSignatureOrigin LocalSignatureOrigin { get; private set; }
 
 	/// <summary>
 	/// The validated maximum stack height for the current instruction generation, or
@@ -155,7 +155,11 @@ internal sealed class IlMethodBody {
 	public IlInstructionId AllocateInstructionId() => new(checked(++nextInstrId));
 	public IlAnchorId AllocateAnchorId() => new(checked(++nextAnchorId));
 
-	public void ReplaceInstructions(List<IlInstruction> newInstrs, List<IlAnchorId> newAnchors) {
+	public void ReplaceInstructions(
+		IReadOnlyList<IlInstruction> newInstrs,
+		IReadOnlyList<IlAnchorId> newAnchors,
+		IReadOnlyList<IlTypeRef> addedLocals
+	) {
 		InternalStateException.ThrowIfNull(newInstrs);
 		InternalStateException.ThrowIfNull(newAnchors);
 		if (newAnchors.Count != newInstrs.Count + 1)
@@ -164,10 +168,20 @@ internal sealed class IlMethodBody {
 		instrs.AddRange(newInstrs);
 		anchors.Clear();
 		anchors.AddRange(newAnchors);
+		appendLocals(addedLocals);
 		anchorBoundaries = null;
 		ComputedMaxStack = null;
 		validateShape();
 		validateReferences();
+	}
+
+	private void appendLocals(IReadOnlyList<IlTypeRef> added) {
+		// if a method has no locals it doesn't really have a trustworthy localsinit flag (a tiny header
+		// doesn't have localsinit, and the constructor drops it regardless), so treat it as zeroing
+		if (Locals.IsEmpty)
+			InitLocals = true;
+		Locals = Locals.AddRange(added);
+		LocalSignatureOrigin = default; // the hint is now out of date
 	}
 
 	private Dictionary<IlAnchorId, int> buildAnchorIndex() {

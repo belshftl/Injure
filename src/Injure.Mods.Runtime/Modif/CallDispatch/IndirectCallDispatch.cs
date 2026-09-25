@@ -16,7 +16,7 @@ namespace Injure.Mods.Runtime.Modif.CallDispatch;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class IndirectCallDispatch {
 	private sealed class SlotEntry {
-		public IntPtr Target;
+		public nint Target;
 		public MethodInfo? Method;
 		public string? Description;
 	}
@@ -34,11 +34,11 @@ public static class IndirectCallDispatch {
 	/// <exception cref="DispatchUnavailableException">
 	/// Thrown if the slot has been cleared or has never been used in the first place.
 	/// </exception>
-	public static IntPtr GetTarget(int slot) {
+	public static nint GetTarget(int slot) {
 		SlotEntry?[] s = Volatile.Read(ref slots);
 		if (unchecked((uint)slot >= (uint)s.Length) || s[slot] is not SlotEntry entry)
 			throw new DispatchUnavailableException(slot, null);
-		return entry.Target == IntPtr.Zero ? throw new DispatchUnavailableException(slot, entry.Description) : entry.Target;
+		return entry.Target == 0 ? throw new DispatchUnavailableException(slot, entry.Description) : entry.Target;
 	}
 
 	/// <summary>
@@ -103,7 +103,7 @@ public static class IndirectCallDispatch {
 				if (entry.Method is not MethodInfo method || method.Module.Assembly != assembly)
 					continue;
 				byTarget.Remove(method.MethodHandle);
-				Volatile.Write(ref entry.Target, IntPtr.Zero);
+				Volatile.Write(ref entry.Target, 0);
 				entry.Method = null;
 			}
 		}
@@ -114,10 +114,10 @@ public static class IndirectCallDispatch {
 	/// </summary>
 	internal static bool IsLive(int slot) {
 		SlotEntry?[] s = slots;
-		return (uint)slot < (uint)s.Length && s[slot]?.Target != IntPtr.Zero;
+		return (uint)slot < (uint)s.Length && s[slot]?.Target != 0;
 	}
 
-	private static IntPtr functionPointerOf(MethodInfo target) {
+	private static nint functionPointerOf(MethodInfo target) {
 		RuntimeHelpers.PrepareMethod(target.MethodHandle);
 		return target.MethodHandle.GetFunctionPointer();
 	}

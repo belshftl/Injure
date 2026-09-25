@@ -14,12 +14,10 @@ internal sealed class DetourTransform : IDetourTransform {
 	private readonly Dictionary<MethodIdentity, int> slots = new();
 	private readonly Lock slotsLock = new();
 
-	private static readonly IlMethodRef shouldRunChainRef = IlRefFactory.Method(
-		typeof(DetourDispatch).GetMethod(nameof(DetourDispatch.ShouldRunChain), BindingFlags.Static | BindingFlags.Public)!
+	private static readonly IlMethodRef enterRef = IlRefFactory.Method(
+		typeof(DetourDispatch).GetMethod(nameof(DetourDispatch.Enter), BindingFlags.Static | BindingFlags.Public)!
 	);
-	private static readonly IlMethodRef getChainEntryRef = IlRefFactory.Method(
-		typeof(DetourDispatch).GetMethod(nameof(DetourDispatch.GetChainEntry), BindingFlags.Static | BindingFlags.Public)!
-	);
+	private static readonly IlTypeRef nintRef = IlRefFactory.Type(typeof(nint));
 
 	/// <param name="resolveMethod">
 	/// Converts a method identity into a reflection <see cref="MethodBase"/> for building thunks.
@@ -69,11 +67,12 @@ internal sealed class DetourTransform : IDetourTransform {
 	/// Something like this is emitted:
 	/// <code>
 	///     ldc.i4    &lt;slot&gt;
-	///     call      bool DetourDispatch::ShouldRunChain(int32)
+	///     call      nint DetourDispatch::Enter(int32)
+	///     stloc     entry
+	///     ldloc     entry
 	///     brfalse   original
 	///     ldarg.0 ... ldarg n
-	///     ldc.i4    &lt;slot&gt;
-	///     call      native int DetourDispatch::GetChainEntry(int32)
+	///     ldloc     entry
 	///     calli     &lt;the target's signature, as a static one&gt;
 	///     ret
 	/// original:
@@ -93,25 +92,25 @@ internal sealed class DetourTransform : IDetourTransform {
 		IlMethodBody body,
 		ImmutableArray<DetourRegistration> detours
 	) {
-		// XXX: see the note in DetourDispatch.cs, in short, this has to change once declaring locals is a thing
-
 		InternalStateException.ThrowIfNull(body);
 		int slot = slotFor(method);
 		IlMethodSignature signature = chainSignature(body.Method);
 
 		IlTransactionCore core = new(body, EngineInfo.OwnerId, null, default, null);
 		IlLabel original = core.DefineLabel();
+		IlLocal entry = core.DeclareLocal(nintRef);
 
 		// note: DetourReentrancyTests in the test project mirrors this pattern, if this changes
 		// it must be updated accordingly
 		core.EmitAtBoundary(0, e => {
 			e.LdcI4(slot);
-			e.Call(shouldRunChainRef);
+			e.Call(enterRef);
+			e.Stloc(entry);
+			e.Ldloc(entry);
 			e.Brfalse(original);
 			for (int arg = 0; arg < signature.ParameterTypes.Length; arg++)
 				e.Ldarg(arg);
-			e.LdcI4(slot);
-			e.Call(getChainEntryRef);
+			e.Ldloc(entry);
 			e.Calli(signature);
 			e.Ret();
 			e.MarkLabel(original);

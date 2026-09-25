@@ -624,8 +624,8 @@ public static class IlRefFactory {
 		else if (type == typeof(double)) code = PrimitiveTypeCode.Double;
 		else if (type == typeof(string)) code = PrimitiveTypeCode.String;
 		else if (type == typeof(TypedReference)) code = PrimitiveTypeCode.TypedReference;
-		else if (type == typeof(IntPtr)) code = PrimitiveTypeCode.IntPtr;
-		else if (type == typeof(UIntPtr)) code = PrimitiveTypeCode.UIntPtr;
+		else if (type == typeof(nint)) code = PrimitiveTypeCode.IntPtr;
+		else if (type == typeof(nuint)) code = PrimitiveTypeCode.UIntPtr;
 		else if (type == typeof(object)) code = PrimitiveTypeCode.Object;
 		else return false;
 		return true;

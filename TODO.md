@@ -10,8 +10,9 @@ anyhow, to v0.1:
   - [x] throw out Mono.Cecil as the patching abstraction and switch to System.Reflection.Metadata
   - [x] throw out MonoMod as the detouring/patching backend and switch to a custom clr profiler
   - [x] migrate over the existing bits of `Mods.Runtime.*`
-  - [ ] add an api for declaring locals to `IlTransactionCore`, this was initially planned for a little bit later but it became urgent
-  - [ ] replace the bandaid `DetourTransform` fix with a proper fix; this needs `IlTransactionCore` to be able to declare locals
+  - [x] add an api for declaring locals to `IlTransactionCore`, this was initially planned for a little bit later but it became urgent
+  - [x] replace the bandaid `DetourTransform` fix with a proper fix; this needs `IlTransactionCore` to be able to declare locals
+  - [ ] some tests currently fail, all of those are real bugs, fix those
   - [ ] wire declaring locals into the public api
   - [ ] fix some more bugs, i'm sure there's a few
 - [ ] write a readme, properly outline the design philosophy

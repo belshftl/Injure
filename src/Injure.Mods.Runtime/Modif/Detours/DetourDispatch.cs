@@ -36,7 +36,7 @@ namespace Injure.Mods.Runtime.Modif.Detours;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class DetourDispatch {
 	private sealed class SlotEntry {
-		public IntPtr Entry;
+		public nint Entry;
 		public object? State;
 	}
 
@@ -56,60 +56,22 @@ public static class DetourDispatch {
 	private static int nextSlot = 0;
 	private static readonly Lock @lock = new();
 
-	// XXX: the current code is kind of a bandaid fix, once IlTransactionCore can declare locals the
-	// actual fix would be to merge into one `IntPtr Enter(int slot)` and make the prologue something like:
-	//     ldc.i4 slot
-	//     call Enter
-	//     stloc tmp
-	//     ldloc tmp
-	//     brfalse original
-	//     ldarg.0 .. ldarg n
-	//     ldloc tmp
-	//     calli signature
-	//     ret
-
 	/// <summary>
-	/// Whether the calling entry should run the detour chain.
+	/// The chain entry the prologue should call, or null if this entry should run the original body.
 	/// </summary>
 	/// <remarks>
-	/// Returns <see langword="false"/> exactly once per token pushed for this slot, which is how the
-	/// chain's terminus reaches the original body. Any other entry, including a recursive call made
-	/// from inside the original body, runs the chain, like how a trampoline-based detour would behave.
+	/// One call rather than a check followed by a read so a clear can't happen between the two.
 	/// </remarks>
-	public static bool EnterAndCheck(int slot) {
+	public static nint Enter(int slot) {
+		// bypass check first so that a terminus whose chain was cleared mid-call still has to consume
+		// its token
 		int depth = bypassDepth;
 		if (depth > 0 && bypassSlots![depth - 1] == slot) {
 			bypassDepth = depth - 1;
-			return false;
+			return 0;
 		}
-		return true;
-	}
-
-	/// <summary>
-	/// Whether the calling prologue should run the detour chain.
-	/// </summary>
-	/// <remarks>
-	/// Token consumption must happen first and unconditionally, so a terminus whose chain was cleared
-	/// mid-call still has its token consumed; the empty-slot check only runs if no token applied.
-	/// </remarks>
-	public static bool ShouldRunChain(int slot) {
-		if (!EnterAndCheck(slot))
-			return false;
 		SlotEntry?[] s = Volatile.Read(ref slots);
-		return (uint)slot < (uint)s.Length && (s[slot]?.Entry ?? IntPtr.Zero) != IntPtr.Zero;
-	}
-
-	/// <summary>
-	/// The entry point of a slot's detour chain.
-	/// </summary>
-	/// <remarks>
-	/// Read fresh on every call, which is why registering a second detour on an already-detoured
-	/// method changes only this table and needs no ReJIT.
-	/// </remarks>
-	public static IntPtr GetChainEntry(int slot) {
-		SlotEntry?[] s = Volatile.Read(ref slots);
-		IntPtr entry = (uint)slot < (uint)s.Length ? s[slot]?.Entry ?? IntPtr.Zero : IntPtr.Zero;
-		return entry != IntPtr.Zero ? entry : throw new DispatchUnavailableException(slot, "detour chain was cleared mid-entry");
+		return (uint)slot < (uint)s.Length ? s[slot]?.Entry ?? 0 : 0;
 	}
 
 	// ==========================================================================================
@@ -201,7 +163,7 @@ public static class DetourDispatch {
 	/// The state must transitively retain the whole chain, since nothing else does.
 	/// </para>
 	/// </remarks>
-	internal static void SetChain(int slot, IntPtr entry, object state) {
+	internal static void SetChain(int slot, nint entry, object state) {
 		ArgumentNullException.ThrowIfNull(state);
 		SlotEntry target = Volatile.Read(ref slots)[slot]!;
 		lock (@lock) {
@@ -243,7 +205,7 @@ public static class DetourDispatch {
 	internal static void ClearChain(int slot) {
 		SlotEntry target = Volatile.Read(ref slots)[slot]!;
 		lock (@lock) {
-			Volatile.Write(ref target.Entry, IntPtr.Zero);
+			Volatile.Write(ref target.Entry, 0);
 			Volatile.Write(ref target.State, null);
 		}
 	}
@@ -253,6 +215,6 @@ public static class DetourDispatch {
 	/// </summary>
 	internal static bool HasChain(int slot) {
 		SlotEntry?[] s = Volatile.Read(ref slots);
-		return (uint)slot < (uint)s.Length && s[slot]?.Entry != IntPtr.Zero;
+		return (uint)slot < (uint)s.Length && s[slot]?.Entry != 0;
 	}
 }

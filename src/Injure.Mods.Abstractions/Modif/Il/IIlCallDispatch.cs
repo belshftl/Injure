@@ -11,7 +11,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 internal interface IIlCallDispatch {
 	/// <summary>
 	/// The method the emitted instructions call to resolve a slot; must have a signature of
-	/// <c>Func&lt;int, IntPtr&gt;</c>.
+	/// <c>Func&lt;int, nint&gt;</c>.
 	/// </summary>
 	IlMethodRef ResolveTarget { get; }
 

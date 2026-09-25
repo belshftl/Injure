@@ -22,19 +22,11 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// </remarks>
 public readonly ref struct IlEmitter {
 	private IlFragmentBuilder builder => field ?? throw new InvalidOperationException("this IlEmitter value is uninitialized/invalid");
-	private IlOwnerCtx ownerContext {
-		get {
-			if (!field.IsValid)
-				throw new InvalidOperationException("this IlEmitter value is uninitialized/invalid");
-			return field;
-		}
-	}
+	private readonly IlOwnerCtx ownerContext;
 	private readonly IIlCallDispatch? callDispatch;
 
 	internal IlEmitter(IlFragmentBuilder builder, IlOwnerCtx ownerContext, IIlCallDispatch? callDispatch) {
 		InternalStateException.ThrowIfNull(builder);
-		if (!ownerContext.IsValid)
-			throw new InternalStateException("IlEmitter constructed with uninitialized/invalid IlOwnerContext");
 		this.builder = builder;
 		this.ownerContext = ownerContext;
 		this.callDispatch = callDispatch;
@@ -102,11 +94,11 @@ public readonly ref struct IlEmitter {
 
 		ArgumentNullException.ThrowIfNull(method);
 		if (method.IsAbstract)
-			throw new ArgumentException("method is abstract and has no callable entry point", nameof(method));
+			throw new ArgumentException("method is abstract and, as such, has no callable entry point", nameof(method));
 		if (method.IsGenericMethodDefinition || method.DeclaringType?.IsGenericTypeDefinition == true)
-			throw new ArgumentException("method is an open generic / on an open generic type and has no callable entry point", nameof(method));
+			throw new ArgumentException("method is an open generic / on an open generic type and, as such, has no callable entry point", nameof(method));
 		if (method.IsGenericMethodDefinition || method.DeclaringType?.IsGenericTypeDefinition == true)
-			throw new ArgumentException("method is an open generic / on an open generic type and has no callable entry point", nameof(method));
+			throw new ArgumentException("method is an open generic / on an open generic type and, as such, has no callable entry point", nameof(method));
 		if (
 			method.GetMethodBody() is null &&
 			(method.Attributes & MethodAttributes.PinvokeImpl) == 0 &&
@@ -289,6 +281,21 @@ public readonly ref struct IlEmitter {
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
 	public void Stloc(int index) => Raw(ILOpCode.Stloc, new IlLocalOperand(validateIndex(index)));
+
+	/// <summary>
+	/// Emits the CIL <c>ldloc</c> instruction. The encoder may select an equivalent short form.
+	/// </summary>
+	/* pending */ internal void Ldloc(IlLocal local) => Raw(ILOpCode.Ldloc, new IlLocalOperand(builder.ValidateLocal(local)));
+
+	/// <summary>
+	/// Emits the CIL <c>ldloca</c> instruction. The encoder may select <c>ldloca.s</c>.
+	/// </summary>
+	/* pending */ internal void Ldloca(IlLocal local) => Raw(ILOpCode.Ldloca, new IlLocalOperand(builder.ValidateLocal(local)));
+
+	/// <summary>
+	/// Emits the CIL <c>stloc</c> instruction. The encoder may select an equivalent short form.
+	/// </summary>
+	/* pending */ internal void Stloc(IlLocal local) => Raw(ILOpCode.Stloc, new IlLocalOperand(builder.ValidateLocal(local)));
 
 	// ======================================================================================
 	// fields

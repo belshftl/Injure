@@ -26,12 +26,10 @@ internal readonly struct IlFormatCtx {
 	}
 
 	public string FormatAnchor(IlAnchorId anchor) {
-		if (snapshot is not null) {
-			IlAnchorId[] anchors = snapshot.Anchors;
-			for (int boundary = 0; boundary < anchors.Length; boundary++)
-				if (anchors[boundary] == anchor)
+		if (snapshot is not null)
+			for (int boundary = 0; boundary < snapshot.Anchors.Length; boundary++)
+				if (snapshot.Anchors[boundary] == anchor)
 					return $"instruction boundary {boundary.ToString(CultureInfo.InvariantCulture)}";
-		}
 		return anchor.ToString();
 	}
 }

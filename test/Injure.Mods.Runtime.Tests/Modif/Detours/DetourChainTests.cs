@@ -14,15 +14,14 @@ namespace Injure.Mods.Runtime.Tests.Modif.Detours;
 /// profiler.
 /// </remarks>
 public sealed class DetourChainTests {
-	// XXX: some of these still weren't properly updated after a particular bandaid fix; they should
-	// wait until the actual fix replaces it since that will require changing again
-
 	private delegate int NextCompute(int value);
 	private delegate int NextComputeWidened(object value);
 	private delegate void NextRecord(string text);
 	private delegate int NextScale(Accumulator instance, int value);
 	private delegate int NextScaleWidened(object instance, int value);
 	private delegate int NextRef(ref int value);
+	private delegate int NextBump(ref Counter self, int by);
+	private delegate int NextBumpWidened(object self, int by);
 
 	private sealed class Payload {
 		public int Slot { get; init; }
@@ -33,6 +32,20 @@ public sealed class DetourChainTests {
 
 		[MethodImpl(MethodImplOptions.NoInlining)]
 		public int Scale(int value) => value * Factor;
+	}
+
+	private struct Counter {
+		public int Value;
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		public int Bump(int by) => Value += by;
+	}
+
+	private ref struct RefCounter {
+		public int Value;
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		public int Bump(int by) => Value += by;
 	}
 
 	private static List<string> log { get; } = new();
@@ -61,6 +74,14 @@ public sealed class DetourChainTests {
 	private static int passesWrongType(Func<object, int> next, object payload) => next("string");
 	private static int passesNull(NextComputeWidened next, object value) => next(null!);
 #pragma warning restore IDE0060 // remove unused parameter
+	private static int bumpsTwice(NextBumpWidened next, object self, int by) {
+		next(self, by);
+		return next(self, by);
+	}
+	private static int bumpsTwiceByref(NextBump next, ref Counter self, int by) {
+		next(ref self, by);
+		return next(ref self, by);
+	}
 
 	// bad detour impls
 	private static int wrongParameterCount(NextCompute next) => next(0);
@@ -72,9 +93,14 @@ public sealed class DetourChainTests {
 	private static int mismatchedNext(Func<int, int> next, object value) => 0;
 #pragma warning restore IDE0060 // remove unused parameter
 	private static int widenedByref(Func<object, int> next, object value) => next(value);
+	#pragma warning disable IDE0060 // remove unused parameter
+	private static int widenedRefStructReceiver(NextBumpWidened next, object self, int by) => 0;
+	#pragma warning restore IDE0060 // remove unused parameter
 
 	private static MethodInfo method(string name) =>
 		typeof(DetourChainTests).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)!;
+	private static MethodInfo bumpOf<T>() where T : allows ref struct =>
+		typeof(T).GetMethod("Bump", BindingFlags.Instance | BindingFlags.Public)!;
 	private static DetourRegistration detour(string localId, string methodName) =>
 		new(IlTest.OwnerId, localId, method(methodName));
 
@@ -168,11 +194,11 @@ public sealed class DetourChainTests {
 	[Fact]
 	public static void AByrefParameterIsPassedThrough() {
 		Installed chain = build(nameof(bump), detour("a", nameof(increments)));
-		object?[] arguments = [7];
+		object?[] args = [7];
 
 		// bump increments in place and returns the new value + the detour adds 100 to the result
-		Assert.Equal(108, chain.Invoke(arguments));
-		Assert.Equal(8, arguments[0]);
+		Assert.Equal(108, chain.Invoke(args));
+		Assert.Equal(8, args[0]);
 	}
 
 	// ==========================================================================================
@@ -294,5 +320,42 @@ public sealed class DetourChainTests {
 	public static void ImplWithAnUnrelatedParamTypeIsRejected() =>
 		Assert.Throws<ArgumentException>(
 			() => build(nameof(record), detour("a", nameof(doubles)))
+		);
+
+	[Fact]
+	public static void AStructReceiverIsPassedAsByref() {
+		Installed chain = build(bumpOf<Counter>(), detour("a", nameof(bumpsTwiceByref)));
+		object?[] args = [new Counter(), 5];
+
+		Assert.Equal(10, chain.Invoke(args));
+		Assert.Equal(10, ((Counter)args[0]!).Value);
+	}
+
+	[Fact]
+	public static void AWidenedStructReceiverKeepsMutations() {
+		Installed chain = build(bumpOf<Counter>(), detour("a", nameof(bumpsTwice)));
+		object?[] args = [new Counter(), 5];
+
+		// otherwise, both calls would mutate a box and the caller's struct would stay at 0
+		Assert.Equal(10, chain.Invoke(args));
+		Assert.Equal(10, ((Counter)args[0]!).Value);
+	}
+
+	[Theory]
+	[InlineData(nameof(bumpsTwice), nameof(bumpsTwiceByref))]
+	[InlineData(nameof(bumpsTwiceByref), nameof(bumpsTwice))]
+	public static void MutationsSurviveMixedWidenedAndByrefLinks(string outer, string inner) {
+		Installed chain = build(bumpOf<Counter>(), detour("outer", outer), detour("inner", inner));
+		object?[] args = [new Counter(), 1];
+
+		// 2 outer calls x 2 inner calls x 1
+		Assert.Equal(4, chain.Invoke(args));
+		Assert.Equal(4, ((Counter)args[0]!).Value);
+	}
+
+	[Fact]
+	public static void ARefStructReceiverCannotBeWidened() =>
+		Assert.Throws<ArgumentException>(
+			() => build(bumpOf<RefCounter>(), detour("a", nameof(widenedRefStructReceiver)))
 		);
 }

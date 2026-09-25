@@ -9,7 +9,7 @@ namespace Injure.Tests;
 
 public static class LibmiscNativeLoader {
 	private static int inited = 0;
-	private static IntPtr injuremisc;
+	private static nint injuremisc;
 
 	public static void Init() {
 		if (Interlocked.Exchange(ref inited, 1) != 0)
@@ -54,10 +54,10 @@ public static class LibmiscNativeLoader {
 		RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
 	);
 
-	private static IntPtr dllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath) {
+	private static nint dllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath) {
 		if (matchLib("injuremisc", libraryName))
 			return injuremisc;
-		return IntPtr.Zero;
+		return 0;
 	}
 }
 

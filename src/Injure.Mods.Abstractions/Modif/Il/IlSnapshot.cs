@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Collections.Immutable;
+
 namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
@@ -33,18 +35,24 @@ internal sealed class IlSnapshot {
 	/// <summary>
 	/// The instructions as they stood when the transaction opened.
 	/// </summary>
-	public IlInstruction[] Instructions { get; }
+	public ImmutableArray<IlInstruction> Instructions { get; }
 
 	/// <summary>
 	/// The boundary anchors as they stood when the transaction opened; one longer than
 	/// <see cref="Instructions"/>.
 	/// </summary>
-	public IlAnchorId[] Anchors { get; }
+	public ImmutableArray<IlAnchorId> Anchors { get; }
+
+	/// <summary>
+	/// The types of the locals as they stood when the transaction opened.
+	/// </summary>
+	public ImmutableArray<IlTypeRef> Locals { get; }
 
 	internal IlSnapshot(IlMethodBody body) {
 		InternalStateException.ThrowIfNull(body);
 		Method = body.Method;
-		Instructions = body.Instructions.ToArray();
-		Anchors = body.Anchors.ToArray();
+		Instructions = body.Instructions.ToImmutableArray();
+		Anchors = body.Anchors.ToImmutableArray();
+		Locals = body.Locals;
 	}
 }

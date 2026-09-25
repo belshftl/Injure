@@ -107,4 +107,10 @@ internal sealed class IlFragmentBuilder(ulong transactionId, HashSet<int> knownL
 			throw new IlPipelineException($"unknown IL label {label.LabelId}");
 		return label.LabelId;
 	}
+
+	public int ValidateLocal(IlLocal local) {
+		if (local.TransactionId == 0 || local.TransactionId != transactionId)
+			throw new IlPipelineException("IL local belongs to another manipulation transaction");
+		return local.Index;
+	}
 }

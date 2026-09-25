@@ -26,7 +26,7 @@ internal sealed class NativeLibraryRegistry(string currentRid) {
 	}
 
 	private readonly Dictionary<(string OwnerId, string ID), NativeLibraryResolution> libraries = new();
-	private readonly Dictionary<string, IntPtr> loadedByPath = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+	private readonly Dictionary<string, nint> loadedByPath = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 	private readonly ConditionalWeakTable<Assembly, ImporterInfo> importers = new();
 	private readonly Dictionary<ReloadGeneration, NativeImportPhase> phaseByGeneration = new();
 	private readonly Dictionary<string, HashSet<string>> dependenciesByOwner = new(StringComparer.Ordinal);
@@ -72,10 +72,10 @@ internal sealed class NativeLibraryRegistry(string currentRid) {
 		try { phaseByGeneration.Remove(generation); } catch {}
 	}
 
-	public IntPtr Resolve(string libraryName, Assembly importingAssembly, DllImportSearchPath? searchPath) {
+	public nint Resolve(string libraryName, Assembly importingAssembly, DllImportSearchPath? searchPath) {
 		int i = libraryName.IndexOf("::", StringComparison.Ordinal);
 		if (i < 0)
-			return IntPtr.Zero;
+			return 0;
 		if (libraryName.IndexOf("::", i + 2, StringComparison.Ordinal) >= 0)
 			throw new InvalidOperationException("mod native library name must contain exactly one occurrence of ::");
 		string provider = libraryName[..i];
@@ -86,7 +86,7 @@ internal sealed class NativeLibraryRegistry(string currentRid) {
 			throw new InvalidOperationException($"invalid mod native library ID: {err}");
 
 		if (!importers.TryGetValue(importingAssembly, out ImporterInfo? ii))
-			return IntPtr.Zero;
+			return 0;
 		string importer = ii.Generation.OwnerId;
 		if (importer != provider) {
 			if (!phaseByGeneration.TryGetValue(ii.Generation, out NativeImportPhase phase) || phase != NativeImportPhase.LinkOrLater)
@@ -97,9 +97,9 @@ internal sealed class NativeLibraryRegistry(string currentRid) {
 		if (!libraries.TryGetValue((provider, id), out NativeLibraryResolution lib))
 			throw new DllNotFoundException($"native library '{provider}::{id}' doesn't have a version for this platform ('{currentRid}')");
 		lock (loadedByPath) {
-			if (loadedByPath.TryGetValue(lib.FullPath, out IntPtr existing))
+			if (loadedByPath.TryGetValue(lib.FullPath, out nint existing))
 				return existing;
-			IntPtr handle = NativeLibrary.Load(lib.FullPath, importingAssembly, searchPath);
+			nint handle = NativeLibrary.Load(lib.FullPath, importingAssembly, searchPath);
 			loadedByPath.Add(lib.FullPath, handle);
 			return handle;
 		}

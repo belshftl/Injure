@@ -196,7 +196,7 @@ internal sealed class DetourChain {
 	/// <summary>
 	/// The chain's entry point, for <see cref="DetourDispatch.SetChain"/>.
 	/// </summary>
-	public IntPtr Entry { get; private set; }
+	public nint Entry { get; private set; }
 
 	/// <summary>
 	/// The head's state, which the head reads back out of the dispatch table.
@@ -444,7 +444,7 @@ internal sealed class DetourChain {
 	private static Type returnTypeOf(MethodBase target) =>
 		target is MethodInfo method ? method.ReturnType : typeof(void);
 
-	private static IntPtr functionPointerOf(DynamicMethod method) {
+	private static nint functionPointerOf(DynamicMethod method) {
 		RuntimeMethodHandle handle = DynamicMethodAccessor.GetMethodDescriptor(method);
 		RuntimeHelpers.PrepareMethod(handle);
 		return handle.GetFunctionPointer();

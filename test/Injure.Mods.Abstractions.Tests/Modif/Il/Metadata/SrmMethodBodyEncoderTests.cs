@@ -313,4 +313,52 @@ public sealed class SrmMethodBodyEncoderTests {
 
 		Assert.Throws<IlInvalidMethodException>(() => encode(body));
 	}
+
+	// ==========================================================================================
+	// declared locals
+	private static IlMethodBody withDeclaredLocal(IlMethodBody body) {
+		IlTransactionCore core = new(body, IlTest.OwnerId, IlTest.LocalId, default, null);
+		IlLocal local = core.DeclareLocal(IlTest.Int32);
+		core.EmitAtBoundary(0, e => { e.LdcI4(0); e.Stloc(local); });
+		core.Commit();
+		return body;
+	}
+
+	[Fact]
+	public static void DeclaringOnALocallessBodyForcesAFatHeaderWithInitlocals() {
+		IlEncodedMethodBody encoded = encode(withDeclaredLocal(new BodyBuilder().Ret().Build()));
+
+		Assert.Equal(12, encoded.HeaderSize);
+		Assert.Equal(0x10, BinaryPrimitives.ReadUInt16LittleEndian(encoded.AsSpan()) & 0x10);
+	}
+
+	[Fact]
+	public static void DeclaredLocalsAreNotResolvedThroughTheOriginalSignature() {
+		// the original StandAloneSig has one local too few, so reusing it would produce invalid cil
+		IlLocalSignatureOrigin origin = new(new IlModuleIdentity(Guid.Empty, "Test"), 7);
+		IlMethodBody body = withDeclaredLocal(new BodyBuilder().Ret().Build(locals: [IlTest.Int32], localsOrigin: origin));
+		FakeTokenResolver resolver = new();
+		IlEncodedMethodBody encoded = SrmMethodBodyEncoder.Prepare(body, resolver);
+
+		Assert.Equal(0, resolver.LocalsOriginHits);
+		Assert.Equal(1, resolver.LocalsOriginMisses);
+		Assert.Equal(
+			MetadataTokens.GetToken(resolver.SynthesizedLocals),
+			BinaryPrimitives.ReadInt32LittleEndian(encoded.AsSpan()[8..])
+		);
+	}
+
+	[Theory]
+	[InlineData(0, new byte[] { 0x0a })] // stloc.0
+	[InlineData(3, new byte[] { 0x0d })] // stloc.3
+	[InlineData(4, new byte[] { 0x13, 0x04 })] // stloc.s
+	[InlineData(255, new byte[] { 0x13, 0xff })]
+	[InlineData(256, new byte[] { 0xfe, 0x0e, 0x00, 0x01 })] // stloc
+	public static void DeclaredLocalIndexUsesShortestEncoding(int existing, byte[] expected) {
+		var locals = Enumerable.Repeat<IlTypeRef>(IlTest.Int32, existing).ToImmutableArray();
+		IlEncodedMethodBody encoded = encode(withDeclaredLocal(new BodyBuilder().Ret().Build(locals: locals)));
+
+		// skip the ldc.i4.0
+		Assert.Equal(expected, code(encoded)[1..(1 + expected.Length)].ToArray());
+	}
 }

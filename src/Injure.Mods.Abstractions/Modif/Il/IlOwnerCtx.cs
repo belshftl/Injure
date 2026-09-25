@@ -13,8 +13,6 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// and no declared dependencies by the current owner.
 /// </remarks>
 internal readonly struct IlOwnerCtx {
-	public bool IsValid => CodeOwnerInfo is not null;
-
 	/// <summary>
 	/// Info on loaded code owners (engine, game, and code mods), in the form of simple assembly names (keys)
 	/// to owner ID + reloadability (values).

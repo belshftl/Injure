@@ -384,7 +384,7 @@ internal sealed class InputSystem : IInputSource {
 			return true;
 		} else if (t == SDLEventType.TextInput) {
 			unsafe {
-				string? s = Marshal.PtrToStringUTF8((IntPtr)ev.Text.Text);
+				string? s = Marshal.PtrToStringUTF8((nint)ev.Text.Text);
 				if (s is not null)
 					Push(new TextEnteredEvent((MonoTick)ev.Text.Timestamp, s));
 			}
