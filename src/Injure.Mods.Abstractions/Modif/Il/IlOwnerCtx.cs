@@ -53,6 +53,6 @@ internal readonly struct IlOwnerCtx {
 		IlTypeScope.Assembly asm =>
 			CodeOwnerInfo.TryGetValue(asm.Identity.Name, out (string _, bool IsReloadable) info) && info.IsReloadable,
 		IlTypeScope.Module or IlTypeScope.ModuleReference => false,
-		_ => throw new InternalStateException($"unknown IlTypeScope derived type '{scope.GetType()}'"),
+		_ => throw InternalStateException.BadClosedHierarchy(scope),
 	};
 }

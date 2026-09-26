@@ -285,7 +285,7 @@ internal sealed class ProfilerTokenResolver : IIlTokenResolver {
 		case IlTypeScope.ModuleReference moduleReference:
 			return moduleReferenceFor(moduleReference.Name);
 		default:
-			throw new InternalStateException($"unknown IlTypeScope derived type '{scope.GetType()}'");
+			throw InternalStateException.BadClosedHierarchy(scope);
 		}
 	}
 

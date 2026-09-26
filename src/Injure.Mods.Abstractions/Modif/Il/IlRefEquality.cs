@@ -95,7 +95,7 @@ internal static class IlRefEquality {
 			hash.Add(ScopeHashCode(type.Scope));
 			break;
 		default:
-			throw new InternalStateException($"unknown IlTypeRef derived type '{value.GetType()}'");
+			throw InternalStateException.BadClosedHierarchy(value);
 		}
 		return hash.ToHashCode();
 	}
@@ -128,7 +128,7 @@ internal static class IlRefEquality {
 			hash.Add(assembly.Identity);
 			break;
 		default:
-			throw new InternalStateException($"unknown IlTypeScope derived type '{value.GetType()}'");
+			throw InternalStateException.BadClosedHierarchy(value);
 		}
 		return hash.ToHashCode();
 	}

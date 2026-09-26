@@ -204,7 +204,7 @@ public sealed class IlTransactionTests {
 		IlMethodBody body = new BodyBuilder().LdcI4(0).Pop().LdcI4(0).Pop().Ret().Build();
 		IlTransactionCore core = open(body);
 
-		IlMatches matches = core.MatchAll([MatchIl.LdcI4(0), MatchIl.Pop], IlPatternProvenanceConstraint.Any);
+		IlMatches matches = core.MatchAll([MatchIl.LdcI4(0), MatchIl.Pop], IlProvenanceConstr.Any);
 
 		Assert.Equal(2, matches.Count);
 	}
@@ -213,7 +213,7 @@ public sealed class IlTransactionTests {
 	public static void MatchesRemainValidAcrossEmits() {
 		IlMethodBody body = new BodyBuilder().LdcI4(0).Pop().LdcI4(0).Pop().Ret().Build();
 		IlTransactionCore core = open(body);
-		IlMatches matches = core.MatchAll([MatchIl.LdcI4(0), MatchIl.Pop], IlPatternProvenanceConstraint.Any);
+		IlMatches matches = core.MatchAll([MatchIl.LdcI4(0), MatchIl.Pop], IlProvenanceConstr.Any);
 
 		foreach (IlMatch match in matches)
 			match.EmitBefore(static e => e.Nop());
@@ -229,7 +229,7 @@ public sealed class IlTransactionTests {
 		IlMethodBody body = new BodyBuilder().Nop().Nop().Nop().Ret().Build();
 		IlTransactionCore core = open(body);
 
-		IlMatches matches = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any);
+		IlMatches matches = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlProvenanceConstr.Any);
 
 		Assert.Equal(1, matches.Count);
 	}
@@ -240,13 +240,13 @@ public sealed class IlTransactionTests {
 		IlTransactionCore core = open(body);
 
 		void a() {
-			IlMatches none = core.MatchAll([MatchIl.Ldnull], IlPatternProvenanceConstraint.Any);
+			IlMatches none = core.MatchAll([MatchIl.Ldnull], IlProvenanceConstr.Any);
 			_ = none.RequireSingle();
 		}
 		Assert.Throws<IlMatchException>(a);
 
 		void b() {
-			IlMatches several = core.MatchAll([MatchIl.Nop], IlPatternProvenanceConstraint.Any);
+			IlMatches several = core.MatchAll([MatchIl.Nop], IlProvenanceConstr.Any);
 			_ = several.RequireSingle();
 		}
 		Assert.Throws<IlMatchException>(b);
@@ -262,10 +262,10 @@ public sealed class IlTransactionTests {
 		IlTransactionCore second = open(body);
 		Assert.Equal(
 			1,
-			second.MatchAll([MatchIl.Nop], IlPatternProvenanceConstraint.AllFromOwner(IlTest.OwnerId)).Count
+			second.MatchAll([MatchIl.Nop], IlProvenanceConstr.AllFromOwner(IlTest.OwnerId)).Count
 		);
-		Assert.Equal(1, second.MatchAll([MatchIl.Nop], IlPatternProvenanceConstraint.AllUnknown).Count);
-		Assert.Equal(2, second.MatchAll([MatchIl.Nop], IlPatternProvenanceConstraint.Any).Count);
+		Assert.Equal(1, second.MatchAll([MatchIl.Nop], IlProvenanceConstr.AllUnknown).Count);
+		Assert.Equal(2, second.MatchAll([MatchIl.Nop], IlProvenanceConstr.Any).Count);
 	}
 
 	[Fact]
@@ -273,7 +273,7 @@ public sealed class IlTransactionTests {
 		IlMethodBody body = new BodyBuilder().Nop().Nop().Ret().Build();
 		IlTransactionCore core = open(body);
 
-		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any).RequireSingle();
+		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlProvenanceConstr.Any).RequireSingle();
 
 		Assert.True(match.TryGetUniformProvenance(out IlProvenance provenance));
 		Assert.Null(provenance.OwnerId);

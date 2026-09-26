@@ -185,7 +185,7 @@ internal sealed class IlTransactionCore {
 	/// <remarks>
 	/// Emission does not invalidate matches.
 	/// </remarks>
-	public IlMatches MatchAll(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenanceConstraint) {
+	public IlMatches MatchAll(ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenanceConstraint) {
 		EnsureAuthoringOpen();
 		validatePattern(pattern, nameof(pattern));
 		validateProvenanceConstraint(provenanceConstraint, nameof(provenanceConstraint));
@@ -206,7 +206,7 @@ internal sealed class IlTransactionCore {
 	/// <summary>
 	/// Finds the first occurrence of a pattern beginning at or after a boundary.
 	/// </summary>
-	public IlMatch MatchNext(int startBoundary, ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenanceConstraint) {
+	public IlMatch MatchNext(int startBoundary, ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenanceConstraint) {
 		EnsureAuthoringOpen();
 		validatePattern(pattern, nameof(pattern));
 		validateProvenanceConstraint(provenanceConstraint, nameof(provenanceConstraint));
@@ -223,7 +223,7 @@ internal sealed class IlTransactionCore {
 	/// <summary>
 	/// Finds the last occurrence of a pattern ending at or before a boundary.
 	/// </summary>
-	public IlMatch MatchPrev(int endBoundary, ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenanceConstraint) {
+	public IlMatch MatchPrev(int endBoundary, ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenanceConstraint) {
 		EnsureAuthoringOpen();
 		validatePattern(pattern, nameof(pattern));
 		validateProvenanceConstraint(provenanceConstraint, nameof(provenanceConstraint));
@@ -273,6 +273,72 @@ internal sealed class IlTransactionCore {
 			if (state.Referenced && !state.Marked)
 				throw new IlPipelineException($"referenced IL label {labelId} was never marked");
 
+		IlBodyView preview = buildPreview();
+
+		List<IlInstruction> instrs = new(preview.Rows.Count);
+		List<int> pendingOperands = new();
+		foreach (IlBodyRow row in preview.Rows) {
+			if (row.Status == IlRowStatus.Existing) {
+				instrs.Add(snapshot.Instructions[row.Index]);
+				continue;
+			}
+			if (row.Labels is not null)
+				pendingOperands.Add(instrs.Count);
+			instrs.Add(new IlInstruction(
+				working.AllocateInstructionId(),
+				row.OpCode,
+				row.Operand,
+				row.Prefixes,
+				IlInstruction.NoOriginalOffset,
+				row.Provenance
+			));
+		}
+
+		List<IlAnchorId> finalAnchors = new(preview.AnchorAt.Count);
+		foreach (IlAnchorId? anchor in preview.AnchorAt)
+			finalAnchors.Add(anchor ?? working.AllocateAnchorId());
+
+		Dictionary<int, IlAnchorId> labelTargets = [];
+		foreach ((int labelId, int boundary) in preview.LabelBoundaries)
+			labelTargets.Add(labelId, finalAnchors[boundary]);
+
+		foreach (int index in pendingOperands) {
+			IlLabel[] rowLabels = preview.Rows[index].Labels!;
+			IlOperand operand;
+			if (instrs[index].OpCode == ILOpCode.Switch) {
+				ImmutableArray<IlAnchorId>.Builder targets = ImmutableArray.CreateBuilder<IlAnchorId>(rowLabels.Length);
+				foreach (IlLabel label in rowLabels)
+					targets.Add(getLabelTarget(labelTargets, label.LabelId));
+				operand = new IlSwitchOperand(targets.MoveToImmutable());
+			} else {
+				if (rowLabels.Length != 1)
+					throw new InternalStateException($"branch instruction {instrs[index].OpCode} has {rowLabels.Length} labels");
+				operand = new IlBranchOperand(getLabelTarget(labelTargets, rowLabels[0].LabelId));
+			}
+			instrs[index] = instrs[index] with { Operand = operand };
+		}
+
+		validateIndices(instrs);
+		working.ReplaceInstructions(instrs, finalAnchors, declaredLocals.ToImmutableArray());
+		committed = true;
+	}
+
+	/// <summary>
+	/// Formats the body in the state it would be if this transaction committed now, for debug purposes.
+	/// </summary>
+	public string Display(in IlFormatOptions options) {
+		EnsureAuthoringOpen();
+		return IlBodyDisplay.Format(buildPreview(), in options);
+	}
+
+	/// <summary>
+	/// Merges the pending edits into the snapshot without touching the working body.
+	/// </summary>
+	/// <remarks>
+	/// Every pending instruction is inserted before the anchor of the boundary it was emitted at,
+	/// which is reattached after the insertions; see the remarks on the type docs.
+	/// </remarks>
+	private IlBodyView buildPreview() {
 		Dictionary<int, List<Insertion>> insertionsByBoundary = new();
 		foreach (Insertion insertion in insertions) {
 			if (!insertionsByBoundary.TryGetValue(insertion.Boundary, out List<Insertion>? list)) {
@@ -284,7 +350,7 @@ internal sealed class IlTransactionCore {
 		foreach (List<Insertion> list in insertionsByBoundary.Values)
 			list.Sort(static (left, right) => left.Sequence.CompareTo(right.Sequence));
 
-		List<IlInstruction> instrs = new();
+		List<IlBodyRow> rows = new(snapshot.Instructions.Length);
 		List<IlAnchorId?> anchors = [null]; // TODO: maybe rethink the new() vs [] style honestly
 		Dictionary<int, int> labelBoundaries = new();
 		List<(int Index, IlInstructionSpec Spec)> pendingOperands = new();
@@ -292,83 +358,62 @@ internal sealed class IlTransactionCore {
 		for (int boundary = 0; boundary <= snapshot.Instructions.Length; boundary++) {
 			if (insertionsByBoundary.TryGetValue(boundary, out List<Insertion>? edits))
 				foreach (Insertion insertion in edits)
-					appendFragment(insertion.Fragment, instrs, anchors, labelBoundaries, pendingOperands);
+					appendFragment(insertion.Fragment, rows, anchors, labelBoundaries);
 
 			if (boundary < snapshot.Instructions.Length) {
-				setAnchor(anchors, instrs.Count, snapshot.Anchors[boundary]);
-				instrs.Add(snapshot.Instructions[boundary]);
+				setAnchor(anchors, rows.Count, snapshot.Anchors[boundary]);
+				rows.Add(IlBodyRow.FromExisting(snapshot.Instructions[boundary], boundary));
 				anchors.Add(null);
 			}
 		}
-		setAnchor(anchors, instrs.Count, snapshot.Anchors[^1]);
+		setAnchor(anchors, rows.Count, snapshot.Anchors[^1]);
 
-		List<IlAnchorId> finalAnchors = new(anchors.Count);
-		foreach (IlAnchorId? anchor in anchors)
-			finalAnchors.Add(anchor ?? working.AllocateAnchorId());
-
-		Dictionary<int, IlAnchorId> labelTargets = [];
-		foreach ((int labelId, int boundary) in labelBoundaries)
-			labelTargets.Add(labelId, finalAnchors[boundary]);
-
-		foreach ((int index, IlInstructionSpec spec) in pendingOperands) {
-			IlLabel[] specLabels = spec.Labels ??
-				throw new InternalStateException("pending branch/switch instruction has no labels");
-			IlOperand operand;
-			if (spec.OpCode == ILOpCode.Switch) {
-				ImmutableArray<IlAnchorId>.Builder targets = ImmutableArray.CreateBuilder<IlAnchorId>(specLabels.Length);
-				foreach (IlLabel label in specLabels)
-					targets.Add(getLabelTarget(labelTargets, label.LabelId));
-				operand = new IlSwitchOperand(targets.MoveToImmutable());
-			} else {
-				if (specLabels.Length != 1)
-					throw new InternalStateException($"branch instruction {spec.OpCode} has {specLabels.Length} labels");
-				operand = new IlBranchOperand(getLabelTarget(labelTargets, specLabels[0].LabelId));
-			}
-			instrs[index] = instrs[index] with { Operand = operand };
-		}
-
-		validateIndices(instrs);
-		working.ReplaceInstructions(instrs, finalAnchors, declaredLocals);
-		committed = true;
+		var declared = declaredLocals.ToImmutableArray();
+		return new IlBodyView {
+			Method = snapshot.Method,
+			TransactionName = LocalId is null ? OwnerId : $"{OwnerId}::{LocalId}",
+			Locals = snapshot.Locals,
+			DeclaredLocals = declared,
+			InitLocals = working.InitLocals || (snapshot.Locals.IsEmpty && !declared.IsEmpty),
+			Rows = rows,
+			AnchorAt = anchors,
+			LabelBoundaries = labelBoundaries,
+			ExceptionRegions = working.ExceptionRegions,
+		};
 	}
 
 	private void appendFragment(
 		IlFragment fragment,
-		List<IlInstruction> instrs,
+		List<IlBodyRow> rows,
 		List<IlAnchorId?> anchors,
-		Dictionary<int, int> labelBoundaries,
-		List<(int Index, IlInstructionSpec Spec)> pendingOperands
+		Dictionary<int, int> labelBoundaries
 	) {
 		foreach (IlFragmentNode node in fragment.Nodes)
 			switch (node) {
 			case IlFragmentLabelNode label:
-				if (!labelBoundaries.TryAdd(label.LabelId, instrs.Count))
+				if (!labelBoundaries.TryAdd(label.LabelId, rows.Count))
 					throw new IlPipelineException($"IL label {label.LabelId} is marked more than once");
 				break;
 			case IlFragmentInstructionNode instrNode:
 				IlInstructionSpec spec = instrNode.Spec;
-				if (anchors[instrs.Count] is null)
-					anchors[instrs.Count] = working.AllocateAnchorId();
-				int index = instrs.Count;
-				IlOperand operand = spec.Labels is null ? spec.Operand : IlNoneOperand.Instance;
-				instrs.Add(new IlInstruction(
-					working.AllocateInstructionId(),
+				rows.Add(new IlBodyRow(
+					IlRowStatus.Inserted,
+					-1,
 					spec.OpCode,
-					operand,
-					Prefixes: null,
-					IlInstruction.NoOriginalOffset,
-					provenance
+					spec.Labels is null ? spec.Operand : IlNoneOperand.Instance,
+					spec.Labels,
+					null,
+					provenance,
+					false
 				));
 				anchors.Add(null);
-				if (spec.Labels is not null)
-					pendingOperands.Add((index, spec));
 				break;
 			default:
-				throw new InternalStateException($"unknown IL fragment node type '{node.GetType()}'");
+				throw InternalStateException.BadClosedHierarchy(node);
 			}
 	}
 
-	private bool matchesAt(int start, ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenanceConstraint) {
+	private bool matchesAt(int start, ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenanceConstraint) {
 		for (int offset = 0; offset < pattern.Length; offset++) {
 			IlInstruction instr = snapshot.Instructions[start + offset];
 			IlPatternElement element = pattern[offset];
@@ -384,10 +429,10 @@ internal sealed class IlTransactionCore {
 
 		ReadOnlySpan<IlInstruction> matched = snapshot.Instructions.AsSpan(start, pattern.Length);
 		return provenanceConstraint.Kind switch {
-			IlPatternProvenanceConstraint.ConstraintKind.Any => true,
-			IlPatternProvenanceConstraint.ConstraintKind.AllUnknown => allFromOwner(matched, 0),
-			IlPatternProvenanceConstraint.ConstraintKind.AllFromOwner => allFromOwner(matched, IlProvenanceInterning.Intern(provenanceConstraint.OwnerId)),
-			IlPatternProvenanceConstraint.ConstraintKind.AllUniform => allUniform(matched),
+			IlProvenanceConstr.ConstraintKind.Any => true,
+			IlProvenanceConstr.ConstraintKind.AllUnknown => allFromOwner(matched, 0),
+			IlProvenanceConstr.ConstraintKind.AllFromOwner => allFromOwner(matched, IlProvenanceInterning.Intern(provenanceConstraint.OwnerId)),
+			IlProvenanceConstr.ConstraintKind.AllUniform => allUniform(matched),
 			_ => throw new InternalStateException($"unexpected provenance constraint kind '{provenanceConstraint.Kind}' after validation"),
 		};
 	}
@@ -444,8 +489,8 @@ internal sealed class IlTransactionCore {
 				throw new ArgumentException($"pattern element {i} is invalid/uninitialized", paramName);
 	}
 
-	private static void validateProvenanceConstraint(IlPatternProvenanceConstraint constraint, string paramName) {
-		if (constraint.Kind == IlPatternProvenanceConstraint.ConstraintKind.UninitializedValue)
+	private static void validateProvenanceConstraint(IlProvenanceConstr constraint, string paramName) {
+		if (constraint.Kind == IlProvenanceConstr.ConstraintKind.UninitializedValue)
 			throw new ArgumentException("provenance constraint is invalid/uninitialized", paramName);
 	}
 }

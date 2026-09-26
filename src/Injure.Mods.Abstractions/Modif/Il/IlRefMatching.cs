@@ -27,7 +27,7 @@ internal static class IlRefMatching {
 			(IlCallSiteOperand a, IlCallSiteOperand b) => signatureEquals(a.Signature, b.Signature),
 			(IlBranchOperand a, IlBranchOperand b) => a.Target == b.Target,
 			(IlSwitchOperand a, IlSwitchOperand b) => a.Targets.AsSpan().SequenceEqual(b.Targets.AsSpan()),
-			_ => throw new InternalStateException($"unknown IL operand pair '{left.GetType()}'"),
+			_ => throw InternalStateException.BadClosedHierarchy(left),
 		};
 	}
 
@@ -59,7 +59,7 @@ internal static class IlRefMatching {
 				typeEquals(a.UnmodifiedType, b.UnmodifiedType),
 			(IlFunctionPointerTypeRef a, IlFunctionPointerTypeRef b) => signatureEquals(a.Signature, b.Signature),
 			(IlGlobalModuleTypeRef a, IlGlobalModuleTypeRef b) => IlRefEquality.ScopeEquals(a.Scope, b.Scope),
-			_ => throw new InternalStateException($"unknown IL type reference pair '{left.GetType()}'"),
+			_ => throw InternalStateException.BadClosedHierarchy(left),
 		};
 	}
 

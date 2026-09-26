@@ -14,7 +14,8 @@ anyhow, to v0.1:
   - [x] replace the bandaid `DetourTransform` fix with a proper fix; this needs `IlTransactionCore` to be able to declare locals
   - [x] some tests currently fail, all of those are real bugs, fix those
   - [x] add the `IgnoresAccessChecksTo` check to `ModRuntime`
-  - [ ] add an api to debug-dump the current il, make it nice
+  - [x] add an api to debug-dump the current il, make it nice
+  - [ ] fix the runtime failing to resolve game -> non-reloadable-mod `AssemblyRef`s
   - [ ] unwrap all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice because it gets wrapped
   - [ ] add conveniences to call methods from delegates to static method groups
   - [ ] wire declaring locals into the public api

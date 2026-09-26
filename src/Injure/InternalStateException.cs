@@ -13,8 +13,8 @@ namespace Injure;
 /// <summary>
 /// Exception thrown on internal logic bugs, invariant violations, state corruption,
 /// seemingly impossible conditions, bad values for purely-internal types, etc.
-/// Informally speaking, you should never see this unless either there's a bug in the library
-/// or <c>unsafe</c> code / reflection over internals / mod modifications have messed something up.
+/// Informally speaking, <b>you should never see this unless there's a bug in the engine</b> or
+/// <c>unsafe</c> code / reflection over internals / mods' modifs have messed something up.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,7 +28,7 @@ namespace Injure;
 /// to wrap this exception type and simply re-throws it instead.
 /// </para>
 /// </remarks>
-public sealed class InternalStateException : Exception {
+public /* open */ class InternalStateException : Exception {
 	internal InternalStateException(string message) : base(message) {}
 	internal InternalStateException(string message, Exception ex) : base(message, ex) {}
 
@@ -131,6 +131,21 @@ public sealed class InternalStateException : Exception {
 		if (localId is not null && !ModMetadataValidation.ValidateLocalId(localId, out string? e))
 			throw new InternalStateException($"{file}:{line}: {member}: '{expr}' (value: '{localId}') is unexpectedly not a valid local ID: {e}");
 	}
+
+	internal static InternalStateException BadClosedHierarchy<T>(T got) where T : class =>
+		new($"unexpectedly got a value of type '{got.GetType()}' when matching on a value of type '{typeof(T)}', which is a closed hierarchy");
+
+	internal static InternalStateException BadOpenEnum<T>(T got) where T : Enum =>
+		new($"unexpectedly got an out of range value '{got}' of an internal open enum type '{typeof(T)}'");
+
+	/// <remarks>
+	/// The formatted string is:
+	/// <code>
+	/// unexpectedly got a(n) {gotDesc} value when a strictly {expectedSetDesc} value was expected
+	/// </code>
+	/// </remarks>
+	internal static InternalStateException OtherClosednessViolation(string gotDesc, string expectedSetDesc) =>
+		new($"unexpectedly got a(n) {gotDesc} value when a strictly {expectedSetDesc} value was expected");
 }
 
 internal static class ExceptionPolicy {

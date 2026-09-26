@@ -33,6 +33,33 @@ public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
 	public IlLabel DefineLabel() => Core.DefineLabel();
 
 	/// <summary>
+	/// Formats the method body, including the current uncommitted edits, for debug purposes.
+	/// </summary>
+	/// <param name="options">
+	/// Formatting options. If you just want a debug log into the terminal, a good bet is
+	/// <see cref="IlFormatPreset.Debug"/>.
+	/// </param>
+	/// <remarks>
+	/// <para>
+	/// You'll usually just use this like:
+	/// <code>
+	/// MyMod.Log.Debug(ctx.Display(IlFormatPreset.Debug));
+	/// </code>
+	/// Or even just a plain <c>Console.WriteLine</c>.
+	/// </para>
+	/// <para>
+	/// The output includes the transaction, the method's locals, and its body (including labels and
+	/// exception regions). Instructions are annotated with their boundary indices (as numbers in the
+	/// gutter) and provenance (as comments). The uncommitted edits from this manipulator are marked.
+	/// </para>
+	/// <para>
+	/// The output is not meant to be machine-parsed, and changes to its format will not be treated
+	/// as an API break. It is meant to be read by a human, e.g. as a debug dump or from a logfile.
+	/// </para>
+	/// </remarks>
+	public string Display(in IlFormatOptions options) => Core.Display(in options);
+
+	/// <summary>
 	/// Emits a fragment before the first instruction of the method.
 	/// </summary>
 	/// <remarks>
@@ -59,13 +86,13 @@ public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
 	/// </summary>
 	/// <remarks>
 	/// Matching without a provenance constraint is not allowed; if provenance is irrelevant, use
-	/// <see cref="IlPatternProvenanceConstraint.Any"/>.
+	/// <see cref="IlProvenanceConstr.Any"/>.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="pattern"/> is empty, or if <paramref name="provenance"/> is an
 	/// invalid/uninitialized value.
 	/// </exception>
-	public IlMatches MatchAll(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) =>
+	public IlMatches MatchAll(ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenance) =>
 		Core.MatchAll(pattern, provenance);
 
 	/// <summary>
@@ -74,7 +101,7 @@ public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
 	/// </summary>
 	/// <remarks>
 	/// Matching without a provenance constraint is not allowed; if provenance is irrelevant, use
-	/// <see cref="IlPatternProvenanceConstraint.Any"/>.
+	/// <see cref="IlProvenanceConstr.Any"/>.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="pattern"/> is empty, or if <paramref name="provenance"/> is an
@@ -83,6 +110,6 @@ public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
 	/// <exception cref="IlMatchException">
 	/// Thrown if no match is found.
 	/// </exception>
-	public IlMatch MatchNext(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) =>
+	public IlMatch MatchNext(ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenance) =>
 		Core.MatchNext(0, pattern, provenance);
 }

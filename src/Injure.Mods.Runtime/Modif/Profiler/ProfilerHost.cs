@@ -261,7 +261,7 @@ internal sealed unsafe class ProfilerHost : IProfilerHost, IProfilerEvents, IDis
 		case Native.EventKind.Wakeup:
 			return true;
 		default:
-			throw new InternalStateException($"unknown profiler event kind '{raised.Kind}' (profiler version mismatch)?");
+			throw new InternalStateException($"unknown profiler event kind '{raised.Kind}'; profiler version mismatch?");
 		}
 	}
 

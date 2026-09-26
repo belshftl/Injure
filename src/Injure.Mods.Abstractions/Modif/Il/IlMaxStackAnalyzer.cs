@@ -59,7 +59,7 @@ internal static class IlMaxStackAnalyzer {
 					seed(boundaryOf(region.HandlerStart), 0);
 					break;
 				default:
-					throw new InternalStateException($"unknown exception region kind '{region.Kind}'");
+					throw InternalStateException.BadOpenEnum(region.Kind);
 				}
 			drain();
 			validateExRegions();
@@ -173,7 +173,7 @@ internal static class IlMaxStackAnalyzer {
 			case IlFlowKind.Throw:
 				break;
 			default:
-				throw new InternalStateException($"unknown IL flow kind '{desc.Flow}'");
+				throw InternalStateException.BadOpenEnum(desc.Flow);
 			}
 		}
 

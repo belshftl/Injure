@@ -20,7 +20,7 @@ internal static class IlSearchDirectionExtensions {
 		public string Display => dir switch {
 			IlSearchDirection.Forward => "forward",
 			IlSearchDirection.Backward => "backward",
-			_ => throw new InternalStateException($"out of range IlSearchDirection enum value"),
+			_ => throw InternalStateException.BadOpenEnum(dir),
 		};
 	}
 }
@@ -37,14 +37,14 @@ internal readonly ref struct IlPatternSearchInfo(
 	int startInstrBoundary,
 	IlSearchDirection direction,
 	ReadOnlySpan<IlPatternElement> pattern,
-	IlPatternProvenanceConstraint provenance,
-	IlFormatCtx context
+	IlProvenanceConstr provenance,
+	IlFormatCtx ctx
 ) {
 	public int StartInstructionBoundary { get; } = startInstrBoundary;
 	public IlSearchDirection Direction { get; } = direction;
 	public ReadOnlySpan<IlPatternElement> Pattern { get; } = pattern;
-	public IlPatternProvenanceConstraint Provenance { get; } = provenance;
-	public IlFormatCtx Context { get; } = context;
+	public IlProvenanceConstr Provenance { get; } = provenance;
+	public IlFormatCtx Context { get; } = ctx;
 }
 
 /// <summary>
@@ -58,7 +58,7 @@ internal static class IlPatternDisplay {
 
 	public static string FormatPattern(
 		ReadOnlySpan<IlPatternElement> pattern,
-		IlPatternProvenanceConstraint provenance,
+		IlProvenanceConstr provenance,
 		in IlFormatCtx ctx
 	) {
 		StringBuilder sb = new();
@@ -86,47 +86,17 @@ internal static class IlPatternDisplay {
 		_ => "<invalid pattern element>",
 	};
 
-	public static string FormatProvenance(IlPatternProvenanceConstraint provenance) => provenance.Kind switch {
-		IlPatternProvenanceConstraint.ConstraintKind.Any => "any provenance",
-		IlPatternProvenanceConstraint.ConstraintKind.AllFromOwner =>
+	public static string FormatProvenance(IlProvenanceConstr provenance) => provenance.Kind switch {
+		IlProvenanceConstr.ConstraintKind.Any => "any provenance",
+		IlProvenanceConstr.ConstraintKind.AllFromOwner =>
 			$"provenance owner '{provenance.OwnerId ?? throw new InternalStateException("AllFromOwner constraint has no owner ID")}'",
-		IlPatternProvenanceConstraint.ConstraintKind.AllUnknown => "unknown provenance",
-		IlPatternProvenanceConstraint.ConstraintKind.AllUniform => "uniform known provenance",
+		IlProvenanceConstr.ConstraintKind.AllUnknown => "unknown provenance",
+		IlProvenanceConstr.ConstraintKind.AllUniform => "uniform known provenance",
 		_ => "<invalid provenance constraint>",
 	};
 
-	private static string formatInstruction(ILOpCode opCode, IlOperand operand, in IlFormatCtx ctx) {
-		string opcodeDisplay = formatOpCode(opCode);
-		return operand switch {
-			IlNoneOperand => opcodeDisplay,
-			IlInt32Operand o => $"{opcodeDisplay} {o.Value.ToString(CultureInfo.InvariantCulture)}",
-			IlInt64Operand o => $"{opcodeDisplay} {o.Value.ToString(CultureInfo.InvariantCulture)}",
-			IlFloat32Operand o => $"{opcodeDisplay} {o.Value.ToString(CultureInfo.InvariantCulture)}",
-			IlFloat64Operand o => $"{opcodeDisplay} {o.Value.ToString(CultureInfo.InvariantCulture)}",
-			IlStringOperand o => $"{opcodeDisplay} {formatString(o.Value)}",
-			IlArgumentOperand o => $"{opcodeDisplay} {o.Index.ToString(CultureInfo.InvariantCulture)}",
-			IlLocalOperand o => $"{opcodeDisplay} {o.Index.ToString(CultureInfo.InvariantCulture)}",
-			IlTypeOperand o => $"{opcodeDisplay} {IlRefDisplay.FormatType(o.Type)}",
-			IlMethodOperand o => $"{opcodeDisplay} {IlRefDisplay.FormatMethod(o.Method)}",
-			IlFieldOperand o => $"{opcodeDisplay} {IlRefDisplay.FormatField(o.Field)}",
-			IlCallSiteOperand o => $"{opcodeDisplay} {IlRefDisplay.FormatSignature(o.Signature)}",
-			IlBranchOperand o => $"{opcodeDisplay} {ctx.FormatAnchor(o.Target)}",
-			IlSwitchOperand o => formatSwitchOperand(opcodeDisplay, o, in ctx),
-			_ => throw new InternalStateException($"unknown IL operand type '{operand.GetType()}'"),
-		};
-	}
-
-	private static string formatSwitchOperand(string opcodeDisplay, IlSwitchOperand operand, in IlFormatCtx ctx) {
-		StringBuilder sb = new(opcodeDisplay);
-		sb.Append(" (");
-		for (int i = 0; i < operand.Targets.Length; i++) {
-			if (i != 0)
-				sb.Append(", ");
-			sb.Append(ctx.FormatAnchor(operand.Targets[i]));
-		}
-		sb.Append(')');
-		return sb.ToString();
-	}
+	private static string formatInstruction(ILOpCode opCode, IlOperand operand, in IlFormatCtx ctx) =>
+		IlInstructionDisplay.Format(opCode, operand, null, ctx.FormatAnchor);
 
 	private static bool matchesEquivalentShorterForms(IlPatternElement element) {
 		if (element.Kind == IlPatternElement.PatternKind.Any)
@@ -141,14 +111,5 @@ internal static class IlPatternDisplay {
 			ILOpCode.Leave;
 	}
 
-	private static string formatOpCode(ILOpCode opCode) =>
-		opCode.ToString().Replace('_', '.').ToLowerInvariant();
-
-	private static string formatString(string value) =>
-		'"' + value.Replace("\\", "\\\\", StringComparison.Ordinal)
-			.Replace("\"", "\\\"", StringComparison.Ordinal)
-			.Replace("\r", "\\r", StringComparison.Ordinal)
-			.Replace("\n", "\\n", StringComparison.Ordinal)
-			.Replace("\t", "\\t", StringComparison.Ordinal)
-			.Replace("\0", "\\0", StringComparison.Ordinal) + '"';
+	private static string formatOpCode(ILOpCode opCode) => IlInstructionDisplay.FormatOpCode(opCode);
 }

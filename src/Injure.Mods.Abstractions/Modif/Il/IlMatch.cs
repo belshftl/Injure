@@ -52,7 +52,7 @@ public readonly ref struct IlMatch {
 	/// <exception cref="IlMatchException">
 	/// Thrown if no match is found.
 	/// </exception>
-	public IlMatch MatchNext(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) =>
+	public IlMatch MatchNext(ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenance) =>
 		core.MatchNext(range.End, pattern, provenance);
 
 	/// <summary>
@@ -61,7 +61,7 @@ public readonly ref struct IlMatch {
 	/// <exception cref="IlMatchException">
 	/// Thrown if no match is found.
 	/// </exception>
-	public IlMatch MatchPrev(ReadOnlySpan<IlPatternElement> pattern, IlPatternProvenanceConstraint provenance) =>
+	public IlMatch MatchPrev(ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenance) =>
 		core.MatchPrev(range.Start, pattern, provenance);
 
 	/// <summary>
@@ -80,7 +80,7 @@ public readonly ref struct IlMatch {
 	/// Attempts to get one owner provenance value shared by every instruction in the matched range.
 	/// </summary>
 	/// <remarks>
-	/// Behaves differently from <see cref="IlPatternProvenanceConstraint.AllUniform"/>; if all of the
+	/// Behaves differently from <see cref="IlProvenanceConstr.AllUniform"/>; if all of the
 	/// matched instructions have unknown provenance, this returns <see langword="true"/> and sets
 	/// <paramref name="provenance"/> to the unknown-provenance value.
 	/// </remarks>

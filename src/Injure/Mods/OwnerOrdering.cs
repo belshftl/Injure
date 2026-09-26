@@ -452,7 +452,7 @@ public static class OwnerOrderedSorter {
 		else if (direction == "after")
 			addEntryEdge(target, source);
 		else
-			throw new InternalStateException($"unknown ordering direction '{direction}'");
+			throw InternalStateException.OtherClosednessViolation($"'{direction}'", "'before'/'after'");
 	}
 
 	private static void addEntryEdge<T>(EntryNode<T> from, EntryNode<T> to) {

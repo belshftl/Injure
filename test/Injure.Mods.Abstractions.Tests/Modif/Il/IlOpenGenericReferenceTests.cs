@@ -164,7 +164,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 			baseline,
 			[
 				IlManipulatorRegistration.Create<TestL>(IlTest.OwnerId, "find", ctx => {
-					matches = ctx.MatchAll([MatchIl.Call(target)], IlPatternProvenanceConstraint.Any).Count;
+					matches = ctx.MatchAll([MatchIl.Call(target)], IlProvenanceConstr.Any).Count;
 				}),
 			],
 			null,
@@ -185,7 +185,7 @@ public sealed class IlOpenGenericReferenceTests : IDisposable {
 			baseline,
 			[
 				IlManipulatorRegistration.Create<TestL>(IlTest.OwnerId, "patch", ctx =>
-					ctx.MatchAll([MatchIl.Call(target)], IlPatternProvenanceConstraint.Any)
+					ctx.MatchAll([MatchIl.Call(target)], IlProvenanceConstr.Any)
 						.RequireSingle()
 						.EmitBefore(e => {
 							e.Ldarg(0);

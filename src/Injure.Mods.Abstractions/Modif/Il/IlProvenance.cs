@@ -7,12 +7,31 @@ using System.Diagnostics.CodeAnalysis;
 namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
-/// The provenance of an IL instruction; that is, an identification of the owner that most recently
-/// introduced or modified it.
+/// The provenance of an IL instruction.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Provenance is for composition, diagnostics, and pattern matching; it is not a security feature.
+/// Provenance is a new value that every single instruction carries alongside its opcode, operands,
+/// and prefixes that describes the owner that most recently introduced or modified it. Provenance
+/// is baked into instructions rather than an additional layer on top, and you should get used to
+/// thinking of it as such. This framework using a custom IR, rather than an existing library like
+/// <c>Mono.Cecil</c>, is what makes this possible.
+/// </para>
+/// <para>
+/// For instructions that cannot be reliably traced back, there is an unknown-provenance value. An
+/// instruction cannot "not have provenance"; it always does, but it can be that the provenance it
+/// has is the unknown-provenance value (or, colloquially, the instruction has unknown provenance).
+/// </para>
+/// <para>
+/// Provenance is for IL matching, composition, and diagnostics; it is not a security feature. Its
+/// primary use, and the original reason it was invented for, is IL matching.
+/// </para>
+/// <para>
+/// Currently, local IDs of IL manipulators are stored internally as provenance data too; the
+/// public semantics of that haven't stabilized yet, and it's not a super useful feature outside of
+/// diagnostics, so only the owner ID is part of the public API, and local IDs are only viewable
+/// through <see cref="IlCtx{L}.Display(in IlFormatOptions)"/>; see the
+/// <see cref="IlFormatOptions.IncludeProvenanceLocalIds"/> option.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is the unknown-provenance value.
@@ -21,7 +40,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 public readonly struct IlProvenance : IEquatable<IlProvenance> {
 	/// <summary>
 	/// The owner that most recently introduced or modified the instruction, or
-	/// <see langword="null"/> if the instruction's provenance is unknown.
+	/// <see langword="null"/> if the instruction has unknown provenance.
 	/// </summary>
 	public string? OwnerId { get; }
 
@@ -37,8 +56,8 @@ public readonly struct IlProvenance : IEquatable<IlProvenance> {
 	public static bool operator !=(IlProvenance left, IlProvenance right) => !left.Equals(right);
 
 	/// <summary>
-	/// Returns either <see cref="OwnerId"/>, or a human-readable fallback string if the instruction's
-	/// provenance is unknown.
+	/// Returns either <see cref="OwnerId"/>, or a human-readable fallback string if the instruction
+	/// has unknown provenance.
 	/// </summary>
 	public override string ToString() => OwnerId ?? "<unknown provenance>";
 }
@@ -48,8 +67,8 @@ public readonly struct IlProvenance : IEquatable<IlProvenance> {
 /// </summary>
 /// <remarks>
 /// <para>
-/// The purpose of interning is to optimize provenance comparesions in pattern matching and reduce
-/// the size of structs containing <see cref="InternalIlProvenance"/>. Index zero always means "unknown".
+/// The purpose of interning is to optimize provenance comparisons in IL matching and reduce the
+/// size of structs containing <see cref="InternalIlProvenance"/>. Index zero always means "unknown".
 /// </para>
 /// <para>
 /// Owner and local IDs share one table. Index equality therefore implies string equality but not

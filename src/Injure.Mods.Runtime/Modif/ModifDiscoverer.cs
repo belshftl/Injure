@@ -119,7 +119,7 @@ internal static class ModifDiscoverer {
 		LoadPatchAttribute a => ModifTargetResolver.ResolveGeneratedTarget(a.GeneratedTargetType),
 		LoadMethodDetourAttribute a => ModifTargetResolver.ResolveNamedTarget(a.DeclaringType, a.MethodName, a.BindingFlags, a.ParameterTypes),
 		LoadMethodPatchAttribute a => ModifTargetResolver.ResolveNamedTarget(a.DeclaringType, a.MethodName, a.BindingFlags, a.ParameterTypes),
-		_ => throw new InternalStateException($"unknown DetourAttribute/PatchAttribute derived type '{attr.GetType()}'"),
+		_ => throw InternalStateException.OtherClosednessViolation(attr.GetType().ToString(), "DetourAttribute or PatchAttribute"),
 	};
 
 	private static string deriveLocalId(MethodInfo method) => $"{method.DeclaringType!.FullName}.{method.Name}";

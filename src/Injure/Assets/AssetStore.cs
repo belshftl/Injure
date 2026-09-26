@@ -1205,7 +1205,7 @@ public sealed class AssetStore {
 			}
 			break;
 		default:
-			throw new InternalStateException("out of range AssetRegistrationKind value");
+			throw InternalStateException.BadOpenEnum(kind);
 		}
 	}
 

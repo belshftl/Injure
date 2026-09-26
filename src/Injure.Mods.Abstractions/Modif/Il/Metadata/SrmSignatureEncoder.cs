@@ -282,7 +282,7 @@ internal static class SrmSignatureEncoder {
 		case IlGlobalModuleTypeRef:
 			throw new IlEncodingException("the global module type cannot appear in a signature");
 		default:
-			throw new InternalStateException($"unknown IlTypeRef derived type '{type.GetType()}'");
+			throw InternalStateException.BadClosedHierarchy(type);
 		}
 	}
 

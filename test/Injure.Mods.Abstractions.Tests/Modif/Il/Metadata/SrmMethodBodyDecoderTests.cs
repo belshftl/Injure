@@ -200,6 +200,6 @@ public sealed class SrmMethodBodyDecoderTests : IDisposable {
 		IlMethodBody body = decode(0x16, 0x26, 0x2a); // ldc.i4.0; pop; ret
 		IlTransactionCore core = new(body, IlTest.OwnerId, IlTest.LocalId, default, null);
 
-		Assert.Equal(1, core.MatchAll([MatchIl.LdcI4(0), MatchIl.Pop], IlPatternProvenanceConstraint.Any).Count);
+		Assert.Equal(1, core.MatchAll([MatchIl.LdcI4(0), MatchIl.Pop], IlProvenanceConstr.Any).Count);
 	}
 }

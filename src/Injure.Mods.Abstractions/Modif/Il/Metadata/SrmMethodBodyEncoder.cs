@@ -585,7 +585,7 @@ internal static class SrmMethodBodyEncoder {
 				IlExceptionRegionKind.Filter => clauseFilter,
 				IlExceptionRegionKind.Finally => clauseFinally,
 				IlExceptionRegionKind.Fault => clauseFault,
-				_ => throw new InternalStateException($"unknown exception region kind '{region.Kind}'"),
+				_ => throw InternalStateException.BadOpenEnum(region.Kind),
 			};
 			int tryOffset = anchorOffset(body, offsets, region.TryStart);
 			int tryLength = anchorOffset(body, offsets, region.TryEnd) - tryOffset;

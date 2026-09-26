@@ -4,12 +4,19 @@
 namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
-/// A provenance constraint on an IL instruction/pattern match operation.
+/// A provenance constraint on an IL instruction/pattern match operation. See <see cref="IlProvenance"/>
+/// for an explanation of provenance.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is invalid.
+/// <para>
+/// This is required for IL matching, not merely an additional feature to narrow searches.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid. See <see cref="Any"/> if you genuinely don't
+/// care about provenance; most of the time, you do, even if you don't realize it.
+/// </para>
 /// </remarks>
-public readonly struct IlPatternProvenanceConstraint {
+public readonly struct IlProvenanceConstr {
 	internal enum ConstraintKind {
 		UninitializedValue = 0,
 		Any,
@@ -21,7 +28,7 @@ public readonly struct IlPatternProvenanceConstraint {
 	internal readonly ConstraintKind Kind;
 	internal readonly string? OwnerId;
 
-	private IlPatternProvenanceConstraint(ConstraintKind kind, string? ownerId) {
+	private IlProvenanceConstr(ConstraintKind kind, string? ownerId) {
 		Kind = kind;
 		OwnerId = ownerId;
 	}
@@ -29,7 +36,7 @@ public readonly struct IlPatternProvenanceConstraint {
 	/// <summary>
 	/// Matches regardless of instruction provenance.
 	/// </summary>
-	public static IlPatternProvenanceConstraint Any { get; } = new(ConstraintKind.Any, null);
+	public static IlProvenanceConstr Any { get; } = new(ConstraintKind.Any, null);
 
 	/// <summary>
 	/// Requires every instruction in the matched range to have the specified provenance.
@@ -40,15 +47,15 @@ public readonly struct IlPatternProvenanceConstraint {
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
 	/// </exception>
-	public static IlPatternProvenanceConstraint AllFromOwner(string ownerId) {
+	public static IlProvenanceConstr AllFromOwner(string ownerId) {
 		ModMetadataValidation.ValidateOwnerIdOrThrow(ownerId);
-		return new IlPatternProvenanceConstraint(ConstraintKind.AllFromOwner, ownerId);
+		return new IlProvenanceConstr(ConstraintKind.AllFromOwner, ownerId);
 	}
 
 	/// <summary>
 	/// Requires every instruction in the matched range to have unknown provenance.
 	/// </summary>
-	public static IlPatternProvenanceConstraint AllUnknown { get; } = new(ConstraintKind.AllUnknown, null);
+	public static IlProvenanceConstr AllUnknown { get; } = new(ConstraintKind.AllUnknown, null);
 
 	/// <summary>
 	/// Requires every instruction in the matched range to have the same known provenance.
@@ -58,5 +65,5 @@ public readonly struct IlPatternProvenanceConstraint {
 	/// behavior of <see cref="IlMatch.TryGetUniformProvenance(out IlProvenance)"/>, which considers all-unknown
 	/// a successful uniform match.
 	/// </remarks>
-	public static IlPatternProvenanceConstraint AllUniform { get; } = new(ConstraintKind.AllUniform, null);
+	public static IlProvenanceConstr AllUniform { get; } = new(ConstraintKind.AllUniform, null);
 }

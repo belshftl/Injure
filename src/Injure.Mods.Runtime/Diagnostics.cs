@@ -15,8 +15,8 @@ public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput) 
 	public DefaultDiagnosticsSink() : this(Console.Error, colorOutput: !Console.IsErrorRedirected) {
 	}
 
-	public const string TimestampColor = "\x1b[0;30m";
-	public const string GenerationColor = "\x1b[0;30m";
+	public const string TimestampColor = "\x1b[2m";
+	public const string GenerationColor = "\x1b[2m";
 	public const string DebugColor = "\x1b[1;37m";
 	public const string InfoColor = "\x1b[1;34m";
 	public const string WarningColor = "\x1b[1;33m";

@@ -25,7 +25,7 @@ public sealed class IlProvenanceTests {
 		core.Commit();
 	}
 
-	private static int countMatches(IlMethodBody body, IlPatternProvenanceConstraint constraint, int length = 2) {
+	private static int countMatches(IlMethodBody body, IlProvenanceConstr constraint, int length = 2) {
 		IlTransactionCore core = open(body);
 		var pattern = new IlPatternElement[length];
 		Array.Fill(pattern, MatchIl.Nop);
@@ -73,7 +73,7 @@ public sealed class IlProvenanceTests {
 		IlMethodBody body = baseline(0);
 		IlTransactionCore core = open(body);
 		core.EmitAtBoundary(0, static e => { e.Nop(); e.Nop(); });
-		Assert.Equal(0, core.MatchAll([MatchIl.Nop], IlPatternProvenanceConstraint.Any).Count);
+		Assert.Equal(0, core.MatchAll([MatchIl.Nop], IlProvenanceConstr.Any).Count);
 		core.Commit();
 	}
 
@@ -89,7 +89,7 @@ public sealed class IlProvenanceTests {
 			body.Instructions[0].Provenance.GetLocalId(),
 			body.Instructions[1].Provenance.GetLocalId()
 		);
-		Assert.Equal(1, countMatches(body, IlPatternProvenanceConstraint.AllFromOwner(IlTest.OwnerId)));
+		Assert.Equal(1, countMatches(body, IlProvenanceConstr.AllFromOwner(IlTest.OwnerId)));
 	}
 
 	[Fact]
@@ -98,8 +98,8 @@ public sealed class IlProvenanceTests {
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
 
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllFromOwner(IlTest.OwnerId)));
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllFromOwner(otherOwner)));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllFromOwner(IlTest.OwnerId)));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllFromOwner(otherOwner)));
 	}
 
 	[Fact]
@@ -108,7 +108,7 @@ public sealed class IlProvenanceTests {
 		stamp(body, IlTest.OwnerId, "first");
 
 		// instruction 0 is stamped, instruction 1 is the original nop
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllFromOwner(IlTest.OwnerId)));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllFromOwner(IlTest.OwnerId)));
 	}
 
 	[Fact]
@@ -116,7 +116,7 @@ public sealed class IlProvenanceTests {
 		IlMethodBody body = baseline(0);
 		stamp(body, IlTest.OwnerId, "first", count: 2);
 
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllFromOwner(otherOwner)));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllFromOwner(otherOwner)));
 	}
 
 	// ==========================================================================================
@@ -127,14 +127,14 @@ public sealed class IlProvenanceTests {
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, IlTest.OwnerId, "second");
 
-		Assert.Equal(1, countMatches(body, IlPatternProvenanceConstraint.AllUniform));
+		Assert.Equal(1, countMatches(body, IlProvenanceConstr.AllUniform));
 	}
 
 	[Fact]
 	public static void AllUniformRejectsAllUnknownRange() {
 		IlMethodBody body = baseline(2);
 
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllUniform));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllUniform));
 	}
 
 	[Fact]
@@ -142,7 +142,7 @@ public sealed class IlProvenanceTests {
 		IlMethodBody body = baseline(1);
 		stamp(body, IlTest.OwnerId, "first");
 
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllUniform));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllUniform));
 	}
 
 	[Fact]
@@ -151,17 +151,17 @@ public sealed class IlProvenanceTests {
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
 
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllUniform));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllUniform));
 	}
 
 	[Fact]
 	public static void AllUnknownAcceptsOnlyUntouchedInstructions() {
 		IlMethodBody body = baseline(2);
-		Assert.Equal(1, countMatches(body, IlPatternProvenanceConstraint.AllUnknown));
+		Assert.Equal(1, countMatches(body, IlProvenanceConstr.AllUnknown));
 
 		stamp(body, IlTest.OwnerId, "first");
 		// the stamped nop now precedes the two originals, so exactly one all-unknown pair remains
-		Assert.Equal(1, countMatches(body, IlPatternProvenanceConstraint.AllUnknown));
+		Assert.Equal(1, countMatches(body, IlProvenanceConstr.AllUnknown));
 	}
 
 	[Fact]
@@ -169,7 +169,7 @@ public sealed class IlProvenanceTests {
 		IlMethodBody body = baseline(1);
 		stamp(body, IlTest.OwnerId, "first");
 
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllUnknown));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllUnknown));
 	}
 
 	// ==========================================================================================
@@ -178,12 +178,12 @@ public sealed class IlProvenanceTests {
 	public static void TryGetUniformProvenanceTreatsAllUnknownAsUniform() {
 		IlMethodBody body = baseline(2);
 		IlTransactionCore core = open(body);
-		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any).RequireSingle();
+		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlProvenanceConstr.Any).RequireSingle();
 
 		Assert.True(match.TryGetUniformProvenance(out IlProvenance provenance));
 		Assert.Null(provenance.OwnerId);
 		// the same range does not satisfy AllUniform
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllUniform));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllUniform));
 	}
 
 	[Fact]
@@ -192,7 +192,7 @@ public sealed class IlProvenanceTests {
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, IlTest.OwnerId, "second");
 		IlTransactionCore core = open(body);
-		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any).RequireSingle();
+		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlProvenanceConstr.Any).RequireSingle();
 
 		Assert.True(match.TryGetUniformProvenance(out IlProvenance provenance));
 		Assert.Equal(IlTest.OwnerId, provenance.OwnerId);
@@ -204,7 +204,7 @@ public sealed class IlProvenanceTests {
 		stamp(body, IlTest.OwnerId, "first");
 		stamp(body, otherOwner, "second");
 		IlTransactionCore core = open(body);
-		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlPatternProvenanceConstraint.Any).RequireSingle();
+		IlMatch match = core.MatchAll([MatchIl.Nop, MatchIl.Nop], IlProvenanceConstr.Any).RequireSingle();
 
 		Assert.False(match.TryGetUniformProvenance(out _));
 	}
@@ -258,9 +258,9 @@ public sealed class IlProvenanceTests {
 		IlMethodBody body = new BodyBuilder().Nop().Nop().Ret().Build(baselineProvenance: baseline);
 
 		Assert.All(body.Instructions, i => Assert.Equal(baseline, i.Provenance));
-		Assert.Equal(1, countMatches(body, IlPatternProvenanceConstraint.AllFromOwner("game")));
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllUnknown));
-		Assert.Equal(1, countMatches(body, IlPatternProvenanceConstraint.AllUniform));
+		Assert.Equal(1, countMatches(body, IlProvenanceConstr.AllFromOwner("game")));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllUnknown));
+		Assert.Equal(1, countMatches(body, IlProvenanceConstr.AllUniform));
 	}
 
 	[Fact]
@@ -269,9 +269,9 @@ public sealed class IlProvenanceTests {
 		IlMethodBody body = new BodyBuilder().Nop().Ret().Build(baselineProvenance: baseline);
 		stamp(body, IlTest.OwnerId, "patch");
 
-		Assert.Equal(1, countMatches(body, IlPatternProvenanceConstraint.Any));
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllFromOwner(IlTest.OwnerId)));
-		Assert.Equal(0, countMatches(body, IlPatternProvenanceConstraint.AllFromOwner("game")));
+		Assert.Equal(1, countMatches(body, IlProvenanceConstr.Any));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllFromOwner(IlTest.OwnerId)));
+		Assert.Equal(0, countMatches(body, IlProvenanceConstr.AllFromOwner("game")));
 		Assert.Equal(IlTest.OwnerId, body.Instructions[0].Provenance.GetOwnerId());
 		Assert.Equal("game", body.Instructions[1].Provenance.GetOwnerId());
 	}
