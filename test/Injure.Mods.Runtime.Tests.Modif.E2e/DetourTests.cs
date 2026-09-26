@@ -95,6 +95,70 @@ public sealed class DetourTests(E2eFixture fixture) {
 	}
 
 	// ============================================================================================
+	private struct ValueTarget {
+		public int Field;
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		public int Incr() => ++Field;
+	}
+
+	private delegate int next_Incr(ref ValueTarget self);
+	private static int incr3(next_Incr next, ref ValueTarget self) {
+		self.Field += 3;
+		return next(ref self) + next(ref self) + 1;
+	}
+
+	[Fact]
+	public void MutationsThroughAByrefValueTypeReceiverPersist() {
+		MethodIdentity m = fxt.GetIdentity(typeof(ValueTarget).GetMethod(
+			nameof(ValueTarget.Incr),
+			BindingFlags.Instance | BindingFlags.Public
+		)!);
+		fxt.Registry.AddDetour(m, entry(new DetourRegistration("e2e.detour.valuetype", "detour", method(nameof(incr3)))));
+
+		ApplyResult result = fxt.Orchestrator.ApplyPending();
+
+		ValueTarget v = new() { Field = -1 };
+		Assert.Equal(8, v.Incr()); // -1 + 3 = 2, (2 + 1) + ((2 + 1) + 1) + 1 = 8
+		Assert.Equal(4, v.Field); // field has been incremented by 3 and incremented by 1 twice
+	}
+
+	// ============================================================================================
+	private struct WidenValueTarget {
+		public int Field;
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		public int Incr() => ++Field;
+	}
+
+	private delegate int next_WidenValueTarget_Incr(ref WidenValueTarget self);
+	private static int widenIncr3(next_WidenValueTarget_Incr next, ref WidenValueTarget self) {
+		self.Field += 3;
+		return next(ref self) + next(ref self) + 1;
+	}
+	private static int widenMul2(Func<object, int> next, object self) {
+		ref WidenValueTarget v = ref Unsafe.Unbox<WidenValueTarget>(self);
+		v.Field *= 2;
+		return next(self);
+	}
+
+	[Fact]
+	public void ByrefValueTypeReceiverCanBeWidenedToObject() {
+		MethodIdentity m = fxt.GetIdentity(typeof(WidenValueTarget).GetMethod(
+			nameof(WidenValueTarget.Incr),
+			BindingFlags.Instance | BindingFlags.Public
+		)!);
+		fxt.Registry.AddDetour(m, entry(new DetourRegistration("e2e.detour.widenvaluetype", "a", method(nameof(widenMul2)))));
+		fxt.Registry.AddDetour(m, entry(new DetourRegistration("e2e.detour.widenvaluetype", "b", method(nameof(widenIncr3)))));
+
+		ApplyResult result = fxt.Orchestrator.ApplyPending();
+
+		WidenValueTarget v = new() { Field = 2 };
+		Assert.Equal(18, v.Incr()); // 2 * 2 = 4, 4 + 3 = 7, (7 + 1) + ((7 + 1) + 1) + 1 = 18
+		Assert.Equal(9, v.Field); // field has been multiplied by 2, incremented by 3, and incremented by 1 twice
+	}
+
+	// ============================================================================================
 	private static class CombinedTarget {
 		public static int Slot = 1;
 
