@@ -83,15 +83,10 @@ public sealed class IlPipelineTests {
 
 	// ==========================================================================================
 	// failure
-	private sealed class OtherException : Exception {
-		public OtherException() : base() {}
-		public OtherException(string msg) : base(msg) {}
-	}
-
 	[Fact]
 	public static void ManipulatorExceptionsAreWrapped() {
 		IlMethodBody baseline = makeBaseline();
-		OtherException thrown = new("from the manipulator");
+		InvalidTimeZoneException thrown = new("from the manipulator");
 		IlManipulatorException caught = Assert.Throws<IlManipulatorException>(
 			() => IlPipeline.Transform(baseline, [makeManipulator("a", _ => throw thrown)], null, null)
 		);
@@ -104,7 +99,7 @@ public sealed class IlPipelineTests {
 		IlMethodBody baseline = makeBaseline();
 		Assert.Throws<IlManipulatorException>(() => IlPipeline.Transform(
 			baseline,
-			[emitsNop("first"), makeManipulator("second", static _ => throw new OtherException())],
+			[emitsNop("first"), makeManipulator("second", static _ => throw new InvalidTimeZoneException())],
 			default,
 			null
 		));
@@ -121,7 +116,7 @@ public sealed class IlPipelineTests {
 						e.Nop();
 						e.Nop();
 					});
-					throw new OtherException();
+					throw new InvalidTimeZoneException();
 				}),
 				emitsNop("good"),
 			],
@@ -214,7 +209,7 @@ public sealed class IlPipelineTests {
 					if (invocations++ == 0)
 						ctx.EmitAtStart(static e => e.Pop());
 					else
-						throw new OtherException("only on the second run");
+						throw new InvalidTimeZoneException("only on the second run");
 				}),
 			],
 			default,

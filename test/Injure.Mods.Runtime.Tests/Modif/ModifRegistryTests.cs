@@ -120,10 +120,40 @@ public sealed class ModifRegistryTests {
 		ModifRegistry registry = new();
 		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
 		registry.AddManipulator(methodA, entry(makeManipulator("first", "b")));
+		MethodGeneration a = registry.GetGeneration(methodA);
+
 		registry.AddManipulator(methodB, entry(makeManipulator("first", "a")));
 
-		Assert.Equal(2, registry.GetGeneration(methodA).Patch);
-		Assert.Equal(1, registry.GetGeneration(methodB).Patch);
+		Assert.Equal(a, registry.GetGeneration(methodA));
+		Assert.True(registry.GetGeneration(methodB).IsModified);
+	}
+
+	[Fact]
+	public static void ReregisteringAfterTheEntryWasForgottenNeverReusesAGeneration() {
+		// when an entry is forgetten, so does the counter; if a new one started over, a cache keyed
+		// by generation would falsely cache-hit the body built from the old registrations
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		MethodGeneration before = registry.GetGeneration(methodA);
+
+		registry.RemoveOwner("first");
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+
+		Assert.NotEqual(before, registry.GetGeneration(methodA));
+		Assert.True(registry.GetGeneration(methodA).Patch > before.Patch);
+	}
+
+	[Fact]
+	public static void ReregisteringAfterModuleRemovalNeverReusesAGeneration() {
+		// module IDs can be reused after unload, so the same MethodIdentity can reappear
+		ModifRegistry registry = new();
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+		MethodGeneration before = registry.GetGeneration(methodA);
+
+		registry.RemoveModule(methodA.Module);
+		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
+
+		Assert.NotEqual(before, registry.GetGeneration(methodA));
 	}
 
 	// ==========================================================================================
@@ -307,9 +337,7 @@ public sealed class ModifRegistryTests {
 		registry.Remove(methodA, "first", "a");
 
 		Assert.Empty(registry.ModifiedMethods);
-		// the entry is gone, so a later registration starts over rather than continuing
-		registry.AddManipulator(methodA, entry(makeManipulator("first", "a")));
-		Assert.Equal(1, registry.GetGeneration(methodA).Patch);
+		Assert.Equal(MethodGeneration.None, registry.GetGeneration(methodA));
 	}
 
 	[Fact]

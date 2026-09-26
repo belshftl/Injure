@@ -75,7 +75,7 @@ public readonly partial struct RuntimePhase {
 	}
 }
 
-public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxProvider {
+public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProvider {
 	// ==========================================================================
 	// bookkeeping
 	private readonly struct ContentLifetimeIdentity : IModLifetimeIdentity;
@@ -254,7 +254,8 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 			new MethodTransformCache(),
 			this,
 			IlCallDispatch.Instance,
-			new DetourTransform(resolveModifMethod)
+			new DetourTransform(resolveModifMethod),
+			this
 		);
 		modifOrchestrator.Attach(prof);
 		diagnostics = new OwnerDiagnostics(EngineInfo.OwnerId, diagnosticsSinkRegistry, null);
@@ -775,8 +776,14 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 	public void AbortBlocking() => block(AbortAsync());
 
 	// ==========================================================================
-	// IAssemblyOwnerResolver
-	bool IAssemblyOwnerResolver.TryGetOwner(Assembly asm, [NotNullWhen(true)] out string? ownerId) {
+	// IModuleOwnerResolver
+	bool IModuleOwnerResolver.TryGetOwner(ModuleId moduleId, [NotNullWhen(true)] out string? ownerId) {
+		if (!moduleIdLookup.TryGetModule(moduleId, out Module? module)) {
+			ownerId = null;
+			return false;
+		}
+		Assembly asm = module.Assembly;
+
 		if (asm == mainAssembly || asm == abstractionsAssembly || asm == runtimeAssembly) {
 			ownerId = EngineInfo.OwnerId;
 			return true;
@@ -787,14 +794,12 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 			return true;
 		}
 
-		// TODO: contract assemblies, even though runtime modifying them is kind of a bad idea
-
-		LoadedCodeMod<TGameApi>[] loaded = activeCode.Values.ToArray();
-		foreach (LoadedCodeMod<TGameApi> mod in loaded)
+		foreach (LoadedCodeMod<TGameApi> mod in (IEnumerable<LoadedCodeMod<TGameApi>>?)modifPassCode ?? activeCode.Values) {
 			if (asm == mod.Assembly) {
 				ownerId = mod.Staged.Manifest.OwnerId;
 				return true;
 			}
+		}
 
 		ownerId = null;
 		return false;

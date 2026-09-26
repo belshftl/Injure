@@ -34,7 +34,7 @@ public sealed class E2eFixture : IDisposable {
 		Prof.ModuleLoaded += info => moduleByMvid[info.Mvid] = info.Id;
 
 		Detours = new DetourTransform(resolveMethod);
-		Orchestrator = new ModifOrchestrator(Prof, Registry, Cache, default, null, Detours);
+		Orchestrator = new ModifOrchestrator(Prof, Registry, Cache, default, null, Detours, null);
 		Orchestrator.Attach(Prof);
 	}
 

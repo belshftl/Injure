@@ -24,13 +24,14 @@ internal sealed class ModifRegistry {
 
 		public MethodGeneration Generation { get; private set; } = MethodGeneration.None;
 
-		public void BumpPatch() => Generation = Generation with { Patch = Generation.Patch + 1 };
+		public void SetPatch(int generation) => Generation = Generation with { Patch = generation };
 		public void SetDetoured(bool detoured) => Generation = Generation with { HasDetourPrologue = detoured };
 	}
 
 	private readonly Lock @lock = new();
 	private readonly Dictionary<MethodIdentity, MethodEntry> entries = new();
 	private readonly HashSet<MethodIdentity> dirty = new();
+	private int lastPatchGeneration = 0;
 
 	public ImmutableArray<MethodIdentity> ModifiedMethods {
 		get {
@@ -106,7 +107,7 @@ internal sealed class ModifRegistry {
 			requireUnusedIdentifier(target, entry.OwnerId, entry.LocalId);
 
 			target.Manipulators.RegisterLocked(entry);
-			target.BumpPatch();
+			target.SetPatch(checked(++lastPatchGeneration));
 			dirty.Add(method);
 		}
 	}
@@ -153,7 +154,7 @@ internal sealed class ModifRegistry {
 					continue;
 
 				if (removedManipulators.Length > 0)
-					entry.BumpPatch();
+					entry.SetPatch(checked(++lastPatchGeneration));
 				if (wasDetoured && entry.Detours.ReadSnapshot().Count == 0)
 					entry.SetDetoured(false);
 
@@ -184,7 +185,7 @@ internal sealed class ModifRegistry {
 				return false;
 
 			if (removedManipulator)
-				entry.BumpPatch();
+				entry.SetPatch(checked(++lastPatchGeneration));
 			if (wasDetoured && entry.Detours.ReadSnapshot().Count == 0)
 				entry.SetDetoured(false);
 

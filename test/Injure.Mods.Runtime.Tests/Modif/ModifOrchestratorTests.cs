@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
+using System.Runtime.CompilerServices;
 using Injure.Mods.Abstractions.Modif.Il;
 using Injure.Mods.Abstractions.Modif.Il.Metadata;
 using Injure.Mods.Runtime.Modif;
@@ -58,7 +59,7 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		module = prof.LoadModule(location);
 		target = prof.FindMethod(module.Id, targetType, targetMethod);
 		other = prof.FindMethod(module.Id, targetType, otherMethod);
-		orchestrator = new ModifOrchestrator(prof, registry, cache, null, null, detours);
+		orchestrator = new ModifOrchestrator(prof, registry, cache, null, null, detours, null);
 	}
 
 	public void Dispose() {
@@ -87,6 +88,19 @@ public sealed class ModifOrchestratorTests : IDisposable {
 				)!
 			)))
 		));
+
+	private static OwnerOrderedEntry<IlManipulatorRegistration> nops(string ownerId, string localId, int count) =>
+		wrap(IlManipulatorRegistration.Create<TestL>(ownerId, localId, ctx => ctx.EmitAtStart(e => {
+			for (int i = 0; i < count; i++)
+				e.Nop();
+		})));
+
+	private static OwnerOrderedEntry<IlManipulatorRegistration> counted(string ownerId, string localId, StrongBox<int> runs) =>
+		wrap(IlManipulatorRegistration.Create<TestL>(ownerId, localId, ctx => {
+			runs.Value++;
+			ctx.EmitAtStart(static e => e.Nop());
+		}));
+
 
 	private static OwnerOrderedEntry<DetourRegistration> detour(string ownerId, string localId) =>
 		wrap(new DetourRegistration(ownerId, localId, typeof(ModifOrchestratorTests).GetMethod(
@@ -328,7 +342,6 @@ public sealed class ModifOrchestratorTests : IDisposable {
 		registry.AddManipulator(target, nop("second", "c"));
 		orchestrator.ApplyPending();
 
-		Assert.Equal(1, registry.GetGeneration(target).Patch);
 		Assert.Equal(before + 1, instructionCountOf(target));
 	}
 
@@ -462,5 +475,59 @@ public sealed class ModifOrchestratorTests : IDisposable {
 
 		Assert.Empty(prof.ReJitRequests);
 		Assert.Empty(prof.RevertRequests);
+	}
+
+	// ==========================================================================================
+	// replacing an owner's registrations in one pass, i.e. what a reload does
+	[Fact]
+	public void ReplacingAnOwnersOnlyManipulatorInOnePassRetransforms() {
+		int before = baselineInstructionCount(target);
+		registry.AddManipulator(target, nops("first", "a", 1));
+		orchestrator.ApplyPending();
+
+		// the entry is forgotten and recreated in between, which used to restart its generation and
+		// hand back the cached body from before
+		registry.RemoveOwner("first");
+		registry.AddManipulator(target, nops("first", "a", 2));
+		ApplyResult result = orchestrator.ApplyPending();
+
+		Assert.Equal([target], result.Applied);
+		Assert.Equal(0, result.UpToDate);
+		Assert.Equal(2, prof.ReJitRequests.Count);
+		Assert.Equal(before + 2, instructionCountOf(target));
+	}
+
+	[Fact]
+	public void ReplacingAnOwnersOnlyManipulatorRerunsItEvenIfItsOutputIsTheSame() {
+		StrongBox<int> runs = new();
+		registry.AddManipulator(target, counted("first", "a", runs));
+		orchestrator.ApplyPending();
+
+		registry.RemoveOwner("first");
+		registry.AddManipulator(target, counted("first", "a", runs));
+		orchestrator.ApplyPending();
+
+		// output can change across a reload without the manipulator changing, e.g. an indirect call
+		// slot now pointing at the new generation's method
+		Assert.Equal(2, runs.Value);
+	}
+
+	[Fact]
+	public void ReplacingAnOwnersOnlyDetourInOnePassNeedsOnlyAChainResync() {
+		registry.AddDetour(target, detour("first", "d"));
+		orchestrator.ApplyPending();
+		detours.ChainUpdates.Clear();
+
+		registry.RemoveOwner("first");
+		registry.AddDetour(target, detour("first", "d"));
+		orchestrator.SyncDetourChain(target);
+		ApplyResult result = orchestrator.ApplyPending();
+
+		// the prologue names only the method's own slot, so the installed body is still right and
+		// only the chain has to change
+		Assert.Empty(result.Applied);
+		Assert.Single(prof.ReJitRequests);
+		Assert.Equal((target, 1), Assert.Single(detours.ChainUpdates));
+		Assert.True(detours.HasChain(target));
 	}
 }

@@ -71,6 +71,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 	private readonly IIlOwnerCtxProvider? ownerCtxProvider;
 	private readonly IIlCallDispatch? callDispatch;
 	private readonly IDetourTransform detours;
+	private readonly IModuleOwnerResolver? moduleOwnerResolver;
 	private readonly Lock @lock = new();
 	private readonly Dictionary<ModuleId, ModuleContext> modules = new();
 	private readonly HashSet<MethodIdentity> installed = new();
@@ -82,7 +83,8 @@ internal sealed class ModifOrchestrator : IDisposable {
 		MethodTransformCache cache,
 		IIlOwnerCtxProvider? ownerCtxProvider,
 		IIlCallDispatch? callDispatch,
-		IDetourTransform detours
+		IDetourTransform detours,
+		IModuleOwnerResolver? moduleOwnerResolver
 	) {
 		InternalStateException.ThrowIfNull(prof);
 		InternalStateException.ThrowIfNull(registry);
@@ -94,6 +96,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 		this.ownerCtxProvider = ownerCtxProvider;
 		this.callDispatch = callDispatch;
 		this.detours = detours;
+		this.moduleOwnerResolver = moduleOwnerResolver;
 	}
 
 	public void Attach(IProfilerEvents events) {
@@ -251,9 +254,12 @@ internal sealed class ModifOrchestrator : IDisposable {
 	private IlMethodBody decode(ModuleContext context, MethodIdentity method) {
 		ImmutableArray<byte> il = prof.GetBaselineIl(method);
 		var handle = (MethodDefinitionHandle)MetadataTokens.EntityHandle(method.MethodDefToken);
+		InternalIlProvenance baseline = (moduleOwnerResolver?.TryGetOwner(method.Module, out string? ownerId) ?? false)
+			? new InternalIlProvenance(ownerId, null)
+			: default;
 		unsafe {
 			fixed (byte* p = il.AsSpan())
-				return SrmMethodBodyDecoder.Decode(context.Metadata, handle, new BlobReader(p, il.Length), default);
+				return SrmMethodBodyDecoder.Decode(context.Metadata, handle, new BlobReader(p, il.Length), baseline);
 		}
 	}
 
