@@ -78,8 +78,6 @@ public readonly partial struct RuntimePhase {
 public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProvider {
 	// ==========================================================================
 	// bookkeeping
-	private readonly struct ContentLifetimeIdentity : IModLifetimeIdentity;
-
 	private readonly record struct ActiveDependent(string OwnerId, bool IsHard);
 
 	private sealed class BoundaryPlan {
@@ -197,6 +195,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 	private readonly SemaphoreSlim codeLoadSem;
 	private readonly SemaphoreSlim writeLock = new(1, 1);
 
+	private readonly GameModAssemblyResolver gameModResolver;
 	private RuntimePhase phase = RuntimePhase.Empty;
 	private Dictionary<string, DiscoveredMod> discovered = new();
 	private ResolvedModGraph activeGraph;
@@ -246,6 +245,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		maxLoadParallelism = Math.Max(1, options.MaxLoadParallelism);
 		maxScopeTeardownParallelism = Math.Max(1, options.MaxScopeTeardownParallelism);
 		codeLoadSem = new SemaphoreSlim(maxLoadParallelism, maxLoadParallelism);
+		gameModResolver = new GameModAssemblyResolver([mainAssembly, abstractionsAssembly, runtimeAssembly, .. gameAssemblies]);
 		prof = new ProfilerHost();
 		moduleIdLookup = new ModuleIdLookup(prof, prof);
 		modifOrchestrator = new ModifOrchestrator(
@@ -422,6 +422,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 				}
 			}
 			contractsAlc = new ModContractsAlc(pathsBySimpleName);
+			gameModResolver.Add(contractsAlc);
 			phase = RuntimePhase.ContractAssembliesLoaded;
 			return ValueTask.CompletedTask;
 		} catch {
@@ -681,7 +682,10 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			if (shutdownHasOwnerScopes(startingPhase)) {
 				foreach (LoadedCodeMod<TGameApi> mod in activeCode.Values) {
 					await invalidateScopesAsync(mod, ReloadTeardownReason.Shutdown, ct).ConfigureAwait(false);
-					pendingUnloads.Add(detachForUnload(mod));
+					if (detachForUnload(mod) is PendingAlcUnload pending)
+						pendingUnloads.Add(pending);
+					else
+						diagnostics.Debug($"shutdown: {mod.Staged.Manifest.OwnerId} is non-reloadable and as such can't have its code be truly unloaded; this is normal");
 				}
 				foreach (LoadedContentMod mod in activeContent.Values)
 					await mod.Scope.InvalidateAsync(ReloadTeardownReason.Shutdown, ct).ConfigureAwait(false);
@@ -690,6 +694,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			moduleIdLookup.Dispose();
 			modifOrchestrator.Dispose();
 			prof.Dispose();
+			gameModResolver.Dispose();
 
 			clearRuntimeStateAfterShutdown();
 			if (unloadGracePeriod > TimeSpan.Zero && pendingUnloads.Count != 0)
@@ -731,7 +736,10 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 					diagnostics.Warning($"abort: error invalidating scope for '{mod.Staged.Manifest.OwnerId}', moving on: {ex}");
 				}
 				try {
-					pendingUnloads.Add(detachForUnload(mod));
+					if (detachForUnload(mod) is PendingAlcUnload pending)
+						pendingUnloads.Add(pending);
+					else
+						diagnostics.Debug($"abort: {mod.Staged.Manifest.OwnerId} is non-reloadable and as such can't have its code be truly unloaded; this is normal");
 				} catch (Exception ex) {
 					diagnostics.Warning($"abort: error detaching ALC for '{mod.Staged.Manifest.OwnerId}', moving on: {ex}");
 				}
@@ -754,6 +762,11 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 				prof.Dispose();
 			} catch (Exception ex) {
 				diagnostics.Warning($"abort: error disposing profiler host, moving on: {ex}");
+			}
+			try {
+				gameModResolver.Dispose();
+			} catch (Exception ex) {
+				diagnostics.Warning($"abort: error disposing game -> mod assembly resolver, moving on: {ex}");
 			}
 			clearRuntimeStateAfterShutdown();
 			if (unloadGracePeriod > TimeSpan.Zero && pendingUnloads.Count != 0)
@@ -813,9 +826,13 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			codeOwnerInfo[asm.GetName().Name ?? throw new InternalStateException($"engine assembly '{asm}' has no simple name")] = (EngineInfo.OwnerId, false);
 		foreach (string name in gameAssemblyNames)
 			codeOwnerInfo[name] = (gameOwnerId, false);
-		foreach (LoadedCodeMod<TGameApi> mod in modifPassCode ?? throw new InternalStateException("GetContext outside a modif pass"))
-			codeOwnerInfo[mod.Assembly.GetName().Name ?? throw new InternalStateException($"mod assembly for '{mod.Staged.Manifest.OwnerId}' has no simple name")] =
-				(mod.Staged.Manifest.OwnerId, mod.Staged.Manifest.Reloadable);
+		foreach (LoadedCodeMod<TGameApi> mod in modifPassCode ?? throw new InternalStateException("GetContext outside a modif pass")) {
+			if (mod.Alc.IsCollectible != mod.Staged.Manifest.Reloadable)
+				throw new InternalStateException($"mod ALC collectibility vs reloadability mismatch: '{mod.Staged.Manifest.OwnerId}' is reloadable = {mod.Staged.Manifest.Reloadable} but has ALC collectibility = {mod.Alc.IsCollectible}");
+			foreach (Assembly asm in mod.Alc.Assemblies)
+				codeOwnerInfo[asm.GetName().Name ?? throw new InternalStateException($"mod assembly '{asm}' for '{mod.Staged.Manifest.OwnerId}' has no simple name")] =
+					(mod.Staged.Manifest.OwnerId, mod.Staged.Manifest.Reloadable);
+		}
 
 		HashSet<string> declaredDeps = new(StringComparer.Ordinal);
 		if (modifPassGraph.Mods.TryGetValue(ownerId, out ResolvedMod resolved))
@@ -1295,7 +1312,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
 		foreach (LoadedCodeMod<TGameApi> mod in preparedCode.Values)
 			try {
-				unload(detachForUnload(mod), diagnostics);
+				unload(detachAssertUnloadable(mod), diagnostics);
 			} catch (Exception cleanupEx) when (!ExceptionPolicy.IsInternalState(cleanupEx)) {
 				cleanupErrs.Add(ExceptionSnapshot.FromException(cleanupEx));
 			}
@@ -1377,7 +1394,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 
 			List<PendingAlcUnload> oldUnloads = new();
 			foreach (LoadedCodeMod<TGameApi> mod in txn.OldCode.Values)
-				oldUnloads.Add(detachForUnload(mod));
+				oldUnloads.Add(detachAssertUnloadable(mod));
 
 			return ModOperationResult.Succeeded(
 				plan.ReloadSet.ToFrozenSet(StringComparer.Ordinal),
@@ -1400,7 +1417,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			if (unloadGracePeriod > TimeSpan.Zero)
 				await Task.Delay(unloadGracePeriod, CancellationToken.None).ConfigureAwait(false);
 			foreach (LoadedCodeMod<TGameApi> mod in txn.PreparedCode.Values)
-				unload(detachForUnload(mod), diagnostics);
+				unload(detachAssertUnloadable(mod), diagnostics);
 			foreach (LoadedContentMod mod in txn.PreparedContent.Values)
 				await mod.Scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
 			throw reloadErr.ToException();
@@ -1411,7 +1428,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		try {
 			foreach (LoadedCodeMod<TGameApi> mod in txn.PreparedCode.Values) {
 				await startDestroyPreparedCodeGenerationAsync(mod, ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
-				preparedUnloads.Add(detachForUnload(mod));
+				preparedUnloads.Add(detachAssertUnloadable(mod));
 			}
 			foreach (LoadedContentMod mod in txn.PreparedContent.Values)
 				await mod.Scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, ct).ConfigureAwait(false);
@@ -1562,8 +1579,14 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			throw new ModLoadException(manifest.OwnerId, $"entry assembly '{manifest.EntryAssembly}' not found");
 		if (contractsAlc is null)
 			throw new InternalStateException("contracts alc not made yet");
-
-		ModAlc alc = new(stagedMod.EntryAssemblyPath, sharedAssemblies, contractsAlc, $"mod:{stagedMod.Generation}");
+		if (!manifest.Reloadable && !ProcessModRegistry.TryClaimNonReloadable(manifest.OwnerId))
+			throw new ModLoadException(
+				manifest.OwnerId,
+				"this non-reloadable mod was already loaded into this process by an earlier runtime, and its code can't be unloaded; restart the process to load it again"
+			);
+		ModAlc alc = new(stagedMod.EntryAssemblyPath, sharedAssemblies, contractsAlc, $"mod:{stagedMod.Generation}", manifest.Reloadable);
+		if (alc.IsCollectible != manifest.Reloadable)
+			throw new InternalStateException($"mod ALC collectibility vs reloadability mismatch: '{manifest.OwnerId}' is reloadable = {manifest.Reloadable} but has ALC collectibility = {alc.IsCollectible}");
 		UntypedBoundedScopeImpl? scope = null;
 		try {
 			Assembly assembly = alc.LoadFromAssemblyPath(stagedMod.EntryAssemblyPath);
@@ -1581,6 +1604,9 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 				reloadEntrypoint = Activator.CreateInstance(reloadEntrypointType)!;
 			}
 
+			if (!alc.IsCollectible)
+				gameModResolver.Add(alc);
+
 			return new LoadedCodeMod<TGameApi> {
 				Staged = stagedMod,
 				Alc = alc,
@@ -1589,17 +1615,20 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 				Scope = scope,
 				Entrypoint = entrypoint,
 				ReloadEntrypoint = reloadEntrypoint,
-				LoadDetours = new DetourDeclSet(stagedMod.Manifest.OwnerId),
-				LoadPatches = new PatchDeclSet(stagedMod.Manifest.OwnerId),
-				LinkDetours = new DetourDeclSet(stagedMod.Manifest.OwnerId),
-				LinkPatches = new PatchDeclSet(stagedMod.Manifest.OwnerId),
+				LoadDetours = new DetourDeclSet(manifest.OwnerId),
+				LoadPatches = new PatchDeclSet(manifest.OwnerId),
+				LinkDetours = new DetourDeclSet(manifest.OwnerId),
+				LinkPatches = new PatchDeclSet(manifest.OwnerId),
 				Exports = new UntypedModExportTable(lifetimeIdentityType),
 			};
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
 			try {
 				if (scope is not null)
 					block(scope.InvalidateAsync(ReloadTeardownReason.FailureRollback, CancellationToken.None));
-				alc.Unload();
+				if (alc.IsCollectible)
+					alc.Unload();
+				else
+					diagnostics.Error($"non-reloadable mod {manifest.OwnerId} failed to load; can't unload its code now, so it's stuck like that for the rest of the process");
 			} catch {
 				// preserve original load failure
 			}
@@ -2070,8 +2099,12 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			throw new InvalidOperationException($"{operation} requires phase {expected}, but current phase is {phase}");
 	}
 
+	/// <returns>
+	/// The ALC to unload, or <see langword="null"/> for a non-reloadable mod, whose code stays loaded
+	/// for the rest of the process's lifetime.
+	/// </returns>
 	[MethodImpl(MethodImplOptions.NoInlining)]
-	private PendingAlcUnload detachForUnload(LoadedCodeMod<TGameApi> mod) {
+	private PendingAlcUnload? detachForUnload(LoadedCodeMod<TGameApi> mod) {
 		nativeLibs.UnregisterGeneration(mod.Staged.Generation);
 		IndirectCallDispatch.ClearForAssembly(mod.Assembly);
 		if (moduleIdLookup.TryGetModuleId(mod.Assembly.ManifestModule, out ModuleId moduleId))
@@ -2080,8 +2113,11 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		ReloadGeneration generation = mod.Staged.Generation;
 		ModAlc alc = mod.Alc;
 		mod.DropStrongReferences();
-		return new PendingAlcUnload(generation, alc);
+		return alc.IsCollectible ? new PendingAlcUnload(generation, alc) : null;
 	}
+
+	private PendingAlcUnload detachAssertUnloadable(LoadedCodeMod<TGameApi> mod) =>
+		detachForUnload(mod) ?? throw new InternalStateException("non-reloadable mod got into a transaction path (just erroneously tried to unload it)");
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static WeakReference beginUnload(PendingAlcUnload pending) {

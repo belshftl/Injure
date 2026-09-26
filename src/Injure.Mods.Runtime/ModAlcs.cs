@@ -4,10 +4,11 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.Loader;
+using Injure.Mods.Abstractions;
 
 namespace Injure.Mods.Runtime;
 
-internal sealed class ModAlc(string entryAssemblyPath, IEnumerable<string> sharedAssemblyNames, ModContractsAlc contracts, string name) : AssemblyLoadContext(name, isCollectible: true) {
+internal sealed class ModAlc(string entryAssemblyPath, IEnumerable<string> sharedAssemblyNames, ModContractsAlc contracts, string name, bool collectible) : AssemblyLoadContext(name, isCollectible: collectible) {
 	private readonly AssemblyDependencyResolver resolver = new(entryAssemblyPath);
 	private readonly HashSet<string> sharedAssemblyNames = new(sharedAssemblyNames, StringComparer.OrdinalIgnoreCase);
 	private readonly ModContractsAlc contracts = contracts;
@@ -32,6 +33,26 @@ internal sealed class ModAlc(string entryAssemblyPath, IEnumerable<string> share
 		return path is null ? 0 : LoadUnmanagedDllFromPath(path);
 	}
 }
+
+internal sealed class PendingAlcUnload : IStrongRefDroppable {
+	public ReloadGeneration Generation { get; }
+	public ModAlc Alc {
+		get => field ?? throw new InternalStateException("mod ALC strong ref has already been dropped");
+		private set;
+	}
+
+	public PendingAlcUnload(ReloadGeneration generation, ModAlc alc) {
+		if (!alc.IsCollectible)
+			throw new InternalStateException("PendingAlcUnload created for a non-collectible ALC, which can't unload");
+		Generation = generation;
+		Alc = alc;
+	}
+
+	public void DropStrongReferences() {
+		Alc = null!;
+	}
+}
+
 
 internal sealed class ModContractsAlc(IReadOnlyDictionary<string, string> pathsBySimpleName) : AssemblyLoadContext("mod-contracts", isCollectible: false) {
 	private readonly IReadOnlyDictionary<string, string> pathsBySimpleName = pathsBySimpleName;

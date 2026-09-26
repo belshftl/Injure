@@ -15,13 +15,13 @@ anyhow, to v0.1:
   - [x] some tests currently fail, all of those are real bugs, fix those
   - [x] add the `IgnoresAccessChecksTo` check to `ModRuntime`
   - [x] add an api to debug-dump the current il, make it nice
-  - [ ] fix the runtime failing to resolve game -> non-reloadable-mod `AssemblyRef`s
+  - [x] fix the runtime failing to resolve game -> non-reloadable-mod `AssemblyRef`s
   - [ ] unwrap all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice because it gets wrapped
   - [ ] add conveniences to call methods from delegates to static method groups
   - [ ] wire declaring locals into the public api
   - [ ] fix some more bugs, i'm sure there's a few
 - [ ] document the mod loader properly:
-  - [ ] write doc comments for all of `Mods.*`, this is the highest-priority one of all the pending doc comments
+  - [ ] write doc comments for all of `Mods.*`'s public api + for `ModRuntime`, this is the highest-priority one of all the pending doc comments
   - [ ] clear out the existing `docs/*` (that's already planned) except for maybe `docs/conventions/dangerous-get.md`, and document it under `docs/mods/*`, its design, the load/reload/unload process, the purpose of `IModLifetimeIdentity`/`<L>`, the dependency semantics, etc.
   - [ ] document all the terminology too; notable are "modif" (both as a noun and a verb), "detour", "patch", "detour impl", "detour chain", and "manipulator"
   - [ ] add something on generic type parameters in `docs/conventions/`

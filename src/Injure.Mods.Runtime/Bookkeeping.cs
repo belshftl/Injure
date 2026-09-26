@@ -143,18 +143,6 @@ internal sealed class LoadedCodeMod<TGameApi> : ILoadedCodeMod {
 	}
 }
 
-internal sealed class PendingAlcUnload(ReloadGeneration generation, ModAlc alc) : IStrongRefDroppable {
-	public ReloadGeneration Generation { get; } = generation;
-	public ModAlc Alc {
-		get => field ?? throw new InternalStateException("mod ALC strong ref has already been dropped");
-		private set;
-	} = alc;
-
-	public void DropStrongReferences() {
-		Alc = null!;
-	}
-}
-
 internal enum ModOperationResultKind {
 	Succeeded,
 	RollbackSucceeded,
