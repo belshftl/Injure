@@ -168,7 +168,8 @@ internal sealed class IlMethodBody {
 		instrs.AddRange(newInstrs);
 		anchors.Clear();
 		anchors.AddRange(newAnchors);
-		appendLocals(addedLocals);
+		if (addedLocals.Count > 0)
+			appendLocals(addedLocals);
 		anchorBoundaries = null;
 		ComputedMaxStack = null;
 		validateShape();

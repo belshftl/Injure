@@ -12,16 +12,20 @@ anyhow, to v0.1:
   - [x] migrate over the existing bits of `Mods.Runtime.*`
   - [x] add an api for declaring locals to `IlTransactionCore`, this was initially planned for a little bit later but it became urgent
   - [x] replace the bandaid `DetourTransform` fix with a proper fix; this needs `IlTransactionCore` to be able to declare locals
-  - [ ] some tests currently fail, all of those are real bugs, fix those
+  - [x] some tests currently fail, all of those are real bugs, fix those
+  - [ ] add the `IgnoresAccessChecksTo` check to `ModRuntime`
+  - [ ] unwrap all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice because it gets wrapped
+  - [ ] add an api to debug-dump the current il, make it nice
+  - [ ] add conveniences to call methods from delegates to static method groups
   - [ ] wire declaring locals into the public api
   - [ ] fix some more bugs, i'm sure there's a few
-- [ ] write a readme, properly outline the design philosophy
-- [ ] for now, temporarily silence our own analyzer warning for foreign types exposed through public apis, it's planned to be properly dealt with later down the line
 - [ ] document the mod loader properly:
   - [ ] write doc comments for all of `Mods.*`, this is the highest-priority one of all the pending doc comments
   - [ ] clear out the existing `docs/*` (that's already planned) except for maybe `docs/conventions/dangerous-get.md`, and document it under `docs/mods/*`, its design, the load/reload/unload process, the purpose of `IModLifetimeIdentity`/`<L>`, the dependency semantics, etc.
   - [ ] document all the terminology too; notable are "modif" (both as a noun and a verb), "detour", "patch", "detour impl", "detour chain", and "manipulator"
   - [ ] add something on generic type parameters in `docs/conventions/`
+- [ ] write a readme, properly outline the design philosophy
+- [ ] for now, temporarily silence our own analyzer warning for foreign types exposed through public apis, it's planned to be properly dealt with later down the line
 - [ ] pause for a bit to write a *lot* of tests and doc comments for the rest of the project; not writing them as development goes in the past was a mistake that needs to be patched up before it's too late:
   - [ ] tests for the collections
   - [ ] doc comments for the layers system

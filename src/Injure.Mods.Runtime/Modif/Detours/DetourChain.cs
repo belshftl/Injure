@@ -104,7 +104,7 @@ internal sealed class DetourChain {
 		Type NextType,
 		Type[] Parameters
 	) {
-		public static Shape Validate(DetourRegistration detour, Type returnType, Type[] parameters) {
+		public static Shape Validate(DetourRegistration detour, Type returnType, Type[] parameters, bool byrefReceiver) {
 			if (detour.Impl is not MethodInfo impl || !impl.IsStatic)
 				throw new ArgumentException($"detour impl '{detour}' must be a static method", nameof(detour));
 			if (impl.IsGenericMethodDefinition)
@@ -136,9 +136,9 @@ internal sealed class DetourChain {
 				if (widened[i] == parameters[i])
 					continue;
 
-				bool boxableByrefReceiver = parameters[i].IsByRef
+				bool boxableByrefReceiver = i == 0
+					&& byrefReceiver
 					&& widened[i] == typeof(object)
-					&& parameters[i].GetElementType()!.IsValueType
 					&& !parameters[i].GetElementType()!.IsByRefLike;
 
 				if (!boxableByrefReceiver && (parameters[i].IsByRef || parameters[i].IsPointer || widened[i].IsByRef || widened[i].IsPointer))
@@ -191,6 +191,8 @@ internal sealed class DetourChain {
 		}
 	}
 
+	private readonly record struct Writeback(LocalBuilder Pointer, LocalBuilder Box, Type Pointee);
+
 	private readonly List<object> retained = new();
 
 	/// <summary>
@@ -223,7 +225,7 @@ internal sealed class DetourChain {
 	public static void ValidateShape(DetourRegistration detour, MethodBase target) {
 		InternalStateException.ThrowIfNull(detour);
 		InternalStateException.ThrowIfNull(target);
-		Shape.Validate(detour, returnTypeOf(target), parameterTypesOf(target));
+		Shape.Validate(detour, returnTypeOf(target), ParameterTypesOf(target), hasByrefReceiver(target));
 	}
 
 	/// <summary>
@@ -246,11 +248,11 @@ internal sealed class DetourChain {
 
 		DetourChain chain = new();
 		Type returnType = returnTypeOf(target);
-		Type[] parameters = parameterTypesOf(target);
+		Type[] parameters = ParameterTypesOf(target);
 
 		var shapes = new Shape[detours.Length];
 		for (int i = 0; i < detours.Length; i++)
-			shapes[i] = Shape.Validate(detours[i], returnType, parameters);
+			shapes[i] = Shape.Validate(detours[i], returnType, parameters, hasByrefReceiver(target));
 
 		Delegate next = chain.buildTerminus(target, slot, returnType, parameters, shapes[^1]);
 		for (int i = detours.Length - 1; i >= 1; i--)
@@ -280,6 +282,11 @@ internal sealed class DetourChain {
 			skipVisibility: true
 		);
 		ILGenerator il = thunk.GetILGenerator();
+		bool writesBack = boxesAByref(parameters, first.Parameters);
+		List<Writeback> writebacks = new();
+		LocalBuilder? retval = writesBack && returnType != typeof(void) ? il.DeclareLocal(returnType) : null;
+		if (writesBack)
+			il.BeginExceptionBlock();
 
 		il.Emit(OpCodes.Ldc_I4, slot);
 		il.Emit(OpCodes.Call, getChainStateMethod);
@@ -289,10 +296,19 @@ internal sealed class DetourChain {
 
 		for (int i = 0; i < parameters.Length; i++) {
 			il.Emit(OpCodes.Ldarg, i);
-			emitWiden(il, parameters[i], first.Parameters[i]);
+			emitWidenWithWriteback(il, parameters[i], first.Parameters[i], writebacks);
 		}
 
 		il.Emit(OpCodes.Call, first.Impl);
+		if (writesBack) {
+			if (retval is not null)
+				il.Emit(OpCodes.Stloc, retval);
+			il.BeginFinallyBlock();
+			emitWritebacks(il, writebacks);
+			il.EndExceptionBlock();
+			if (retval is not null)
+				il.Emit(OpCodes.Ldloc, retval);
+		}
 		il.Emit(OpCodes.Ret);
 		retained.Add(thunk);
 		retained.Add(first.Impl);
@@ -321,6 +337,11 @@ internal sealed class DetourChain {
 			skipVisibility: true
 		);
 		ILGenerator il = thunk.GetILGenerator();
+		bool writesBack = boxesAByref(parameters, shape.Parameters);
+		List<Writeback> writebacks = new();
+		LocalBuilder? retval = writesBack && returnType != typeof(void) ? il.DeclareLocal(returnType) : null;
+		if (writesBack)
+			il.BeginExceptionBlock();
 
 		il.Emit(OpCodes.Ldarg_0);
 		il.Emit(OpCodes.Ldfld, nextField);
@@ -328,10 +349,19 @@ internal sealed class DetourChain {
 
 		for (int i = 0; i < parameters.Length; i++) {
 			emitNarrowedArgument(il, caller.Parameters[i], parameters[i], i);
-			emitWiden(il, parameters[i], shape.Parameters[i]);
+			emitWidenWithWriteback(il, parameters[i], shape.Parameters[i], writebacks);
 		}
 
 		il.Emit(OpCodes.Call, shape.Impl);
+		if (writesBack) {
+			if (retval is not null)
+				il.Emit(OpCodes.Stloc, retval);
+			il.BeginFinallyBlock();
+			emitWritebacks(il, writebacks);
+			il.EndExceptionBlock();
+			if (retval is not null)
+				il.Emit(OpCodes.Ldloc, retval);
+		}
 		il.Emit(OpCodes.Ret);
 
 		Delegate link = thunk.CreateDelegate(caller.NextType, state);
@@ -408,6 +438,33 @@ internal sealed class DetourChain {
 		}
 	}
 
+	private static void emitWidenWithWriteback(ILGenerator il, Type from, Type to, List<Writeback> writebacks) {
+		if (!from.IsByRef || to.IsByRef) {
+			emitWiden(il, from, to);
+			return;
+		}
+		Type pointee = from.GetElementType()!;
+		LocalBuilder pointer = il.DeclareLocal(from);
+		LocalBuilder box = il.DeclareLocal(typeof(object));
+		il.Emit(OpCodes.Dup);
+		il.Emit(OpCodes.Stloc, pointer);
+		il.Emit(OpCodes.Ldobj, pointee);
+		il.Emit(OpCodes.Box, pointee);
+		il.Emit(OpCodes.Dup);
+		il.Emit(OpCodes.Stloc, box);
+		writebacks.Add(new Writeback(pointer, box, pointee));
+	}
+
+	private static void emitWritebacks(ILGenerator il, List<Writeback> writebacks) {
+		foreach (Writeback w in writebacks) {
+			il.Emit(OpCodes.Ldloc, w.Pointer);
+			il.Emit(OpCodes.Ldloc, w.Box);
+			il.Emit(OpCodes.Unbox, w.Pointee);
+			il.Emit(OpCodes.Ldobj, w.Pointee);
+			il.Emit(OpCodes.Stobj, w.Pointee);
+		}
+	}
+
 	private static void emitNarrowedArgument(ILGenerator il, Type from, Type to, int index) {
 		if (from == to) {
 			il.Emit(OpCodes.Ldarg, index + 1);
@@ -425,7 +482,11 @@ internal sealed class DetourChain {
 
 	// ==========================================================================================
 	// method info
-	private static Type[] parameterTypesOf(MethodBase target) {
+
+	/// <remarks>
+	/// Public for test purposes.
+	/// </remarks>
+	public static Type[] ParameterTypesOf(MethodBase target) {
 		ParameterInfo[] declared = target.GetParameters();
 		var types = new Type[declared.Length + (target.IsStatic ? 0 : 1)];
 		int offset = 0;
@@ -449,4 +510,13 @@ internal sealed class DetourChain {
 		RuntimeHelpers.PrepareMethod(handle);
 		return handle.GetFunctionPointer();
 	}
+
+	private static bool boxesAByref(Type[] from, Type[] to) {
+		for (int i = 0; i < from.Length; i++)
+			if (from[i].IsByRef && !to[i].IsByRef)
+				return true;
+		return false;
+	}
+
+	private static bool hasByrefReceiver(MethodBase target) => !target.IsStatic && target.DeclaringType!.IsValueType;
 }

@@ -320,11 +320,11 @@ public sealed class IlPinnedTypeRef : IlTypeRef {
 	/// <summary>
 	/// The pinned type.
 	/// </summary>
-	public IlTypeRef ElementType { get; }
+	public IlTypeRef PinnedType { get; }
 
-	internal IlPinnedTypeRef(IlTypeRef elementType) => ElementType = elementType;
+	internal IlPinnedTypeRef(IlTypeRef pinnedType) => PinnedType = pinnedType;
 
-	public override string ToString() => $"pin {ElementType}";
+	public override string ToString() => $"pin {PinnedType}";
 }
 
 /// <summary>

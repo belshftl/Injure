@@ -203,7 +203,7 @@ internal static class SrmSignatureEncoder {
 					throw new IlEncodingException("a type cannot be pinned twice");
 				builder.WriteByte(elementTypePinned);
 				isPinned = true;
-				type = pinned.ElementType;
+				type = pinned.PinnedType;
 				continue;
 			case IlByRefTypeRef byRef:
 				if (isByRef)

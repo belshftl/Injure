@@ -53,7 +53,7 @@ internal static class IlRefMatching {
 			(IlSzArrayTypeRef a, IlSzArrayTypeRef b) => typeEquals(a.ElementType, b.ElementType),
 			(IlPointerTypeRef a, IlPointerTypeRef b) => typeEquals(a.ElementType, b.ElementType),
 			(IlByRefTypeRef a, IlByRefTypeRef b) => typeEquals(a.ElementType, b.ElementType),
-			(IlPinnedTypeRef a, IlPinnedTypeRef b) => typeEquals(a.ElementType, b.ElementType),
+			(IlPinnedTypeRef a, IlPinnedTypeRef b) => typeEquals(a.PinnedType, b.PinnedType),
 			(IlModifiedTypeRef a, IlModifiedTypeRef b) =>
 				a.IsRequired == b.IsRequired && typeEquals(a.Modifier, b.Modifier) &&
 				typeEquals(a.UnmodifiedType, b.UnmodifiedType),

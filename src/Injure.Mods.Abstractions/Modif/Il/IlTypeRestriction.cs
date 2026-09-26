@@ -87,7 +87,7 @@ internal static class IlTypeRestrictionCheck {
 			return null;
 		}
 		case IlPinnedTypeRef pinned:
-			return CheckSignatureType(pinned.ElementType, in ctx);
+			return CheckSignatureType(pinned.PinnedType, in ctx);
 		case IlModifiedTypeRef modified:
 			return CheckSignatureType(modified.UnmodifiedType, in ctx);
 		default:
@@ -117,7 +117,7 @@ internal static class IlTypeRestrictionCheck {
 		case IlByRefTypeRef byRef:
 			return CheckTypeOperand(byRef.ElementType, in ctx);
 		case IlPinnedTypeRef pinned:
-			return CheckTypeOperand(pinned.ElementType, in ctx);
+			return CheckTypeOperand(pinned.PinnedType, in ctx);
 		case IlModifiedTypeRef modified:
 			return CheckTypeOperand(modified.Modifier, in ctx) ?? CheckTypeOperand(modified.UnmodifiedType, in ctx);
 		default:
@@ -148,7 +148,7 @@ internal static class IlTypeRestrictionCheck {
 				type = byRef.ElementType;
 				continue;
 			case IlPinnedTypeRef pinned:
-				type = pinned.ElementType;
+				type = pinned.PinnedType;
 				continue;
 			case IlModifiedTypeRef modified:
 				type = modified.UnmodifiedType;

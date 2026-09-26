@@ -28,7 +28,7 @@ internal static class IlRefEquality {
 			(IlSzArrayTypeRef a, IlSzArrayTypeRef b) => TypeEquals(a.ElementType, b.ElementType),
 			(IlPointerTypeRef a, IlPointerTypeRef b) => TypeEquals(a.ElementType, b.ElementType),
 			(IlByRefTypeRef a, IlByRefTypeRef b) => TypeEquals(a.ElementType, b.ElementType),
-			(IlPinnedTypeRef a, IlPinnedTypeRef b) => TypeEquals(a.ElementType, b.ElementType),
+			(IlPinnedTypeRef a, IlPinnedTypeRef b) => TypeEquals(a.PinnedType, b.PinnedType),
 			(IlModifiedTypeRef a, IlModifiedTypeRef b) =>
 				a.IsRequired == b.IsRequired && TypeEquals(a.Modifier, b.Modifier) &&
 				TypeEquals(a.UnmodifiedType, b.UnmodifiedType),
@@ -81,7 +81,7 @@ internal static class IlRefEquality {
 			hash.Add(TypeHashCode(type.ElementType));
 			break;
 		case IlPinnedTypeRef type:
-			hash.Add(TypeHashCode(type.ElementType));
+			hash.Add(TypeHashCode(type.PinnedType));
 			break;
 		case IlModifiedTypeRef type:
 			hash.Add(TypeHashCode(type.Modifier));

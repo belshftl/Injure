@@ -42,7 +42,7 @@ internal static class IlRefDisplay {
 			IlByRefTypeRef byRef => FormatType(byRef.ElementType) + "&",
 			IlModifiedTypeRef modified => FormatType(modified.UnmodifiedType),
 			IlFunctionPointerTypeRef functionPointer => "method " + FormatSignature(functionPointer.Signature) + "*",
-			IlPinnedTypeRef pinned => FormatType(pinned.ElementType),
+			IlPinnedTypeRef pinned => FormatType(pinned.PinnedType),
 			IlGlobalModuleTypeRef => "<Module>",
 			_ => type.ToString() ?? "<unknown type>",
 		};

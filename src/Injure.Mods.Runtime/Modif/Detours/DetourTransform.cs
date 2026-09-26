@@ -94,7 +94,7 @@ internal sealed class DetourTransform : IDetourTransform {
 	) {
 		InternalStateException.ThrowIfNull(body);
 		int slot = slotFor(method);
-		IlMethodSignature signature = chainSignature(body.Method);
+		IlMethodSignature signature = ChainSignature(body.Method);
 
 		IlTransactionCore core = new(body, EngineInfo.OwnerId, null, default, null);
 		IlLabel original = core.DefineLabel();
@@ -120,10 +120,26 @@ internal sealed class DetourTransform : IDetourTransform {
 		return body;
 	}
 
-	private static IlMethodSignature chainSignature(IlMethodRef target) {
+	private static bool isValueType(IlTypeRef type) => type switch {
+		IlNamedTypeRef { TypeKind.Tag: IlNamedTypeKind.Case.ValueType } => true,
+		IlNamedTypeRef { TypeKind.Tag: IlNamedTypeKind.Case.Class } => false,
+		IlGenericInstanceTypeRef inst => isValueType(inst.GenericType),
+		// the decoder normalizes System.Int32 and friends to primitives, so a detour on e.g.
+		// int.ToString() has a primitive declaring type
+		IlPrimitiveTypeRef p => p.Code is not PrimitiveTypeCode.Object and not PrimitiveTypeCode.String,
+		_ => throw new InternalStateException($"can't tell whether receiver type '{type}' is a value type"),
+	};
+
+	private static IlTypeRef receiverType(IlTypeRef declaringType) =>
+		isValueType(declaringType) ? IlRefFactory.ByRef(declaringType) : declaringType;
+
+	/// <remarks>
+	/// Public for test purposes.
+	/// </remarks>
+	public static IlMethodSignature ChainSignature(IlMethodRef target) {
 		IlMethodSignature signature = target.Signature;
 		ImmutableArray<IlTypeRef> parameters = signature.HasThis && !signature.ExplicitThis
-			? [target.DeclaringType, .. signature.ParameterTypes]
+			? [receiverType(target.DeclaringType), .. signature.ParameterTypes]
 			: signature.ParameterTypes;
 		return new IlMethodSignature(
 			SignatureCallingConvention.Default,

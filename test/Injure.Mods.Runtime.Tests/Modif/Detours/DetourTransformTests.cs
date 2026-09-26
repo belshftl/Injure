@@ -19,6 +19,13 @@ public sealed class DetourTransformTests {
 #pragma warning restore CA1822 // method can be marked as static
 	}
 
+	private struct Value {
+		public int Field;
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		public int Incr() => ++Field;
+	}
+
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static int target(int value) => value;
 
@@ -121,5 +128,33 @@ public sealed class DetourTransformTests {
 
 		// entry, then the argument; calli pops both and pushes the return value
 		Assert.Equal(2, IlMaxStackAnalyzer.Analyze(body));
+	}
+
+	public static TheoryData<MethodBase> ChainSignatureTargets => new() {
+		method(typeof(DetourTransformTests), nameof(target)),
+		method(typeof(Receiver), nameof(Receiver.Scale)),
+		method(typeof(Value), nameof(Value.Incr)),
+		typeof(int).GetMethod(nameof(int.ToString), Type.EmptyTypes)!,
+		typeof(Guid).GetMethod(nameof(Guid.ToByteArray), Type.EmptyTypes)!,
+	};
+
+#pragma warning disable xUnit1045 // TheoryData<T> type might not be serializable
+	[Theory]
+	[MemberData(nameof(ChainSignatureTargets))]
+	public static void PrologueCalliSignatureMatchesTheChainHead(MethodBase target) {
+		IlMethodSignature prologue = DetourTransform.ChainSignature(IlRefFactory.Method(target));
+		IlTypeRef[] head = DetourChain.ParameterTypesOf(target).Select(IlRefFactory.Type).ToArray();
+
+		Assert.Equal(head, prologue.ParameterTypes.ToArray());
+	}
+#pragma warning restore xUnit1045 // TheoryData<T> type might not be serializable
+
+	[Fact]
+	public static void AStructReceiverIsPassedAsByref() {
+		IlMethodBody body = apply(method(typeof(Value), nameof(Value.Incr)));
+
+		IlMethodSignature signature = Assert.IsType<IlCallSiteOperand>(body.Instructions[7].Operand).Signature;
+		IlByRefTypeRef receiver = Assert.IsType<IlByRefTypeRef>(signature.ParameterTypes[0]);
+		Assert.Equal(IlRefFactory.Type(typeof(Value)), receiver.ElementType);
 	}
 }
