@@ -13,9 +13,9 @@ anyhow, to v0.1:
   - [x] add an api for declaring locals to `IlTransactionCore`, this was initially planned for a little bit later but it became urgent
   - [x] replace the bandaid `DetourTransform` fix with a proper fix; this needs `IlTransactionCore` to be able to declare locals
   - [x] some tests currently fail, all of those are real bugs, fix those
-  - [ ] add the `IgnoresAccessChecksTo` check to `ModRuntime`
-  - [ ] unwrap all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice because it gets wrapped
+  - [x] add the `IgnoresAccessChecksTo` check to `ModRuntime`
   - [ ] add an api to debug-dump the current il, make it nice
+  - [ ] unwrap all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice because it gets wrapped
   - [ ] add conveniences to call methods from delegates to static method groups
   - [ ] wire declaring locals into the public api
   - [ ] fix some more bugs, i'm sure there's a few
@@ -54,6 +54,8 @@ anyhow, to v0.1:
   - [ ] mutation il edits, explicitly marked as advanced/unsafe
   - [ ] removal il edits, explicitly marked as advanced/unsafe
   - [ ] il authoring api to declare locals and exception regions
+  - [ ] implement detouring open generics
+  - [ ] think about what to do with `IndirectCall` and open generics
 - [ ] `Layers.Ecs` system for entities and components:
   - [ ] a notable design point i'm thinking of is that entities/components should be generic over the particular type of parent they expect, so the base classes are abstract `Entity<TParent> : IUntypedEntity where TParent : Layer` and `Component<TParent> : IUntypedComponent where TParent : IUntypedEntity`, and a particular entity is either `MyEntity : Entity<Level>` if it needs a particular type of layer or `MyEntity<TParent> : Entity<TParent> where TParent : Layer` if it's layer-agnostic
   - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad

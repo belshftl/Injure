@@ -169,13 +169,14 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 	// ==========================================================================
 	// constants
 	public const string ManifestJson = "manifest.json";
-	public const int MaxAlcUnloadGcAttempts = 8;
+	public const int MaxAlcUnloadGcAttempts = 10;
 	public static readonly ImmutableArray<string> DefaultSharedAssemblies = ImmutableArray.Create(
 		"Injure",
 		"Injure.Mods.Abstractions",
 		"Injure.Mods.Runtime"
 	);
 
+	private const string ignoresAccessChecksToName = "System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute";
 	private static readonly Assembly mainAssembly = typeof(InternalStateException).Assembly;
 	private static readonly Assembly abstractionsAssembly = typeof(IModLifetimeIdentity).Assembly;
 	private static readonly Assembly runtimeAssembly = typeof(ModRuntime<>).Assembly;
@@ -184,6 +185,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 	// state
 	private readonly string gameOwnerId;
 	private readonly Assembly[] gameAssemblies;
+	private readonly FrozenSet<string> gameAssemblyNames;
 	private readonly string modDir;
 	private readonly string cacheDir;
 	private readonly Func<ModApiFactoryContext, TGameApi> apiFactory;
@@ -228,12 +230,15 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 	public ModRuntime(ModRuntimeOptions<TGameApi> options) {
 		gameOwnerId = options.GameOwnerId ?? throw new ArgumentNullException(nameof(options), "GameOwnerId cannot be null");
 		gameAssemblies = options.GameAssemblies?.ToArray() ?? throw new ArgumentNullException(nameof(options), "GameAssemblies cannot be null");
+		gameAssemblyNames = gameAssemblies
+			.Select(static a => a.GetName().Name ?? throw new InvalidOperationException($"game assembly '{a}' doesn't have a simple name"))
+			.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 		modDir = options.ModDirectory ?? throw new ArgumentNullException(nameof(options), "ModDirectory cannot be null");
 		cacheDir = options.CacheDirectory ?? throw new ArgumentNullException(nameof(options), "CacheDirectory cannot be null");
 		apiFactory = options.ApiFactory ?? throw new ArgumentNullException(nameof(options), "ApiFactory cannot be null");
 		if (options.AdditionalSharedAssemblies is null)
 			throw new ArgumentNullException(nameof(options), "AdditionalSharedAssemblies cannot be null");
-		sharedAssemblies = DefaultSharedAssemblies.Concat(options.AdditionalSharedAssemblies).ToArray();
+		sharedAssemblies = DefaultSharedAssemblies.Concat(gameAssemblyNames).Concat(options.AdditionalSharedAssemblies).ToArray();
 		if (options.DiagnosticsSink is null)
 			throw new ArgumentNullException(nameof(options), "DiagnosticsSink cannot be null");
 		diagnosticsSinkRegistry = new DiagnosticsSinkRegistry([options.DiagnosticsSink]);
@@ -801,8 +806,8 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 		Dictionary<string, (string OwnerId, bool isReloadable)> codeOwnerInfo = new(StringComparer.Ordinal);
 		foreach (Assembly asm in new[] { mainAssembly, abstractionsAssembly, runtimeAssembly })
 			codeOwnerInfo[asm.GetName().Name ?? throw new InternalStateException($"engine assembly '{asm}' has no simple name")] = (EngineInfo.OwnerId, false);
-		foreach (Assembly asm in gameAssemblies)
-			codeOwnerInfo[asm.GetName().Name ?? throw new InternalStateException($"game assembly '{asm}' has no simple name")] = (gameOwnerId, false);
+		foreach (string name in gameAssemblyNames)
+			codeOwnerInfo[name] = (gameOwnerId, false);
 		foreach (LoadedCodeMod<TGameApi> mod in modifPassCode ?? throw new InternalStateException("GetContext outside a modif pass"))
 			codeOwnerInfo[mod.Assembly.GetName().Name ?? throw new InternalStateException($"mod assembly for '{mod.Staged.Manifest.OwnerId}' has no simple name")] =
 				(mod.Staged.Manifest.OwnerId, mod.Staged.Manifest.Reloadable);
@@ -1558,6 +1563,7 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 		try {
 			Assembly assembly = alc.LoadFromAssemblyPath(stagedMod.EntryAssemblyPath);
 			Type lifetimeIdentityType = validateModAssemblyAttribute(manifest, assembly).LifetimeIdentityType;
+			validateIgnoresAccessChecksTo(manifest.OwnerId, assembly);
 			foreach (Assembly asm in alc.Assemblies)
 				nativeLibs.RegisterAssembly(asm, stagedMod.Generation);
 
@@ -1801,6 +1807,24 @@ public sealed class ModRuntime<TGameApi> : IAssemblyOwnerResolver, IIlOwnerCtxPr
 			);
 		validateLifetimeIdentityType(manifest.OwnerId, attribute.LifetimeIdentityType);
 		return attribute;
+	}
+
+	private void validateIgnoresAccessChecksTo(string ownerId, Assembly assembly) {
+		HashSet<string> declared = new(StringComparer.OrdinalIgnoreCase);
+		foreach (CustomAttributeData data in assembly.GetCustomAttributesData())
+			if (data.AttributeType.FullName == ignoresAccessChecksToName && data.ConstructorArguments is [{ Value: string name }])
+				declared.Add(name);
+
+		List<string>? missing = null;
+		foreach (AssemblyName reference in assembly.GetReferencedAssemblies())
+			if (reference.Name is string name && gameAssemblyNames.Contains(name) && !declared.Contains(name))
+				(missing ??= new List<string>()).Add(name);
+
+		if (missing is not null)
+			throw new ModLoadException(
+				ownerId,
+				$"mod assembly '{assembly.GetName().Name}' references game assembly(ies) {string.Join(", ", missing.Select(static n => $"'{n}'"))} without declaring [assembly: IgnoresAccessChecksTo(...)] for them; mods must declare that for every game assembly they reference"
+			);
 	}
 
 	private static void validateLifetimeIdentityType(string ownerId, Type lifetimeIdentityType) {
