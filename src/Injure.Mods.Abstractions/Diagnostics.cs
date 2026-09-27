@@ -15,33 +15,47 @@ public readonly partial struct DiagnosticSeverity {
 	/// <summary>Raw switch tag for <see cref="DiagnosticSeverity"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// The diagnostic is for debugging, tracing, or other verbose operational detail;
-		/// the lowest severity level.
+		/// The diagnostic is for debugging, tracing, or other verbose operational detail; the lowest
+		/// severity level.
 		/// </summary>
+		/// <remarks>
+		/// The above description is advisory rather than strict.
+		/// </remarks>
 		Debug = 1,
 
 		/// <summary>
-		/// The diagnostic reports normal operation, status, or other information that does
-		/// not indicate a problem requiring attention.
+		/// The diagnostic reports normal operation, status, or other information that does not indicate
+		/// a problem requiring attention.
 		/// </summary>
+		/// <remarks>
+		/// The above description is advisory rather than strict.
+		/// </remarks>
 		Info,
 
 		/// <summary>
-		/// The diagnostic reports a potentially problematic condition that does not prevent
-		/// continued operation, but may warrant investigation or corrective action.
+		/// The diagnostic reports a potentially problematic condition that does not prevent continued
+		/// operation, but may warrant investigation or corrective action.
 		/// </summary>
+		/// <remarks>
+		/// The above description is advisory rather than strict.
+		/// </remarks>
 		Warning,
 
 		/// <summary>
-		/// The diagnostic reports a non-fatal failure or invalid condition. The affected
-		/// operation, component, or requested functionality did not complete successfully
-		/// and typically requires corrective action.
+		/// The diagnostic reports a non-fatal failure or invalid condition. The affected operation,
+		/// component, or requested functionality did not complete successfully and typically requires
+		/// corrective action.
 		/// </summary>
 		/// <remarks>
-		/// Conditions that prevent the current operation from continuing should generally
-		/// be represented by an exception as well as, or instead of, an error diagnostic.
-		/// Fatal runtime or process failures should normally be reported through the
-		/// mechanism responsible for handling that failure.
+		/// <para>
+		/// Conditions that prevent the current operation from continuing should generally be represented
+		/// by an exception as well as, or instead of, an error diagnostic. Fatal runtime or process
+		/// failures should normally be reported through the mechanism responsible for handling that
+		/// failure.
+		/// </para>
+		/// <para>
+		/// The above description is advisory rather than strict.
+		/// </para>
 		/// </remarks>
 		Error,
 	}
@@ -54,11 +68,11 @@ public readonly partial struct DiagnosticSeverity {
 /// <param name="Severity">Severity of the diagnostic.</param>
 /// <param name="Message">Diagnostic message, as reported by the component.</param>
 /// <param name="Generation">
-/// Reload generation of the component that emitted the diagnostic, or <see langword="null"/>
-/// if the diagnostic was emitted by a component that is not associated with a reload generation.
+/// Reload generation of the component that emitted the diagnostic, or <see langword="null"/> if the
+/// diagnostic was emitted by a component that is not associated with a reload generation.
 /// </param>
 /// <remarks>
-/// <see langword="default"/> produces an invalid value of this type.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly record struct DiagnosticEvent(
 	string SourceOwnerId,
@@ -101,10 +115,10 @@ public readonly record struct DiagnosticEvent(
 /// <see cref="Report(in DiagnosticEvent)"/> calls.
 /// </para>
 /// <para>
-/// Messages may contain formatting intended for monospaced presentation, such as
-/// indentation, aligned columns, and source excerpts. A sink that controls final
-/// presentation should use a monospaced font where practical. A sink that forwards
-/// diagnostics elsewhere is not responsible for enforcing this.
+/// Messages may contain formatting intended for monospaced presentation, such as indentation,
+/// aligned columns, and source excerpts. A sink that controls final presentation should use a
+/// monospaced font where practical. A sink that forwards diagnostics elsewhere is not
+/// responsible for enforcing this.
 /// </para>
 /// </remarks>
 public interface IDiagnosticsSink {
@@ -126,29 +140,28 @@ public static class DiagnosticsSinkExtensions {
 		/// <remarks>
 		/// <para>
 		/// Sink exceptions are collected in enumeration order and rethrown as an
-		/// <see cref="AggregateException"/> after all sinks have been invoked,
-		/// subject to the standard exception-recording rules; see
-		/// <c>Docs/exception-recording.md</c> for more info.
+		/// <see cref="AggregateException"/> after all sinks have been invoked, subject to the standard
+		/// exception-recording rules; see <c>Docs/exception-recording.md</c> for more info.
 		/// </para>
 		/// <para>
-		/// The sequence is enumerated exactly once. This method does not provide
-		/// synchronization for the sequence or its elements.
+		/// The sequence is enumerated exactly once. This method does not provide synchronization for
+		/// the sequence or its elements.
 		/// </para>
 		/// <para>
-		/// A <see langword="null"/> element records an <see cref="ArgumentNullException"/>
-		/// in the same way as a sink-thrown exception.
+		/// A <see langword="null"/> element records an <see cref="ArgumentNullException"/> in the same
+		/// way as a sink-thrown exception.
 		/// </para>
 		/// <para>
-		/// Exceptions thrown by enumeration itself are not treated as sink exceptions and
-		/// are not caught; as such, they are thrown out of the method, terminating reporting.
+		/// Exceptions thrown by enumeration itself are not treated as sink exceptions and are not caught;
+		/// as such, they are thrown out of the method, terminating reporting.
 		/// </para>
 		/// </remarks>
 		/// <exception cref="ArgumentNullException">
 		/// Thrown if <paramref name="sinks"/> is <see langword="null"/>.
 		/// </exception>
 		/// <exception cref="AggregateException">
-		/// Thrown after reporting completes if one or more sink invocations failed or the
-		/// sequence contained a <see langword="null"/> element.
+		/// Thrown after reporting completes if one or more sink invocations failed, or if the sequence
+		/// contained a <see langword="null"/> element.
 		/// </exception>
 		public void ReportAll(in DiagnosticEvent d) {
 			ArgumentNullException.ThrowIfNull(sinks);
@@ -171,29 +184,29 @@ public static class DiagnosticsSinkExtensions {
 
 /// <summary>
 /// Combines multiple diagnostics sinks into a single sink using
-/// <see cref="DiagnosticsSinkExtensions.ReportAll"/>; see the documentation of
-/// that method for behavior details.
+/// <see cref="DiagnosticsSinkExtensions.ReportAll"/>; see the documentation of that method for
+/// behavior details.
 /// </summary>
-/// <param name="sinks">
-/// The sinks to combine.
-/// </param>
+/// <param name="sinks">The sinks to combine.</param>
 /// <remarks>
-/// <paramref name="sinks"/> is copied during construction; later changes to the
-/// original array do not affect this sink.
+/// <paramref name="sinks"/> is copied during construction; later changes to the original array do
+/// not affect this sink.
 /// </remarks>
 /// <exception cref="ArgumentNullException">
 /// Thrown if <paramref name="sinks"/> is <see langword="null"/> or contains a
 /// <see langword="null"/> element.
 /// </exception>
 public sealed class CompositeDiagnosticsSink(params IDiagnosticsSink[] sinks) : IDiagnosticsSink {
-	private readonly IDiagnosticsSink[] sinks = sinks?.Select(static s => s ?? throw new ArgumentNullException(nameof(sinks), "sink array contains a null sink value")
+	private readonly IDiagnosticsSink[] sinks = sinks?.Select(
+		static s => s ?? throw new ArgumentNullException(nameof(sinks), "sink array contains a null sink value")
 	)?.ToArray() ?? throw new ArgumentNullException(nameof(sinks));
+
 	public void Report(in DiagnosticEvent d) => sinks.ReportAll(in d);
 }
 
 /// <summary>
-/// Handle to a registered diagnostics sink in a <see cref="DiagnosticsSinkRegistry"/>, used
-/// for unregistration.
+/// Handle to a registered diagnostics sink in a <see cref="DiagnosticsSinkRegistry"/>, used for
+/// unregistration.
 /// </summary>
 public sealed class DiagnosticsSinkRegistration : IReloadTeardown {
 	private DiagnosticsSinkRegistry? registry;
@@ -219,7 +232,7 @@ public sealed class DiagnosticsSinkRegistration : IReloadTeardown {
 	/// <summary>
 	/// <see cref="IReloadTeardown"/> implementation; equivalent to <see cref="Remove()"/>.
 	/// </summary>
-	public void Teardown(in ReloadTeardownContext ctx) => Remove();
+	void IReloadTeardown.Teardown(in ReloadTeardownContext ctx) => Remove();
 }
 
 /// <summary>
@@ -227,22 +240,21 @@ public sealed class DiagnosticsSinkRegistration : IReloadTeardown {
 /// </summary>
 /// <remarks>
 /// <para>
-/// Reporting uses immutable array snapshots. Adding or removing a sink does not
-/// block reports already in progress, and a report observes one complete registry
-/// snapshot.
+/// Reporting uses immutable array snapshots. Adding or removing a sink does not block reports
+/// already in progress, and a report observes one complete registry snapshot.
 /// </para>
 /// <para>
-/// A sink added during a report is not included in that report. A sink removed
-/// during a report may still receive that report if it was present in the snapshot
-/// already obtained by the reporting thread.
+/// A sink added during a report is not included in that report. A sink removed during a report
+/// may still receive that report if it was present in the snapshot already obtained by the
+/// reporting thread.
 /// </para>
 /// <para>
 /// Diagnostics are reported to sinks using <see cref="DiagnosticsSinkExtensions.ReportAll"/>;
 /// see the documentation of that method for behavior details.
 /// </para>
 /// <para>
-/// Registry operations are thread-safe. Registered sinks may be invoked concurrently
-/// by different reporting threads and should themselves be thread-safe.
+/// Registry operations are thread-safe. Registered sinks may be invoked concurrently by different
+/// reporting threads and should themselves be thread-safe.
 /// </para>
 /// </remarks>
 public sealed class DiagnosticsSinkRegistry : IDiagnosticsSink {
@@ -251,8 +263,8 @@ public sealed class DiagnosticsSinkRegistry : IDiagnosticsSink {
 	private ImmutableDictionary<ulong, IDiagnosticsSink> sinks;
 
 	/// <summary>
-	/// Creates a new <see cref="DiagnosticsSinkRegistry"/> with the given initial
-	/// set of registered sinks.
+	/// Creates a new <see cref="DiagnosticsSinkRegistry"/> with the given initial set of registered
+	/// sinks.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="initial"/> is <see langword="null"/> or contains a
@@ -269,8 +281,8 @@ public sealed class DiagnosticsSinkRegistry : IDiagnosticsSink {
 	}
 
 	/// <summary>
-	/// Gets a snapshot of the currently registered diagnostic sinks, enumerated in an
-	/// indeterminate order. Later registry changes do not affect the returned sequence.
+	/// Gets a snapshot of the currently registered diagnostic sinks, enumerated in an indeterminate
+	/// order. Later registry changes do not affect the returned sequence.
 	/// </summary>
 	public IEnumerable<IDiagnosticsSink> Sinks => Volatile.Read(ref sinks).Values;
 	void IDiagnosticsSink.Report(in DiagnosticEvent d) => Sinks.ReportAll(in d);
@@ -282,8 +294,8 @@ public sealed class DiagnosticsSinkRegistry : IDiagnosticsSink {
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
-	/// Adding the same sink instance more than once creates independent registrations;
-	/// no attempt to deduplicate/coalesce entries or otherwise check them for equality is made.
+	/// Adding the same sink instance more than once creates independent registrations; no attempt to
+	/// deduplicate/coalesce entries or otherwise check them for equality is made.
 	/// </remarks>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="sink"/> is <see langword="null"/>.

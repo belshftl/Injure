@@ -15,7 +15,7 @@ internal static class ModTypeDiscovery {
 		} catch (ReflectionTypeLoadException ex) {
 			// don't swallow ReflectionTypeLoadException, even if it happens to work right now
 			// we might be accepting an only partially loaded mod
-			throw new ModLoadException($"{sourceName}: failed to load all types from entry assembly: " + string.Join("; ", ex.LoaderExceptions.Select(e => e?.Message)));
+			throw new ModLoadException($"{sourceName}: failed to load all types from entry assembly:" + Environment.NewLine + string.Join(Environment.NewLine, ex.LoaderExceptions.Select(static e => e?.ToString())));
 		}
 		Type[] withAttr = types.Where(type =>
 			type is { IsClass: true, IsAbstract: false } &&
@@ -38,7 +38,7 @@ internal static class ModTypeDiscovery {
 		} catch (ReflectionTypeLoadException ex) {
 			// don't swallow ReflectionTypeLoadException, even if it happens to work right now
 			// we might be accepting an only partially loaded mod
-			throw new ModLoadException($"{sourceName}: failed to load all types from entry assembly: " + string.Join("; ", ex.LoaderExceptions.Select(e => e?.Message)));
+			throw new ModLoadException($"{sourceName}: failed to load all types from entry assembly:" + Environment.NewLine + string.Join(Environment.NewLine, ex.LoaderExceptions.Select(static e => e?.ToString())));
 		}
 		Type[] withAttr = types.Where(type =>
 			type is { IsClass: true, IsAbstract: false } &&

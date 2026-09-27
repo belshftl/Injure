@@ -16,15 +16,24 @@ anyhow, to v0.1:
   - [x] add the `IgnoresAccessChecksTo` check to `ModRuntime`
   - [x] add an api to debug-dump the current il, make it nice
   - [x] fix the runtime failing to resolve game -> non-reloadable-mod `AssemblyRef`s
-  - [ ] unwrap all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice because it gets wrapped
+  - [x] fix the messages on all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice
   - [ ] add conveniences to call methods from delegates to static method groups
   - [ ] wire declaring locals into the public api
+  - [ ] consider having a basic context object for deactivate/unload with just `IOwnerDiagnostics`; maybe just pass `IOwnerDiagnostics` directly, though i don't really like that
   - [ ] fix some more bugs, i'm sure there's a few
 - [ ] document the mod loader properly:
   - [ ] write doc comments for all of `Mods.*`'s public api + for `ModRuntime`, this is the highest-priority one of all the pending doc comments
   - [ ] clear out the existing `docs/*` (that's already planned) except for maybe `docs/conventions/dangerous-get.md`, and document it under `docs/mods/*`, its design, the load/reload/unload process, the purpose of `IModLifetimeIdentity`/`<L>`, the dependency semantics, etc.
   - [ ] document all the terminology too; notable are "modif" (both as a noun and a verb), "detour", "patch", "detour impl", "detour chain", and "manipulator"
   - [ ] add something on generic type parameters in `docs/conventions/`
+- [ ] fix the mod analyzer for once
+  - [ ] remove now-unnecessary diagnostics
+  - [ ] add more new diagnostics, think about what is useful
+  - [ ] maybe look into whether the mod can be forced to embed a manifest.json in metadata in some way that the analyzer can read; it'd simplify a lot of things and allow for e.g. better dependency-related diagnostics
+  - [ ] add basic interprocedural obligation tracking
+- [ ] fix the regular analyzer for once
+  - [ ] again, look through the diagnostics, see what is now out of date / etc.
+  - [ ] add more code analysis attributes, implement them; i can already think of `[DefaultIsInvalid]`
 - [ ] write a readme, properly outline the design philosophy
 - [ ] for now, temporarily silence our own analyzer warning for foreign types exposed through public apis, it's planned to be properly dealt with later down the line
 - [ ] pause for a bit to write a *lot* of tests and doc comments for the rest of the project; not writing them as development goes in the past was a mistake that needs to be patched up before it's too late:
@@ -37,7 +46,7 @@ anyhow, to v0.1:
   - [ ] tests for the coroutine and ticker systems, though tickers should probably wait for the deadline rework
   - [ ] tests for the input system wherever possible
   - [ ] look into what else is testable
-- [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
+- [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`. the thing, though, is capturing lambdas; maybe a runtime-checked `BorrowedCanvasRef` created from `Canvas.BorrowedRef()`? i really don't know, maybe this overcomplicates it
 - [ ] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
   - [ ] make a lot of currently only internally constructible types constructible and manageable by the game
   - [ ] remove `Boot*` entirely
@@ -48,13 +57,12 @@ anyhow, to v0.1:
 - [ ] unsilence the previously silenced warning from our own analyzer, clean up a lot of the apis that currently expose foreign types
 - [ ] get back to the mod loader:
   - [ ] implement `target-version`/`target-build-mvid`, they're currently sitting there doing nothing
-  - [ ] update the analyzer, remove now-unnecessary diagnostics, add more new ones, add basic interprocedural obligation tracking
   - [ ] finally think out the semantics of link-time modifs and implement them
   - [ ] do some practical testing and think about the intended model for mods to have nuget dependencies, including nuget dependencies that package native runtimes
   - [ ] implement load-from-zip
   - [ ] mutation il edits, explicitly marked as advanced/unsafe
   - [ ] removal il edits, explicitly marked as advanced/unsafe
-  - [ ] il authoring api to declare locals and exception regions
+  - [ ] il authoring api to declare exception regions
   - [ ] implement detouring open generics
   - [ ] think about what to do with `IndirectCall` and open generics
 - [ ] `Layers.Ecs` system for entities and components:

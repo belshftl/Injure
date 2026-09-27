@@ -178,7 +178,7 @@ internal static class IlPipeline {
 		IlInvalidMethodException failure
 	) {
 		if (options.SkipFailureAttribution)
-			return new IlPipelineValidationException(failure.Message, null, null, failure);
+			return new IlPipelineValidationException(null, null, failure);
 
 		IlManipulatorRegistration? culprit = null;
 		IlInvalidMethodException attributed = failure;
@@ -188,12 +188,12 @@ internal static class IlPipeline {
 			attributed = ex;
 		} catch (Exception) {
 			// re-run diverged from the original run
-			return new IlPipelineValidationException(failure.Message, null, null, failure);
+			return new IlPipelineValidationException(null, null, failure);
 		}
 
 		return culprit is null
-			? new IlPipelineValidationException(failure.Message, null, null, failure)
-			: new IlPipelineValidationException(attributed.Message, culprit.OwnerId, culprit.LocalId, attributed);
+			? new IlPipelineValidationException(null, null, failure)
+			: new IlPipelineValidationException(culprit.OwnerId, culprit.LocalId, attributed);
 	}
 
 	private static void validateUnique(IReadOnlyList<IlManipulatorRegistration> manipulators) {

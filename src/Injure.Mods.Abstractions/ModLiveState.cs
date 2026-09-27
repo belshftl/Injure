@@ -110,5 +110,4 @@ public static class ModLiveStateContentTypes {
 	public const string TextPlainUtf8 = "text/plain; charset=utf-8";
 }
 
-public sealed class ModLiveStateFormatException(string message) : Exception(message) {
-}
+public sealed class ModLiveStateFormatException(string message) : Exception(message);

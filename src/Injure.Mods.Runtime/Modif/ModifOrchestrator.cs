@@ -11,43 +11,6 @@ using Injure.Mods.Runtime.Modif.Profiler;
 
 namespace Injure.Mods.Runtime.Modif;
 
-/// <summary>
-/// Exception thrown if a method could not be transformed.
-/// </summary>
-/// <remarks>
-/// <para>
-/// If this was thrown, no method in the pass was installed, so every target's code is still unmodified
-/// and running whatever it was running before. The methods that the pass covered are re-marked dirty so
-/// that a retry picks them up.
-/// </para>
-/// </remarks>
-internal sealed class ModifException : Exception {
-	/// <summary>
-	/// The method that was being transformed when the pass failed.
-	/// </summary>
-	public MethodIdentity Method { get; }
-
-	/// <summary>
-	/// The owner responsible, or <see langword="null"/> if the failure is not attributable.
-	/// </summary>
-	public string? OwnerId { get; }
-
-	/// <summary>
-	/// The local ID of the modification responsible, or <see langword="null"/> if the failure
-	/// is not attributable.
-	/// </summary>
-	public string? LocalId { get; }
-
-	public ModifException(MethodIdentity method, Exception ex) : base($"failed to transform {method}: {ex.Message}", ex) {
-		Method = method;
-		(OwnerId, LocalId) = ex switch {
-			IlManipulatorException manipulator => (manipulator.OwnerId, manipulator.LocalId),
-			IlPipelineValidationException validation => (validation.OwnerId, validation.LocalId),
-			_ => (null, null),
-		};
-	}
-}
-
 internal sealed class ApplyResult(
 	ImmutableArray<MethodIdentity> applied,
 	ImmutableArray<MethodIdentity> reverted,

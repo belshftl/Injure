@@ -17,7 +17,7 @@ public sealed class IlManipulatorException : IlPipelineException {
 	public string LocalId { get; }
 
 	internal IlManipulatorException(string ownerId, string localId, Exception inner)
-		: base($"manipulator '{ownerId}::{localId}' threw: {inner.Message}", inner) {
+		: base($"manipulator '{ownerId}::{localId}' threw", inner) {
 		InternalStateException.ThrowIfInvalidOwnerId(ownerId);
 		InternalStateException.ThrowIfInvalidLocalId(localId);
 		OwnerId = ownerId;

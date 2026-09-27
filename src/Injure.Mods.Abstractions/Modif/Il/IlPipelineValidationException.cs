@@ -32,13 +32,16 @@ public sealed class IlPipelineValidationException : IlPipelineException {
 	/// </summary>
 	public string? LocalId { get; }
 
-	internal IlPipelineValidationException(string message, string? ownerId, string? localId, Exception? ex) : base(fmt(message, ownerId, localId), ex!) {
+	internal IlPipelineValidationException(string? ownerId, string? localId, IlInvalidMethodException failure)
+		: base(
+			ownerId is null
+				? "the transformed method body is invalid"
+				: $"manipulator '{ownerId}::{localId}' produced an invalid method body"
+			, failure
+		) {
 		InternalStateException.ThrowIfNonnullAndInvalidOwnerId(ownerId);
 		InternalStateException.ThrowIfNonnullAndInvalidLocalId(localId);
 		OwnerId = ownerId;
 		LocalId = localId;
 	}
-
-	private static string fmt(string message, string? ownerId, string? localId) =>
-		ownerId is null ? message : $"manipulator '{ownerId}::{localId}' produced an invalid method body: {message}";
 }

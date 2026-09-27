@@ -81,7 +81,11 @@ public sealed record CodeModManifest : ModManifest {
 	public required bool LiveReloadable { get; init; }
 	public required IReadOnlyList<string> ContractAssemblies { get; init; }
 
-	public override ModReloadability Reloadability => Reloadable ? LiveReloadable ? ModReloadability.Live : ModReloadability.SafeBoundary : ModReloadability.None;
+	public override ModReloadability Reloadability => Reloadable
+		? LiveReloadable
+			? ModReloadability.Live
+			: ModReloadability.SafeBoundary
+		: ModReloadability.None;
 }
 
 public sealed record ContentModManifest : ModManifest {

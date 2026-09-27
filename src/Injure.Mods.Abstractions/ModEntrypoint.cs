@@ -7,9 +7,9 @@ namespace Injure.Mods.Abstractions;
 /// Marks the class that implements a code mod's entrypoint.
 /// </summary>
 /// <remarks>
-/// The annotated class must implement <see cref="IModEntrypoint{TGameApi, L}"/> as a
-/// closed generic and have a suitable parameterless constructor for use by the runtime.
-/// The analyzer additionally enforces the target class to be <see langword="sealed"/>.
+/// The annotated class must implement <see cref="IModEntrypoint{TGameApi, L}"/> as a closed
+/// generic and have a suitable parameterless constructor for use by the runtime. The analyzer
+/// additionally enforces the target class to be <see langword="sealed"/>.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class ModEntrypointAttribute : Attribute;
@@ -25,14 +25,14 @@ public sealed class ModEntrypointAttribute : Attribute;
 /// </typeparam>
 /// <remarks>
 /// <para>
-/// All methods on this interface are referred to as "mod lifecycle methods", or just
-/// "lifecycle methods". Lifecycle methods are invoked by the runtime and must not be
-/// invoked directly. The cancellation tokens passed to lifecycle methods are not
-/// equivalent to <see cref="IBoundedScope{L}.Stopping"/>.
+/// All methods on this interface are referred to as "mod lifecycle methods", or just "lifecycle
+/// methods". Lifecycle methods are invoked by the runtime and must not be invoked directly. The
+/// cancellation tokens passed to lifecycle methods are not equivalent to
+/// <see cref="IBoundedScope{L}.Stopping"/>.
 /// </para>
 /// <para>
-/// Unless otherwise noted, all lifecycle methods may be parallelized in a way that does
-/// not disrupt dependency-relative ordering of calls (if applicable).
+/// Unless otherwise noted, all lifecycle methods may be parallelized in a way that does not
+/// disrupt dependency-relative ordering of calls (if applicable).
 /// </para>
 /// </remarks>
 public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeIdentity {
@@ -43,14 +43,13 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// <param name="ct">Cancellation token for this particular invocation.</param>
 	/// <remarks>
 	/// <para>
-	/// Calls to <see cref="LoadAsync"/> across mods are not ordered according to the
-	/// dependency graph. Other mods, including declared dependencies, must not be
-	/// accessed during this callback.
+	/// Calls to <see cref="LoadAsync"/> across mods are not ordered according to the dependency
+	/// graph. Other mods, including declared dependencies, must not be accessed during this callback.
 	/// </para>
 	/// <para>
-	/// Load-modification declarations and export declarations close when this call completes;
-	/// load modifications are applied, and the export declaration table is frozen and handed
-	/// out to dependents during link.
+	/// Load-time modif declarations and export declarations close when this call completes; load
+	/// modifs are applied, and the export declaration table is frozen and handed out to dependents
+	/// during link.
 	/// </para>
 	/// </remarks>
 	ValueTask LoadAsync(IModLoadCtx<TGameApi, L> ctx, BoundedCt<L> ct);
@@ -61,8 +60,8 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// <param name="ctx">Link-time mod context.</param>
 	/// <param name="ct">Cancellation token for this particular invocation.</param>
 	/// <remarks>
-	/// All enabled mods have completed <see cref="LoadAsync"/> before linking begins.
-	/// Link calls are scheduled according to the resolved dependency graph.
+	/// All enabled mods have completed <see cref="LoadAsync"/> before linking begins. Link calls are
+	/// scheduled according to the resolved dependency graph.
 	/// </remarks>
 	ValueTask LinkAsync(IModLinkCtx<TGameApi, L> ctx, BoundedCt<L> ct);
 
@@ -79,10 +78,10 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// </summary>
 	/// <param name="ct">Cancellation token for this particular invocation.</param>
 	/// <remarks>
-	/// For "create new state, then release it on deactivate" or other similar patterns, prefer
-	/// custom <see cref="IReloadTeardown"/> (or <see cref="IDisposable"/> for more
-	/// complex/state-owning/order-sensitive cases) objects registered into the activation scope,
-	/// as it is less bug-prone and allows for better analyzer diagnostics.
+	/// For "create new state, then release it on deactivate" or other similar patterns, prefer custom
+	/// <see cref="IReloadTeardown"/> (or <see cref="IDisposable"/> for more complex / state-owning /
+	/// order-sensitive cases) objects registered into the activation scope, as it is less bug-prone
+	/// and allows for better analyzer diagnostics.
 	/// </remarks>
 	ValueTask DeactivateAsync(BoundedCt<L> ct);
 
@@ -91,10 +90,10 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// the generation scope is invalidated and its assembly load context is unloaded.
 	/// </summary>
 	/// <remarks>
-	/// For "create new state, then release it on unload" or other similar patterns, prefer
-	/// custom <see cref="IReloadTeardown"/> (or <see cref="IDisposable"/> for more
-	/// complex/state-owning/order-sensitive cases) objects registered into the generation scope,
-	/// as it is less bug-prone and allows for better analyzer diagnostics.
+	/// For "create new state, then release it on unload" or other similar patterns, prefer custom
+	/// <see cref="IReloadTeardown"/> (or <see cref="IDisposable"/> for more complex / state-owning /
+	/// order-sensitive cases) objects registered into the generation scope, as it is less bug-prone
+	/// and allows for better analyzer diagnostics.
 	/// </remarks>
 	ValueTask UnloadAsync(BoundedCt<L> ct);
 }
