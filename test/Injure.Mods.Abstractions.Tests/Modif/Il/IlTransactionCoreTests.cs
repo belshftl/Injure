@@ -8,7 +8,7 @@ using Injure.Mods.Abstractions.Modif.Il.Metadata;
 
 namespace Injure.Mods.Abstractions.Tests.Modif.Il;
 
-public sealed class IlTransactionTests {
+public sealed class IlTransactionCoreTests {
 	private static IlTransactionCore open(IlMethodBody body, IlOwnerCtx ctx = default) => new(body, IlTest.OwnerId, IlTest.LocalId, ctx, null);
 	private static int boundaryOf(IlMethodBody body, IlAnchorId anchor) => body.GetAnchorBoundary(anchor);
 
@@ -475,6 +475,48 @@ public sealed class IlTransactionTests {
 		IlLocal local = core.DeclareLocal(IlRefFactory.ByRef(reloadableStruct()));
 
 		Assert.Equal(0, local.Index);
+	}
+
+	[Fact]
+	public static void DeclaredLocalsGetTheTransactionsProvenance() {
+		IlMethodBody body = new BodyBuilder().Ret().Build(locals: [IlTest.Int32]);
+		IlTransactionCore core = open(body);
+		IlLocal local = core.DeclareLocal(IlTest.Object);
+		core.EmitAtBoundary(0, e => { e.Ldloc(local); e.Pop(); });
+		core.Commit();
+
+		Assert.Equal(
+			new[] { default, new InternalIlProvenance(IlTest.OwnerId, IlTest.LocalId) },
+			body.LocalsProvenance.ToArray()
+		);
+	}
+
+	[Fact]
+	public static void LocalsProvenanceIsProperlyStampedOn() {
+		IlMethodBody body = new BodyBuilder().Ret().Build();
+
+		IlTransactionCore first = new(body, "first", "a", default, null);
+		IlLocal a = first.DeclareLocal(IlTest.Int32);
+		first.EmitAtBoundary(0, e => { e.Ldloc(a); e.Pop(); });
+		first.Commit();
+
+		IlTransactionCore second = new(body, "second", "b", default, null);
+		IlLocal b = second.DeclareLocal(IlTest.Int32);
+		IlLocal c = second.DeclareLocal(IlTest.Object);
+		second.EmitAtBoundary(0, e => { e.Ldloc(b); e.Pop(); e.Ldloc(c); e.Pop(); });
+		second.Commit();
+
+		Assert.Equal(
+			new[] { new InternalIlProvenance("first", "a"), new InternalIlProvenance("second", "b"), new InternalIlProvenance("second", "b") },
+			body.LocalsProvenance.ToArray()
+		);
+	}
+
+	[Fact]
+	public static void CloneKeepsLocalsProvenance() {
+		IlMethodBody body = new BodyBuilder().Ret().Build(locals: [IlTest.Int32], baselineProvenance: new InternalIlProvenance("TestGame", null));
+
+		Assert.Equal(body.LocalsProvenance, body.Clone().LocalsProvenance);
 	}
 
 	[Theory]

@@ -7,21 +7,22 @@ using Injure.CodeAnalysis.Internal;
 namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
-/// Opaque handle to a local declared by a manipulation transaction.
+/// Opaque transaction-local handle to a declared local, usable only by the transaction that
+/// declared it.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Usable only by the transaction that declared it. The index is final at declaration, so once the
-/// transaction commits, later manipulators see it as an ordinary index.
-/// </para>
-/// <para>
 /// The <see langword="default"/> value is invalid.
-/// </para>
 /// </remarks>
 [DontCache("IlLocal objects are only valid within the same IL manipulator transaction that minted them")]
-/* pending */ internal readonly struct IlLocal : IEquatable<IlLocal> {
+public readonly struct IlLocal : IEquatable<IlLocal> {
+	/// <summary>
+	/// The index that will be emitted for this local. Final at declaration; once the transaction
+	/// commits, later manipulators see an ordinary local at this index. It never changes; locals are
+	/// only ever appended. There is no API for removing locals and will likely never be.
+	/// </summary>
+	public int Index { get; }
+
 	internal ulong TransactionId { get; }
-	internal int Index { get; }
 
 	internal IlLocal(ulong transactionId, int index) {
 		TransactionId = transactionId;

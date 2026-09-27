@@ -48,11 +48,24 @@ internal sealed class IlSnapshot {
 	/// </summary>
 	public ImmutableArray<IlTypeRef> Locals { get; }
 
+	/// <summary>
+	/// The debug "provenance" of the locals; see <see cref="IlMethodBody.LocalsProvenance"/>.
+	/// </summary>
+	public ImmutableArray<InternalIlProvenance> LocalsProvenance { get; }
+
+	/// <summary>
+	/// How many leading <see cref="Locals"/> were decoded from metadata. Debug info only, same as
+	/// <see cref="LocalsProvenance"/>.
+	/// </summary>
+	public int BaselineLocalCount { get; }
+
 	internal IlSnapshot(IlMethodBody body) {
 		InternalStateException.ThrowIfNull(body);
 		Method = body.Method;
 		Instructions = body.Instructions.ToImmutableArray();
 		Anchors = body.Anchors.ToImmutableArray();
 		Locals = body.Locals;
+		LocalsProvenance = body.LocalsProvenance;
+		BaselineLocalCount = body.BaselineLocalCount;
 	}
 }

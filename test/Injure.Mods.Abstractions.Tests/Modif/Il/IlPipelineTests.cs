@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Reflection.Metadata;
 using Injure.Mods.Abstractions.Modif.Il;
 
 namespace Injure.Mods.Abstractions.Tests.Modif.Il;
@@ -12,9 +13,9 @@ public sealed class IlPipelineTests {
 		IlManipulator<TestL> manipulator,
 		string ownerId = IlTest.OwnerId
 	) => IlManipulatorRegistration.Create(ownerId, localId, manipulator);
-	private static IlManipulatorRegistration noOp(string localId) => makeManipulator(localId, _ => { });
-	private static IlManipulatorRegistration emitsNop(string localId) => makeManipulator(localId, ctx => ctx.EmitAtStart(e => e.Nop()));
-	private static IlManipulatorRegistration emitsUnderflow(string localId) => makeManipulator(localId, ctx => ctx.EmitAtStart(e => e.Pop()));
+	private static IlManipulatorRegistration noOp(string localId) => makeManipulator(localId, static _ => {});
+	private static IlManipulatorRegistration emitsNop(string localId) => makeManipulator(localId, static ctx => ctx.EmitAtStart(static e => e.Nop()));
+	private static IlManipulatorRegistration emitsUnderflow(string localId) => makeManipulator(localId, static ctx => ctx.EmitAtStart(static e => e.Pop()));
 
 	// ==========================================================================================
 	// no-ops
@@ -242,5 +243,183 @@ public sealed class IlPipelineTests {
 			new IlPipelineOptions { ValidateAfterEachManipulator = true }
 		));
 		Assert.Equal(0, ranAfter);
+	}
+
+	// ==========================================================================================
+	// locals
+	private sealed class FixedOwnerCtx(IlOwnerCtx ctx) : IIlOwnerCtxProvider {
+		public IlOwnerCtx GetContext(string ownerId) => ctx;
+	}
+
+	private const string reloadableAssembly = "Reloadable";
+
+	private static readonly IIlOwnerCtxProvider reloadableMod = new FixedOwnerCtx(new IlOwnerCtx(
+		new Dictionary<string, (string, bool)> { [reloadableAssembly] = ("reloadable", true) },
+		new HashSet<string>()
+	));
+
+	private static IlNamedTypeRef reloadableStruct() => new(
+		new IlTypeScope.Assembly(new IlAssemblyIdentity(reloadableAssembly, null, null, [], default)),
+		null,
+		"Mod",
+		"Struct",
+		0,
+		IlNamedTypeKind.ValueType
+	);
+
+	/// <summary>
+	/// Declares a local, stores to it at the start, and loads it back after the baseline's <c>nop</c>,
+	/// so the local is used from two separate fragments.
+	/// </summary>
+	private static IlManipulatorRegistration declaresAndUses(string localId, Func<IlCtx<TestL>, IlLocal> declare, string ownerId = IlTest.OwnerId) =>
+		makeManipulator(localId, ctx => {
+			IlLocal local = declare(ctx);
+			ctx.EmitAtStart(e => { e.LdcI4(1); e.Stloc(local); });
+			ctx.MatchNext([MatchIl.Nop], IlProvenanceConstr.Any).EmitAfter(e => { e.Ldloc(local); e.Pop(); });
+		}, ownerId);
+
+	private static int localIndexOf(IlInstruction instr) => Assert.IsType<IlLocalOperand>(instr.Operand).Index;
+
+	[Fact]
+	public static void ADeclaredLocalIsUsableAcrossFragments() {
+		IlPipelineResult result = IlPipeline.Transform(
+			makeBaseline(),
+			[declaresAndUses("a", static ctx => ctx.DeclareLocal(IlTest.Int32))],
+			null,
+			null
+		);
+
+		Assert.Equal(new IlTypeRef[] { IlTest.Int32 }, result.Body.Locals.ToArray());
+		IlInstruction[] uses = result.Body.Instructions.Where(static i => i.Operand is IlLocalOperand).ToArray();
+		Assert.Equal([ILOpCode.Stloc, ILOpCode.Ldloc], uses.Select(static i => i.OpCode).ToArray());
+		Assert.All(uses, static i => Assert.Equal(0, localIndexOf(i)));
+		Assert.NotNull(result.Body.ComputedMaxStack);
+	}
+
+	[Fact]
+	public static void EachManipulatorsLocalsAreAppendedAfterEarlierOnes() {
+		List<int> indices = new();
+		IlPipelineResult result = IlPipeline.Transform(
+			new BodyBuilder().Nop().Ret().Build(locals: [IlTest.Object]),
+			[
+				declaresAndUses("first", ctx => { IlLocal l = ctx.DeclareLocal(IlTest.Int32); indices.Add(l.Index); return l; }),
+				declaresAndUses("second", ctx => { IlLocal l = ctx.DeclareLocal(IlTest.Int32); indices.Add(l.Index); return l; }),
+			],
+			null,
+			null
+		);
+
+		Assert.Equal([1, 2], indices);
+		Assert.Equal(3, result.Body.Locals.Length);
+		Assert.Equal(
+			new[] { default, new InternalIlProvenance(IlTest.OwnerId, "first"), new InternalIlProvenance(IlTest.OwnerId, "second") },
+			result.Body.LocalsProvenance.ToArray()
+		);
+	}
+
+	[Fact]
+	public static void ALocallessBaselineBecomesZeroing() {
+		IlPipelineResult result = IlPipeline.Transform(
+			new BodyBuilder().Nop().Ret().Build(initLocals: false),
+			[declaresAndUses("a", static ctx => ctx.DeclareLocal(IlTest.Int32))],
+			null,
+			null
+		);
+
+		Assert.True(result.Body.InitLocals);
+	}
+
+	[Fact]
+	public static void ALocalFromAManipulatorThatEmitsNothingIsDropped() {
+		IlMethodBody baseline = makeBaseline();
+		IlPipelineResult result = IlPipeline.Transform(
+			baseline,
+			[makeManipulator("a", static ctx => ctx.DeclareLocal(IlTest.Int32))],
+			null,
+			null
+		);
+
+		Assert.False(result.Modified);
+		Assert.Same(baseline, result.Body);
+		Assert.Empty(result.Body.Locals);
+	}
+
+	[Fact]
+	public static void ALocalCantBeUsedByALaterManipulator() {
+		IlLocal leaked = default;
+		IlManipulatorException ex = Assert.Throws<IlManipulatorException>(() => IlPipeline.Transform(
+			makeBaseline(),
+			[
+				declaresAndUses("declares", ctx => leaked = ctx.DeclareLocal(IlTest.Int32)),
+				makeManipulator("reuses", ctx => ctx.EmitAtStart(e => { e.Ldloc(leaked); e.Pop(); })),
+			],
+			null,
+			null
+		));
+
+		Assert.Equal("reuses", ex.LocalId);
+		Assert.IsType<IlPipelineException>(ex.InnerException);
+	}
+
+	[Fact]
+	public static void AFailedManipulatorsLocalsAreDiscarded() {
+		IlPipelineResult result = IlPipeline.Transform(
+			makeBaseline(),
+			[
+				makeManipulator("bad", static ctx => {
+					IlLocal local = ctx.DeclareLocal(IlTest.Object);
+					ctx.EmitAtStart(e => { e.Ldnull(); e.Stloc(local); });
+					throw new InvalidTimeZoneException();
+				}),
+				declaresAndUses("good", static ctx => ctx.DeclareLocal(IlTest.Int32)),
+			],
+			null,
+			null,
+			new IlPipelineOptions { SkipFailingManipulators = true }
+		);
+
+		Assert.Equal(new IlTypeRef[] { IlTest.Int32 }, result.Body.Locals.ToArray());
+		Assert.All(result.Body.Instructions.Where(static i => i.Operand is IlLocalOperand), static i => Assert.Equal(0, localIndexOf(i)));
+	}
+
+	[Fact]
+	public static void AVoidLocalIsRejectedWithAttribution() {
+		IlManipulatorException ex = Assert.Throws<IlManipulatorException>(() => IlPipeline.Transform(
+			makeBaseline(),
+			[makeManipulator("bad", static ctx => ctx.DeclareLocal(IlRefFactory.Type(typeof(void))))],
+			null,
+			null
+		));
+
+		Assert.Equal("bad", ex.LocalId);
+		Assert.IsType<ArgumentException>(ex.InnerException);
+	}
+
+	[Fact]
+	public static void AReloadableValueTypeLocalIsRejectedWithAttribution() {
+		IlManipulatorException ex = Assert.Throws<IlManipulatorException>(() => IlPipeline.Transform(
+			makeBaseline(),
+			[makeManipulator("bad", static ctx => ctx.DeclareLocal(reloadableStruct()))],
+			reloadableMod,
+			null
+		));
+
+		Assert.Equal("bad", ex.LocalId);
+		Assert.IsType<IlCollectibleReferenceException>(ex.InnerException);
+	}
+
+	[Fact]
+	public static void AByrefToAReloadableValueTypeIsAccepted() {
+		IlPipelineResult result = IlPipeline.Transform(
+			makeBaseline(),
+			[makeManipulator("a", static ctx => {
+				IlLocal local = ctx.DeclareLocal(IlRefFactory.ByRef(reloadableStruct()));
+				ctx.EmitAtStart(e => { e.Ldloc(local); e.Pop(); });
+			})],
+			reloadableMod,
+			null
+		);
+
+		Assert.IsType<IlByRefTypeRef>(Assert.Single(result.Body.Locals));
 	}
 }

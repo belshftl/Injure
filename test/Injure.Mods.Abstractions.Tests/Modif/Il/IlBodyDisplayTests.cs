@@ -52,8 +52,8 @@ public sealed class IlBodyDisplayTests {
 			"""
 			IL for 'void object::Target()', in transaction 'ModB::check'
 			locals (zeroed):
-			     0. int32
-			+    1. object
+			     0. int32  // TestGame
+			+    1. object // ModB
 
 			code:
 			     0. nop       // TestGame
@@ -120,6 +120,17 @@ public sealed class IlBodyDisplayTests {
 		Assert.Contains("\" //", rows[0], StringComparison.Ordinal);
 		Assert.Equal(rows[1].IndexOf("//", StringComparison.Ordinal), rows[2].IndexOf("//", StringComparison.Ordinal));
 		Assert.Equal(8 + "pop".Length + 1, rows[1].IndexOf("//", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public static void LocalsAndCodeAlignTheirCommentsSeparately() {
+		IlNamedTypeRef longType = IlTest.Named("Some.Very.Long.Namespace", "WithAnEquallyLongTypeName", IlNamedTypeKind.Class);
+		string text = IlBodyDisplay.Format(new BodyBuilder().Ret().Build(locals: [longType]), default);
+
+		string local = lines(text).Single(static l => l.Contains("WithAnEquallyLongTypeName", StringComparison.Ordinal));
+		string ret = code(text).Single();
+		Assert.Equal("     0. ret // <unknown provenance>", ret);
+		Assert.EndsWith("WithAnEquallyLongTypeName // <unknown provenance>", local);
 	}
 
 	// ==========================================================================================
@@ -282,13 +293,24 @@ public sealed class IlBodyDisplayTests {
 		Assert.DoesNotContain('\x1b', IlBodyDisplay.Format(tryFinally().Build(), default));
 
 	[Fact]
-	public static void ColorHasInsertedRowsGreenAndCommentsFaint() {
+	public static void ColorHasInsertedInstrRowsGreenAndCommentsFaint() {
 		IlTransactionCore core = open(new BodyBuilder().Ret().Build());
 		core.EmitAtBoundary(0, static e => e.Nop());
 
 		string inserted = code(core.Display(new IlFormatOptions { Color = true }))[0];
 
 		Assert.StartsWith("\x1b[0;32m+       nop", inserted);
+		Assert.EndsWith("\x1b[0;2m// ModB\x1b[0m", inserted);
+	}
+
+	[Fact]
+	public static void ColorHasInsertedLocalRowsGreenAndCommentsFaint() {
+		IlTransactionCore core = open(new BodyBuilder().Ret().Build());
+		_ = core.DeclareLocal(IlTest.Int32);
+
+		string inserted = lines(core.Display(new IlFormatOptions { Color = true })).Single(static l => l.Contains("int32", StringComparison.Ordinal));
+
+		Assert.StartsWith("\x1b[0;32m+    \x1b[0;1;32m0\x1b[0;32m. int32", inserted);
 		Assert.EndsWith("\x1b[0;2m// ModB\x1b[0m", inserted);
 	}
 
@@ -318,6 +340,41 @@ public sealed class IlBodyDisplayTests {
 		Assert.NotEqual(color(rows[0]), color(rows[2]));
 	}
 
+	[Fact]
+	public static void ColorGivesALocalItsOwnersInstructionColor() {
+		static string color(string row) {
+			int start = row.IndexOf("\x1b[0;1;", StringComparison.Ordinal) + "\x1b[0;1;".Length;
+			return row[start..row.IndexOf('m', start)];
+		}
+
+		IlMethodBody body = baseline(new BodyBuilder().Ret(), [IlTest.Int32]);
+		IlTransactionCore core = open(body, "ModA", "dispatch");
+		IlLocal local = core.DeclareLocal(IlTest.Object);
+		core.EmitAtBoundary(0, e => { e.Ldloc(local); e.Pop(); });
+		core.Commit();
+
+		string text = IlBodyDisplay.Format(body, new IlFormatOptions { Color = true });
+		string declared = lines(text).Single(static l => l.Contains("m. object", StringComparison.Ordinal));
+		string emitted = code(text)[0];
+
+		string style = color(emitted);
+		Assert.Equal(style, color(declared));
+		Assert.Contains($"\x1b[0;{style}m. object", declared, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public static void ColorLeavesBaselineLocalsUncoloredAcrossCommits() {
+		IlMethodBody body = baseline(new BodyBuilder().Ret(), [IlTest.Int32]);
+		IlTransactionCore core = open(body, "ModA", "dispatch");
+		_ = core.DeclareLocal(IlTest.Object);
+		core.Commit();
+
+		string local = lines(IlBodyDisplay.Format(body.Clone(), new IlFormatOptions { Color = true }))
+			.Single(static l => l.Contains("int32", StringComparison.Ordinal));
+
+		Assert.StartsWith("     \x1b[0;1m0\x1b[0m. int32", local);
+	}
+
 	// ==========================================================================================
 	// misc options
 	[Fact]
@@ -341,8 +398,8 @@ public sealed class IlBodyDisplayTests {
 			"""
 			IL for 'void object::Target()', in transaction 'ModB::check'
 			locals (zeroed):
-			     0. int32
-			+    1. object
+			     0. int32  // TestGame
+			+    1. object // ModB::check
 
 			code:
 			     0. nop       // TestGame

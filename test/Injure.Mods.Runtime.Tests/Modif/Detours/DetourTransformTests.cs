@@ -49,7 +49,7 @@ public sealed class DetourTransformTests {
 	/// then applies the prologue to it.
 	/// </summary>
 	private static IlMethodBody apply(MethodInfo target, ImmutableArray<IlTypeRef> locals = default, bool initLocals = true) {
-		var body = IlMethodBody.CreateEmpty(IlRefFactory.Method(target), locals, initLocals);
+		var body = IlMethodBody.CreateEmpty(IlRefFactory.Method(target), locals, initLocals: initLocals);
 		IlTransactionCore core = new(body, IlTest.OwnerId, IlTest.LocalId, default, null);
 		core.EmitAtBoundary(0, static e => { e.Ldarg(0); e.Ret(); });
 		core.Commit();

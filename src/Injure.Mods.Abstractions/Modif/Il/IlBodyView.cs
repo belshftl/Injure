@@ -75,9 +75,26 @@ internal sealed class IlBodyView {
 	public required ImmutableArray<IlTypeRef> Locals { get; init; }
 
 	/// <summary>
+	/// Debug "provenance" of <see cref="Locals"/>; see <see cref="IlMethodBody.LocalsProvenance"/>.
+	/// </summary>
+	public required ImmutableArray<InternalIlProvenance> LocalsProvenance { get; init; }
+
+	/// <summary>
+	/// How many leading <see cref="Locals"/> were decoded from metadata. Debug info only, same as
+	/// <see cref="LocalsProvenance"/>.
+	/// </summary>
+	public required int BaselineLocalCount { get; init; }
+
+	/// <summary>
 	/// Locals the transaction would append after <see cref="Locals"/>.
 	/// </summary>
 	public required ImmutableArray<IlTypeRef> DeclaredLocals { get; init; }
+
+	/// <summary>
+	/// Debug "provenance" for who would introduce <see cref="DeclaredLocals"/>; see
+	/// <see cref="IlMethodBody.LocalsProvenance"/>.
+	/// </summary>
+	public required InternalIlProvenance DeclaredLocalsProvenance { get; init; }
 
 	/// <summary>
 	/// Whether locals would be zeroed once committed.
@@ -108,7 +125,10 @@ internal sealed class IlBodyView {
 			Method = body.Method,
 			TransactionName = null,
 			Locals = body.Locals,
+			LocalsProvenance = body.LocalsProvenance,
+			BaselineLocalCount = body.BaselineLocalCount,
 			DeclaredLocals = [],
+			DeclaredLocalsProvenance = default,
 			InitLocals = body.InitLocals,
 			Rows = rows,
 			AnchorAt = body.Anchors.Select(static a => (IlAnchorId?)a).ToList(),

@@ -137,10 +137,12 @@ internal sealed class BodyBuilder {
 		List<IlAnchorId> anchors = new(instrs.Count + 1);
 		for (int boundary = 0; boundary <= instrs.Count; boundary++)
 			anchors.Add(Anchor(boundary));
+		ImmutableArray<IlTypeRef> resolvedLocals = locals.IsDefault ? [] : locals;
 		return IlMethodBody.CreateDecoded(
 			IlTest.Method("Target", signature ?? IlTest.Sig(IlTest.Void)),
 			initLocals,
-			locals.IsDefault ? [] : locals,
+			resolvedLocals,
+			Enumerable.Repeat(baselineProvenance, resolvedLocals.Length).ToImmutableArray(),
 			localsOrigin,
 			instrs,
 			anchors,

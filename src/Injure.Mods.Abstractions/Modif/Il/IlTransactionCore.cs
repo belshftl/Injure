@@ -115,26 +115,6 @@ internal sealed class IlTransactionCore {
 		return new IlLabel(transactionId, id);
 	}
 
-	/// <summary>
-	/// Declares a new local, appended after the method's existing locals.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// A declared local starts uninit if the method has <c>localsinit</c> set to false and it is a
-	/// non-GC local, and zeroed otherwise. A method with no existing locals is treated as zeroing, so
-	/// declaring its first local sets <c>localsinit</c>, which also makes the method's <c>localloc</c>
-	/// buffers now zeroed rather than uninit, which is a safe behavioral change.
-	/// </para>
-	/// <para>
-	/// The local exists only once the transaction commits, and a transaction that emits no instructions
-	/// commits nothing, including its declared locals.
-	/// </para>
-	/// </remarks>
-	/// <exception cref="IlCollectibleReferenceException">
-	/// Thrown if <paramref name="type"/> is a value type from a reloadable mod, by value, and as such
-	/// would create an illegal reference to a reloadable mod; see
-	/// <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
-	/// </exception>
 	public IlLocal DeclareLocal(IlTypeRef type) {
 		EnsureAuthoringOpen();
 		ArgumentNullException.ThrowIfNull(type);
@@ -319,7 +299,7 @@ internal sealed class IlTransactionCore {
 		}
 
 		validateIndices(instrs);
-		working.ReplaceInstructions(instrs, finalAnchors, declaredLocals.ToImmutableArray());
+		working.ReplaceInstructions(instrs, finalAnchors, declaredLocals.ToImmutableArray(), provenance);
 		committed = true;
 	}
 
@@ -373,7 +353,10 @@ internal sealed class IlTransactionCore {
 			Method = snapshot.Method,
 			TransactionName = LocalId is null ? OwnerId : $"{OwnerId}::{LocalId}",
 			Locals = snapshot.Locals,
+			LocalsProvenance = snapshot.LocalsProvenance,
+			BaselineLocalCount = snapshot.BaselineLocalCount,
 			DeclaredLocals = declared,
+			DeclaredLocalsProvenance = provenance,
 			InitLocals = working.InitLocals || (snapshot.Locals.IsEmpty && !declared.IsEmpty),
 			Rows = rows,
 			AnchorAt = anchors,

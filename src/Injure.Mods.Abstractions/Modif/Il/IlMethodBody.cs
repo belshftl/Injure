@@ -24,6 +24,27 @@ internal sealed class IlMethodBody {
 	public ImmutableArray<IlTypeRef> Locals { get; private set; }
 
 	/// <summary>
+	/// Debug "provenance" of each local.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is <b>purely debug info</b>; it's called "locals provenance" to avoid confusion with
+	/// <see cref="LocalSignatureOrigin"/>, but it's not real provenance, and must not be allowed to
+	/// leak into the public API as anything more than debug info.
+	/// </para>
+	/// <para>
+	/// Decoded locals have the baseline provenance the body was decoded with.
+	/// </para>
+	/// </remarks>
+	public ImmutableArray<InternalIlProvenance> LocalsProvenance { get; private set; }
+
+	/// <summary>
+	/// How many leading <see cref="Locals"/> were decoded from metadata. Debug info only, same as
+	/// <see cref="LocalsProvenance"/>.
+	/// </summary>
+	public int BaselineLocalCount { get; }
+
+	/// <summary>
 	/// Where <see cref="Locals"/> was decoded from when this body came from metadata. Encoding-only
 	/// optimization hint; never part of identity.
 	/// </summary>
@@ -47,6 +68,8 @@ internal sealed class IlMethodBody {
 		IlMethodRef method,
 		bool initLocals,
 		ImmutableArray<IlTypeRef> locals,
+		ImmutableArray<InternalIlProvenance> localsProvenance,
+		int? baselineLocalCount,
 		IlLocalSignatureOrigin localSignatureOrigin,
 		List<IlInstruction> instrs,
 		List<IlAnchorId> anchors,
@@ -58,9 +81,15 @@ internal sealed class IlMethodBody {
 		InternalStateException.ThrowIfNull(instrs);
 		InternalStateException.ThrowIfNull(anchors);
 		InternalStateException.ThrowIfNull(exRegions);
+		if (!locals.IsDefault && !localsProvenance.IsDefault && locals.Length != localsProvenance.Length)
+			throw new InternalStateException("locals provenance array length mismatch");
 		Method = method;
 		InitLocals = initLocals && !locals.IsDefaultOrEmpty;
 		Locals = locals.IsDefault ? [] : locals;
+		LocalsProvenance = localsProvenance.IsDefault
+			? Enumerable.Repeat<InternalIlProvenance>(default, Locals.Length).ToImmutableArray()
+			: localsProvenance;
+		BaselineLocalCount = baselineLocalCount ?? Locals.Length;
 		LocalSignatureOrigin = localSignatureOrigin;
 		this.instrs = instrs;
 		this.anchors = anchors;
@@ -74,16 +103,18 @@ internal sealed class IlMethodBody {
 	public static IlMethodBody CreateEmpty(
 		IlMethodRef method,
 		ImmutableArray<IlTypeRef> locals = default,
+		ImmutableArray<InternalIlProvenance> localsProvenance = default,
 		bool initLocals = true
 	) {
 		InternalStateException.ThrowIfNull(method);
-		return new IlMethodBody(method, initLocals, locals, default, [], [new IlAnchorId(1)], [], 0, 1);
+		return new IlMethodBody(method, initLocals, locals, localsProvenance, null, default, [], [new IlAnchorId(1)], [], 0, 1);
 	}
 
 	public static IlMethodBody CreateDecoded(
 		IlMethodRef method,
 		bool initLocals,
 		ImmutableArray<IlTypeRef> locals,
+		ImmutableArray<InternalIlProvenance> localsProvenance,
 		IlLocalSignatureOrigin localSignatureOrigin,
 		List<IlInstruction> instrs,
 		List<IlAnchorId> anchors,
@@ -103,6 +134,8 @@ internal sealed class IlMethodBody {
 			method,
 			initLocals,
 			locals,
+			localsProvenance,
+			null,
 			localSignatureOrigin,
 			instrs,
 			anchors,
@@ -142,6 +175,8 @@ internal sealed class IlMethodBody {
 		Method,
 		InitLocals,
 		Locals,
+		LocalsProvenance,
+		BaselineLocalCount,
 		LocalSignatureOrigin,
 		new List<IlInstruction>(instrs),
 		new List<IlAnchorId>(anchors),
@@ -158,7 +193,8 @@ internal sealed class IlMethodBody {
 	public void ReplaceInstructions(
 		IReadOnlyList<IlInstruction> newInstrs,
 		IReadOnlyList<IlAnchorId> newAnchors,
-		IReadOnlyList<IlTypeRef> addedLocals
+		IReadOnlyList<IlTypeRef> addedLocals,
+		InternalIlProvenance addedLocalsProvenance
 	) {
 		InternalStateException.ThrowIfNull(newInstrs);
 		InternalStateException.ThrowIfNull(newAnchors);
@@ -169,19 +205,20 @@ internal sealed class IlMethodBody {
 		anchors.Clear();
 		anchors.AddRange(newAnchors);
 		if (addedLocals.Count > 0)
-			appendLocals(addedLocals);
+			appendLocals(addedLocals, addedLocalsProvenance);
 		anchorBoundaries = null;
 		ComputedMaxStack = null;
 		validateShape();
 		validateReferences();
 	}
 
-	private void appendLocals(IReadOnlyList<IlTypeRef> added) {
+	private void appendLocals(IReadOnlyList<IlTypeRef> added, InternalIlProvenance provenance) {
 		// if a method has no locals it doesn't really have a trustworthy localsinit flag (a tiny header
 		// doesn't have localsinit, and the constructor drops it regardless), so treat it as zeroing
 		if (Locals.IsEmpty)
 			InitLocals = true;
 		Locals = Locals.AddRange(added);
+		LocalsProvenance = LocalsProvenance.AddRange(Enumerable.Repeat(provenance, added.Count));
 		LocalSignatureOrigin = default; // the hint is now out of date
 	}
 
@@ -196,6 +233,8 @@ internal sealed class IlMethodBody {
 	private void validateShape() {
 		if (anchors.Count != instrs.Count + 1)
 			throw new InternalStateException("a method body requires exactly one more anchor than instruction");
+		if (Locals.Length != LocalsProvenance.Length)
+			throw new InternalStateException("locals provenance array length doesn't match the amount of locals");
 
 		HashSet<IlAnchorId> seenAnchors = new(anchors.Count);
 		foreach (IlAnchorId anchor in anchors) {

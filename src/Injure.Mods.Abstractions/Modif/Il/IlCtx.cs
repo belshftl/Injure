@@ -33,6 +33,35 @@ public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
 	public IlLabel DefineLabel() => Core.DefineLabel();
 
 	/// <summary>
+	/// Declares a new local, appended after the method's existing locals.
+	/// </summary>
+	/// <param name="type">The type of the local.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="type"/> is <c>void</c>.
+	/// </exception>
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="type"/> is a value type from a reloadable mod, by value, and as such
+	/// would create an illegal reference to a reloadable mod; see
+	/// <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// A declared local starts uninit if the method has <c>localsinit</c> set to false and it is of a
+	/// non-GC type, and zeroed otherwise. A method with no existing locals is treated as uninit
+	/// locals, so declaring its first local sets <c>localsinit</c>, which also makes the method's
+	/// <c>localloc</c> buffers now zeroed rather than uninit, which is a safe behavioral change.
+	/// </para>
+	/// <para>
+	/// The local exists only once the transaction commits, and a transaction that emits no instructions
+	/// commits nothing, including its declared locals.
+	/// </para>
+	/// </remarks>
+	public IlLocal DeclareLocal(IlTypeRef type) => Core.DeclareLocal(type);
+
+	/// <summary>
 	/// Formats the method body, including the current uncommitted edits, for debug purposes.
 	/// </summary>
 	/// <param name="options">
@@ -51,6 +80,8 @@ public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
 	/// The output includes the transaction, the method's locals, and its body (including labels and
 	/// exception regions). Instructions are annotated with their boundary indices (as numbers in the
 	/// gutter) and provenance (as comments). The uncommitted edits from this manipulator are marked.
+	/// Locals are also annotated with what introduced them; this information is similar to provenance
+	/// but is purely debug info, unlike real provenance.
 	/// </para>
 	/// <para>
 	/// The output is not meant to be machine-parsed, and changes to its format will not be treated

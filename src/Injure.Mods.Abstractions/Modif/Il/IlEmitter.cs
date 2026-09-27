@@ -415,17 +415,17 @@ public readonly ref struct IlEmitter {
 	/// <summary>
 	/// Emits the CIL <c>ldloc</c> instruction. The encoder may select an equivalent short form.
 	/// </summary>
-	/* pending */ internal void Ldloc(IlLocal local) => Raw(ILOpCode.Ldloc, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Ldloc(IlLocal local) => Raw(ILOpCode.Ldloc, new IlLocalOperand(builder.ValidateLocal(local)));
 
 	/// <summary>
 	/// Emits the CIL <c>ldloca</c> instruction. The encoder may select <c>ldloca.s</c>.
 	/// </summary>
-	/* pending */ internal void Ldloca(IlLocal local) => Raw(ILOpCode.Ldloca, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Ldloca(IlLocal local) => Raw(ILOpCode.Ldloca, new IlLocalOperand(builder.ValidateLocal(local)));
 
 	/// <summary>
 	/// Emits the CIL <c>stloc</c> instruction. The encoder may select an equivalent short form.
 	/// </summary>
-	/* pending */ internal void Stloc(IlLocal local) => Raw(ILOpCode.Stloc, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Stloc(IlLocal local) => Raw(ILOpCode.Stloc, new IlLocalOperand(builder.ValidateLocal(local)));
 
 	// ======================================================================================
 	// fields
@@ -577,6 +577,25 @@ public readonly ref struct IlEmitter {
 	/// Thrown if <paramref name="method"/> would create an illegal reference to a reloadable mod;
 	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
 	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// The reloadable-mod and accessibility restrictions of <see cref="Call(IlMethodRef)"/> apply here
+	/// too, and concern <paramref name="method"/> as named: its declaring type, signature, and generic
+	/// arguments. Where the call dispatches to at runtime doesn't matter. A <c>callvirt</c> to a virtual
+	/// or interface method declared by the engine, the game, or the BCL is fine even when the receiver
+	/// turns out to be a reloadable mod's type that overrides or implements it, since the call goes
+	/// through the receiver's vtable rather than a metadata reference to the mod.
+	/// </para>
+	/// <para>
+	/// There's no indirect counterpart. If you do genuinely need to call an instance method from a
+	/// reloadable mod, make a static wrapper method that takes in the receiver, and call that with
+	/// <see cref="IndirectCall(MethodInfo)"/>.
+	/// </para>
+	/// <para>
+	/// Prefix emission is planned before a stable release but is not implemented yet, so
+	/// <c>constrained.</c> is currently unavailable.
+	/// </para>
+	/// </remarks>
 	public void Callvirt(IlMethodRef method) {
 		ArgumentNullException.ThrowIfNull(method);
 		IlTypeRestrictionCheck.AssertUnrestricted($"callvirt {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));

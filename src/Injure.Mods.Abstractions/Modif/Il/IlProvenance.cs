@@ -124,7 +124,13 @@ internal static class IlProvenanceInterning {
 /// ID pair.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Internally, there is also the concept of "locals provenance" (local as in local variable); it is
+/// <b>purely debug info</b>, not real provenance. See <see cref="IlMethodBody.LocalsProvenance"/>.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is valid and is the unknown-provenance value.
+/// </para>
 /// </remarks>
 internal readonly record struct InternalIlProvenance {
 	/// <summary>

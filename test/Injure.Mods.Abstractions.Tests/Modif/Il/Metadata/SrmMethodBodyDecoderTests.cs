@@ -202,4 +202,19 @@ public sealed class SrmMethodBodyDecoderTests : IDisposable {
 
 		Assert.Equal(1, core.MatchAll([MatchIl.LdcI4(0), MatchIl.Pop], IlProvenanceConstr.Any).Count);
 	}
+
+	// ==========================================================================================
+	// debug info
+	[Fact]
+	public void DecodedLocalsGetTheBaselineProvenance() {
+		using FileStream fixtureStream = File.OpenRead(typeof(IlFixture.Mechanism).Assembly.Location);
+		using PEReader fixture = new(fixtureStream);
+		InternalIlProvenance baseline = new("TestGame", null);
+
+		IlMethodBody body = Fixture.Decode(fixture, fixture.GetMetadataReader(), "Mechanism", "Classify", baseline);
+
+		Assert.NotEmpty(body.Locals);
+		Assert.Equal(body.Locals.Length, body.LocalsProvenance.Length);
+		Assert.All(body.LocalsProvenance, origin => Assert.Equal(baseline, origin));
+	}
 }

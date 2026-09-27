@@ -18,8 +18,10 @@ anyhow, to v0.1:
   - [x] fix the runtime failing to resolve game -> non-reloadable-mod `AssemblyRef`s
   - [x] fix the messages on all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice
   - [x] add conveniences to call methods from delegates to static method groups
+  - [x] wire declaring locals into the public api
+  - [x] maybe give declared locals provenance-like info too?
+  - [ ] add proper operand-agnostic instruction matching, there's `MatchIl.OpCode(ILOpCode)` but it's kind of broken i think
   - [ ] polish the `IlCollectibleReferenceException` docs, cover some currently missing cases; on a side tangent, also add more to `IlEmitter.Callvirt`'s docs
-  - [ ] wire declaring locals into the public api
   - [ ] consider having a basic context object for deactivate/unload with just `IOwnerDiagnostics`; maybe just pass `IOwnerDiagnostics` directly, though i don't really like that
   - [ ] fix some more bugs, i'm sure there's a few
 - [ ] document the mod loader properly:
@@ -59,13 +61,14 @@ anyhow, to v0.1:
 - [ ] get back to the mod loader:
   - [ ] implement `target-version`/`target-build-mvid`, they're currently sitting there doing nothing
   - [ ] finally think out the semantics of link-time modifs and implement them
-  - [ ] do some practical testing and think about the intended model for mods to have nuget dependencies, including nuget dependencies that package native runtimes
-  - [ ] implement load-from-zip
+  - [ ] fuzzy il matching
+  - [ ] instruction prefix emission api
+  - [ ] api for declaring exception regions
   - [ ] mutation il edits, explicitly marked as advanced/unsafe
   - [ ] removal il edits, explicitly marked as advanced/unsafe
-  - [ ] il authoring api to declare exception regions
-  - [ ] implement detouring open generics
-  - [ ] think about what to do with `IndirectCall` and open generics
+  - [ ] do some practical testing and think about the intended model for mods to have nuget dependencies, including nuget dependencies that package native runtimes
+  - [ ] load-from-zip
+  - [ ] detouring open generics
 - [ ] `Layers.Ecs` system for entities and components:
   - [ ] a notable design point i'm thinking of is that entities/components should be generic over the particular type of parent they expect, so the base classes are abstract `Entity<TParent> : IUntypedEntity where TParent : Layer` and `Component<TParent> : IUntypedComponent where TParent : IUntypedEntity`, and a particular entity is either `MyEntity : Entity<Level>` if it needs a particular type of layer or `MyEntity<TParent> : Entity<TParent> where TParent : Layer` if it's layer-agnostic
   - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad

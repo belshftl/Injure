@@ -133,6 +133,7 @@ internal static class SrmMethodBodyDecoder {
 			method,
 			methodBody.LocalVariablesInitialized,
 			locals,
+			Enumerable.Repeat(baselineProvenance, locals.Length).ToImmutableArray(),
 			localsOrigin,
 			instrs,
 			anchors,

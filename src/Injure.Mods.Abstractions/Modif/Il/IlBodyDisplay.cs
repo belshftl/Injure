@@ -56,12 +56,9 @@ internal static class IlBodyDisplay {
 		int numberWidth = Math.Max(minNumberDigits, digits(maxNumber)) + 1;
 
 		string[] texts = new string[view.Rows.Count];
-		int textWidth = 0;
-		for (int i = 0; i < view.Rows.Count; i++) {
+		for (int i = 0; i < view.Rows.Count; i++)
 			texts[i] = formatRow(view, view.Rows[i], boundaryOf, labelNames);
-			if (texts[i].Length <= maxAlignedWidth)
-				textWidth = Math.Max(textWidth, texts[i].Length);
-		}
+		int textWidth = alignedWidth(texts);
 
 		StringBuilder sb = new();
 		if (options.AddLeadingNewline)
@@ -75,7 +72,27 @@ internal static class IlBodyDisplay {
 			sb.Append(", in transaction '").Append(view.TransactionName).Append('\'');
 		sb.AppendLine();
 
-		appendLocals(sb, view, numberWidth, in options);
+		if (view.Locals.IsEmpty && view.DeclaredLocals.IsEmpty) {
+			sb.AppendLine("locals: none");
+		} else {
+			string[] existing = view.Locals.Select(IlRefDisplay.FormatType).ToArray();
+			string[] declared = view.DeclaredLocals.Select(IlRefDisplay.FormatType).ToArray();
+			int typeWidth = alignedWidth([.. existing, .. declared]);
+			string declaredProvenance = formatProvenance(view.DeclaredLocalsProvenance, options);
+
+			sb.AppendLine(view.InitLocals ? "locals (zeroed):" : "locals (uninit):");
+			for (int i = 0; i < existing.Length; i++) {
+				string? style = ownerStyle(view.LocalsProvenance[i], i < view.BaselineLocalCount);
+				List<Segment> line = gutter(' ', i, numberWidth, style);
+				appendCommented(line, existing[i], style, typeWidth, formatProvenance(view.LocalsProvenance[i], options));
+				appendLine(sb, line, in options);
+			}
+			for (int i = 0; i < declared.Length; i++) {
+				List<Segment> line = gutter('+', existing.Length + i, numberWidth, green);
+				appendCommented(line, declared[i], green, typeWidth, declaredProvenance);
+				appendLine(sb, line, in options);
+			}
+		}
 
 		sb.AppendLine();
 		sb.AppendLine("code:");
@@ -90,9 +107,7 @@ internal static class IlBodyDisplay {
 			IlBodyRow row = view.Rows[boundary];
 			string? style = rowStyle(row);
 			List<Segment> line = gutter(row.Status == IlRowStatus.Inserted ? '+' : ' ', row.Index, numberWidth, style);
-			line.Add(new Segment(texts[boundary], style));
-			line.Add(new Segment(new string(' ', Math.Max(1, textWidth - texts[boundary].Length + 1)), null));
-			line.Add(new Segment("// " + formatProvenance(row.Provenance, options), faint));
+			appendCommented(line, texts[boundary], style, textWidth, formatProvenance(row.Provenance, options));
 			appendLine(sb, line, in options);
 		}
 		return sb.ToString();
@@ -148,36 +163,13 @@ internal static class IlBodyDisplay {
 		return names;
 	}
 
-	/// <summary>
-	/// The style a row's gutter and instruction text are drawn in.
-	/// </summary>
-	private static string? rowStyle(IlBodyRow row) {
-		if (row.Status == IlRowStatus.Inserted)
-			return green;
-		if (row.IsBaseline || row.Provenance.IsUnknown)
-			return null;
-		return ownerPalette[fnv(row.Provenance.GetOwnerId()!) % (uint)ownerPalette.Length];
-	}
+	private static string? rowStyle(IlBodyRow row) =>
+		row.Status == IlRowStatus.Inserted ? green : ownerStyle(row.Provenance, row.IsBaseline);
 
-	// ==========================================================================================
-	// locals
-	private static void appendLocals(StringBuilder sb, IlBodyView view, int numberWidth, in IlFormatOptions options) {
-		if (view.Locals.IsEmpty && view.DeclaredLocals.IsEmpty) {
-			sb.AppendLine("locals: none");
-			return;
-		}
-		sb.AppendLine(view.InitLocals ? "locals (zeroed):" : "locals (uninit):");
-		for (int i = 0; i < view.Locals.Length; i++) {
-			List<Segment> line = gutter(' ', i, numberWidth, null);
-			line.Add(new Segment(IlRefDisplay.FormatType(view.Locals[i]), null));
-			appendLine(sb, line, in options);
-		}
-		for (int i = 0; i < view.DeclaredLocals.Length; i++) {
-			List<Segment> line = gutter('+', view.Locals.Length + i, numberWidth, green);
-			line.Add(new Segment(IlRefDisplay.FormatType(view.DeclaredLocals[i]), green));
-			appendLine(sb, line, in options);
-		}
-	}
+	private static string? ownerStyle(InternalIlProvenance provenance, bool isBaseline) =>
+		(isBaseline || provenance.IsUnknown)
+			? null
+			: ownerPalette[fnv(provenance.GetOwnerId()!) % ownerPalette.Length];
 
 	// ==========================================================================================
 	// exception regions
@@ -251,6 +243,20 @@ internal static class IlBodyDisplay {
 			new Segment(text[numberStart..(1 + numberWidth)], style is null ? bold : bold + ";" + style),
 			new Segment(text[(1 + numberWidth)..], style),
 		];
+	}
+
+	private static int alignedWidth(IEnumerable<string> texts) {
+		int width = 0;
+		foreach (string text in texts)
+			if (text.Length <= maxAlignedWidth)
+				width = Math.Max(width, text.Length);
+		return width;
+	}
+
+	private static void appendCommented(List<Segment> line, string text, string? style, int width, string comment) {
+		line.Add(new Segment(text, style));
+		line.Add(new Segment(new string(' ', Math.Max(1, width - text.Length + 1)), null));
+		line.Add(new Segment("// " + comment, faint));
 	}
 
 	private static void appendLine(StringBuilder sb, List<Segment> line, in IlFormatOptions options) {
