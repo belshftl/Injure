@@ -17,7 +17,8 @@ anyhow, to v0.1:
   - [x] add an api to debug-dump the current il, make it nice
   - [x] fix the runtime failing to resolve game -> non-reloadable-mod `AssemblyRef`s
   - [x] fix the messages on all the exceptions an `IlMatchException` gets wrapped in, currently the same error message gets pasted like thrice
-  - [ ] add conveniences to call methods from delegates to static method groups
+  - [x] add conveniences to call methods from delegates to static method groups
+  - [ ] polish the `IlCollectibleReferenceException` docs, cover some currently missing cases; on a side tangent, also add more to `IlEmitter.Callvirt`'s docs
   - [ ] wire declaring locals into the public api
   - [ ] consider having a basic context object for deactivate/unload with just `IOwnerDiagnostics`; maybe just pass `IOwnerDiagnostics` directly, though i don't really like that
   - [ ] fix some more bugs, i'm sure there's a few

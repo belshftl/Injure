@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Reflection.Metadata;
+using System.Runtime.CompilerServices;
 
 namespace Injure.Mods.Abstractions.Modif.Il;
 
@@ -45,25 +47,25 @@ public readonly ref struct IlEmitter {
 
 	/// <summary>
 	/// Emits a sequence of instructions to call <paramref name="method"/> through a dispatch
-	/// table rather than by direct reference. This is the only way to call into a reloadable mod.
+	/// table rather than by direct reference. This is the only way to call into a reloadable mod,
+	/// and also allows emitting calls to non-public mod methods.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="method"/> has no callable entry point (open generic, abstract,
-	/// extern with RVA 0, etc.)
+	/// Thrown if <paramref name="method"/> is an instance method, or if it has no callable entry
+	/// point: open generic, abstract, or no CIL body + no other callable stub (P/Invoke impl,
+	/// <c>InternalCall</c>/<c>Runtime</c>, <c>[UnsafeAccessor]</c>).
 	/// </exception>
 	/// <exception cref="IlCollectibleReferenceException">
 	/// Thrown if <paramref name="method"/>'s <b>signature</b> would create an illegal reference to a
 	/// reloadable mod; see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
-	/// This is different from if <paramref name="method"/> itself would create an illegal reference;
-	/// see the paragraph on signature operands' types' restrictions in the aforementioned type docs.
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// Takes in a reflection method rather than a structural metadata reference because the
-	/// target has to already be callable now, which is exactly what reflection is for.
+	/// Takes in a reflection method rather than a structural metadata reference because the target has
+	/// to already be callable now rather than simply be fed into a metadata encoder.
 	/// </para>
 	/// <para>
 	/// The sequence emitted is:
@@ -72,20 +74,19 @@ public readonly ref struct IlEmitter {
 	/// call &lt;...&gt;
 	/// calli &lt;signature&gt;
 	/// </code>
-	/// The emitted opcodes are part of the API and a change to them will be treated like an
-	/// API break, but the operands of the <c>ldc.i4</c> and <c>call</c> are not, and should be
-	/// treated as opaque magic values that are stable within a process but may change between
-	/// multiple runs of the process. <c>&lt;signature&gt;</c> is the signature of
-	/// <paramref name="method"/>.
+	/// Never silently emits a direct call instead. The caller pushes arguments exactly as for
+	/// <c>call</c>. The emitted opcodes are part of the API, for IL-matching purposes, but the
+	/// operands of the <c>ldc.i4</c> and <c>call</c> are currently not, and should currently be
+	/// treated as opaque magic values; that will be revisited before a first stable release.
+	/// <c>&lt;signature&gt;</c> is the signature of <paramref name="method"/>.
 	/// </para>
 	/// <para>
-	/// Open generics are currently unsupported; <paramref name="method"/> must not have open type
-	/// parameters. Support may come later, and if it is added in the future, the emitted instruction
-	/// sequence will be different for open generic methods (by necessity).
+	/// Usable in a non-reloadable mod too. The cost goes from one direct call to a volatile table
+	/// read + an indirect call. In practice, the usual cost is just that the call can't be inlined
+	/// anymore; the rest is usually negligible. Benchmark your case if it's relevant.
 	/// </para>
 	/// <para>
-	/// Usable in a non-reloadable mod too, though there it's just unnecessary indirection. Never silently
-	/// emits a direct call instead.
+	/// See <see cref="MgroupIndirectCall{TDelegate}(TDelegate)"/> for a convenience wrapper.
 	/// </para>
 	/// </remarks>
 	public void IndirectCall(MethodInfo method) {
@@ -93,6 +94,8 @@ public readonly ref struct IlEmitter {
 			throw new InternalStateException("no indirect call dispatch mechanism available here; if this is in an engine test, pass a nonnull IIlCallDispatch to your IlTransactionCore construction");
 
 		ArgumentNullException.ThrowIfNull(method);
+		if (!method.IsStatic)
+			throw new ArgumentException("method must be static", nameof(method));
 		if (method.IsAbstract)
 			throw new ArgumentException("method is abstract and, as such, has no callable entry point", nameof(method));
 		if (method.IsGenericMethodDefinition || method.DeclaringType?.IsGenericTypeDefinition == true)
@@ -103,9 +106,9 @@ public readonly ref struct IlEmitter {
 			method.GetMethodBody() is null &&
 			(method.Attributes & MethodAttributes.PinvokeImpl) == 0 &&
 			(method.GetMethodImplementationFlags() & (MethodImplAttributes.InternalCall | MethodImplAttributes.Runtime)) == 0 &&
-			!method.IsDefined(typeof(System.Runtime.CompilerServices.UnsafeAccessorAttribute), inherit: false)
+			!method.IsDefined(typeof(UnsafeAccessorAttribute), inherit: false)
 		)
-			throw new ArgumentException("method is a method with no CIL body, P/Invoke impl, runtime management flags, or [UnsafeAccessor], i.e. likely extern with RVA 0", nameof(method));
+			throw new ArgumentException("method is a method with no CIL body, P/Invoke impl, runtime management flags, or [UnsafeAccessor]", nameof(method));
 
 		IlMethodSignature signature = IlRefFactory.Method(method).Signature;
 		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerContext));
@@ -113,6 +116,133 @@ public readonly ref struct IlEmitter {
 		Raw(ILOpCode.Ldc_i4, new IlInt32Operand(slot));
 		Raw(ILOpCode.Call, new IlMethodOperand(callDispatch.ResolveTarget));
 		Raw(ILOpCode.Calli, new IlCallSiteOperand(signature));
+	}
+
+	// ======================================================================================
+	// mgroup call wrappers
+
+	/// <summary>
+	/// Like <see cref="Call(IlMethodRef)"/>, but takes a static method group.
+	/// </summary>
+	/// <typeparam name="TDelegate">
+	/// Can be explicitly specified to pick the overload of an overloaded method group.
+	/// </typeparam>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="mgroup"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="mgroup"/> isn't a single static method group, or is inaccessible from
+	/// the patched method (static local functions fail solely because of the accessibility check).
+	/// </exception>
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="mgroup"/> would create an illegal reference to a reloadable mod;
+	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// The delegate is only used to extract the target method and is then discarded. This is
+	/// <b>not</b> the same as, say, MonoMod's <c>EmitDelegate</c>, which retains the delegate
+	/// internally if it needs to. This is an intentional design point: needing to emit a call that
+	/// captures a closure is nearly always a bug, and more often happens due to a misunderstanding of
+	/// how the API works than on purpose (example: <c>EmitDelegate(Singleton.Instance.Method)</c>
+	/// captures the instance when the intent is most likely to have the receiver be pushed to the
+	/// stack by other IL).
+	/// </para>
+	/// <para>
+	/// Only a single static method group is accepted. Instance methods, lambdas (<b>including static
+	/// lambdas</b>, as they compile to instance methods too), local functions, extension methods
+	/// closed over a receiver, and other kinds of closures are rejected. Static local functions are
+	/// fine in principle, but don't work in practice as they compile to inaccessible methods. An
+	/// overloaded method group has no natural single delegate type, so
+	/// <typeparamref name="TDelegate"/> has to be specified explicitly for those.
+	/// </para>
+	/// <para>
+	/// See <see cref="Call(IlMethodRef)"/> for more info, including accessibility/reloadable-mod
+	/// caveats; this is just a convenience wrapper, and the actual behavior is detailed there.
+	/// </para>
+	/// </remarks>
+	public void MgroupCall<TDelegate>(TDelegate mgroup) where TDelegate : Delegate {
+		MethodInfo method = requireStaticMgroup(mgroup, nameof(mgroup));
+		if (!isAccessibleFromAnywhere(method))
+			throw new ArgumentException(
+				$"'{method.DeclaringType}::{method.Name}' is non-public (or is on a non-public type), so the patched method wouldn't be able to call it directly; consider using MgroupIndirectCall, which isn't subject to access checks",
+				nameof(mgroup)
+			);
+		Call(IlRefFactory.Method(method));
+	}
+
+	/// <summary>
+	/// Like <see cref="IndirectCall(MethodInfo)"/>, but takes a static method group.
+	/// </summary>
+	/// <typeparam name="TDelegate">
+	/// Can be explicitly specified to pick the overload of an overloaded method group.
+	/// </typeparam>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="mgroup"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="mgroup"/> isn't a single static method group or static local function.
+	/// </exception>
+	/// <exception cref="IlCollectibleReferenceException">
+	/// Thrown if <paramref name="mgroup"/>'s <b>signature</b> would create an illegal reference to a
+	/// reloadable mod; see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// The delegate is only used to extract the target method and is then discarded. This is
+	/// <b>not</b> the same as, say, MonoMod's <c>EmitDelegate</c>, which retains the delegate
+	/// internally if it needs to. This is an intentional design point: needing to emit a call that
+	/// captures a closure is nearly always a bug, and more often happens due to a misunderstanding of
+	/// how the API works than on purpose (example: <c>EmitDelegate(Singleton.Instance.Method)</c>
+	/// captures the instance when the intent is most likely to have the receiver be pushed to the
+	/// stack by other IL).
+	/// </para>
+	/// <para>
+	/// Only a single static method group or static local function is accepted. Instance methods,
+	/// lambdas (<b>including static lambdas</b>, as they compile to instance methods too), local
+	/// functions, extension methods closed over a receiver, and other kinds of closures are rejected.
+	/// An overloaded method group has no natural single delegate type, so
+	/// <typeparamref name="TDelegate"/> has to be specified explicitly for those.
+	/// </para>
+	/// <para>
+	/// See <see cref="IndirectCall(MethodInfo)"/> for more info; this is just a convenience wrapper,
+	/// and the actual behavior is detailed there.
+	/// </para>
+	/// </remarks>
+	public void MgroupIndirectCall<TDelegate>(TDelegate mgroup) where TDelegate : Delegate =>
+		IndirectCall(requireStaticMgroup(mgroup, nameof(mgroup)));
+
+	private static MethodInfo requireStaticMgroup(Delegate mgroup, string paramName) {
+		ArgumentNullException.ThrowIfNull(mgroup, paramName);
+		if (!mgroup.HasSingleTarget)
+			throw new ArgumentException("the delegate combines several methods; pass a single static method group", paramName);
+
+		MethodInfo method = mgroup.Method;
+		if (method is DynamicMethod)
+			throw new ArgumentException("the delegate is to a dynamic method, which doesn't have any metadata for emitted IL to reference and would need delegate retention", paramName);
+		if (!method.IsStatic || mgroup.Target is not null) {
+			string hint = method.DeclaringType?.IsDefined(typeof(CompilerGeneratedAttribute), false) == true
+				? ". it looks like a lambda, which compiles to an instance method even if it's a static lambda; use a regular static method instead" 
+				: "";
+			throw new ArgumentException(
+				$"'{method.DeclaringType}::{method.Name}' must be a regular static method group; lambdas, instance methods, or other kinds of closures would need delegate retention{hint}",
+				paramName
+			);
+		}
+		return method;
+	}
+
+	private static bool isAccessibleFromAnywhere(MethodInfo method) {
+		if (!method.IsPublic)
+			return false;
+		for (Type? type = method.DeclaringType; type is not null; type = type.DeclaringType)
+			if (!(type.IsPublic || type.IsNestedPublic))
+				return false;
+		if (method.IsGenericMethod && !method.ContainsGenericParameters)
+			foreach (Type type in method.GetGenericArguments())
+				if (!(type.IsPublic || type.IsNestedPublic))
+					return false;
+		return true;
 	}
 
 	// ======================================================================================
@@ -409,6 +539,28 @@ public readonly ref struct IlEmitter {
 	/// Thrown if <paramref name="method"/> would create an illegal reference to a reloadable mod;
 	/// see <see cref="IlCollectibleReferenceException"/>'s type docs for more info.
 	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// <b>Use <see cref="IndirectCall(MethodInfo)"/> instead if <paramref name="method"/> is in a
+	/// reloadable mod</b> and you're patching the engine/game, because the emitted IL lives in the
+	/// engine/game's non-collectible assembly, which can't directly reference a collectible one.
+	/// </para>
+	/// <para>
+	/// In addition to the reloadable-mod restriction, since a call to <paramref name="method"/> is,
+	/// quite literally, injected into the patched method, <paramref name="method"/> must be accessible
+	/// from where the patched method lives. If that is not the case, the next call to the patched
+	/// method fails with <see cref="MethodAccessException"/>. In practice, this usually means
+	/// <paramref name="method"/> must be public, be on a publicly accessible type, and (if applicable)
+	/// have publicly accessible generic arguments. <see cref="IndirectCall(MethodInfo)"/> has no such
+	/// restriction regarding accessibility, since the call goes through a function pointer instead
+	/// of a metadata reference.
+	/// </para>
+	/// <para>
+	/// See <see cref="MgroupCall{TDelegate}(TDelegate)"/> for a convenience wrapper. Said wrapper also
+	/// checks for correct accessibility ahead of time (which isn't possible here;
+	/// <see cref="IlMethodRef"/> doesn't encode accessibility.)
+	/// </para>
+	/// </remarks>
 	public void Call(IlMethodRef method) {
 		ArgumentNullException.ThrowIfNull(method);
 		IlTypeRestrictionCheck.AssertUnrestricted($"call {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));

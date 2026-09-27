@@ -85,7 +85,7 @@ public sealed class IndirectCallDispatchTests {
 	[Fact]
 	public static void TableGrowthWorks() {
 		List<(int Slot, MethodInfo Target)> allocated = new();
-		foreach (MethodInfo target in typeof(string).GetMethods().Where(static m => !m.ContainsGenericParameters).Take(64))
+		foreach (MethodInfo target in typeof(Convert).GetMethods().Where(static m => m.IsStatic && !m.ContainsGenericParameters).Take(64))
 			allocated.Add((IndirectCallDispatch.AllocateSlot(target), target));
 		foreach ((int slot, MethodInfo target) in allocated)
 			Assert.Equal(target.MethodHandle.GetFunctionPointer(), IndirectCallDispatch.GetTarget(slot));

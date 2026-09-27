@@ -50,10 +50,13 @@ public static class IndirectCallDispatch {
 	}
 
 	/// <summary>
-	/// Reserves a slot for a method, or returns one already reserved for that method.
+	/// Reserves a slot for a method, or returns one already reserved for that method. The method must
+	/// be static.
 	/// </summary>
 	internal static int AllocateSlot(MethodInfo target) {
 		InternalStateException.ThrowIfNull(target);
+		if (!target.IsStatic)
+			throw new InternalStateException("can't allocate an indirect call dispatch slot for an instance method");
 		RuntimeMethodHandle handle = target.MethodHandle;
 		lock (@lock) {
 			if (byTarget.TryGetValue(handle, out int existing))
