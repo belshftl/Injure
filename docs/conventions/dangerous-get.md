@@ -1,5 +1,7 @@
 # conventions/dangerous-get.md
 
+(TODO: this needs a touch-up)
+
 Some types expose methods starting with `DangerousGet`, for example `Graphics.Texture2d.DangerousGetBindGroup()`. Such methods return some underlying value/resource that basically lets you bypass some ownership/lifetime/revocation model or API. Usually, this means either:
 - Exposing a native handle / pointer / something else that can't carry ownership data. Example: most of the `Gpu*` types in `Rendering` are just wrappers over a WebGPU object + some metadata. Once an owning object gets disposed, all the non-owning views created from it update accordingly, but if you grab the pointer to the underlying WebGPU object, once the owner is disposed you're just left with a dangling pointer. Additionally, there's nothing stopping you from just calling into WebGPU to release that pointer, even if you got it from a non-owning view, which weakens the model.
 - Exposing an object that can outlive the intended lifetime. Example: implementors of `IRevokable` from the asset system are expected to make the object logically unusable once `Revoke()` is called and fail fast on usage attempts, and since revocation is just logical invalidation, if there's something you can cache to keep using the object, that defeats the point. Take `Graphics.Texture2d` as an example: you could just cache the `GpuTexture` + `GpuSampler` or the bind group and keep using the texture just fine post-revoke.

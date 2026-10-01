@@ -20,6 +20,8 @@ anyhow, to v0.1:
   - [x] add conveniences to call methods from delegates to static method groups
   - [x] wire declaring locals into the public api
   - [x] maybe give declared locals provenance-like info too?
+  - [ ] make the encoder properly align with `canonical-short-form-normative.md`, make it shorten branches
+  - [ ] update the documentation and such to make use of the new definitions of canonical/short form and shortening
   - [ ] add proper operand-agnostic instruction matching, there's `MatchIl.OpCode(ILOpCode)` but it's kind of broken i think
   - [ ] polish the `IlCollectibleReferenceException` docs, cover some currently missing cases; on a side tangent, also add more to `IlEmitter.Callvirt`'s docs
   - [ ] consider having a basic context object for deactivate/unload with just `IOwnerDiagnostics`; maybe just pass `IOwnerDiagnostics` directly, though i don't really like that
