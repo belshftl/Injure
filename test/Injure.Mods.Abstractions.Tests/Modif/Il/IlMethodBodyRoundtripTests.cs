@@ -85,6 +85,11 @@ public sealed class IlMethodBodyRoundtripTests {
 
 		IlMethodBody decoded = SrmMethodBodyDecoder.Decode(metadata, handle, original, default);
 		IlEncodedMethodBody encoded = SrmMethodBodyEncoder.Prepare(decoded, resolver);
+		int originalCodeSize = original.GetILReader().Length;
+		Assert.True(
+			encoded.CodeSize <= originalCodeSize,
+			$"re-encoded to {encoded.CodeSize} code bytes, which is more than the original {originalCodeSize}"
+		);
 
 		Span<byte> bytes = encoded.Size <= 1024 ? stackalloc byte[encoded.Size] : new byte[encoded.Size];
 		encoded.WriteTo(bytes);

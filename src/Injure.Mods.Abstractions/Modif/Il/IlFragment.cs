@@ -15,22 +15,20 @@ internal readonly record struct IlInstructionSpec(
 	IlOperand Operand,
 	IlLabel[]? Labels
 ) {
-	public static IlInstructionSpec Raw(ILOpCode opCode, IlOperand? operand = null) {
+	public static IlInstructionSpec RawNonbranch(ILOpCode opCode, IlOperand? operand = null) {
 		if (IlOpCodeInfo.IsBranch(opCode) || opCode == ILOpCode.Switch)
-			throw new ArgumentException("raw branch/switch emission is not supported; use the label-aware emission methods", nameof(opCode));
-		ILOpCode canonical = IlOpCodeInfo.Canonicalize(opCode);
-		if (canonical != opCode)
-			throw new ArgumentException("compact encoding opcodes are not accepted by Raw; emit the canonical opcode and semantic operand", nameof(opCode));
+			throw new ArgumentException("use RawBranch for raw branch emission and Switch for switch", nameof(opCode));
+		IlOpCodeArguments.ThrowIfNotCanonical(opCode, nameof(opCode));
 		IlOperand normalizedOperand = operand ?? IlNoneOperand.Instance;
-		validateOperand(canonical, normalizedOperand);
-		return new IlInstructionSpec(canonical, normalizedOperand, null);
+		validateOperand(opCode, normalizedOperand);
+		return new IlInstructionSpec(opCode, normalizedOperand, null);
 	}
 
-	public static IlInstructionSpec Branch(ILOpCode opCode, IlLabel target) {
-		ILOpCode canonical = IlOpCodeInfo.Canonicalize(opCode);
-		if (!IlOpCodeInfo.IsBranch(opCode) && !IlOpCodeInfo.IsBranch(canonical))
+	public static IlInstructionSpec RawBranch(ILOpCode opCode, IlLabel target) {
+		if (!IlOpCodeInfo.IsBranch(opCode))
 			throw new ArgumentException($"{opCode} is not a branch opcode", nameof(opCode));
-		return new IlInstructionSpec(canonical, IlNoneOperand.Instance, [target]);
+		IlOpCodeArguments.ThrowIfNotCanonical(opCode, nameof(opCode));
+		return new IlInstructionSpec(opCode, IlNoneOperand.Instance, [target]);
 	}
 
 	public static IlInstructionSpec Switch(ReadOnlySpan<IlLabel> targets) =>
@@ -38,7 +36,7 @@ internal readonly record struct IlInstructionSpec(
 
 	private static void validateOperand(ILOpCode opCode, IlOperand operand) {
 		IlOperandEncoding encoding = IlOpCodeInfo.GetOperandEncoding(opCode);
-		bool valid = encoding switch {
+		if (!(encoding switch {
 			IlOperandEncoding.None => ReferenceEquals(operand, IlNoneOperand.Instance),
 			IlOperandEncoding.Int8 or IlOperandEncoding.UInt8 or IlOperandEncoding.Int32 => operand is IlInt32Operand,
 			IlOperandEncoding.Int64 => operand is IlInt64Operand,
@@ -54,9 +52,16 @@ internal readonly record struct IlInstructionSpec(
 			IlOperandEncoding.EntityToken => operand is IlTypeOperand or IlMethodOperand or IlFieldOperand,
 			IlOperandEncoding.Branch8 or IlOperandEncoding.Branch32 or IlOperandEncoding.Switch => false,
 			_ => false,
-		};
-		if (!valid)
+		}))
 			throw new ArgumentException($"operand {operand.GetType().Name} is invalid for opcode {opCode}", nameof(operand));
+
+		int? index = operand switch {
+			IlArgumentOperand argument => argument.Index,
+			IlLocalOperand local => local.Index,
+			_ => null,
+		};
+		if (index is int i && (uint)i > ushort.MaxValue)
+			throw new ArgumentOutOfRangeException(nameof(operand), i, $"index operand of {opCode} doesn't fit into a 16-bit unsigned integer");
 	}
 }
 

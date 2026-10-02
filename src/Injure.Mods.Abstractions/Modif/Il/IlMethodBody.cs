@@ -231,10 +231,12 @@ internal sealed class IlMethodBody {
 	}
 
 	private void validateShape() {
-		if (anchors.Count != instrs.Count + 1)
-			throw new InternalStateException("a method body requires exactly one more anchor than instruction");
 		if (Locals.Length != LocalsProvenance.Length)
 			throw new InternalStateException("locals provenance array length doesn't match the amount of locals");
+		if (unchecked((uint)BaselineLocalCount > (uint)Locals.Length))
+			throw new InternalStateException("can't have more baseline locals than locals");
+		if (anchors.Count != instrs.Count + 1)
+			throw new InternalStateException("a method body requires exactly one more anchor than instruction");
 
 		HashSet<IlAnchorId> seenAnchors = new(anchors.Count);
 		foreach (IlAnchorId anchor in anchors) {

@@ -133,7 +133,7 @@ internal sealed class BodyBuilder {
 	) {
 		if (!baselineProvenance.IsUnknown)
 			for (int i = 0; i < instrs.Count; i++)
-				instrs[i] = instrs[i] with { Provenance = baselineProvenance };
+				instrs[i] = instrs[i].WithProvenance(baselineProvenance);
 		List<IlAnchorId> anchors = new(instrs.Count + 1);
 		for (int boundary = 0; boundary <= instrs.Count; boundary++)
 			anchors.Add(Anchor(boundary));

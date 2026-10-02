@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Metadata;
 
 namespace Injure.Mods.Abstractions.Modif.Il.Metadata;
@@ -91,7 +92,7 @@ internal enum IlPrefixKind : byte {
 	Volatile,
 	Tail,
 	Unaligned,
-	ReadOnly,
+	Readonly,
 	No,
 }
 
@@ -129,6 +130,7 @@ internal static class IlOpCodeInfo {
 	private const int tableSize = singleByteCount + extendedCount;
 
 	private static readonly IlOpCodeDescriptor[] descriptors = build();
+	private static readonly Dictionary<ILOpCode, ILOpCode> compactBranches = buildCompactBranches();
 
 	public static IlOpCodeDescriptor GetDescriptor(ILOpCode opCode) {
 		int i = index(opCode);
@@ -143,8 +145,33 @@ internal static class IlOpCodeInfo {
 	}
 
 	public static IlOperandEncoding GetOperandEncoding(ILOpCode opCode) => GetDescriptor(opCode).Encoding;
+
+	/// <summary>
+	/// Gets the operand a compact opcode encodes in the opcode itself, e.g. <c>1</c> for
+	/// <c>ldloc.1</c>.
+	/// </summary>
+	/// <returns>
+	/// <see langword="false"/> if the opcode isn't one of those, including every canonical opcode.
+	/// </returns>
+	public static bool TryGetImpliedOperand(ILOpCode opCode, [NotNullWhen(true)] out IlOperand? operand) =>
+		(operand = opCode switch {
+			>= ILOpCode.Ldarg_0 and <= ILOpCode.Ldarg_3 => new IlArgumentOperand((int)opCode - (int)ILOpCode.Ldarg_0),
+			>= ILOpCode.Ldloc_0 and <= ILOpCode.Ldloc_3 => new IlLocalOperand((int)opCode - (int)ILOpCode.Ldloc_0),
+			>= ILOpCode.Stloc_0 and <= ILOpCode.Stloc_3 => new IlLocalOperand((int)opCode - (int)ILOpCode.Stloc_0),
+			ILOpCode.Ldc_i4_m1 => new IlInt32Operand(-1),
+			>= ILOpCode.Ldc_i4_0 and <= ILOpCode.Ldc_i4_8 => new IlInt32Operand((int)opCode - (int)ILOpCode.Ldc_i4_0),
+			_ => null,
+		}) is not null;
+
 	public static IlFlowKind GetFlowKind(ILOpCode opCode) => GetDescriptor(opCode).Flow;
 	public static bool IsPrefix(ILOpCode opCode) => GetDescriptor(opCode).Prefix != IlPrefixKind.None;
+
+	/// <summary>
+	/// Gets the compact encoding of a canonical branch opcode, e.g. <c>br.s</c> for <c>br</c>.
+	/// </summary>
+	public static bool TryGetCompactBranch(ILOpCode canonical, out ILOpCode compact) =>
+		compactBranches.TryGetValue(canonical, out compact);
+
 	public static bool IsBranch(ILOpCode opCode) =>
 		GetDescriptor(opCode).Encoding is IlOperandEncoding.Branch8 or IlOperandEncoding.Branch32;
 	public static int GetOpCodeSize(ILOpCode opCode) => (int)opCode >= 0xfe00 ? 2 : 1;
@@ -159,6 +186,17 @@ internal static class IlOpCodeInfo {
 		IlOperandEncoding.Int64 or IlOperandEncoding.Float64 => 8,
 		_ => throw new InternalStateException($"operand encoding '{encoding}' has no fixed size"),
 	};
+
+	private static ILOpCode opCodeAt(int index) =>
+		index < singleByteCount ? (ILOpCode)index : (ILOpCode)(0xfe00 | (index - singleByteCount));
+
+	private static Dictionary<ILOpCode, ILOpCode> buildCompactBranches() {
+		Dictionary<ILOpCode, ILOpCode> map = new();
+		for (int i = 0; i < descriptors.Length; i++)
+			if (descriptors[i].IsDefined && descriptors[i].Encoding == IlOperandEncoding.Branch8)
+				map.Add(descriptors[i].Canonical, opCodeAt(i));
+		return map;
+	}
 
 	private static int index(ILOpCode opCode) {
 		int value = (int)opCode;
@@ -454,7 +492,7 @@ internal static class IlOpCodeInfo {
 		def(ILOpCode.Volatile, IlOperandEncoding.None, 0, 0, IlFlowKind.Prefix, IlPrefixKind.Volatile);
 		def(ILOpCode.Tail, IlOperandEncoding.None, 0, 0, IlFlowKind.Prefix, IlPrefixKind.Tail);
 		def(ILOpCode.Unaligned, IlOperandEncoding.UInt8, 0, 0, IlFlowKind.Prefix, IlPrefixKind.Unaligned);
-		def(ILOpCode.Readonly, IlOperandEncoding.None, 0, 0, IlFlowKind.Prefix, IlPrefixKind.ReadOnly);
+		def(ILOpCode.Readonly, IlOperandEncoding.None, 0, 0, IlFlowKind.Prefix, IlPrefixKind.Readonly);
 		def(No, IlOperandEncoding.UInt8, 0, 0, IlFlowKind.Prefix, IlPrefixKind.No);
 
 		return table;

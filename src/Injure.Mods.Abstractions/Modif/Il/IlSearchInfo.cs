@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Reflection.Metadata;
 using System.Text;
+using Injure.Mods.Abstractions.Modif.Il.Metadata;
 
 namespace Injure.Mods.Abstractions.Modif.Il;
 
@@ -54,8 +55,6 @@ internal readonly ref struct IlPatternSearchInfo(
 /// Nothing in this class should be called throughout a successful search. This is for failure formatting.
 /// </remarks>
 internal static class IlPatternDisplay {
-	private const string shortFormSuffix = " // or short-form equivalent";
-
 	public static string FormatPattern(
 		ReadOnlySpan<IlPatternElement> pattern,
 		IlProvenanceConstr provenance,
@@ -67,8 +66,6 @@ internal static class IlPatternDisplay {
 			sb.Append(i.ToString(CultureInfo.InvariantCulture).PadLeft(3));
 			sb.Append(". ");
 			sb.Append(FormatElement(pattern[i], in ctx));
-			if (matchesEquivalentShorterForms(pattern[i]))
-				sb.Append(shortFormSuffix);
 			sb.AppendLine();
 		}
 		sb.Append("    + ");
@@ -81,8 +78,8 @@ internal static class IlPatternDisplay {
 
 	public static string FormatElement(IlPatternElement element, in IlFormatCtx ctx) => element.Kind switch {
 		IlPatternElement.PatternKind.Any => "<any instruction>",
-		IlPatternElement.PatternKind.OpCode => formatOpCode(element.OpCodeValue),
-		IlPatternElement.PatternKind.Instruction => formatInstruction(element.OpCodeValue, element.Operand, in ctx),
+		IlPatternElement.PatternKind.OpCode => formatAnyOperand(element.OpCodeValue),
+		IlPatternElement.PatternKind.Instruction => IlInstructionDisplay.Format(element.OpCodeValue, element.Operand, null, ctx.FormatAnchor),
 		_ => "<invalid pattern element>",
 	};
 
@@ -95,21 +92,8 @@ internal static class IlPatternDisplay {
 		_ => "<invalid provenance constraint>",
 	};
 
-	private static string formatInstruction(ILOpCode opCode, IlOperand operand, in IlFormatCtx ctx) =>
-		IlInstructionDisplay.Format(opCode, operand, null, ctx.FormatAnchor);
-
-	private static bool matchesEquivalentShorterForms(IlPatternElement element) {
-		if (element.Kind == IlPatternElement.PatternKind.Any)
-			return false;
-		return element.OpCodeValue is
-			ILOpCode.Ldc_i4 or
-			ILOpCode.Ldarg or ILOpCode.Ldarga or ILOpCode.Starg or
-			ILOpCode.Ldloc or ILOpCode.Ldloca or ILOpCode.Stloc or
-			ILOpCode.Br or ILOpCode.Brfalse or ILOpCode.Brtrue or
-			ILOpCode.Beq or ILOpCode.Bge or ILOpCode.Bgt or ILOpCode.Ble or ILOpCode.Blt or
-			ILOpCode.Bne_un or ILOpCode.Bge_un or ILOpCode.Bgt_un or ILOpCode.Ble_un or ILOpCode.Blt_un or
-			ILOpCode.Leave;
-	}
-
-	private static string formatOpCode(ILOpCode opCode) => IlInstructionDisplay.FormatOpCode(opCode);
+	private static string formatAnyOperand(ILOpCode opCode) =>
+		IlOpCodeInfo.GetOperandEncoding(opCode) == IlOperandEncoding.None
+			? IlInstructionDisplay.FormatOpCode(opCode)
+			: IlInstructionDisplay.FormatOpCode(opCode) + " <any operand>";
 }

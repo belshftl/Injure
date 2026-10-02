@@ -6,9 +6,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// <summary>
 /// Manipulates one snapshot of a method body as part of an ordered IL transformation pipeline.
 /// </summary>
-/// <typeparam name="L">
-/// Lifetime identity of the owner; see <c>Docs/mods/lifetime-identity.md</c> for more info.
-/// </typeparam>
+/// <typeparam name="L">Lifetime identity of the owner.</typeparam>
 /// <param name="ctx">
 /// Transaction-scoped manipulation context.
 /// </param>

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Injure.Mods.Abstractions.Modif.Il;
 
@@ -38,13 +39,27 @@ public sealed record IlInt64Operand(long Value) : IlOperand;
 /// An inline 32-bit floating-point operand.
 /// </summary>
 /// <param name="Value">The <see langword="float"/> value.</param>
-public sealed record IlFloat32Operand(float Value) : IlOperand;
+/// <remarks>
+/// Equality is by bit pattern as opposed to IEEE 754.
+/// </remarks>
+public sealed record IlFloat32Operand(float Value) : IlOperand {
+	public bool Equals(IlFloat32Operand? other) =>
+		other is not null && BitConverter.SingleToUInt32Bits(Value) == BitConverter.SingleToUInt32Bits(other.Value);
+	public override int GetHashCode() => BitConverter.SingleToUInt32Bits(Value).GetHashCode();
+}
 
 /// <summary>
 /// An inline 64-bit floating-point operand.
 /// </summary>
 /// <param name="Value">The <see langword="double"/> value.</param>
-public sealed record IlFloat64Operand(double Value) : IlOperand;
+/// <remarks>
+/// Equality is by bit pattern as opposed to IEEE 754.
+/// </remarks>
+public sealed record IlFloat64Operand(double Value) : IlOperand {
+	public bool Equals(IlFloat64Operand? other) =>
+		other is not null && BitConverter.DoubleToUInt64Bits(Value) == BitConverter.DoubleToUInt64Bits(other.Value);
+	public override int GetHashCode() => BitConverter.DoubleToUInt64Bits(Value).GetHashCode();
+}
 
 /// <summary>
 /// A user string operand.

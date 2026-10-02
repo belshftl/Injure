@@ -16,8 +16,8 @@ internal static class IlRefMatching {
 		return (left, right) switch {
 			(IlInt32Operand a, IlInt32Operand b) => a.Value == b.Value,
 			(IlInt64Operand a, IlInt64Operand b) => a.Value == b.Value,
-			(IlFloat32Operand a, IlFloat32Operand b) => a.Value.Equals(b.Value),
-			(IlFloat64Operand a, IlFloat64Operand b) => a.Value.Equals(b.Value),
+			(IlFloat32Operand a, IlFloat32Operand b) => a.Equals(b),
+			(IlFloat64Operand a, IlFloat64Operand b) => a.Equals(b),
 			(IlStringOperand a, IlStringOperand b) => a.Value == b.Value,
 			(IlArgumentOperand a, IlArgumentOperand b) => a.Index == b.Index,
 			(IlLocalOperand a, IlLocalOperand b) => a.Index == b.Index,

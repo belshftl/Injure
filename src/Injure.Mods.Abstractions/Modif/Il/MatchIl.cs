@@ -7,18 +7,20 @@ using System.Reflection.Metadata;
 namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
-/// Creates <see cref="IlPatternElement"/> values for IL pattern matching.
+/// Creates <see cref="IlPatternElement"/> values for IL-matching canonical instructions.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Patterns match canonical instructions, not encodings. An element built for a long form also
-/// matches every short/compact encoding of the same instruction: <c>MatchIl.LdcI4(0)</c> matches
-/// <c>ldc.i4.0</c>, and <c>MatchIl.Ldarg(1)</c> matches <c>ldarg.1</c>, etc. There is no way to match
-/// one encoding but not another, and no reason to want one, since the encoder re-chooses the encoding
-/// independently of what the body was decoded from.
+/// IL patterns match canonical instructions (see <c>docs/mods/canonical-short-form.md</c>).
 /// </para>
 /// <para>
-/// Prefixes are currently not matchable.
+/// Every factory for an opcode that takes an operand has a parameterless overload that matches any
+/// operand, e.g. <c>MatchIl.Ldloc()</c> matches any `ldloc` whereas <c>MatchIl.Ldloc(1)</c> matches
+/// only `ldloc.1`. Opcodes without an operand are properties instead, e.g. <see cref="Nop"/>.
+/// </para>
+/// <para>
+/// Matching prefixes is currently unimplemented, and will be implemented before the first stable
+/// release.
 /// </para>
 /// </remarks>
 public static class MatchIl {
@@ -26,7 +28,7 @@ public static class MatchIl {
 	// wildcard
 
 	/// <summary>
-	/// Matches any single CIL instruction.
+	/// Matches any single canonical instruction.
 	/// </summary>
 	/// <remarks>
 	/// Matches exactly one instruction, not a run of them. Patterns have no repetition or wildcard
@@ -39,206 +41,298 @@ public static class MatchIl {
 	// raw match
 
 	/// <summary>
-	/// Matches the CIL instruction with the given opcode.
+	/// Matches the canonical instruction with the given opcode and any operand.
 	/// </summary>
-	/// <remarks>
-	/// Matches only by opcode, accepting any operand. The opcode is canonicalized, so passing a compact
-	/// form matches the same instructions as passing its long form.
-	/// </remarks>
-	public static IlPatternElement OpCode(ILOpCode opCode) => new(IlPatternElement.PatternKind.OpCode, opCode);
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="opCode"/> isn't a defined opcode, is a prefix, or is a compact encoding.
+	/// </exception>
+	public static IlPatternElement Raw(ILOpCode opCode) {
+		IlOpCodeArguments.ThrowIfNotCanonical(opCode, nameof(opCode));
+		return anyOperand(opCode);
+	}
 
 	/// <summary>
-	/// Matches the CIL instruction with the given opcode and operand.
+	/// Matches the canonical instruction with the given opcode and operand.
 	/// </summary>
-	public static IlPatternElement Instruction(ILOpCode opCode, IlOperand operand) =>
-		new(IlPatternElement.PatternKind.Instruction, opCode, operand ?? throw new ArgumentNullException(nameof(operand)));
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="operand"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="opCode"/> isn't a defined opcode, is a prefix, or is a compact encoding.
+	/// </exception>
+	public static IlPatternElement Raw(ILOpCode opCode, IlOperand operand) {
+		ArgumentNullException.ThrowIfNull(operand);
+		IlOpCodeArguments.ThrowIfNotCanonical(opCode, nameof(opCode));
+		return new(IlPatternElement.PatternKind.Instruction, opCode, operand);
+	}
 
 	// ======================================================================================
 	// nop and basic control flow
 
 	/// <summary>
-	/// Matches the CIL <c>nop</c> instruction.
+	/// Matches the <c>nop</c> canonical instruction.
 	/// </summary>
-	public static IlPatternElement Nop => OpCode(ILOpCode.Nop);
+	public static IlPatternElement Nop => Raw(ILOpCode.Nop);
 
 	/// <summary>
-	/// Matches the CIL <c>ret</c> instruction.
+	/// Matches the <c>ret</c> canonical instruction.
 	/// </summary>
-	public static IlPatternElement Ret => OpCode(ILOpCode.Ret);
+	public static IlPatternElement Ret => Raw(ILOpCode.Ret);
 
 	/// <summary>
-	/// Matches the CIL <c>throw</c> instruction.
+	/// Matches the <c>throw</c> canonical instruction.
 	/// </summary>
-	public static IlPatternElement Throw => OpCode(ILOpCode.Throw);
+	public static IlPatternElement Throw => Raw(ILOpCode.Throw);
 
 	/// <summary>
-	/// Matches the CIL <c>rethrow</c> instruction.
+	/// Matches the <c>rethrow</c> canonical instruction.
 	/// </summary>
-	public static IlPatternElement Rethrow => OpCode(ILOpCode.Rethrow);
+	public static IlPatternElement Rethrow => Raw(ILOpCode.Rethrow);
 
 	// ======================================================================================
 	// basic stack ops
 
 	/// <summary>
-	/// Matches the CIL <c>dup</c> instruction.
+	/// Matches the <c>dup</c> canonical instruction.
 	/// </summary>
-	public static IlPatternElement Dup => OpCode(ILOpCode.Dup);
+	public static IlPatternElement Dup => Raw(ILOpCode.Dup);
 
 	/// <summary>
-	/// Matches the CIL <c>pop</c> instruction.
+	/// Matches the <c>pop</c> canonical instruction.
 	/// </summary>
-	public static IlPatternElement Pop => OpCode(ILOpCode.Pop);
+	public static IlPatternElement Pop => Raw(ILOpCode.Pop);
 
 	/// <summary>
-	/// Matches the CIL <c>ldnull</c> instruction.
+	/// Matches the <c>ldnull</c> canonical instruction.
 	/// </summary>
-	public static IlPatternElement Ldnull => OpCode(ILOpCode.Ldnull);
+	public static IlPatternElement Ldnull => Raw(ILOpCode.Ldnull);
 
 	// ======================================================================================
 	// loading literal values
 
 	/// <summary>
-	/// Matches the CIL <c>ldc.i4</c> instruction and equivalent short-form encodings such as
-	/// <c>ldc.i4.m1</c> or <c>ldc.i4.s</c>.
+	/// Matches the <c>ldc.i4</c> canonical instruction with any operand.
 	/// </summary>
-	public static IlPatternElement LdcI4(int value) => Instruction(ILOpCode.Ldc_i4, new IlInt32Operand(value));
+	public static IlPatternElement LdcI4() => anyOperand(ILOpCode.Ldc_i4);
 
 	/// <summary>
-	/// Matches the CIL <c>ldc.i8</c> instruction.
+	/// Matches the <c>ldc.i4</c> canonical instruction with the given operand.
 	/// </summary>
-	public static IlPatternElement LdcI8(long value) => Instruction(ILOpCode.Ldc_i8, new IlInt64Operand(value));
+	public static IlPatternElement LdcI4(int value) => Raw(ILOpCode.Ldc_i4, new IlInt32Operand(value));
 
 	/// <summary>
-	/// Matches the CIL <c>ldc.r4</c> instruction.
+	/// Matches the <c>ldc.i8</c> canonical instruction with any operand.
 	/// </summary>
-	public static IlPatternElement LdcR4(float value) => Instruction(ILOpCode.Ldc_r4, new IlFloat32Operand(value));
+	public static IlPatternElement LdcI8() => anyOperand(ILOpCode.Ldc_i8);
 
 	/// <summary>
-	/// Matches the CIL <c>ldc.r8</c> instruction.
+	/// Matches the <c>ldc.i8</c> canonical instruction with the given operand.
 	/// </summary>
-	public static IlPatternElement LdcR8(double value) => Instruction(ILOpCode.Ldc_r8, new IlFloat64Operand(value));
+	public static IlPatternElement LdcI8(long value) => Raw(ILOpCode.Ldc_i8, new IlInt64Operand(value));
 
 	/// <summary>
-	/// Matches the CIL <c>ldstr</c> instruction.
+	/// Matches the <c>ldc.r4</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement LdcR4() => anyOperand(ILOpCode.Ldc_r4);
+
+	/// <summary>
+	/// Matches the <c>ldc.r4</c> canonical instruction with the given operand.
+	/// </summary>
+	public static IlPatternElement LdcR4(float value) => Raw(ILOpCode.Ldc_r4, new IlFloat32Operand(value));
+
+	/// <summary>
+	/// Matches the <c>ldc.r8</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement LdcR8() => anyOperand(ILOpCode.Ldc_r8);
+
+	/// <summary>
+	/// Matches the <c>ldc.r8</c> canonical instruction with the given operand.
+	/// </summary>
+	public static IlPatternElement LdcR8(double value) => Raw(ILOpCode.Ldc_r8, new IlFloat64Operand(value));
+
+	/// <summary>
+	/// Matches the <c>ldstr</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Ldstr() => anyOperand(ILOpCode.Ldstr);
+
+	/// <summary>
+	/// Matches the <c>ldstr</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="value"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Ldstr(string value) => Instruction(ILOpCode.Ldstr, new IlStringOperand(value ?? throw new ArgumentNullException(nameof(value))));
+	public static IlPatternElement Ldstr(string value) => Raw(ILOpCode.Ldstr, new IlStringOperand(value ?? throw new ArgumentNullException(nameof(value))));
 
 	// ======================================================================================
 	// args
 
 	/// <summary>
-	/// Matches the CIL <c>ldarg</c> instruction and equivalent short-form encodings such as
-	/// <c>ldarg.0</c> or <c>ldarg.s</c>.
+	/// Matches the <c>ldarg</c> canonical instruction with any operand.
 	/// </summary>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
-	/// </exception>
-	public static IlPatternElement Ldarg(int index) => Instruction(ILOpCode.Ldarg, new IlArgumentOperand(validateIndex(index)));
+	public static IlPatternElement Ldarg() => anyOperand(ILOpCode.Ldarg);
 
 	/// <summary>
-	/// Matches the CIL <c>ldarga</c> instruction and the equivalent <c>ldarga.s</c> encoding.
+	/// Matches the <c>ldarg</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Ldarga(int index) => Instruction(ILOpCode.Ldarga, new IlArgumentOperand(validateIndex(index)));
+	public static IlPatternElement Ldarg(int index) => Raw(ILOpCode.Ldarg, new IlArgumentOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Matches the CIL <c>starg</c> instruction and the equivalent <c>starg.s</c> encoding.
+	/// Matches the <c>ldarga</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Ldarga() => anyOperand(ILOpCode.Ldarga);
+
+	/// <summary>
+	/// Matches the <c>ldarga</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Starg(int index) => Instruction(ILOpCode.Starg, new IlArgumentOperand(validateIndex(index)));
+	public static IlPatternElement Ldarga(int index) => Raw(ILOpCode.Ldarga, new IlArgumentOperand(validateIndex(index)));
+
+	/// <summary>
+	/// Matches the <c>starg</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Starg() => anyOperand(ILOpCode.Starg);
+
+	/// <summary>
+	/// Matches the <c>starg</c> canonical instruction with the given operand.
+	/// </summary>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
+	/// </exception>
+	public static IlPatternElement Starg(int index) => Raw(ILOpCode.Starg, new IlArgumentOperand(validateIndex(index)));
 
 	// ======================================================================================
 	// locals
 
 	/// <summary>
-	/// Matches the CIL <c>ldloc</c> instruction and equivalent short-form encodings such as
-	/// <c>ldloc.0</c> or <c>ldloc.s</c>.
+	/// Matches the <c>ldloc</c> canonical instruction with any operand.
 	/// </summary>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
-	/// </exception>
-	public static IlPatternElement Ldloc(int index) => Instruction(ILOpCode.Ldloc, new IlLocalOperand(validateIndex(index)));
+	public static IlPatternElement Ldloc() => anyOperand(ILOpCode.Ldloc);
 
 	/// <summary>
-	/// Matches the CIL <c>ldloca</c> instruction and the equivalent <c>ldloca.s</c> encoding.
+	/// Matches the <c>ldloc</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Ldloca(int index) => Instruction(ILOpCode.Ldloca, new IlLocalOperand(validateIndex(index)));
+	public static IlPatternElement Ldloc(int index) => Raw(ILOpCode.Ldloc, new IlLocalOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Matches the CIL <c>stloc</c> instruction and equivalent short-form encodings such as
-	/// <c>stloc.0</c> or <c>stloc.s</c>.
+	/// Matches the <c>ldloca</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Ldloca() => anyOperand(ILOpCode.Ldloca);
+
+	/// <summary>
+	/// Matches the <c>ldloca</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public static IlPatternElement Stloc(int index) => Instruction(ILOpCode.Stloc, new IlLocalOperand(validateIndex(index)));
+	public static IlPatternElement Ldloca(int index) => Raw(ILOpCode.Ldloca, new IlLocalOperand(validateIndex(index)));
+
+	/// <summary>
+	/// Matches the <c>stloc</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Stloc() => anyOperand(ILOpCode.Stloc);
+
+	/// <summary>
+	/// Matches the <c>stloc</c> canonical instruction with the given operand.
+	/// </summary>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
+	/// </exception>
+	public static IlPatternElement Stloc(int index) => Raw(ILOpCode.Stloc, new IlLocalOperand(validateIndex(index)));
 
 	// ======================================================================================
 	// fields
 
 	/// <summary>
-	/// Matches the CIL <c>ldfld</c> instruction.
+	/// Matches the <c>ldfld</c> canonical instruction with any operand.
 	/// </summary>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
-	/// </exception>
-	public static IlPatternElement Ldfld(IlFieldRef field) => Instruction(ILOpCode.Ldfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	public static IlPatternElement Ldfld() => anyOperand(ILOpCode.Ldfld);
 
 	/// <summary>
-	/// Matches the CIL <c>ldflda</c> instruction.
+	/// Matches the <c>ldfld</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Ldflda(IlFieldRef field) => Instruction(ILOpCode.Ldflda, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	public static IlPatternElement Ldfld(IlFieldRef field) => Raw(ILOpCode.Ldfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
 
 	/// <summary>
-	/// Matches the CIL <c>stfld</c> instruction.
+	/// Matches the <c>ldflda</c> canonical instruction with any operand.
 	/// </summary>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
-	/// </exception>
-	public static IlPatternElement Stfld(IlFieldRef field) => Instruction(ILOpCode.Stfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	public static IlPatternElement Ldflda() => anyOperand(ILOpCode.Ldflda);
 
 	/// <summary>
-	/// Matches the CIL <c>ldsfld</c> instruction.
+	/// Matches the <c>ldflda</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Ldsfld(IlFieldRef field) => Instruction(ILOpCode.Ldsfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	public static IlPatternElement Ldflda(IlFieldRef field) => Raw(ILOpCode.Ldflda, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
 
 	/// <summary>
-	/// Matches the CIL <c>ldsflda</c> instruction.
+	/// Matches the <c>stfld</c> canonical instruction with any operand.
 	/// </summary>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
-	/// </exception>
-	public static IlPatternElement Ldsflda(IlFieldRef field) => Instruction(ILOpCode.Ldsflda, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	public static IlPatternElement Stfld() => anyOperand(ILOpCode.Stfld);
 
 	/// <summary>
-	/// Matches the CIL <c>stsfld</c> instruction.
+	/// Matches the <c>stfld</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Stsfld(IlFieldRef field) => Instruction(ILOpCode.Stsfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+	public static IlPatternElement Stfld(IlFieldRef field) => Raw(ILOpCode.Stfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+
+	/// <summary>
+	/// Matches the <c>ldsfld</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Ldsfld() => anyOperand(ILOpCode.Ldsfld);
+
+	/// <summary>
+	/// Matches the <c>ldsfld</c> canonical instruction with the given operand.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Ldsfld(IlFieldRef field) => Raw(ILOpCode.Ldsfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+
+	/// <summary>
+	/// Matches the <c>ldsflda</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Ldsflda() => anyOperand(ILOpCode.Ldsflda);
+
+	/// <summary>
+	/// Matches the <c>ldsflda</c> canonical instruction with the given operand.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Ldsflda(IlFieldRef field) => Raw(ILOpCode.Ldsflda, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
+
+	/// <summary>
+	/// Matches the <c>stsfld</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Stsfld() => anyOperand(ILOpCode.Stsfld);
+
+	/// <summary>
+	/// Matches the <c>stsfld</c> canonical instruction with the given operand.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Stsfld(IlFieldRef field) => Raw(ILOpCode.Stsfld, new IlFieldOperand(field ?? throw new ArgumentNullException(nameof(field))));
 
 	// ======================================================================================
 	// fields (reflection overloads)
 
 	/// <summary>
-	/// Matches the CIL <c>ldfld</c> instruction using a reflection field.
+	/// Matches the <c>ldfld</c> canonical instruction using a reflection field.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -246,7 +340,7 @@ public static class MatchIl {
 	public static IlPatternElement Ldfld(FieldInfo field) => Ldfld(IlRefFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>ldflda</c> instruction using a reflection field.
+	/// Matches the <c>ldflda</c> canonical instruction using a reflection field.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -254,7 +348,7 @@ public static class MatchIl {
 	public static IlPatternElement Ldflda(FieldInfo field) => Ldflda(IlRefFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>stfld</c> instruction using a reflection field.
+	/// Matches the <c>stfld</c> canonical instruction using a reflection field.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -262,7 +356,7 @@ public static class MatchIl {
 	public static IlPatternElement Stfld(FieldInfo field) => Stfld(IlRefFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>ldsfld</c> instruction using a reflection field.
+	/// Matches the <c>ldsfld</c> canonical instruction using a reflection field.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -270,7 +364,7 @@ public static class MatchIl {
 	public static IlPatternElement Ldsfld(FieldInfo field) => Ldsfld(IlRefFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>ldsflda</c> instruction using a reflection field.
+	/// Matches the <c>ldsflda</c> canonical instruction using a reflection field.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -278,7 +372,7 @@ public static class MatchIl {
 	public static IlPatternElement Ldsflda(FieldInfo field) => Ldsflda(IlRefFactory.Field(field));
 
 	/// <summary>
-	/// Matches the CIL <c>stsfld</c> instruction using a reflection field.
+	/// Matches the <c>stsfld</c> canonical instruction using a reflection field.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -289,28 +383,43 @@ public static class MatchIl {
 	// calls
 
 	/// <summary>
-	/// Matches the CIL <c>call</c> instruction.
+	/// Matches the <c>call</c> canonical instruction with any operand.
 	/// </summary>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
-	/// </exception>
-	public static IlPatternElement Call(IlMethodRef method) => Instruction(ILOpCode.Call, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
+	public static IlPatternElement Call() => anyOperand(ILOpCode.Call);
 
 	/// <summary>
-	/// Matches the CIL <c>callvirt</c> instruction.
+	/// Matches the <c>call</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Callvirt(IlMethodRef method) => Instruction(ILOpCode.Callvirt, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
+	public static IlPatternElement Call(IlMethodRef method) => Raw(ILOpCode.Call, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
 
-	// TODO: calli
+	/// <summary>
+	/// Matches the <c>callvirt</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Callvirt() => anyOperand(ILOpCode.Callvirt);
+
+	/// <summary>
+	/// Matches the <c>callvirt</c> canonical instruction with the given operand.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
+	/// </exception>
+	public static IlPatternElement Callvirt(IlMethodRef method) => Raw(ILOpCode.Callvirt, new IlMethodOperand(method ?? throw new ArgumentNullException(nameof(method))));
+
+	/// <summary>
+	/// Matches the CIL <c>calli</c> instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Calli() => anyOperand(ILOpCode.Calli);
+
+	// TODO: calli with an operand
 
 	// ======================================================================================
 	// calls (reflection overloads)
 
 	/// <summary>
-	/// Matches the CIL <c>call</c> instruction using a reflection method.
+	/// Matches the <c>call</c> canonical instruction using a reflection method.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
@@ -318,7 +427,7 @@ public static class MatchIl {
 	public static IlPatternElement Call(MethodBase method) => Call(IlRefFactory.Method(method));
 
 	/// <summary>
-	/// Matches the CIL <c>callvirt</c> instruction using a reflection method.
+	/// Matches the <c>callvirt</c> canonical instruction using a reflection method.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
@@ -331,60 +440,95 @@ public static class MatchIl {
 	// object ops
 
 	/// <summary>
-	/// Matches the CIL <c>newobj</c> instruction.
+	/// Matches the <c>newobj</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Newobj() => anyOperand(ILOpCode.Newobj);
+
+	/// <summary>
+	/// Matches the <c>newobj</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="constructor"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Newobj(IlMethodRef constructor) => Instruction(ILOpCode.Newobj, new IlMethodOperand(constructor ?? throw new ArgumentNullException(nameof(constructor))));
+	public static IlPatternElement Newobj(IlMethodRef constructor) => Raw(ILOpCode.Newobj, new IlMethodOperand(constructor ?? throw new ArgumentNullException(nameof(constructor))));
 
 	/// <summary>
-	/// Matches the CIL <c>box</c> instruction.
+	/// Matches the <c>box</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Box() => anyOperand(ILOpCode.Box);
+
+	/// <summary>
+	/// Matches the <c>box</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Box(IlTypeRef type) => Instruction(ILOpCode.Box, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	public static IlPatternElement Box(IlTypeRef type) => Raw(ILOpCode.Box, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
 
 	/// <summary>
-	/// Matches the CIL <c>unbox.any</c> instruction.
+	/// Matches the <c>unbox.any</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement UnboxAny() => anyOperand(ILOpCode.Unbox_any);
+
+	/// <summary>
+	/// Matches the <c>unbox.any</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement UnboxAny(IlTypeRef type) => Instruction(ILOpCode.Unbox_any, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	public static IlPatternElement UnboxAny(IlTypeRef type) => Raw(ILOpCode.Unbox_any, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
 
 	/// <summary>
-	/// Matches the CIL <c>castclass</c> instruction.
+	/// Matches the <c>castclass</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Castclass() => anyOperand(ILOpCode.Castclass);
+
+	/// <summary>
+	/// Matches the <c>castclass</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Castclass(IlTypeRef type) => Instruction(ILOpCode.Castclass, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	public static IlPatternElement Castclass(IlTypeRef type) => Raw(ILOpCode.Castclass, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
 
 	/// <summary>
-	/// Matches the CIL <c>isinst</c> instruction.
+	/// Matches the <c>isinst</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Isinst() => anyOperand(ILOpCode.Isinst);
+
+	/// <summary>
+	/// Matches the <c>isinst</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Isinst(IlTypeRef type) => Instruction(ILOpCode.Isinst, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	public static IlPatternElement Isinst(IlTypeRef type) => Raw(ILOpCode.Isinst, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
 
 	/// <summary>
-	/// Matches the CIL <c>newarr</c> instruction.
+	/// Matches the <c>newarr</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Newarr() => anyOperand(ILOpCode.Newarr);
+
+	/// <summary>
+	/// Matches the <c>newarr</c> canonical instruction with the given operand.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
 	/// </exception>
-	public static IlPatternElement Newarr(IlTypeRef type) => Instruction(ILOpCode.Newarr, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
+	public static IlPatternElement Newarr(IlTypeRef type) => Raw(ILOpCode.Newarr, new IlTypeOperand(type ?? throw new ArgumentNullException(nameof(type))));
 
-	// TODO: ldtoken
+	/// <summary>
+	/// Matches the <c>ldtoken</c> canonical instruction with any operand.
+	/// </summary>
+	public static IlPatternElement Ldtoken() => anyOperand(ILOpCode.Ldtoken);
+
+	// TODO: ldtoken with an operand
 
 	// ======================================================================================
 	// object ops (reflection overloads)
 
 	/// <summary>
-	/// Matches the CIL <c>newobj</c> instruction using a reflection constructor.
+	/// Matches the <c>newobj</c> canonical instruction using a reflection constructor.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="constructor"/> is <see langword="null"/>.
@@ -392,7 +536,7 @@ public static class MatchIl {
 	public static IlPatternElement Newobj(ConstructorInfo constructor) => Newobj(IlRefFactory.Method(constructor));
 
 	/// <summary>
-	/// Matches the CIL <c>box</c> instruction using a reflection type.
+	/// Matches the <c>box</c> canonical instruction using a reflection type.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -400,7 +544,7 @@ public static class MatchIl {
 	public static IlPatternElement Box(Type type) => Box(IlRefFactory.Type(type));
 
 	/// <summary>
-	/// Matches the CIL <c>unbox.any</c> instruction using a reflection type.
+	/// Matches the <c>unbox.any</c> canonical instruction using a reflection type.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -408,7 +552,7 @@ public static class MatchIl {
 	public static IlPatternElement UnboxAny(Type type) => UnboxAny(IlRefFactory.Type(type));
 
 	/// <summary>
-	/// Matches the CIL <c>castclass</c> instruction using a reflection type.
+	/// Matches the <c>castclass</c> canonical instruction using a reflection type.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -416,7 +560,7 @@ public static class MatchIl {
 	public static IlPatternElement Castclass(Type type) => Castclass(IlRefFactory.Type(type));
 
 	/// <summary>
-	/// Matches the CIL <c>isinst</c> instruction using a reflection type.
+	/// Matches the <c>isinst</c> canonical instruction using a reflection type.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -424,7 +568,7 @@ public static class MatchIl {
 	public static IlPatternElement Isinst(Type type) => Isinst(IlRefFactory.Type(type));
 
 	/// <summary>
-	/// Matches the CIL <c>newarr</c> instruction using a reflection type.
+	/// Matches the <c>newarr</c> canonical instruction using a reflection type.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -434,7 +578,51 @@ public static class MatchIl {
 	// TODO: ldtoken
 
 	// ======================================================================================
+	// branches
+
+	/// <summary>
+	/// Matches the <c>br</c> canonical instruction with any target.
+	/// </summary>
+	public static IlPatternElement Br() => anyOperand(ILOpCode.Br);
+
+	/// <summary>
+	/// Matches the <c>brtrue</c> canonical instruction with any target.
+	/// </summary>
+	public static IlPatternElement Brtrue() => anyOperand(ILOpCode.Brtrue);
+
+	/// <summary>
+	/// Matches the <c>brfalse</c> canonical instruction with any target.
+	/// </summary>
+	public static IlPatternElement Brfalse() => anyOperand(ILOpCode.Brfalse);
+
+	/// <summary>
+	/// Matches the <c>beq</c> canonical instruction with any target.
+	/// </summary>
+	public static IlPatternElement Beq() => anyOperand(ILOpCode.Beq);
+
+	/// <summary>
+	/// Matches the <c>bne.un</c> canonical instruction with any target.
+	/// </summary>
+	public static IlPatternElement BneUn() => anyOperand(ILOpCode.Bne_un);
+
+	/// <summary>
+	/// Matches the <c>leave</c> canonical instruction with any target.
+	/// </summary>
+	public static IlPatternElement Leave() => anyOperand(ILOpCode.Leave);
+
+	/// <summary>
+	/// Matches the <c>switch</c> canonical instruction with any targets.
+	/// </summary>
+	public static IlPatternElement Switch() => anyOperand(ILOpCode.Switch);
+
+	// TODO: either branches/switch with operands, or decide matching them can't specify operands
+	// either way, also decide how "match and fish out operands" should work because that's basically
+	// necessary for branches
+
+	// ======================================================================================
 	// helper methods
+	private static IlPatternElement anyOperand(ILOpCode opCode) => new(IlPatternElement.PatternKind.OpCode, opCode);
+
 	private static int validateIndex(int index) {
 		if ((uint)index > ushort.MaxValue)
 			throw new ArgumentOutOfRangeException(nameof(index));

@@ -31,6 +31,8 @@ public readonly struct IlPatternElement {
 	internal bool IsValid => Kind != PatternKind.UninitializedValue;
 
 	internal IlPatternElement(PatternKind kind, ILOpCode opCode = default, IlOperand? operand = null) {
+		if (IlOpCodeInfo.Canonicalize(opCode) != opCode)
+			throw new InternalStateException($"pattern element built with non-canonical opcode {opCode}");
 		Kind = kind;
 		OpCodeValue = IlOpCodeInfo.Canonicalize(opCode);
 		Operand = operand ?? IlNoneOperand.Instance;

@@ -17,10 +17,9 @@ namespace Injure.Mods.Abstractions.Modif.Il.Metadata;
 /// </remarks>
 internal readonly struct IlEncodingOptions {
 	/// <summary>
-	/// Emits long forms of <c>ldarg</c>/<c>ldloc</c>/<c>ldc.i4</c> and friends even when a compact
-	/// form would do.
+	/// Emits the canonical form of the instruction sequence rather than its short form. For tests.
 	/// </summary>
-	public bool DisableCompactForms { get; init; }
+	public bool ForceCanonicalForm { get; init; }
 
 	/// <summary>
 	/// Emits a fat method header even when a tiny header would do. For tests.
@@ -105,9 +104,9 @@ internal sealed class IlEncodedMethodBody {
 /// </summary>
 /// <remarks>
 /// <para>
-/// Branches are always emitted in their long form, so instruction sizes are known without iterating
-/// to a fixed point and layout is a single pass. Non-branch compact forms are offset-independent and
-/// are selected by default. Whole-method branch relaxation remains deferred.
+/// Emits the short form of the instruction sequence unless forced by
+/// <see cref="IlEncodingOptions.ForceCanonicalForm"/> to emit the canonical form. Either way, the
+/// header and exception sections are chosen from the final offsets.
 /// </para>
 /// <para>
 /// Prefixes are emitted in fixed order, innermost last: <c>no.</c>, <c>readonly.</c>,
@@ -153,9 +152,11 @@ internal static class SrmMethodBodyEncoder {
 		InternalStateException.ThrowIfNull(body);
 		ArgumentNullException.ThrowIfNull(resolver);
 
-		int maxStack = IlMaxStackAnalyzer.Analyze(body);
 		IReadOnlyList<IlInstruction> instrs = body.Instructions;
 		int count = instrs.Count;
+		// before stack analysis, which would report a reachable one as falling off the end instead
+		validateControlTargets(body, instrs);
+		int maxStack = IlMaxStackAnalyzer.Analyze(body);
 
 		int[] operandTokens = new int[count];
 		int[] prefixTokens = new int[count];
@@ -163,17 +164,12 @@ internal static class SrmMethodBodyEncoder {
 
 		var forms = new EmittedForm[count];
 		int[] offsets = new int[count + 1];
-		bool compact = !options.DisableCompactForms;
-		int offset = 0;
-		for (int i = 0; i < count; i++) {
-			offsets[i] = offset;
-			IlInstruction instr = instrs[i];
-			EmittedForm form = selectForm(instr, compact);
-			forms[i] = form;
-			offset = checked(offset + prefixSize(instr.Prefixes) + IlOpCodeInfo.GetOpCodeSize(form.OpCode) + form.OperandSize);
-		}
-		offsets[count] = offset;
-		int codeSize = offset;
+		bool compact = !options.ForceCanonicalForm;
+		for (int i = 0; i < count; i++)
+			forms[i] = selectForm(instrs[i], compact);
+		int codeSize = layout(instrs, forms, offsets);
+		if (compact)
+			codeSize = lengthenBranches(body, instrs, forms, offsets, codeSize);
 
 		IReadOnlyList<IlExceptionRegion> regions = body.ExceptionRegions;
 		bool hasExceptionRegions = regions.Count > 0;
@@ -304,7 +300,7 @@ internal static class SrmMethodBodyEncoder {
 		int size = 0;
 		if (prefixes.Has(IlPrefixFlags.No))
 			size += 3;
-		if (prefixes.Has(IlPrefixFlags.ReadOnly))
+		if (prefixes.Has(IlPrefixFlags.Readonly))
 			size += 2;
 		if (prefixes.Has(IlPrefixFlags.Unaligned))
 			size += 3;
@@ -317,7 +313,64 @@ internal static class SrmMethodBodyEncoder {
 		return size;
 	}
 
+	// ==========================================================================================
+	// layout
+
+	/// <summary>
+	/// Computes every instruction's offset from the chosen forms.
+	/// </summary>
+	/// <returns>The code size.</returns>
+	private static int layout(IReadOnlyList<IlInstruction> instrs, EmittedForm[] forms, int[] offsets) {
+		int offset = 0;
+		for (int i = 0; i < instrs.Count; i++) {
+			offsets[i] = offset;
+			offset = checked(offset + prefixSize(instrs[i].Prefixes) + IlOpCodeInfo.GetOpCodeSize(forms[i].OpCode) + forms[i].OperandSize);
+		}
+		offsets[instrs.Count] = offset;
+		return offset;
+	}
+
+	/// <summary>
+	/// Step 2 of the S4 procedure: while a compact branch has a displacement out of range, replace it
+	/// with its canonical form.
+	/// </summary>
+	/// <remarks>
+	/// Each pass is one iteration that replaces every position of <c>U</c>: <paramref name="offsets"/>
+	/// is only relaid out between passes, so every check in a pass is against the same sequence.
+	/// </remarks>
+	/// <returns>The code size.</returns>
+	private static int lengthenBranches(
+		IlMethodBody body,
+		IReadOnlyList<IlInstruction> instrs,
+		EmittedForm[] forms,
+		int[] offsets,
+		int codeSize
+	) {
+		bool changed;
+		do {
+			changed = false;
+			for (int i = 0; i < instrs.Count; i++) {
+				if (IlOpCodeInfo.GetOperandEncoding(forms[i].OpCode) != IlOperandEncoding.Branch8)
+					continue;
+				int displacement = anchorOffset(body, offsets, branchTarget(instrs[i])) - offsets[i + 1];
+				if (displacement is < sbyte.MinValue or > sbyte.MaxValue) {
+					forms[i] = new EmittedForm(instrs[i].OpCode, 4);
+					changed = true;
+				}
+			}
+			if (changed)
+				codeSize = layout(instrs, forms, offsets);
+		} while (changed);
+		return codeSize;
+	}
+
+	/// <summary>
+	/// Picks the short form (S1) of an instruction other than a branch, or the compact form of a branch,
+	/// which <see cref="lengthenBranches"/> may then replace.
+	/// </summary>
 	private static EmittedForm selectForm(IlInstruction instr, bool compact) {
+		if (compact && IlOpCodeInfo.TryGetCompactBranch(instr.OpCode, out ILOpCode compactBranch))
+			return new EmittedForm(compactBranch, 1);
 		switch (instr.OpCode) {
 		case ILOpCode.Ldarg: {
 			int index = argumentIndex(instr);
@@ -417,7 +470,7 @@ internal static class SrmMethodBodyEncoder {
 		int position = 0;
 		for (int i = 0; i < instrs.Count; i++) {
 			IlInstruction instr = instrs[i];
-			if (instr.Prefixes is {} prefixes)
+			if (instr.Prefixes is IlInstructionPrefixes prefixes)
 				writePrefixes(prefixes, prefixTokens[i], code, ref position);
 
 			EmittedForm form = forms[i];
@@ -460,6 +513,13 @@ internal static class SrmMethodBodyEncoder {
 				BinaryPrimitives.WriteUInt16LittleEndian(code[position..], (ushort)localIndex(instr));
 				position += 2;
 				break;
+			case IlOperandEncoding.Branch8: {
+				int displacement = anchorOffset(body, offsets, branchTarget(instr)) - (position + 1);
+				if (displacement is < sbyte.MinValue or > sbyte.MaxValue)
+					throw new InternalStateException($"instruction {instr.Id} was laid out short, but its displacement {displacement} doesn't fit");
+				code[position++] = unchecked((byte)(sbyte)displacement);
+				break;
+			}
 			case IlOperandEncoding.Branch32: {
 				int target = anchorOffset(body, offsets, branchTarget(instr));
 				BinaryPrimitives.WriteInt32LittleEndian(code[position..], target - (position + 4));
@@ -500,7 +560,7 @@ internal static class SrmMethodBodyEncoder {
 			writeOpCode(IlOpCodeInfo.No, code, ref position);
 			code[position++] = (byte)prefixes.SkipChecks;
 		}
-		if (prefixes.Has(IlPrefixFlags.ReadOnly))
+		if (prefixes.Has(IlPrefixFlags.Readonly))
 			writeOpCode(ILOpCode.Readonly, code, ref position);
 		if (prefixes.Has(IlPrefixFlags.Unaligned)) {
 			writeOpCode(ILOpCode.Unaligned, code, ref position);
@@ -524,6 +584,23 @@ internal static class SrmMethodBodyEncoder {
 			code[position++] = (byte)value;
 		} else {
 			code[position++] = (byte)value;
+		}
+	}
+
+	/// <summary>
+	/// Rejects a branch or switch target at the end of the code, which is a boundary but not an
+	/// instruction, so the sequence isn't encodable.
+	/// </summary>
+	private static void validateControlTargets(IlMethodBody body, IReadOnlyList<IlInstruction> instrs) {
+		IlAnchorId end = body.GetBoundaryAnchor(instrs.Count);
+		foreach (IlInstruction instr in instrs) {
+			bool targetsEnd = instr.Operand switch {
+				IlBranchOperand branch => branch.Target == end,
+				IlSwitchOperand @switch => @switch.Targets.Contains(end),
+				_ => false,
+			};
+			if (targetsEnd)
+				throw new IlEncodingException($"instruction {instr.Id} transfers control to the end of the code, which is not an instruction");
 		}
 	}
 

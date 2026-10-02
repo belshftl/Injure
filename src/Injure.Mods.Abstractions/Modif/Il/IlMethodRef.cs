@@ -15,7 +15,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// The difference between <see cref="System.Reflection.MethodInfo"/> and <see cref="IlMethodRef"/> is
 /// that a <see cref="System.Reflection.MethodInfo"/> is a real method that is part of a currently loaded
 /// type and exists at runtime, whereas <see cref="IlMethodRef"/> is pure metadata, consisting of the
-/// declaring type's metadata, method name, signature, and generic arguments.
+/// declaring type's metadata, method name, signature, and generic arguments' metadata.
 /// </para>
 /// <para>
 /// This means that a <see cref="System.Reflection.MethodInfo"/> can be "converted" to

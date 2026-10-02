@@ -167,7 +167,7 @@ public sealed class SrmMethodBodyEncoderTests {
 	public static void CompactFormsCanBeDisabled() {
 		IlEncodedMethodBody encoded = encode(
 			new BodyBuilder().LdcI4(0).Pop().Ret().Build(),
-			new IlEncodingOptions { DisableCompactForms = true }
+			new IlEncodingOptions { ForceCanonicalForm = true }
 		);
 
 		Assert.Equal(new byte[] { 0x20, 0x00, 0x00, 0x00, 0x00 }, code(encoded)[..5].ToArray());
@@ -175,24 +175,126 @@ public sealed class SrmMethodBodyEncoderTests {
 
 	// ==========================================================================================
 	// branches and switch
-	[Fact]
-	public static void BranchesAreCurrentlyAlwaysLongForm() {
-		// br -> 1; ret
-		// the branch is 5 bytes and jumps zero bytes forward
-		IlEncodedMethodBody encoded = encode(new BodyBuilder().Br(1).Ret().Build());
+	private const byte brS = 0x2b;
+	private const byte br = 0x38;
 
-		Assert.Equal(6, encoded.CodeSize);
-		Assert.Equal(0x38, code(encoded)[0]);
-		Assert.Equal(0, BinaryPrimitives.ReadInt32LittleEndian(code(encoded)[1..]));
+	private static BodyBuilder nops(BodyBuilder builder, int count) {
+		for (int i = 0; i < count; i++)
+			builder.Nop();
+		return builder;
 	}
 
 	[Fact]
-	public static void BranchToTheEndBoundaryIsEncodable() {
-		// ret; br -> end
-		// unreachable, but the target is the end-of-body anchor
-		IlEncodedMethodBody encoded = encode(new BodyBuilder().Ret().Br(2).Build());
+	public static void ANearBranchUsesTheShortForm() {
+		// br.s -> 1; ret
+		IlEncodedMethodBody encoded = encode(new BodyBuilder().Br(1).Ret().Build());
 
-		Assert.Equal(0, BinaryPrimitives.ReadInt32LittleEndian(code(encoded)[2..]));
+		Assert.Equal(new byte[] { brS, 0x00, 0x2a }, code(encoded).ToArray());
+	}
+
+	[Fact]
+	public static void AConditionalBranchUsesItsShortForm() {
+		// ldc.i4.0; brtrue.s -> 3; nop; ret
+		IlEncodedMethodBody encoded = encode(new BodyBuilder().LdcI4(0).Brtrue(3).Nop().Ret().Build());
+
+		Assert.Equal(new byte[] { 0x16, 0x2d, 0x01, 0x00, 0x2a }, code(encoded).ToArray());
+	}
+
+	[Fact]
+	public static void BranchToTheEndOfTheCodeIsRejected() =>
+		// ret; br -> end
+		// CoreCLR rejects this even when unreachable, and it has no position operand in bounds
+		Assert.Throws<IlEncodingException>(static () => encode(new BodyBuilder().Ret().Br(2).Build()));
+
+	[Fact]
+	public static void SwitchTargetAtTheEndOfTheCodeIsRejected() =>
+		// ldc.i4.0; switch -> 2, end; ret
+		Assert.Throws<IlEncodingException>(static () => encode(new BodyBuilder().LdcI4(0).Switch(2, 3).Ret().Build()));
+
+	[Theory]
+	[InlineData(127, false)]
+	[InlineData(128, true)]
+	public static void AForwardBranchIsShortUpTo127Bytes(int gap, bool expectLong) {
+		// br -> past the nops; nop * gap; ret
+		IlEncodedMethodBody encoded = encode(nops(new BodyBuilder().Br(1 + gap), gap).Ret().Build());
+		ReadOnlySpan<byte> bytes = code(encoded);
+
+		if (expectLong) {
+			Assert.Equal(br, bytes[0]);
+			Assert.Equal(gap, BinaryPrimitives.ReadInt32LittleEndian(bytes[1..]));
+		} else {
+			Assert.Equal(brS, bytes[0]);
+			Assert.Equal(gap, (sbyte)bytes[1]);
+		}
+	}
+
+	[Theory]
+	[InlineData(126, false)]
+	[InlineData(127, true)]
+	public static void ABackwardBranchIsShortDownToMinus128Bytes(int gap, bool expectLong) {
+		// nop * gap; br -> 0; ret
+		IlEncodedMethodBody encoded = encode(nops(new BodyBuilder(), gap).Br(0).Ret().Build());
+		ReadOnlySpan<byte> bytes = code(encoded)[gap..];
+
+		if (expectLong) {
+			Assert.Equal(br, bytes[0]);
+			Assert.Equal(-(gap + 5), BinaryPrimitives.ReadInt32LittleEndian(bytes[1..]));
+		} else {
+			Assert.Equal(brS, bytes[0]);
+			Assert.Equal(-(gap + 2), (sbyte)bytes[1]);
+		}
+	}
+
+	[Fact]
+	public static void LengtheningOneBranchCanPushAnotherOutOfRange() {
+		// 0: br -> 126; 1: br -> 326; nop * 324; 326: ret
+		// the first branch spans the second plus 124 nops: 126 bytes with the second short, 129 with it
+		// long, and the second has to be long
+		IlEncodedMethodBody encoded = encode(nops(new BodyBuilder().Br(126).Br(326), 324).Ret().Build());
+		ReadOnlySpan<byte> bytes = code(encoded);
+
+		Assert.Equal(br, bytes[0]);
+		Assert.Equal(129, BinaryPrimitives.ReadInt32LittleEndian(bytes[1..]));
+		Assert.Equal(br, bytes[5]);
+	}
+
+	[Fact]
+	public static void BranchesThatOnlyFitTogetherAreBothShort() {
+		// 0: br -> 126; nop * 124; 125: br -> 0; 126: ret
+		// each fits only while the other is short, which starting from long forms would never find
+		IlEncodedMethodBody encoded = encode(nops(new BodyBuilder().Br(126), 124).Br(0).Ret().Build());
+		ReadOnlySpan<byte> bytes = code(encoded);
+
+		Assert.Equal(129, encoded.CodeSize);
+		Assert.Equal(new byte[] { brS, 126 }, bytes[..2].ToArray());
+		Assert.Equal(new byte[] { brS, unchecked((byte)-128) }, bytes[126..128].ToArray());
+	}
+
+	[Fact]
+	public static void ShortBranchesCanBeDisabled() {
+		IlEncodedMethodBody encoded = encode(
+			new BodyBuilder().Br(1).Ret().Build(),
+			new IlEncodingOptions { ForceCanonicalForm = true }
+		);
+
+		Assert.Equal(new byte[] { br, 0x00, 0x00, 0x00, 0x00, 0x2a }, code(encoded).ToArray());
+	}
+
+	[Fact]
+	public static void ExceptionClausesUseTheFinalLayout() {
+		// 0: try { leave -> 202 } 1: finally { endfinally } nop * 200; 202: ret
+		// the leave spans 201 bytes, so it's long, which moves the handler from offset 2 to 5
+		BodyBuilder builder = nops(new BodyBuilder().Leave(202).Add(ILOpCode.Endfinally), 200).Ret();
+		builder.ExceptionRegion(IlExceptionRegionKind.Finally, 0, 1, 1, 2);
+		IlEncodedMethodBody encoded = encode(builder.Build());
+		int codeEnd = encoded.HeaderSize + encoded.CodeSize;
+		ReadOnlySpan<byte> clause = encoded.AsSpan()[(codeEnd + (4 - codeEnd % 4) % 4 + 4)..];
+
+		Assert.Equal(0x01, encoded.AsSpan()[codeEnd + (4 - codeEnd % 4) % 4]); // small section
+		Assert.Equal(0, BinaryPrimitives.ReadUInt16LittleEndian(clause[2..])); // try offset
+		Assert.Equal(5, clause[4]); // try length
+		Assert.Equal(5, BinaryPrimitives.ReadUInt16LittleEndian(clause[5..])); // handler offset
+		Assert.Equal(1, clause[7]); // handler length
 	}
 
 	[Fact]
@@ -360,5 +462,21 @@ public sealed class SrmMethodBodyEncoderTests {
 
 		// skip the ldc.i4.0
 		Assert.Equal(expected, code(encoded)[1..(1 + expected.Length)].ToArray());
+	}
+
+	// ==========================================================================================
+	// float roundtrip
+	[Theory]
+	[InlineData(0x7fc00001u)] // quiet NaN, nonzero payload
+	[InlineData(0x7f800001u)] // signaling NaN
+	[InlineData(0x80000000u)] // -0.0
+	public static void Float32OperandsKeepTheirBitPattern(uint bits) {
+		IlMethodBody body = new BodyBuilder()
+			.Add(ILOpCode.Ldc_r4, new IlFloat32Operand(BitConverter.UInt32BitsToSingle(bits)))
+			.Pop()
+			.Ret()
+			.Build();
+
+		Assert.Equal(bits, BinaryPrimitives.ReadUInt32LittleEndian(code(encode(body))[1..]));
 	}
 }

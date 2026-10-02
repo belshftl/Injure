@@ -110,6 +110,24 @@ public sealed class IlOpCodeInfoTests {
 		Assert.Equal(canonical.Flow, alias.Flow);
 	}
 
+	[Theory]
+	[MemberData(nameof(AllOpCodes))]
+	public static void CompactBranchesPairWithTheirRuntimeCounterparts(string name) {
+		OpCode op = reflect(name);
+		var opCode = (ILOpCode)(ushort)op.Value;
+		bool hasCompact = IlOpCodeInfo.TryGetCompactBranch(opCode, out ILOpCode compact);
+
+		if (op.OperandType != OperandType.InlineBrTarget) {
+			Assert.False(hasCompact);
+			return;
+		}
+		// every long branch has a runtime `_S` counterpart with a 1-byte target
+		OpCode expected = reflect(name + "_S");
+		Assert.True(hasCompact);
+		Assert.Equal((ILOpCode)(ushort)expected.Value, compact);
+		Assert.Equal(OperandType.ShortInlineBrTarget, expected.OperandType);
+	}
+
 	[Fact]
 	public static void NoPrefixIsDefinedDespiteRuntimeTableOmission() {
 		IlOpCodeDescriptor desc = IlOpCodeInfo.GetDescriptor(IlOpCodeInfo.No);
@@ -145,7 +163,7 @@ public sealed class IlOpCodeInfoTests {
 		Assert.False(IlOpCodeInfo.IsDefined((ILOpCode)raw));
 
 	[Fact]
-	public static void EveryPrefixIsClassifiedAsOne() {
+	public static void EveryPrefixIsClassifiedAsAPrefix() {
 		ILOpCode[] prefixes = [
 			ILOpCode.Constrained, ILOpCode.Volatile, ILOpCode.Tail,
 			ILOpCode.Unaligned, ILOpCode.Readonly, IlOpCodeInfo.No,

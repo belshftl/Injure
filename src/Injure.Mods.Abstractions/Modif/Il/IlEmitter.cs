@@ -13,10 +13,8 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Emitted instructions are recorded semantically, not encoded. Compact encoding forms are not
-/// preserved; an instruction is stored in its canonical form, so a value that could be written as a
-/// short form is indistinguishable afterwards from one that could not, both to later manipulators
-/// and to the encoder, which independently chooses the shortest legal encoding.
+/// The emitter emits canonical instructions only (see <c>docs/mods/canonical-short-form.md</c>).
+/// When a full new method body is being written in, it gets shortened by the encoder.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
@@ -113,9 +111,9 @@ public readonly ref struct IlEmitter {
 		IlMethodSignature signature = IlRefFactory.Method(method).Signature;
 		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerContext));
 		int slot = callDispatch.AllocateSlot(method);
-		Raw(ILOpCode.Ldc_i4, new IlInt32Operand(slot));
-		Raw(ILOpCode.Call, new IlMethodOperand(callDispatch.ResolveTarget));
-		Raw(ILOpCode.Calli, new IlCallSiteOperand(signature));
+		RawNonbranch(ILOpCode.Ldc_i4, new IlInt32Operand(slot));
+		RawNonbranch(ILOpCode.Call, new IlMethodOperand(callDispatch.ResolveTarget));
+		RawNonbranch(ILOpCode.Calli, new IlCallSiteOperand(signature));
 	}
 
 	// ======================================================================================
@@ -249,31 +247,50 @@ public readonly ref struct IlEmitter {
 	// raw emit
 
 	/// <summary>
-	/// Emits the given CIL instruction with no operand.
+	/// Emits the given canonical non-branch instruction, with no operand. Use of this method is
+	/// discouraged in favor of the per-opcode methods.
 	/// </summary>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="opCode"/> isn't a defined opcode, is a prefix, is a compact encoding,
+	/// is a branch or <c>switch</c>, or takes an operand.
+	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// The opcode is canonicalized: passing a compact form such as <c>ldc.i4.s</c> emits, and is
-	/// subsequently indistinguishable from, the corresponding long form. Prefix opcodes are rejected;
-	/// a prefix is part of the instruction it applies to rather than an instruction of its own.
+	/// <b>The opcode must be canonical.</b> Compact encodings such as <c>ldc.i4.s</c> are rejected.
+	/// Prefix opcodes are rejected too; a prefix is part of the instruction it applies to rather than
+	/// an instruction of its own. Emission of instructions with prefixes is curretly unimplemented.
 	/// </para>
 	/// <para>
-	/// Raw branch/switch instructions are not supported; use <see cref="Branch(ILOpCode, IlLabel)"/>.
+	/// See <see cref="RawBranch(ILOpCode, IlLabel)"/> for branches. <c>switch</c> is unsupported here;
+	/// see <see cref="Switch(ReadOnlySpan{IlLabel})"/>. There is no other way to emit <c>switch</c>.
 	/// </para>
 	/// </remarks>
-	public void Raw(ILOpCode opCode) => builder.Emit(IlInstructionSpec.Raw(opCode));
+	public void RawNonbranch(ILOpCode opCode) => builder.Emit(IlInstructionSpec.RawNonbranch(opCode));
 
 	/// <summary>
-	/// Emits the given CIL instruction with an operand.
+	/// Emits the given canonical non-branch instruction, with an operand. Use of this method is
+	/// discouraged in favor of the per-opcode methods.
 	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="operand"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="operand"/> is an argument or local index that doesn't fit into a 16-bit
+	/// unsigned integer.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="opCode"/> isn't a defined opcode, is a prefix, is a compact encoding, or
+	/// is a branch or <c>switch</c>, or if <paramref name="operand"/> isn't of the kind the opcode takes.
+	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// The opcode is canonicalized: passing a compact form such as <c>ldc.i4.s</c> emits, and is
-	/// subsequently indistinguishable from, the corresponding long form. Prefix opcodes are rejected;
-	/// a prefix is part of the instruction it applies to rather than an instruction of its own.
+	/// <b>The opcode must be canonical.</b> Compact encodings such as <c>ldc.i4.s</c> are rejected.
+	/// Prefix opcodes are rejected too; a prefix is part of the instruction it applies to rather than
+	/// an instruction of its own. Emission of instructions with prefixes is curretly unimplemented.
 	/// </para>
 	/// <para>
-	/// Raw branch/switch instructions are not supported; use <see cref="Branch(ILOpCode, IlLabel)"/>.
+	/// See <see cref="RawBranch(ILOpCode, IlLabel)"/> for branches. <c>switch</c> is unsupported here;
+	/// see <see cref="Switch(ReadOnlySpan{IlLabel})"/>. There is no other way to emit <c>switch</c>.
 	/// </para>
 	/// <para>
 	/// No attempt is made to check if the operand makes an illegal reference to a reloadable mod (see
@@ -281,157 +298,175 @@ public readonly ref struct IlEmitter {
 	/// correctness, but it does mean the failure surfaces later at JIT time rather than immediately.
 	/// </para>
 	/// </remarks>
-	public void Raw(ILOpCode opCode, IlOperand operand) {
+	public void RawNonbranch(ILOpCode opCode, IlOperand operand) {
 		ArgumentNullException.ThrowIfNull(operand);
-		builder.Emit(IlInstructionSpec.Raw(opCode, operand));
+		builder.Emit(IlInstructionSpec.RawNonbranch(opCode, operand));
 	}
+
+	/// <summary>
+	/// Emits a canonical branch instruction. Use of this method is discouraged in favor of the
+	/// per-opcode methods.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// <b>The opcode must be canonical.</b> Compact encodings such as <c>br.s</c> are rejected. Prefix
+	/// opcodes are rejected too; a prefix is part of the instruction it applies to rather than an
+	/// instruction of its own. Emission of instructions with prefixes is curretly unimplemented.
+	/// </para>
+	/// <para>
+	/// <c>switch</c> is unsupported here; see <see cref="Switch(ReadOnlySpan{IlLabel})"/>. There is no
+	/// other way to emit <c>switch</c>.
+	/// </para>
+	/// </remarks>
+	public void RawBranch(ILOpCode opCode, IlLabel target) =>
+		builder.Emit(IlInstructionSpec.RawBranch(opCode, target));
 
 	// ======================================================================================
 	// nop and basic control flow
 
 	/// <summary>
-	/// Emits the CIL <c>nop</c> instruction.
+	/// Emits the <c>nop</c> canonical instruction.
 	/// </summary>
-	public void Nop() => Raw(ILOpCode.Nop);
+	public void Nop() => RawNonbranch(ILOpCode.Nop);
 
 	/// <summary>
-	/// Emits the CIL <c>ret</c> instruction.
+	/// Emits the <c>ret</c> canonical instruction.
 	/// </summary>
-	public void Ret() => Raw(ILOpCode.Ret);
+	public void Ret() => RawNonbranch(ILOpCode.Ret);
 
 	/// <summary>
-	/// Emits the CIL <c>throw</c> instruction.
+	/// Emits the <c>throw</c> canonical instruction.
 	/// </summary>
-	public void Throw() => Raw(ILOpCode.Throw);
+	public void Throw() => RawNonbranch(ILOpCode.Throw);
 
 	/// <summary>
-	/// Emits the CIL <c>rethrow</c> instruction.
+	/// Emits the <c>rethrow</c> canonical instruction.
 	/// </summary>
-	public void Rethrow() => Raw(ILOpCode.Rethrow);
+	public void Rethrow() => RawNonbranch(ILOpCode.Rethrow);
 
 	// ======================================================================================
 	// basic stack ops
 
 	/// <summary>
-	/// Emits the CIL <c>dup</c> instruction.
+	/// Emits the <c>dup</c> canonical instruction.
 	/// </summary>
-	public void Dup() => Raw(ILOpCode.Dup);
+	public void Dup() => RawNonbranch(ILOpCode.Dup);
 
 	/// <summary>
-	/// Emits the CIL <c>pop</c> instruction.
+	/// Emits the <c>pop</c> canonical instruction.
 	/// </summary>
-	public void Pop() => Raw(ILOpCode.Pop);
+	public void Pop() => RawNonbranch(ILOpCode.Pop);
 
 	/// <summary>
-	/// Emits the CIL <c>ldnull</c> instruction.
+	/// Emits the <c>ldnull</c> canonical instruction.
 	/// </summary>
-	public void Ldnull() => Raw(ILOpCode.Ldnull);
+	public void Ldnull() => RawNonbranch(ILOpCode.Ldnull);
 
 	// ======================================================================================
 	// loading literal values
 
 	/// <summary>
-	/// Emits the CIL <c>ldc.i4</c> instruction. The encoder may select an equivalent short form.
+	/// Emits the <c>ldc.i4</c> canonical instruction.
 	/// </summary>
-	public void LdcI4(int value) => Raw(ILOpCode.Ldc_i4, new IlInt32Operand(value));
+	public void LdcI4(int value) => RawNonbranch(ILOpCode.Ldc_i4, new IlInt32Operand(value));
 
 	/// <summary>
-	/// Emits the CIL <c>ldc.i8</c> instruction.
+	/// Emits the <c>ldc.i8</c> canonical instruction.
 	/// </summary>
-	public void LdcI8(long value) => Raw(ILOpCode.Ldc_i8, new IlInt64Operand(value));
+	public void LdcI8(long value) => RawNonbranch(ILOpCode.Ldc_i8, new IlInt64Operand(value));
 
 	/// <summary>
-	/// Emits the CIL <c>ldc.r4</c> instruction.
+	/// Emits the <c>ldc.r4</c> canonical instruction.
 	/// </summary>
-	public void LdcR4(float value) => Raw(ILOpCode.Ldc_r4, new IlFloat32Operand(value));
+	public void LdcR4(float value) => RawNonbranch(ILOpCode.Ldc_r4, new IlFloat32Operand(value));
 
 	/// <summary>
-	/// Emits the CIL <c>ldc.r8</c> instruction.
+	/// Emits the <c>ldc.r8</c> canonical instruction.
 	/// </summary>
-	public void LdcR8(double value) => Raw(ILOpCode.Ldc_r8, new IlFloat64Operand(value));
+	public void LdcR8(double value) => RawNonbranch(ILOpCode.Ldc_r8, new IlFloat64Operand(value));
 
 	/// <summary>
-	/// Emits the CIL <c>ldstr</c> instruction.
+	/// Emits the <c>ldstr</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="value"/> is <see langword="null"/>.
 	/// </exception>
-	public void Ldstr(string value) => Raw(ILOpCode.Ldstr, new IlStringOperand(value ?? throw new ArgumentNullException(nameof(value))));
+	public void Ldstr(string value) => RawNonbranch(ILOpCode.Ldstr, new IlStringOperand(value ?? throw new ArgumentNullException(nameof(value))));
 
 	// ======================================================================================
 	// args
 
 	/// <summary>
-	/// Emits the CIL <c>ldarg</c> instruction. The encoder may select an equivalent short form.
+	/// Emits the <c>ldarg</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public void Ldarg(int index) => Raw(ILOpCode.Ldarg, new IlArgumentOperand(validateIndex(index)));
+	public void Ldarg(int index) => RawNonbranch(ILOpCode.Ldarg, new IlArgumentOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Emits the CIL <c>ldarga</c> instruction. The encoder may select <c>ldarga.s</c>.
+	/// Emits the <c>ldarga</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public void Ldarga(int index) => Raw(ILOpCode.Ldarga, new IlArgumentOperand(validateIndex(index)));
+	public void Ldarga(int index) => RawNonbranch(ILOpCode.Ldarga, new IlArgumentOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Emits the CIL <c>starg</c> instruction. The encoder may select <c>starg.s</c>.
+	/// Emits the <c>starg</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public void Starg(int index) => Raw(ILOpCode.Starg, new IlArgumentOperand(validateIndex(index)));
+	public void Starg(int index) => RawNonbranch(ILOpCode.Starg, new IlArgumentOperand(validateIndex(index)));
 
 	// ======================================================================================
 	// locals
 
 	/// <summary>
-	/// Emits the CIL <c>ldloc</c> instruction. The encoder may select an equivalent short form.
+	/// Emits the <c>ldloc</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public void Ldloc(int index) => Raw(ILOpCode.Ldloc, new IlLocalOperand(validateIndex(index)));
+	public void Ldloc(int index) => RawNonbranch(ILOpCode.Ldloc, new IlLocalOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Emits the CIL <c>ldloca</c> instruction. The encoder may select <c>ldloca.s</c>.
+	/// Emits the <c>ldloca</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public void Ldloca(int index) => Raw(ILOpCode.Ldloca, new IlLocalOperand(validateIndex(index)));
+	public void Ldloca(int index) => RawNonbranch(ILOpCode.Ldloca, new IlLocalOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Emits the CIL <c>stloc</c> instruction. The encoder may select an equivalent short form.
+	/// Emits the <c>stloc</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="index"/> doesn't fit into a 16-bit unsigned integer.
 	/// </exception>
-	public void Stloc(int index) => Raw(ILOpCode.Stloc, new IlLocalOperand(validateIndex(index)));
+	public void Stloc(int index) => RawNonbranch(ILOpCode.Stloc, new IlLocalOperand(validateIndex(index)));
 
 	/// <summary>
-	/// Emits the CIL <c>ldloc</c> instruction. The encoder may select an equivalent short form.
+	/// Emits the <c>ldloc</c> canonical instruction.
 	/// </summary>
-	public void Ldloc(IlLocal local) => Raw(ILOpCode.Ldloc, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Ldloc(IlLocal local) => RawNonbranch(ILOpCode.Ldloc, new IlLocalOperand(builder.ValidateLocal(local)));
 
 	/// <summary>
-	/// Emits the CIL <c>ldloca</c> instruction. The encoder may select <c>ldloca.s</c>.
+	/// Emits the <c>ldloca</c> canonical instruction.
 	/// </summary>
-	public void Ldloca(IlLocal local) => Raw(ILOpCode.Ldloca, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Ldloca(IlLocal local) => RawNonbranch(ILOpCode.Ldloca, new IlLocalOperand(builder.ValidateLocal(local)));
 
 	/// <summary>
-	/// Emits the CIL <c>stloc</c> instruction. The encoder may select an equivalent short form.
+	/// Emits the <c>stloc</c> canonical instruction.
 	/// </summary>
-	public void Stloc(IlLocal local) => Raw(ILOpCode.Stloc, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Stloc(IlLocal local) => RawNonbranch(ILOpCode.Stloc, new IlLocalOperand(builder.ValidateLocal(local)));
 
 	// ======================================================================================
 	// fields
 
 	/// <summary>
-	/// Emits the CIL <c>ldfld</c> instruction.
+	/// Emits the <c>ldfld</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -443,11 +478,11 @@ public readonly ref struct IlEmitter {
 	public void Ldfld(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
 		IlTypeRestrictionCheck.AssertUnrestricted($"ldfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
-		Raw(ILOpCode.Ldfld, new IlFieldOperand(field));
+		RawNonbranch(ILOpCode.Ldfld, new IlFieldOperand(field));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>ldflda</c> instruction.
+	/// Emits the <c>ldflda</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -459,11 +494,11 @@ public readonly ref struct IlEmitter {
 	public void Ldflda(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
 		IlTypeRestrictionCheck.AssertUnrestricted($"ldflda {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
-		Raw(ILOpCode.Ldflda, new IlFieldOperand(field));
+		RawNonbranch(ILOpCode.Ldflda, new IlFieldOperand(field));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>stfld</c> instruction.
+	/// Emits the <c>stfld</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -475,11 +510,11 @@ public readonly ref struct IlEmitter {
 	public void Stfld(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
 		IlTypeRestrictionCheck.AssertUnrestricted($"stfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
-		Raw(ILOpCode.Stfld, new IlFieldOperand(field));
+		RawNonbranch(ILOpCode.Stfld, new IlFieldOperand(field));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>ldsfld</c> instruction.
+	/// Emits the <c>ldsfld</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -491,11 +526,11 @@ public readonly ref struct IlEmitter {
 	public void Ldsfld(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
 		IlTypeRestrictionCheck.AssertUnrestricted($"ldsfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
-		Raw(ILOpCode.Ldsfld, new IlFieldOperand(field));
+		RawNonbranch(ILOpCode.Ldsfld, new IlFieldOperand(field));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>ldsflda</c> instruction.
+	/// Emits the <c>ldsflda</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -507,11 +542,11 @@ public readonly ref struct IlEmitter {
 	public void Ldsflda(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
 		IlTypeRestrictionCheck.AssertUnrestricted($"ldsflda {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
-		Raw(ILOpCode.Ldsflda, new IlFieldOperand(field));
+		RawNonbranch(ILOpCode.Ldsflda, new IlFieldOperand(field));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>stsfld</c> instruction.
+	/// Emits the <c>stsfld</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -523,14 +558,14 @@ public readonly ref struct IlEmitter {
 	public void Stsfld(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
 		IlTypeRestrictionCheck.AssertUnrestricted($"stsfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
-		Raw(ILOpCode.Stsfld, new IlFieldOperand(field));
+		RawNonbranch(ILOpCode.Stsfld, new IlFieldOperand(field));
 	}
 
 	// ======================================================================================
 	// calls
 
 	/// <summary>
-	/// Emits the CIL <c>call</c> instruction.
+	/// Emits the <c>call</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
@@ -564,11 +599,11 @@ public readonly ref struct IlEmitter {
 	public void Call(IlMethodRef method) {
 		ArgumentNullException.ThrowIfNull(method);
 		IlTypeRestrictionCheck.AssertUnrestricted($"call {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
-		Raw(ILOpCode.Call, new IlMethodOperand(method));
+		RawNonbranch(ILOpCode.Call, new IlMethodOperand(method));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>callvirt</c> instruction.
+	/// Emits the <c>callvirt</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
@@ -599,11 +634,11 @@ public readonly ref struct IlEmitter {
 	public void Callvirt(IlMethodRef method) {
 		ArgumentNullException.ThrowIfNull(method);
 		IlTypeRestrictionCheck.AssertUnrestricted($"callvirt {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
-		Raw(ILOpCode.Callvirt, new IlMethodOperand(method));
+		RawNonbranch(ILOpCode.Callvirt, new IlMethodOperand(method));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>calli</c> instruction.
+	/// Emits the <c>calli</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="signature"/> is <see langword="null"/>.
@@ -615,14 +650,14 @@ public readonly ref struct IlEmitter {
 	public void Calli(IlMethodSignature signature) {
 		ArgumentNullException.ThrowIfNull(signature);
 		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerContext));
-		Raw(ILOpCode.Calli, new IlCallSiteOperand(signature));
+		RawNonbranch(ILOpCode.Calli, new IlCallSiteOperand(signature));
 	}
 
 	// ======================================================================================
 	// object ops
 
 	/// <summary>
-	/// Emits the CIL <c>newobj</c> instruction.
+	/// Emits the <c>newobj</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="constructor"/> is <see langword="null"/>.
@@ -634,11 +669,11 @@ public readonly ref struct IlEmitter {
 	public void Newobj(IlMethodRef constructor) {
 		ArgumentNullException.ThrowIfNull(constructor);
 		IlTypeRestrictionCheck.AssertUnrestricted($"newobj {constructor}", IlTypeRestrictionCheck.CheckMethodOperand(constructor, ownerContext));
-		Raw(ILOpCode.Newobj, new IlMethodOperand(constructor));
+		RawNonbranch(ILOpCode.Newobj, new IlMethodOperand(constructor));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>box</c> instruction.
+	/// Emits the <c>box</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -650,11 +685,11 @@ public readonly ref struct IlEmitter {
 	public void Box(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
 		IlTypeRestrictionCheck.AssertUnrestricted($"box {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
-		Raw(ILOpCode.Box, new IlTypeOperand(type));
+		RawNonbranch(ILOpCode.Box, new IlTypeOperand(type));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>unbox.any</c> instruction.
+	/// Emits the <c>unbox.any</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -666,11 +701,11 @@ public readonly ref struct IlEmitter {
 	public void UnboxAny(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
 		IlTypeRestrictionCheck.AssertUnrestricted($"unbox.any {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
-		Raw(ILOpCode.Unbox_any, new IlTypeOperand(type));
+		RawNonbranch(ILOpCode.Unbox_any, new IlTypeOperand(type));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>castclass</c> instruction.
+	/// Emits the <c>castclass</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -682,11 +717,11 @@ public readonly ref struct IlEmitter {
 	public void Castclass(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
 		IlTypeRestrictionCheck.AssertUnrestricted($"castclass {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
-		Raw(ILOpCode.Castclass, new IlTypeOperand(type));
+		RawNonbranch(ILOpCode.Castclass, new IlTypeOperand(type));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>isinst</c> instruction.
+	/// Emits the <c>isinst</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -698,11 +733,11 @@ public readonly ref struct IlEmitter {
 	public void Isinst(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
 		IlTypeRestrictionCheck.AssertUnrestricted($"isinst {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
-		Raw(ILOpCode.Isinst, new IlTypeOperand(type));
+		RawNonbranch(ILOpCode.Isinst, new IlTypeOperand(type));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>newarr</c> instruction.
+	/// Emits the <c>newarr</c> canonical instruction.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -714,11 +749,11 @@ public readonly ref struct IlEmitter {
 	public void Newarr(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
 		IlTypeRestrictionCheck.AssertUnrestricted($"newarr {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
-		Raw(ILOpCode.Newarr, new IlTypeOperand(type));
+		RawNonbranch(ILOpCode.Newarr, new IlTypeOperand(type));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>ldtoken</c> instruction for a type.
+	/// Emits the <c>ldtoken</c> canonical instruction for a type.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="type"/> is <see langword="null"/>.
@@ -730,11 +765,11 @@ public readonly ref struct IlEmitter {
 	public void Ldtoken(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
 		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
-		Raw(ILOpCode.Ldtoken, new IlTypeOperand(type));
+		RawNonbranch(ILOpCode.Ldtoken, new IlTypeOperand(type));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>ldtoken</c> instruction for a method.
+	/// Emits the <c>ldtoken</c> canonical instruction for a method.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="method"/> is <see langword="null"/>.
@@ -746,11 +781,11 @@ public readonly ref struct IlEmitter {
 	public void Ldtoken(IlMethodRef method) {
 		ArgumentNullException.ThrowIfNull(method);
 		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
-		Raw(ILOpCode.Ldtoken, new IlMethodOperand(method));
+		RawNonbranch(ILOpCode.Ldtoken, new IlMethodOperand(method));
 	}
 
 	/// <summary>
-	/// Emits the CIL <c>ldtoken</c> instruction for a field.
+	/// Emits the <c>ldtoken</c> canonical instruction for a field.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="field"/> is <see langword="null"/>.
@@ -762,50 +797,48 @@ public readonly ref struct IlEmitter {
 	public void Ldtoken(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
 		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
-		Raw(ILOpCode.Ldtoken, new IlFieldOperand(field));
+		RawNonbranch(ILOpCode.Ldtoken, new IlFieldOperand(field));
 	}
 
 	// ======================================================================================
-	// branches
+	// branches/switch
 
 	/// <summary>
-	/// Emits a branch opcode targeting a transaction-scoped label.
+	/// Emits the <c>br</c> canonical instruction.
 	/// </summary>
-	public void Branch(ILOpCode opCode, IlLabel target) => builder.Emit(IlInstructionSpec.Branch(opCode, target));
+	public void Br(IlLabel target) => RawBranch(ILOpCode.Br, target);
 
 	/// <summary>
-	/// Emits the CIL <c>br</c> instruction.
+	/// Emits the <c>brtrue</c> canonical instruction.
 	/// </summary>
-	public void Br(IlLabel target) => Branch(ILOpCode.Br, target);
+	public void Brtrue(IlLabel target) => RawBranch(ILOpCode.Brtrue, target);
 
 	/// <summary>
-	/// Emits the CIL <c>brtrue</c> instruction.
+	/// Emits the <c>brfalse</c> canonical instruction.
 	/// </summary>
-	public void Brtrue(IlLabel target) => Branch(ILOpCode.Brtrue, target);
+	public void Brfalse(IlLabel target) => RawBranch(ILOpCode.Brfalse, target);
 
 	/// <summary>
-	/// Emits the CIL <c>brfalse</c> instruction.
+	/// Emits the <c>beq</c> canonical instruction.
 	/// </summary>
-	public void Brfalse(IlLabel target) => Branch(ILOpCode.Brfalse, target);
+	public void Beq(IlLabel target) => RawBranch(ILOpCode.Beq, target);
 
 	/// <summary>
-	/// Emits the CIL <c>beq</c> instruction.
+	/// Emits the <c>bne.un</c> canonical instruction.
 	/// </summary>
-	public void Beq(IlLabel target) => Branch(ILOpCode.Beq, target);
+	public void BneUn(IlLabel target) => RawBranch(ILOpCode.Bne_un, target);
 
 	/// <summary>
-	/// Emits the CIL <c>bne.un</c> instruction.
+	/// Emits the <c>leave</c> canonical instruction.
 	/// </summary>
-	public void BneUn(IlLabel target) => Branch(ILOpCode.Bne_un, target);
+	public void Leave(IlLabel target) => RawBranch(ILOpCode.Leave, target);
 
 	/// <summary>
-	/// Emits the CIL <c>leave</c> instruction.
+	/// Emits the <c>switch</c> canonical instruction targeting the supplied labels.
 	/// </summary>
-	public void Leave(IlLabel target) => Branch(ILOpCode.Leave, target);
-
-	/// <summary>
-	/// Emits the CIL <c>switch</c> instruction targeting the supplied labels.
-	/// </summary>
+	/// <remarks>
+	/// This is the only way to emit <c>switch</c>; raw-emit APIs do not support it.
+	/// </remarks>
 	public void Switch(ReadOnlySpan<IlLabel> targets) => builder.Emit(IlInstructionSpec.Switch(targets));
 
 	// ======================================================================================

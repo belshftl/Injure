@@ -88,11 +88,11 @@ internal static class SrmMethodBodyDecoder {
 			PendingInstruction decoded = pending[i];
 			IlOperand operand = decoded.Operand;
 			if (decoded.BranchTargetOffset != noBranchTarget) {
-				operand = new IlBranchOperand(getAnchor(anchorsByOffset, decoded.BranchTargetOffset, decoded.Offset));
+				operand = new IlBranchOperand(getControlTarget(anchorsByOffset, codeSize, decoded.BranchTargetOffset, decoded.Offset));
 			} else if (decoded.SwitchTargetOffsets is int[] targetOffsets) {
 				ImmutableArray<IlAnchorId>.Builder targets = ImmutableArray.CreateBuilder<IlAnchorId>(targetOffsets.Length);
 				foreach (int targetOffset in targetOffsets)
-					targets.Add(getAnchor(anchorsByOffset, targetOffset, decoded.Offset));
+					targets.Add(getControlTarget(anchorsByOffset, codeSize, targetOffset, decoded.Offset));
 				operand = new IlSwitchOperand(targets.MoveToImmutable());
 			}
 			instrs.Add(new IlInstruction(
@@ -272,7 +272,7 @@ internal static class SrmMethodBodyDecoder {
 			IlPrefixKind.Volatile => IlPrefixFlags.Volatile,
 			IlPrefixKind.Tail => IlPrefixFlags.Tail,
 			IlPrefixKind.Unaligned => IlPrefixFlags.Unaligned,
-			IlPrefixKind.ReadOnly => IlPrefixFlags.ReadOnly,
+			IlPrefixKind.Readonly => IlPrefixFlags.Readonly,
 			IlPrefixKind.No => IlPrefixFlags.No,
 			_ => throw new InternalStateException($"prefix opcode has prefix kind '{descriptor.Prefix}'"),
 		};
@@ -340,31 +340,14 @@ internal static class SrmMethodBodyDecoder {
 		}
 	}
 
-	private static IlOperand normalizeCompactOperand(ILOpCode encodedOpCode, IlOperand operand) => encodedOpCode switch {
-		ILOpCode.Ldarg_0 => new IlArgumentOperand(0),
-		ILOpCode.Ldarg_1 => new IlArgumentOperand(1),
-		ILOpCode.Ldarg_2 => new IlArgumentOperand(2),
-		ILOpCode.Ldarg_3 => new IlArgumentOperand(3),
-		ILOpCode.Ldloc_0 => new IlLocalOperand(0),
-		ILOpCode.Ldloc_1 => new IlLocalOperand(1),
-		ILOpCode.Ldloc_2 => new IlLocalOperand(2),
-		ILOpCode.Ldloc_3 => new IlLocalOperand(3),
-		ILOpCode.Stloc_0 => new IlLocalOperand(0),
-		ILOpCode.Stloc_1 => new IlLocalOperand(1),
-		ILOpCode.Stloc_2 => new IlLocalOperand(2),
-		ILOpCode.Stloc_3 => new IlLocalOperand(3),
-		ILOpCode.Ldc_i4_m1 => new IlInt32Operand(-1),
-		ILOpCode.Ldc_i4_0 => new IlInt32Operand(0),
-		ILOpCode.Ldc_i4_1 => new IlInt32Operand(1),
-		ILOpCode.Ldc_i4_2 => new IlInt32Operand(2),
-		ILOpCode.Ldc_i4_3 => new IlInt32Operand(3),
-		ILOpCode.Ldc_i4_4 => new IlInt32Operand(4),
-		ILOpCode.Ldc_i4_5 => new IlInt32Operand(5),
-		ILOpCode.Ldc_i4_6 => new IlInt32Operand(6),
-		ILOpCode.Ldc_i4_7 => new IlInt32Operand(7),
-		ILOpCode.Ldc_i4_8 => new IlInt32Operand(8),
-		_ => operand,
-	};
+	private static IlOperand normalizeCompactOperand(ILOpCode encodedOpCode, IlOperand operand) =>
+		IlOpCodeInfo.TryGetImpliedOperand(encodedOpCode, out IlOperand? implied) ? implied : operand;
+
+	private static IlAnchorId getControlTarget(Dictionary<int, IlAnchorId> anchors, int codeSize, int offset, int sourceOffset) {
+		if (offset == codeSize)
+			throw new BadImageFormatException($"IL_{sourceOffset:x4} transfers control to the end of the code, which is invalid");
+		return getAnchor(anchors, offset, sourceOffset);
+	}
 
 	private static IlAnchorId getAnchor(Dictionary<int, IlAnchorId> anchors, int offset, int sourceOffset) {
 		if (!anchors.TryGetValue(offset, out IlAnchorId anchor))

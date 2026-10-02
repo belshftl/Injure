@@ -278,7 +278,7 @@ internal sealed class IlTransactionCore {
 		foreach (IlAnchorId? anchor in preview.AnchorAt)
 			finalAnchors.Add(anchor ?? working.AllocateAnchorId());
 
-		Dictionary<int, IlAnchorId> labelTargets = [];
+		Dictionary<int, IlAnchorId> labelTargets = new();
 		foreach ((int labelId, int boundary) in preview.LabelBoundaries)
 			labelTargets.Add(labelId, finalAnchors[boundary]);
 
@@ -295,7 +295,7 @@ internal sealed class IlTransactionCore {
 					throw new InternalStateException($"branch instruction {instrs[index].OpCode} has {rowLabels.Length} labels");
 				operand = new IlBranchOperand(getLabelTarget(labelTargets, rowLabels[0].LabelId));
 			}
-			instrs[index] = instrs[index] with { Operand = operand };
+			instrs[index] = instrs[index].WithOperand(operand);
 		}
 
 		validateIndices(instrs);

@@ -171,12 +171,9 @@ public sealed class SrmMethodBodyDecoderTests : IDisposable {
 		Assert.Throws<BadImageFormatException>(() => decode(0x2a, 0xfe));
 
 	[Fact]
-	public void BranchToEndBoundaryIsAccepted() {
-		// ret; br.s -> end of body
-		IlMethodBody body = decode(0x2a, 0x2b, 0x00);
-
-		Assert.Equal(2, body.GetAnchorBoundary(Assert.IsType<IlBranchOperand>(body.Instructions[1].Operand).Target));
-	}
+	public void BranchToEndOfCodeIsRejected() =>
+		// ret; br.s -> end of code
+		Assert.Throws<BadImageFormatException>(() => decode(0x2a, 0x2b, 0x00));
 
 	[Fact]
 	public void SwitchTargetsAreRelativeToEndOfInstruction() {

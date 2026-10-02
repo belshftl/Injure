@@ -12,7 +12,7 @@ internal enum IlPrefixFlags : byte {
 	Volatile = 1 << 1,
 	Tail = 1 << 2,
 	Unaligned = 1 << 3,
-	ReadOnly = 1 << 4,
+	Readonly = 1 << 4,
 	No = 1 << 5,
 }
 
@@ -60,7 +60,7 @@ internal sealed record IlInstructionPrefixes {
 			sb.Append("constrained. ").Append(ConstrainedType).Append(' ');
 		if (Has(IlPrefixFlags.No))
 			sb.Append("no. ").Append((byte)SkipChecks).Append(' ');
-		if (Has(IlPrefixFlags.ReadOnly))
+		if (Has(IlPrefixFlags.Readonly))
 			sb.Append("readonly. ");
 		if (Has(IlPrefixFlags.Tail))
 			sb.Append("tail. ");

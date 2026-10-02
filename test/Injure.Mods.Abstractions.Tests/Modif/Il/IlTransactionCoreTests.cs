@@ -279,6 +279,46 @@ public sealed class IlTransactionCoreTests {
 		Assert.Null(provenance.OwnerId);
 	}
 
+	[Fact]
+	public static void AParameterlessFactoryMatchesAnyOperand() {
+		IlMethodBody body = new BodyBuilder().Ldloc(0).Ldloc(3).Ldloc(300).Pop().Ret().Build(locals: [.. Enumerable.Repeat<IlTypeRef>(IlTest.Int32, 301)]);
+		IlTransactionCore core = open(body);
+
+		Assert.Equal(3, core.MatchAll([MatchIl.Ldloc()], IlProvenanceConstr.Any).Count);
+	}
+
+	[Fact]
+	public static void AParameterlessFactoryStillChecksTheOpCode() {
+		IlMethodBody body = new BodyBuilder().Ldarg(0).LdcI4(1).Pop().Pop().Ret().Build(IlTest.Sig(IlTest.Void, IlTest.Int32));
+		IlTransactionCore core = open(body);
+
+		Assert.Equal(1, core.MatchAll([MatchIl.LdcI4()], IlProvenanceConstr.Any).Count);
+	}
+
+	[Fact]
+	public static void AnyOperandMixesWithExactElements() {
+		IlMethodRef first = IlTest.Method("First", IlTest.Void);
+		IlMethodRef second = IlTest.Method("Second", IlTest.Void);
+		IlMethodBody body = new BodyBuilder().LdcI4(1).Call(first).LdcI4(2).Call(second).LdcI4(1).Call(second).Ret().Build();
+		IlTransactionCore core = open(body);
+
+		Assert.Equal(3, core.MatchAll([MatchIl.LdcI4(), MatchIl.Call()], IlProvenanceConstr.Any).Count);
+		Assert.Equal(2, core.MatchAll([MatchIl.LdcI4(1), MatchIl.Call()], IlProvenanceConstr.Any).Count);
+		Assert.Equal(2, core.MatchAll([MatchIl.LdcI4(), MatchIl.Call(second)], IlProvenanceConstr.Any).Count);
+	}
+
+	[Fact]
+	public static void BranchesMatchWithAnyTarget() {
+		IlMethodBody body = new BodyBuilder().Br(2).Brtrue(3).Leave(4).Switch(0, 4).Ret().Build();
+		IlTransactionCore core = open(body);
+
+		Assert.Equal(1, core.MatchAll([MatchIl.Br()], IlProvenanceConstr.Any).Count);
+		Assert.Equal(1, core.MatchAll([MatchIl.Brtrue()], IlProvenanceConstr.Any).Count);
+		Assert.Equal(0, core.MatchAll([MatchIl.Brfalse()], IlProvenanceConstr.Any).Count);
+		Assert.Equal(1, core.MatchAll([MatchIl.Leave()], IlProvenanceConstr.Any).Count);
+		Assert.Equal(1, core.MatchAll([MatchIl.Switch()], IlProvenanceConstr.Any).Count);
+	}
+
 	// ==========================================================================================
 	// locals
 	private static ImmutableArray<IlTypeRef> int32Locals(int count) => Enumerable.Repeat<IlTypeRef>(IlTest.Int32, count).ToImmutableArray();
@@ -529,5 +569,131 @@ public sealed class IlTransactionCoreTests {
 			Assert.Equal(existing, core.DeclareLocal(IlTest.Int32).Index);
 		else
 			Assert.Throws<IlPipelineException>(() => core.DeclareLocal(IlTest.Int32));
+	}
+
+	// ==========================================================================================
+	// validation
+	[Theory]
+	[InlineData(ILOpCode.Ldc_i4_s)]
+	[InlineData(ILOpCode.Ldc_i4_0)]
+	[InlineData(ILOpCode.Ldloc_2)]
+	[InlineData(ILOpCode.Br_s)]
+	public static void MatchingRejectsCompactEncodings(ILOpCode opCode) {
+		ArgumentException ex = Assert.Throws<ArgumentException>(() => MatchIl.Raw(opCode));
+		Assert.Contains("is a compact encoding", ex.Message, StringComparison.Ordinal);
+		Assert.Throws<ArgumentException>(() => MatchIl.Raw(opCode, new IlInt32Operand(0)));
+	}
+
+	[Theory]
+	[InlineData(ILOpCode.Ldc_i4_s, "ldc.i4.s is a compact encoding; use ldc.i4")]
+	[InlineData(ILOpCode.Ldarg_0, "ldarg.0 is a compact encoding; use ldarg")]
+	public static void RawEmissionRejectsCompactEncodings(ILOpCode opCode, string expected) {
+		IlTransactionCore core = open(new BodyBuilder().Ret().Build());
+
+		ArgumentException ex = Assert.Throws<ArgumentException>(() => core.EmitAtBoundary(0, e => e.RawNonbranch(opCode, new IlInt32Operand(0))));
+		Assert.StartsWith(expected, ex.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public static void RawEmissionAcceptsCanonicalBranches() {
+		IlMethodBody body = new BodyBuilder().Ret().Build();
+		IlTransactionCore core = open(body);
+		IlLabel target = core.DefineLabel();
+		core.EmitAtBoundary(0, e => { e.RawBranch(ILOpCode.Br, target); e.MarkLabel(target); });
+		core.Commit();
+
+		Assert.Equal(ILOpCode.Br, body.Instructions[0].OpCode);
+	}
+
+	[Fact]
+	public static void RawEmissionRejectsCompactBranches() {
+		IlTransactionCore core = open(new BodyBuilder().Ret().Build());
+		IlLabel target = core.DefineLabel();
+
+		Assert.Throws<ArgumentException>(() => core.EmitAtBoundary(0, e => e.RawBranch(ILOpCode.Br_s, target)));
+	}
+
+	[Theory]
+	[InlineData(ILOpCode.Ldc_i4_0)]
+	[InlineData(ILOpCode.Br_s)]
+	[InlineData(ILOpCode.Volatile)]
+	[InlineData((ILOpCode)0x24)]
+	public static void InstructionsRejectOpCodesThatArentCanonicalEncodings(ILOpCode opCode) =>
+		Assert.Throws<InternalStateException>(() => new IlInstruction(
+			new IlInstructionId(1),
+			opCode,
+			IlNoneOperand.Instance,
+			null,
+			IlInstruction.NoOriginalOffset,
+			default
+		));
+
+	[Fact]
+	public static void InstructionsRejectANullOperand() =>
+		Assert.Throws<InternalStateException>(static () => new IlInstruction(
+			new IlInstructionId(1),
+			ILOpCode.Nop,
+			null!,
+			null,
+			IlInstruction.NoOriginalOffset,
+			default
+		));
+
+	[Fact]
+	public static void BodiesRejectADefaultInstruction() {
+		// it bypassed the constructor, but its ID is invalid too, which the body checks
+		InternalStateException ex = Assert.Throws<InternalStateException>(static () => IlMethodBody.CreateDecoded(
+			IlTest.Method("Target", IlTest.Void),
+			true,
+			[],
+			[],
+			default,
+			[default],
+			[BodyBuilder.Anchor(0), BodyBuilder.Anchor(1)],
+			[]
+		));
+		Assert.Contains("IDs must be valid", ex.Message, StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData(ILOpCode.Ldarg, -1)]
+	[InlineData(ILOpCode.Ldarg, 65536)]
+	[InlineData(ILOpCode.Starg, 65536)]
+	[InlineData(ILOpCode.Ldloc, -1)]
+	[InlineData(ILOpCode.Ldloca, 65536)]
+	[InlineData(ILOpCode.Stloc, 70000)]
+	public static void RawEmissionRejectsOutOfRangeIndices(ILOpCode opCode, int index) {
+		IlTransactionCore core = open(new BodyBuilder().Ret().Build());
+		IlOperand operand = opCode is ILOpCode.Ldarg or ILOpCode.Starg ? new IlArgumentOperand(index) : new IlLocalOperand(index);
+
+		ArgumentOutOfRangeException ex = Assert.Throws<ArgumentOutOfRangeException>(() => core.EmitAtBoundary(0, e => e.RawNonbranch(opCode, operand)));
+		Assert.Equal("operand", ex.ParamName);
+	}
+
+	[Fact]
+	public static void RawEmissionAcceptsTheLargestLocalIndex() {
+		IlTransactionCore core = open(new BodyBuilder().Ret().Build());
+
+		// the commit-time check against the method's local count is separate, this only checks the range
+		core.EmitAtBoundary(0, static e => { e.RawNonbranch(ILOpCode.Ldloc, new IlLocalOperand(ushort.MaxValue)); e.Pop(); });
+	}
+
+	[Theory]
+	[InlineData(ILOpCode.Volatile)]
+	[InlineData(ILOpCode.Constrained)]
+	[InlineData((ILOpCode)0x24)]
+	public static void PrefixesAndUndefinedOpCodesAreRejected(ILOpCode opCode) {
+		Assert.Throws<ArgumentException>(() => MatchIl.Raw(opCode));
+		Assert.Throws<ArgumentException>(() => MatchIl.Raw(opCode, IlNoneOperand.Instance));
+	}
+
+	[Fact]
+	public static void AFailedMatchSaysAnyOperand() {
+		IlTransactionCore core = open(new BodyBuilder().Ret().Build());
+
+		IlMatchException ex = Assert.Throws<IlMatchException>(() => core.MatchNext(0, [MatchIl.Ldloc(), MatchIl.Ret], IlProvenanceConstr.Any));
+
+		Assert.Contains("0. ldloc <any operand>\n", ex.Message.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+		Assert.Contains("1. ret\n", ex.Message.ReplaceLineEndings("\n"), StringComparison.Ordinal);
 	}
 }

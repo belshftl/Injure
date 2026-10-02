@@ -6,9 +6,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// <summary>
 /// Transaction-scoped view of the method body presented to an IL manipulator.
 /// </summary>
-/// <typeparam name="L">
-/// Lifetime identity of the owner; see <c>Docs/mods/lifetime-identity.md</c> for more info.
-/// </typeparam>
+/// <typeparam name="L">Lifetime identity of the manipulator's owner.</typeparam>
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>

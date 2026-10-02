@@ -47,7 +47,7 @@ internal static class IlInstructionDisplay {
 			sb.Append("constrained. ").Append(IlRefDisplay.FormatType(prefixes.ConstrainedType!)).Append(' ');
 		if (prefixes.Has(IlPrefixFlags.No))
 			sb.Append("no. ").Append(formatSkipChecks(prefixes.SkipChecks)).Append(' ');
-		if (prefixes.Has(IlPrefixFlags.ReadOnly))
+		if (prefixes.Has(IlPrefixFlags.Readonly))
 			sb.Append("readonly. ");
 		if (prefixes.Has(IlPrefixFlags.Tail))
 			sb.Append("tail. ");
