@@ -22,7 +22,7 @@ CIL oftentimes includes several opcodes that perform the same operaion and diffe
 
 Again, all three behave identically and only have different sizes.
 
-Compilers use the smallest encoding that can hold the operand. This saves a lot of memory, since it's extremely rare that methods have that many arguments or locals, and constants often tend to be small. For example, `ldarg.0` is used to load the receiver (`this`) of an instance method, so it appears everywhere in instance methods; if the short `ldarg.0` didn't exist, every single `ldarg 0` would make the method 4 bytes larger (instead of only 1 byte larger). As another example, since it's extremely rare that a method has more than 255 locals, `ldloc.s` is sufficient almost all of the time, and it would be wasteful to always use the 2-byte-larger `ldloc`.
+Compilers use the smallest encoding that can hold the operand. This saves a lot of memory, since it's extremely rare that methods have that many arguments or locals, and constants often tend to be small. For example, `ldarg.0` is used to load the receiver (`this`) of an instance method, so it appears everywhere in instance methods; if the short `ldarg.0` didn't exist, every single `ldarg 0` would make the method 4 bytes larger (instead of only 1 byte larger). As another example, since it's extremely rare that a method has more than 256 locals, `ldloc.s` is sufficient almost all of the time, and it would be wasteful to always use the 2-byte-larger `ldloc`.
 
 The following *families* of encodings perform the same operation. The long encoding is the one that is the only strictly necessary one; the *compact encodings* are smaller but have fewer encodable operands.
 
@@ -68,7 +68,7 @@ When compiled to IL, it can produce something like:
 
 `brfalse.s` **ends** at offset `0003`, and `L` starts at offset `0005`, so the branch stores the displacement 2.
 
-(Note: a real compiler might emit `ldc.i4.0` + `ceq` instead; this is for explanatory purposes.)
+(Note: a real compiler might emit `ldarg.0`, `ldc.i4.0`, `ceq`, `ret` instead; this is for explanatory purposes.)
 
 Each branch opcode has a long encoding and a compact encoding:
 - The long encoding uses a 4-byte signed integer for displacement. As such, it occupies 5 bytes, and it can jump to any instruction in any realistically-sized method body.

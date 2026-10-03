@@ -1,6 +1,9 @@
 /.DS_Store/
 /**/.DS_Store/
 /.idea/
+/bench/**/BenchmarkDotNet.Artifacts/
+/bench/**/bin/
+/bench/**/obj/
 /eng/**/bin/
 /eng/**/obj/
 /native/audio/target/

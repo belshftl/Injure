@@ -7,33 +7,50 @@ using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Mods.Abstractions;
 
-public readonly record struct ReloadWeakRefSnapshot(
-	ReloadGeneration Generation,
-	string Category,
-	string Description,
-	bool IsAlive,
-	string TargetTypeName
-);
+public readonly struct BoundedScopeFailure {
+	public ReloadGeneration Generation { get; }
+	public int Index { get; }
+	public string Operation { get; }
+	public string ItemTypeName { get; }
+	public ExceptionSnapshot Exception { get; }
 
-public readonly record struct BoundedScopeFailure(
-	ReloadGeneration Generation,
-	int Index,
-	string Operation,
-	string ItemTypeName,
-	ExceptionSnapshot Exception
-) {
-	public static BoundedScopeFailure FromException(ReloadGeneration generation, int index, string operation, string itemTypeName, Exception ex) =>
-		new(generation, index, operation, itemTypeName, ExceptionSnapshot.FromException(ex));
+	internal BoundedScopeFailure(
+		ReloadGeneration generation,
+		int index,
+		string operation,
+		string itemTypeName,
+		ExceptionSnapshot exception
+	) {
+		Generation = generation;
+		Index = index;
+		Operation = operation;
+		ItemTypeName = itemTypeName;
+		Exception = exception;
+	}
+
+	internal static BoundedScopeFailure FromException(
+		ReloadGeneration generation,
+		int index,
+		string operation,
+		string itemTypeName,
+		Exception ex
+	) => new(generation, index, operation, itemTypeName, ExceptionSnapshot.FromException(ex));
 }
 
-public sealed class BoundedScopeException(
-	ReloadGeneration generation,
-	ReloadTeardownReason reason,
-	IReadOnlyList<BoundedScopeFailure> failures
-) : Exception($"active owner scope invalidation failed for '{generation}' with {failures.Count} failure(s)") {
-	public ReloadGeneration Generation { get; } = generation;
-	public ReloadTeardownReason Reason { get; } = reason;
-	public IReadOnlyList<BoundedScopeFailure> Failures { get; } = failures;
+public sealed class BoundedScopeException : Exception {
+	public ReloadGeneration Generation { get; }
+	public ReloadTeardownReason Reason { get; }
+	public IReadOnlyList<BoundedScopeFailure> Failures { get; }
+
+	internal BoundedScopeException(
+		ReloadGeneration generation,
+		ReloadTeardownReason reason,
+		IReadOnlyList<BoundedScopeFailure> failures
+	) : base($"bounded-scope invalidation failed for '{generation}' with {failures.Count} failure(s)") {
+		Generation = generation;
+		Reason = reason;
+		Failures = failures;
+	}
 }
 
 /// <summary>
@@ -209,34 +226,6 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 	/// </exception>
 	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
 	new T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable;
-
-	/// <summary>
-	/// Tracks an object weakly for diagnostics related to unloading this reload generation.
-	/// </summary>
-	/// <param name="item">
-	/// The object to track. The scope does not retain a strong reference to it.
-	/// </param>
-	/// <param name="category">A short category identifying the kind of tracked object.</param>
-	/// <param name="description">
-	/// Optional human-readable diagnostic context describing the object or why it is expected to
-	/// become unreachable.
-	/// </param>
-	/// <remarks>
-	/// Used for diagnostics. All weak references that remain alive may be reported in the mod
-	/// runtime's unload diagnostics. Registering the same object twice creates independent tracking
-	/// entries; no deduplication or coalescing is attempted.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="item"/>, <paramref name="category"/>, or
-	/// <paramref name="description"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="category"/> is empty or consists solely of whitespace.
-	/// </exception>
-	/// <exception cref="ReloadGenerationExpiredException">
-	/// Thrown if invalidation of this scope has already begun or finished.
-	/// </exception>
-	void TrackWeak(object item, string category, string description = "");
 }
 
 /// <summary>

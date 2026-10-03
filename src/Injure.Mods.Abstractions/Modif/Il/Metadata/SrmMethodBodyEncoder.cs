@@ -38,7 +38,7 @@ internal readonly struct IlEncodingOptions {
 /// <remarks>
 /// All token resolution, layout, and byte generation happen in
 /// <see cref="SrmMethodBodyEncoder.Prepare"/>, so <see cref="WriteTo"/> is a copy. The intent is that
-/// a profiler callbakc allocates with <c>IMethodMalloc</c> or receives a ReJIT buffer and fills it
+/// a profiler callback allocates with <c>IMethodMalloc</c> or receives a ReJIT buffer and fills it
 /// without having to do any complex work that can block or fail.
 /// </remarks>
 internal sealed class IlEncodedMethodBody {
@@ -88,13 +88,12 @@ internal sealed class IlEncodedMethodBody {
 	}
 
 	/// <summary>
-	/// The encoded body. Valid for the lifetime of this instance.
+	/// The encoded body.
 	/// </summary>
 	public ReadOnlySpan<byte> AsSpan() => bytes;
 
 	/// <summary>
-	/// Copies the encoded body into a new array. For tests and diagnostics; prefer
-	/// <see cref="WriteTo"/> on runtime paths.
+	/// Copies the encoded body into a new array. For tests.
 	/// </summary>
 	public byte[] ToArray() => bytes.AsSpan().ToArray();
 }

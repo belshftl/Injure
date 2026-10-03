@@ -1,4 +1,6 @@
 <Solution>
+	<Project Path="./bench/Injure.Mods.Abstractions.Benchmarks/Injure.Mods.Abstractions.Benchmarks.csproj" />
+
 	<Project Path="./eng/Analyzers/Injure.DevAnalyzers/Injure.DevAnalyzers.csproj" />
 	<Project Path="./eng/Fixtures/IlFixture/IlFixture.csproj" />
 

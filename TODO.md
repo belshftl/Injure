@@ -4,7 +4,7 @@ the amount of work from alpha to v0.1 is likely going to be much higher than, sa
 "here be dragons" means there's more past what is listed but my future foresight ends there, and the list may grow in that spot as time passes
 
 anyhow, to v0.1:
-- [ ] finish the rewrite of the mod loader
+- [x] finish the alpha version of the rewrite of the mod loader, not counting docs
   - [x] get rid of monomod as the public api
   - [x] get rid of Mono.Cecil types in the public api
   - [x] throw out Mono.Cecil as the patching abstraction and switch to System.Reflection.Metadata
@@ -23,22 +23,27 @@ anyhow, to v0.1:
   - [x] make the encoder properly align with `canonical-short-form-normative.md`, make it shorten branches
   - [x] update the documentation and such to make use of the new definitions of canonical/short form and shortening
   - [x] add proper operand-agnostic instruction matching, there's `MatchIl.OpCode(ILOpCode)` but it's kind of broken i think
-  - [ ] polish the `IlCollectibleReferenceException` docs, cover some currently missing cases; on a side tangent, also add more to `IlEmitter.Callvirt`'s docs
-  - [ ] consider having a basic context object for deactivate/unload with just `IOwnerDiagnostics`; maybe just pass `IOwnerDiagnostics` directly, though i don't really like that
-  - [ ] fix some more bugs, i'm sure there's a few
+  - [x] benchmark il matching, transactions/pipelines, and decode/encode, currently just for informative purposes
 - [ ] document the mod loader properly:
-  - [ ] write doc comments for all of `Mods.*`'s public api + for `ModRuntime`, this is the highest-priority one of all the pending doc comments
-  - [ ] clear out the existing `docs/*` (that's already planned) except for maybe `docs/conventions/dangerous-get.md`, and document it under `docs/mods/*`, its design, the load/reload/unload process, the purpose of `IModLifetimeIdentity`/`<L>`, the dependency semantics, etc.
-  - [ ] document all the terminology too; notable are "modif" (both as a noun and a verb), "detour", "patch", "detour impl", "detour chain", and "manipulator"
-  - [ ] add something on generic type parameters in `docs/conventions/`
+  - [ ] `docs/mods/basic-definitions.md`
+  - [ ] `docs/mods/dependencies.md`
+  - [ ] `docs/mods/lifetime-identity.md`
+  - [ ] `docs/mods/scopes.md`
+  - [ ] `docs/mods/reload.md`
+  - [ ] `docs/mods/manifest.md`
+  - [ ] `docs/mods/mod-structure.md` (think of a better name too)
+  - [ ] `docs/mods/using-libraries.md`
+  - [ ] `docs/mods/exports.md`
+  - [ ] doc comments
+  - [ ] here be dragons
+- [ ] fix the regular analyzer for once
+  - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
+  - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
 - [ ] fix the mod analyzer for once
   - [ ] remove now-unnecessary diagnostics
   - [ ] add more new diagnostics, think about what is useful
   - [ ] maybe look into whether the mod can be forced to embed a manifest.json in metadata in some way that the analyzer can read; it'd simplify a lot of things and allow for e.g. better dependency-related diagnostics
   - [ ] add basic interprocedural obligation tracking
-- [ ] fix the regular analyzer for once
-  - [ ] again, look through the diagnostics, see what is now out of date / etc.
-  - [ ] add more code analysis attributes, implement them; i can already think of `[DefaultIsInvalid]`
 - [ ] write a readme, properly outline the design philosophy
 - [ ] for now, temporarily silence our own analyzer warning for foreign types exposed through public apis, it's planned to be properly dealt with later down the line
 - [ ] pause for a bit to write a *lot* of tests and doc comments for the rest of the project; not writing them as development goes in the past was a mistake that needs to be patched up before it's too late:
@@ -61,10 +66,14 @@ anyhow, to v0.1:
   - [ ] rename the rest of the types too to signal "convenience" more
 - [ ] unsilence the previously silenced warning from our own analyzer, clean up a lot of the apis that currently expose foreign types
 - [ ] get back to the mod loader:
+  - [ ] benchmark more e2e cases like the real overhead of applying a patch/detour and calling patched/detoured methods
   - [ ] implement `target-version`/`target-build-mvid`, they're currently sitting there doing nothing
+  - [ ] polish the `IlCollectibleReferenceException` docs, cover some currently missing cases
+  - [ ] consider having a basic context object for deactivate/unload with just `IOwnerDiagnostics`; maybe just pass `IOwnerDiagnostics` directly, though i don't really like that
   - [ ] finally think out the semantics of link-time modifs and implement them
+  - [ ] match-and-fish-out-operand
   - [ ] fuzzy il matching
-  - [ ] instruction prefix emission api
+  - [ ] instruction prefix emission/matching apis
   - [ ] api for declaring exception regions
   - [ ] mutation il edits, explicitly marked as advanced/unsafe
   - [ ] removal il edits, explicitly marked as advanced/unsafe

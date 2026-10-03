@@ -47,13 +47,13 @@ internal sealed class UntypedModExportTable : IStrongRefDroppable {
 		return exports.TryGetValue(contractType, out impl);
 	}
 
-	public ModExportTableImpl<L, LDependency> AsTableView<L, LDependency>(ReloadGeneration generation)
-		where L : struct, IModLifetimeIdentity where LDependency : struct, IModLifetimeIdentity {
+	public ModExportTableImpl<L, LDep> AsTableView<L, LDep>(ReloadGeneration generation)
+		where L : struct, IModLifetimeIdentity where LDep : struct, IModLifetimeIdentity {
 		if (dropped)
 			throw new InternalStateException("export table has already been dropped");
-		if (typeof(LDependency) != lifetimeIdentityType)
-			throw new InternalStateException($"this export table is bounded over {lifetimeIdentityType}, not {typeof(LDependency)}");
-		return (ModExportTableImpl<L, LDependency>)(Activator.CreateInstance(typeof(ModExportTableImpl<,>).MakeGenericType(typeof(L), lifetimeIdentityType), this, generation) ??
+		if (typeof(LDep) != lifetimeIdentityType)
+			throw new InternalStateException($"this export table is bounded over {lifetimeIdentityType}, not {typeof(LDep)}");
+		return (ModExportTableImpl<L, LDep>)(Activator.CreateInstance(typeof(ModExportTableImpl<,>).MakeGenericType(typeof(L), lifetimeIdentityType), this, generation) ??
 			throw new InternalStateException("Activator.CreateInstance instantiation of ModExportTableImpl<,> returned null"));
 	}
 
@@ -82,21 +82,21 @@ internal sealed class UntypedModExportTable : IStrongRefDroppable {
 	}
 }
 
-internal sealed class ModExportTableImpl<L, LDependency> : IModExportTable<L, LDependency>
+internal sealed class ModExportTableImpl<L, LDep> : IModExportTable<L, LDep>
 	where L : struct, IModLifetimeIdentity
-	where LDependency : struct, IModLifetimeIdentity {
+	where LDep : struct, IModLifetimeIdentity {
 	private readonly UntypedModExportTable? inner;
 	private readonly ReloadGeneration generation;
 
 	public ModExportTableImpl(UntypedModExportTable inner, ReloadGeneration generation) {
 		InternalStateException.ThrowIfNull(inner);
-		if (inner.LifetimeIdentityType != typeof(LDependency))
-			throw new InternalStateException($"export table lifetime identity '{inner.LifetimeIdentityType}' does not match '{typeof(LDependency)}'");
+		if (inner.LifetimeIdentityType != typeof(LDep))
+			throw new InternalStateException($"export table lifetime identity '{inner.LifetimeIdentityType}' does not match '{typeof(LDep)}'");
 		this.inner = inner;
 		this.generation = generation;
 	}
 
-	public bool TryGet<TContract>([NotNullWhen(true)] out TContract? impl) where TContract : class, IModExportContract<LDependency> {
+	public bool TryGet<TContract>([NotNullWhen(true)] out TContract? impl) where TContract : class, IModExportContract<LDep> {
 		if (inner is null)
 			throw new ReloadGenerationExpiredException(generation);
 		if (inner.TryGet(typeof(TContract), out object? v)) {
@@ -107,10 +107,13 @@ internal sealed class ModExportTableImpl<L, LDependency> : IModExportTable<L, LD
 		return false;
 	}
 
-	public TContract Require<TContract>() where TContract : class, IModExportContract<LDependency> {
+	public TContract Require<TContract>() where TContract : class, IModExportContract<LDep> {
 		if (TryGet(out TContract? impl))
 			return impl;
-		throw new ModLoadException($"required export contract '{typeof(TContract)}' was not declared");
+		throw new ModLoadException(
+			ModLifetimeOwnerInference.Infer<L>(),
+			$"required export contract '{typeof(TContract)}' in mod '{ModLifetimeOwnerInference.Infer<LDep>()}' was not declared"
+		);
 	}
 }
 

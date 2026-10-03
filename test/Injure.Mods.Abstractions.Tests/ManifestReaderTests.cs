@@ -5,7 +5,7 @@ using Injure.Mods.Abstractions.ManifestReader;
 
 namespace Injure.Mods.Abstractions.Tests;
 
-public sealed class ManifestReaderTests {
+public static class ManifestReaderTests {
 	private static ModManifest parse(string json) => ManifestReader.ManifestReader.Parse(new SourceText("<test manifest>", json));
 	private static ManifestReadException parseError(string json) => Assert.Throws<ManifestReadException>(() => parse(json));
 

@@ -7,9 +7,9 @@ namespace Injure.Mods.Abstractions;
 /// Marks the class that implements a code mod's entrypoint.
 /// </summary>
 /// <remarks>
-/// The annotated class must implement <see cref="IModEntrypoint{TGameApi, L}"/> as a closed
-/// generic and have a suitable parameterless constructor for use by the runtime. The analyzer
-/// additionally enforces the target class to be <see langword="sealed"/>.
+/// The annotated class must implement <see cref="IModEntrypoint{TGameApi, L}"/> as a closed generic
+/// and have a suitable parameterless constructor for use by the runtime. The analyzer additionally
+/// enforces the target class to be <see langword="sealed"/>.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class ModEntrypointAttribute : Attribute;
@@ -17,12 +17,8 @@ public sealed class ModEntrypointAttribute : Attribute;
 /// <summary>
 /// Defines the entry point and "root" of a code mod.
 /// </summary>
-/// <typeparam name="TGameApi">
-/// Game-specific API exposed to the mod.
-/// </typeparam>
-/// <typeparam name="L">
-/// The mod's lifetime identity; see <c>Docs/mods/lifetime-identity.md</c> for more info.
-/// </typeparam>
+/// <typeparam name="TGameApi">Game-specific API exposed to the mod.</typeparam>
+/// <typeparam name="L">The mod's lifetime identity.</typeparam>
 /// <remarks>
 /// <para>
 /// All methods on this interface are referred to as "mod lifecycle methods", or just "lifecycle
@@ -32,7 +28,9 @@ public sealed class ModEntrypointAttribute : Attribute;
 /// </para>
 /// <para>
 /// Unless otherwise noted, all lifecycle methods may be parallelized in a way that does not
-/// disrupt dependency-relative ordering of calls (if applicable).
+/// disrupt dependency-relative ordering of calls (if applicable). The non-determinism this
+/// introduces for detour/patch ordering is something that will be thought of more before the first
+/// stable release.
 /// </para>
 /// </remarks>
 public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeIdentity {
@@ -44,7 +42,7 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// <remarks>
 	/// <para>
 	/// Calls to <see cref="LoadAsync"/> across mods are not ordered according to the dependency
-	/// graph. Other mods, including declared dependencies, must not be accessed during this callback.
+	/// graph. Other mods, including declared dependencies, must not be accessed.
 	/// </para>
 	/// <para>
 	/// Load-time modif declarations and export declarations close when this call completes; load
@@ -72,9 +70,12 @@ public interface IModEntrypoint<in TGameApi, L> where L : struct, IModLifetimeId
 	/// <param name="ct">Cancellation token for this particular invocation.</param>
 	ValueTask ActivateAsync(IModActivateCtx<TGameApi, L> ctx, BoundedCt<L> ct);
 
+	// TODO: maybe deactivate/unload context objects? at the bare minimum, IOwnerDiagnostics is very
+	// useful to have there, right now you have to cache it in a static field to log from there
+
 	/// <summary>
-	/// Deactivates the current generation before the game is detached, the mod
-	/// is reloaded or disabled, or the runtime shuts down.
+	/// Deactivates the current generation before the game is detached, the mod is reloaded or
+	/// disabled, or the runtime shuts down.
 	/// </summary>
 	/// <param name="ct">Cancellation token for this particular invocation.</param>
 	/// <remarks>

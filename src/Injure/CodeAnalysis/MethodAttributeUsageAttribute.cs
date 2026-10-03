@@ -99,7 +99,7 @@ public enum MethodConstraints {
 /// Informally speaking, this is similar to <see cref="AttributeUsageAttribute"/>, except with
 /// constraints specific to method attributes.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
 public sealed class MethodAttributeUsageAttribute(MethodConstraints constraints) : Attribute {
 	/// <summary>
 	/// The declared method constraints.

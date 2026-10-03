@@ -7,6 +7,7 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace Injure.Mods.Abstractions;
 
+// NOTE: this API will probably be redesigned in the future before the first stable release
 public sealed class ModLiveStateBlob {
 	private static readonly UTF8Encoding strictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
@@ -16,8 +17,7 @@ public sealed class ModLiveStateBlob {
 	public string ContentType { get; }
 
 	public int Length => data.Length;
-	public ReadOnlyMemory<byte> Data => data;
-	public ReadOnlySpan<byte> Span => data;
+	public ReadOnlySpan<byte> Data => data;
 
 	private ModLiveStateBlob(Semver schemaVersion, string contentType, byte[] data) {
 		validateContentType(contentType);

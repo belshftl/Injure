@@ -33,7 +33,7 @@ internal static class ModRelationshipResolver {
 					continue;
 				}
 
-				if (relationship.Version is Semver required && !target.Manifest.Version.CompatibleWithMinimum(required))
+				if (relationship.Version is Semver required && !Semver.Compatible(required, target.Manifest.Version))
 					throw new ModLoadException(
 						declarer.Manifest.OwnerId,
 						$"owner '{relationship.OwnerId}' version '{target.Manifest.Version}' is not compatible with required minimum '{required}'"

@@ -6,8 +6,6 @@ using Injure.Mods.Abstractions;
 namespace Injure.Mods.Runtime;
 
 internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
-	private readonly record struct TrackedWeakReference(WeakReference Reference, string Category, string Description);
-
 	private struct OwnedDisposable {
 		private IDisposable? disposable;
 		private IAsyncDisposable? asyncDisposable;
@@ -46,7 +44,6 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 	private List<IReloadTeardown>? teardowns = new();
 	private List<OwnedDisposable>? parallel = new();
 	private List<OwnedDisposable>? ordered = new();
-	private List<TrackedWeakReference>? weakRefs = new();
 
 	private int invalidationClaimed;
 
@@ -125,17 +122,6 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 		return disposable;
 	}
 
-	public void TrackWeak(object item, string category, string description = "") {
-		ArgumentNullException.ThrowIfNull(item);
-		ArgumentException.ThrowIfNullOrWhiteSpace(category);
-		ArgumentNullException.ThrowIfNull(description);
-		lock (@lock) {
-			if (IsInvalidatingOrInvalidated || weakRefs is null)
-				throw new ReloadGenerationExpiredException(Generation);
-			weakRefs.Add(new TrackedWeakReference(new WeakReference(item), category, description));
-		}
-	}
-
 	private void add(OwnedDisposable disp, bool ordered) {
 		if (IsInvalidatingOrInvalidated)
 			throw new ReloadGenerationExpiredException(Generation);
@@ -147,31 +133,6 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 			else
 				parallel.Add(disp);
 		}
-	}
-
-	public IReadOnlyList<ReloadWeakRefSnapshot> SnapshotWeakReferences() {
-		if (IsInvalidatingOrInvalidated)
-			return Array.Empty<ReloadWeakRefSnapshot>();
-
-		TrackedWeakReference[] snapshot;
-		lock (@lock) {
-			if (IsInvalidatingOrInvalidated || weakRefs is null)
-				return Array.Empty<ReloadWeakRefSnapshot>();
-			snapshot = weakRefs.ToArray();
-		}
-
-		var result = new ReloadWeakRefSnapshot[snapshot.Length];
-		for (int i = 0; i < snapshot.Length; i++) {
-			object? target = snapshot[i].Reference.Target;
-			result[i] = new ReloadWeakRefSnapshot(
-				Generation,
-				snapshot[i].Category,
-				snapshot[i].Description,
-				target is not null,
-				target?.GetType().FullName ?? "<collected>"
-			);
-		}
-		return result;
 	}
 
 	public async ValueTask InvalidateAsync(ReloadTeardownReason reason, CancellationToken ct) {
@@ -190,8 +151,6 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 			tear = snapshotReverseAndClear(ref teardowns);
 			par = snapshotAndClear(ref parallel);
 			ord = snapshotAndClear(ref ordered);
-			weakRefs?.Clear();
-			weakRefs = null;
 		}
 
 		List<BoundedScopeFailure>? failures = null;
@@ -344,5 +303,4 @@ internal sealed class BoundedScopeView<L> : IBoundedScope<L> where L : struct, I
 	public T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddAsyncDisposable(disposable);
 	public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddOrderedDisposable(disposable);
 	public T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddOrderedAsyncDisposable(disposable);
-	public void TrackWeak(object item, string category, string description = "") => core.TrackWeak(item, category, description);
 }

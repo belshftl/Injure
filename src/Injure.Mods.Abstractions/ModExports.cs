@@ -6,8 +6,7 @@ using Injure.CodeAnalysis.Internal;
 
 namespace Injure.Mods.Abstractions;
 
-public interface IModExportContract<L> where L : struct, IModLifetimeIdentity {
-}
+public interface IModExportContract<L> where L : struct, IModLifetimeIdentity;
 
 [DontImplement]
 public interface IModExportDecl<L> where L : struct, IModLifetimeIdentity {
@@ -15,7 +14,7 @@ public interface IModExportDecl<L> where L : struct, IModLifetimeIdentity {
 }
 
 [DontImplement]
-public interface IModExportTable<L, LDependency> where L : struct, IModLifetimeIdentity where LDependency : struct, IModLifetimeIdentity {
-	bool TryGet<TContract>([NotNullWhen(true)] out TContract? impl) where TContract : class, IModExportContract<LDependency>;
-	TContract Require<TContract>() where TContract : class, IModExportContract<LDependency>;
+public interface IModExportTable<L, LDep> where L : struct, IModLifetimeIdentity where LDep : struct, IModLifetimeIdentity {
+	bool TryGet<TContract>([NotNullWhen(true)] out TContract? impl) where TContract : class, IModExportContract<LDep>;
+	TContract Require<TContract>() where TContract : class, IModExportContract<LDep>;
 }
