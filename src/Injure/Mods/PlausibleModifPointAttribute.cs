@@ -7,38 +7,10 @@ namespace Injure.Mods;
 // types in an attribute
 
 /// <summary>
-/// Least disruptive reload boundary at which method modifications for a plausible-modification-point
-/// method were intended to be correctly installable/removable/replaceable.
+/// What thread(s) a plausible-modif-point method runs on; modif code must be prepared to run on
+/// those threads. Informative rather than normative.
 /// </summary>
-public enum ModificationPointReloadBoundary {
-	/// <summary>
-	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
-	/// </summary>
-	Unspecified,
-
-	/// <summary>
-	/// Installing/removing/replacing a modification for this method may leave behind side
-	/// effects that aren't fully reversible without restarting the process.
-	/// </summary>
-	ProcessLifetime,
-
-	/// <summary>
-	/// Modifications may be installed/removed/replaced at a game-defined safe boundary.
-	/// </summary>
-	SafeBoundary,
-
-	/// <summary>
-	/// Modifications may be installed/removed/replaced at a game-defined small live reload
-	/// boundary, such as between ticks/frames while the relevant subsystem is quiesced.
-	/// </summary>
-	LiveBoundary,
-}
-
-/// <summary>
-/// What thread(s) a plausible-modification-point method runs on; modification code must be prepared
-/// to run on those threads.
-/// </summary>
-public enum ModificationPointThreadAffinity {
+public enum PlausibleModifPointThreadAffinity {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
@@ -77,17 +49,17 @@ public enum ModificationPointThreadAffinity {
 }
 
 /// <summary>
-/// What kinds of blocking behavior a well-behaved modification for a plausible-modification-point
-/// method can exhibit.
+/// What kinds of blocking behavior a well-behaved modif for a plausible-modif-point method can
+/// exhibit. Informative rather than normative.
 /// </summary>
-public enum ModificationPointBlockingPolicy {
+public enum PlausibleModifPointBlockingPolicy {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
 	Unspecified,
 
 	/// <summary>
-	/// Blocking in a modification of this method is not specifically prohibited beyond standard expectations.
+	/// Blocking in a modif of this method is not specifically prohibited beyond standard expectations.
 	/// </summary>
 	MayBlock,
 
@@ -104,11 +76,11 @@ public enum ModificationPointBlockingPolicy {
 }
 
 /// <summary>
-/// Concurrency hazards of a plausible-modification-point method that modifications must be prepared
-/// to deal with.
+/// Concurrency hazards of a plausible-modif-point method that modifs must be prepared to deal with.
+/// Informative rather than normative.
 /// </summary>
 [Flags]
-public enum ModificationPointConcurrencyHazards {
+public enum PlausibleModifPointConcurrencyHazards {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
@@ -120,8 +92,8 @@ public enum ModificationPointConcurrencyHazards {
 	NoKnownHazards = 1 << 0,
 
 	/// <summary>
-	/// The method may run while iterating over some global collection/list; modifications must be
-	/// careful modifying said collection.
+	/// The method may run while iterating over some global collection/list; modifs must be careful
+	/// mutating said collection.
 	/// </summary>
 	IteratorInvalidationRisk = 1 << 1,
 
@@ -131,8 +103,8 @@ public enum ModificationPointConcurrencyHazards {
 	RunsUnderLock = 1 << 2,
 
 	/// <summary>
-	/// The method may recursively call itself or re-enter the same logical operation on
-	/// the same thread.
+	/// The method may recursively call itself or re-enter the same logical operation on the same
+	/// thread.
 	/// </summary>
 	RecursiveOnSameThread = 1 << 3,
 
@@ -141,7 +113,7 @@ public enum ModificationPointConcurrencyHazards {
 	/// </summary>
 	/// <remarks>
 	/// Distinct from <see cref="RecursiveOnSameThread"/> since the cause of the reentrant call may not
-	/// be known / predictable and can't be easily surrounded by "prepare state" / "release locks" / etc.
+	/// be known / predictable and can't be easily surrounded by "prepare" / "release locks" / etc.
 	/// code the same way a simple recursive call can be.
 	/// </remarks>
 	Reentrant = 1 << 4,
@@ -158,9 +130,9 @@ public enum ModificationPointConcurrencyHazards {
 	NoCallbackIntoOriginSubsystem = 1 << 6,
 
 	/// <summary>
-	/// The method is called without any synchronization guarantees. Any modifications must assume
-	/// state not known to be synchronized right now may be unstable / racing and typical
-	/// guard locks/mutexes may not be held.
+	/// The method is called without any synchronization guarantees. Any modifs must assume state not
+	/// known to be synchronized right now may be unstable / racing and typical guard locks/mutexes may
+	/// not be held.
 	/// </summary>
 	Unsynchronized = 1 << 7,
 
@@ -169,15 +141,19 @@ public enum ModificationPointConcurrencyHazards {
 	/// this means something like: no allocation, no locks, no blocking, no logging, no throwing,
 	/// no subsystem calls not known to be safe. May be as extreme as async-signal-safe contexts.
 	/// </summary>
+	/// <remarks>
+	/// This is expected to be very rarely used, and may be removed, as such procedures are usually
+	/// written in native code rather than C#.
+	/// </remarks>
 	RestrictedExecutionContext = 1 << 8,
 }
 
 /// <summary>
-/// Responsibilities of a plausible-modification-point method. Modification code must be prepared to
-/// correctly handle them / suppress them / etc.
+/// Responsibilities of a plausible-modif-point method. Modif code must be prepared to correctly
+/// handle them / suppress them / etc.
 /// </summary>
 [Flags]
-public enum ModificationPointEffects {
+public enum PlausibleModifPointEffects {
 	/// <summary>
 	/// Unknown or unspecified; don't assume anything, inspect the method's code and notes.
 	/// </summary>
@@ -189,20 +165,26 @@ public enum ModificationPointEffects {
 	NoKnownEffects = 1 << 0,
 
 	/// <summary>
-	/// The method is pure or a simple query method; modifications should be careful introducing
-	/// non-trivial extra work or side effects.
+	/// The method is pure or a simple query method; modifs should be careful introducing non-trivial
+	/// extra work or side effects.
 	/// </summary>
 	PureOrQuery = 1 << 1,
 
 	/// <summary>
 	/// The method may mutate object-local state in a way that other code depends on.
 	/// </summary>
+	/// <remarks>
+	/// Considered for removal; a good portion of non-pure methods do that.
+	/// </remarks>
 	LocalState = 1 << 2,
 
 	/// <summary>
 	/// The method may depend on game-defined global gameplay/world/entity state or mutate it
 	/// in a way that other code depends on.
 	/// </summary>
+	/// <remarks>
+	/// Considered for removal; a lot of game code does that.
+	/// </remarks>
 	WorldState = 1 << 3,
 
 	/// <summary>
@@ -220,11 +202,17 @@ public enum ModificationPointEffects {
 	/// <summary>
 	/// The method may touch render state / GPU resources and/or perform and submit draw calls.
 	/// </summary>
+	/// <remarks>
+	/// Considered for removal; a lot of game code does that.
+	/// </remarks>
 	Rendering = 1 << 6,
 
 	/// <summary>
 	/// The method may touch audio state / resources or audio callback logic.
 	/// </summary>
+	/// <remarks>
+	/// Considered for removal; a lot of game code does that.
+	/// </remarks>
 	Audio = 1 << 7,
 
 	/// <summary>
@@ -257,26 +245,26 @@ public enum ModificationPointEffects {
 	/// <summary>
 	/// The method may invoke user/mod/game callbacks, event handlers, delegates, virtual methods,
 	/// scripts, or other arbitrary externally provided code.
-	/// Modifications must treat said code as a black-box that may do anything not contractually prohibited, such as
-	/// reenter subsystems, throw, mutate global state, block, spawn threads/children, etc.
+	/// Modifs must treat said code as a black-box that may do anything not contractually prohibited by
+	/// the original method, such as reenter subsystems, throw, mutate global state, block, spawn
+	/// threads/children, etc.
 	/// </summary>
 	CallsUserCode = 1 << 13,
 
 	/// <summary>
 	/// Throwing inside or through the method may leave state partially mutated, break caller
-	/// expectations/invariants, skip cleanup, deadlock, etc. Modifications must be careful to catch
+	/// expectations/invariants, skip cleanup, deadlock, etc. Modifs must be careful to catch
 	/// exceptions from other methods and not throw any themselves.
 	/// </summary>
 	/// <remarks>
 	/// Does <i>not</i> include unwind-across-FFI-boundary risk, since that's "throwing at any point
-	/// while the method's still on the stack", which would make the base definition way too broad to be
-	/// useful (what can you even call at that point? most methods can throw); for that case, see
-	/// <see cref="FfiOrExternalState"/>.
+	/// while the method's still on the stack"; for that case, see <see cref="FfiOrExternalState"/>.
 	/// </remarks>
 	ExceptionSensitive = 1 << 14,
 
 	/// <summary>
-	/// The method may interface with other native/external code or touch potentially process-global external state.
+	/// The method may interface with other native/external code or touch potentially process-global
+	/// external state.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -291,7 +279,7 @@ public enum ModificationPointEffects {
 	FfiOrExternalState = 1 << 15,
 
 	/// <summary>
-	/// The method may cause C-style undefined behavior if misused or internally broken by a modification.
+	/// The method may cause C-style undefined behavior if misused or internally broken by a modif.
 	/// </summary>
 	/// <remarks>
 	/// Doesn't necessarily imply native interop; may be as simple as an unsafe method that deals
@@ -301,24 +289,23 @@ public enum ModificationPointEffects {
 }
 
 /// <summary>
-/// Marks a suggested method modification (detour/patch) point in this binary/DLL. This attribute is
-/// currently purely for information and easier discovery of relevant locations in source code / decompiler
-/// output and serves no functional runtime purpose.
+/// Marks a plausible/suggested modif point in this binary/DLL. This attribute is purely for
+/// information and easier discovery of relevant locations in source code / decompiler output, and
+/// serves no functional runtime purpose.
 /// </summary>
 /// <remarks>
 /// This does <b>not</b> imply in any way that the marked method is a stable API; it may be removed,
-/// have its signature/name changed, etc. at any point without notice. This is merely an informational
-/// marker for a plausible modification point in a specific build of a game, intended to be discoverable in e.g
-/// decompilations. If you are the game developer and want to expose a stable modification-point API for mods,
-/// roll something of your own that doesn't depend on runtime patching.
+/// have its signature/name changed, etc. in future builds without notice. This is merely an
+/// informational marker for a plausible modif point in a specific build of a game, intended to be
+/// discoverable by mod authors in e.g decompilations. If you are the game developer and want to
+/// expose a stable API for mods, don't rely on modifs.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor, AllowMultiple = true, Inherited = false)]
 public sealed class PlausibleModifPointAttribute : Attribute {
-	public ModificationPointReloadBoundary ReloadBoundary { get; init; } = ModificationPointReloadBoundary.Unspecified;
-	public ModificationPointThreadAffinity ThreadAffinity { get; init; } = ModificationPointThreadAffinity.Unspecified;
-	public ModificationPointBlockingPolicy Blocking { get; init; } = ModificationPointBlockingPolicy.Unspecified;
-	public ModificationPointConcurrencyHazards ConcurrencyHazards { get; init; } = ModificationPointConcurrencyHazards.Unspecified;
-	public ModificationPointEffects Effects { get; init; } = ModificationPointEffects.Unspecified;
+	public PlausibleModifPointThreadAffinity ThreadAffinity { get; init; } = PlausibleModifPointThreadAffinity.Unspecified;
+	public PlausibleModifPointBlockingPolicy Blocking { get; init; } = PlausibleModifPointBlockingPolicy.Unspecified;
+	public PlausibleModifPointConcurrencyHazards ConcurrencyHazards { get; init; } = PlausibleModifPointConcurrencyHazards.Unspecified;
+	public PlausibleModifPointEffects Effects { get; init; } = PlausibleModifPointEffects.Unspecified;
 
 	public string? Purpose { get; init; }
 	public string? AlternativeApi { get; init; }

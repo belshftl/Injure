@@ -6,7 +6,7 @@
 		<InvariantGlobalization>true</InvariantGlobalization>
 
 		<PackageId>Injure.Weaver</PackageId>
-		<Description>post-compile publicize/etc tool for games from the game framework/engine colloquially known as Injure</Description>
+		<Description>WIP game framework/engine with first-class mod support - post-compile publicize/etc. tool for games</Description>
 	</PropertyGroup>
 
 	<ItemGroup>

@@ -9,12 +9,11 @@
  */
 #include <stdint.h>
 
-#if !defined(INJUREMISC_WIN) && !defined(INJUREMISC_MACOS) && \
-	!defined(INJUREMISC_POSIX)
-#error "define one of INJUREMISC_{WINDOWS,MACOS,POSIX}"
+#if !defined(IJMISC_WIN) && !defined(IJMISC_MACOS) && !defined(IJMISC_POSIX)
+#error "define one of IJMISC_{WINDOWS,MACOS,POSIX}"
 #endif
 
-#if defined(INJUREMISC_WIN)
+#if defined(IJMISC_WIN)
 #define EXPORT __declspec(dllexport)
 #else
 #define EXPORT __attribute__((__visibility__("default"), __used__))
@@ -36,7 +35,7 @@ EXPORT int  precisewait(int64_t ns, int overshoot);
  * ============================================================================
  * windows implementation (waitable timer object)
  */
-#if defined(INJUREMISC_WIN)
+#if defined(IJMISC_WIN)
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -93,13 +92,13 @@ precisewait(int64_t ns, int overshoot)
 		return (int)GetLastError();
 	return ERROR_GEN_FAILURE;
 }
-#endif /* defined(INJUREMISC_WIN) */
+#endif /* defined(IJMISC_WIN) */
 
 /*
  * ============================================================================
  * macos implementation (mach_wait_until())
  */
-#if defined(INJUREMISC_MACOS)
+#if defined(IJMISC_MACOS)
 
 #include <mach/kern_return.h>
 #include <mach/mach_time.h>
@@ -154,13 +153,13 @@ precisewait(int64_t ns, __attribute__((__unused__)) int overshoot)
 	return (int)rv;
 }
 
-#endif /* defined(INJUREMISC_MACOS) */
+#endif /* defined(IJMISC_MACOS) */
 
 /*
  * ============================================================================
  * posix implementation (clock_nanosleep(2))
  */
-#if defined(INJUREMISC_POSIX)
+#if defined(IJMISC_POSIX)
 #include <errno.h>
 #include <time.h>
 
@@ -217,4 +216,4 @@ precisewait(int64_t ns, __attribute__((__unused__)) int overshoot)
 	} while (rv == EINTR);
 	return rv;
 }
-#endif /* defined(INJUREMISC_POSIX) */
+#endif /* defined(IJMISC_POSIX) */

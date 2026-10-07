@@ -11,7 +11,7 @@ internal static class Language {
 		id: "IJDEV0001",
 		title: "Every class should be sealed or explicitly marked open",
 		messageFormat:
-		"This should probably be a `sealed class`. Think long and hard before making a class inheritable; if you're really absolutely sure that deriving it is a fully supported public API, mark it with `/* open */` where `sealed` normally goes, and add a doc comment about derived-class behavior/notes/intentions.",
+		"This should probably be a `sealed class`. Think long and hard before making a class inheritable; if you're really sure that deriving it is a supported public API, or that user code is incapable of deriving it, mark it with `/* open */` where `sealed` normally goes.",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true
@@ -20,7 +20,7 @@ internal static class Language {
 	public static readonly DiagnosticDescriptor OpenClassMarkerNotAllowed = new(
 		id: "IJDEV0002",
 		title: "Open class marker not allowed here",
-		messageFormat: "The `/* open */` marker is only allowed on non-{{static/abstract/sealed}} classes or non-{{abstract/sealed}} records",
+		messageFormat: "The `/* open */` marker is only allowed on non-{static/abstract/sealed} classes or non-{abstract/sealed} records",
 		category: "Core",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true

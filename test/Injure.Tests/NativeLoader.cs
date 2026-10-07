@@ -9,7 +9,7 @@ namespace Injure.Tests;
 
 public static class LibmiscNativeLoader {
 	private static int inited = 0;
-	private static nint injuremisc;
+	private static nint ijmisc;
 
 	public static void Init() {
 		if (Interlocked.Exchange(ref inited, 1) != 0)
@@ -19,7 +19,7 @@ public static class LibmiscNativeLoader {
 			path = Path.Combine(Paths.RepoRoot, "native", "pack", getRID(), getLibName());
 		if (!File.Exists(path))
 			throw new FileNotFoundException($"'{path}' not found");
-		injuremisc = NativeLibrary.Load(path);
+		ijmisc = NativeLibrary.Load(path);
 		NativeLibrary.SetDllImportResolver(typeof(Injure.Draw.Text.Unibreak).Assembly, dllImportResolver);
 	}
 
@@ -40,11 +40,11 @@ public static class LibmiscNativeLoader {
 
 	private static string getLibName() {
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-			return "injuremisc.dll";
+			return "ijmisc.dll";
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-			return "libinjuremisc.dylib";
+			return "libijmisc.dylib";
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-			return "libinjuremisc.so";
+			return "libijmisc.so";
 		throw new NotSupportedException("OS not supported (supported: Windows, OSX, Linux)");
 	}
 
@@ -55,8 +55,8 @@ public static class LibmiscNativeLoader {
 	);
 
 	private static nint dllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath) {
-		if (matchLib("injuremisc", libraryName))
-			return injuremisc;
+		if (matchLib("ijmisc", libraryName))
+			return ijmisc;
 		return 0;
 	}
 }
@@ -67,5 +67,5 @@ public sealed class LibmiscNativeFixture {
 	}
 }
 
-[CollectionDefinition("needs_libinjuremisc")]
+[CollectionDefinition("needs_libmisc")]
 public sealed class NeedsLibmiscCollection : ICollectionFixture<LibmiscNativeFixture>;

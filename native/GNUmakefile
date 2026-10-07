@@ -20,13 +20,13 @@ else
 endif
 
 ifneq ($(filter osx-x64 osx-arm64,$(RID)),)
-	AUDIOOUTNAME   := libinjureaudio.dylib
-	CLRPROFOUTNAME := libinjureclrprof.dylib
-	MISCOUTNAME    := libinjuremisc.dylib
+	AUDIOOUTNAME   := libijaudio.dylib
+	CLRPROFOUTNAME := libijclrprof.dylib
+	MISCOUTNAME    := libijmisc.dylib
 else ifneq ($(filter linux-x64 linux-arm64,$(RID)),)
-	AUDIOOUTNAME   := libinjureaudio.so
-	CLRPROFOUTNAME := libinjureclrprof.so
-	MISCOUTNAME    := libinjuremisc.so
+	AUDIOOUTNAME   := libijaudio.so
+	CLRPROFOUTNAME := libijclrprof.so
+	MISCOUTNAME    := libijmisc.so
 else
 	$(error unsupported RID $(RID))
 endif

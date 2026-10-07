@@ -3,7 +3,7 @@
 
 using System.Numerics;
 using Injure.DevAnalyzers.Attributes;
-using Injure.Time;
+using Injure.Host;
 
 namespace Injure.Input;
 
@@ -16,6 +16,7 @@ public readonly partial struct ButtonActionEventInfoKind {
 }
 
 public readonly record struct PointerButtonActionInfo(
+	HostWindowId Window, // window X/Y are relative to; invalid if unknown
 	float X,
 	float Y,
 	int Clicks
@@ -34,8 +35,8 @@ public readonly struct ButtonActionEventInfo {
 	}
 
 	public static readonly ButtonActionEventInfo None = default;
-	public static ButtonActionEventInfo FromPointer(float x, float y, int clicks) =>
-		new(ButtonActionEventInfoKind.Pointer, new PointerButtonActionInfo(x, y, clicks));
+	public static ButtonActionEventInfo FromPointer(HostWindowId window, float x, float y, int clicks) =>
+		new(ButtonActionEventInfoKind.Pointer, new PointerButtonActionInfo(window, x, y, clicks));
 	public bool TryGetPointer(out PointerButtonActionInfo info) {
 		if (Kind == ButtonActionEventInfoKind.Pointer) {
 			info = pointer;
@@ -55,6 +56,7 @@ public readonly partial struct ImpulseAxisActionEventInfoKind {
 }
 
 public readonly record struct PointerImpulseAxisActionInfo(
+	HostWindowId Window, // window X/Y are relative to; invalid if unknown
 	float X,
 	float Y,
 	int IntegerAmount
@@ -74,8 +76,8 @@ public readonly struct ImpulseAxisActionEventInfo {
 	}
 
 	public static readonly ImpulseAxisActionEventInfo None = default;
-	public static ImpulseAxisActionEventInfo FromPointer(float x, float y, int clicks) =>
-		new(ImpulseAxisActionEventInfoKind.Pointer, new PointerImpulseAxisActionInfo(x, y, clicks));
+	public static ImpulseAxisActionEventInfo FromPointer(HostWindowId window, float x, float y, int clicks) =>
+		new(ImpulseAxisActionEventInfoKind.Pointer, new PointerImpulseAxisActionInfo(window, x, y, clicks));
 	public bool TryGetPointer(out PointerImpulseAxisActionInfo info) {
 		if (Kind == ImpulseAxisActionEventInfoKind.Pointer) {
 			info = pointer;
@@ -86,42 +88,44 @@ public readonly struct ImpulseAxisActionEventInfo {
 	}
 }
 
-public abstract record ControlEvent(MonoTick Tick);
+public abstract record ControlEvent(HostTick Tick);
 
 public sealed record ButtonActionEvent(
-	MonoTick Tick,
+	HostTick Tick,
 	ActionId Action,
 	EdgeType Edge,
 	ButtonActionEventInfo Info = default
 ) : ControlEvent(Tick);
 
 public sealed record StateAxisActionEvent(
-	MonoTick Tick,
+	HostTick Tick,
 	ActionId Action,
 	float Value
 ) : ControlEvent(Tick);
 
 public sealed record StateAxis2DActionEvent(
-	MonoTick Tick,
+	HostTick Tick,
 	ActionId Action,
 	Vector2 Value
 ) : ControlEvent(Tick);
 
 public sealed record ImpulseAxisActionEvent(
-	MonoTick Tick,
+	HostTick Tick,
 	ActionId Action,
 	float Amount,
 	ImpulseAxisActionEventInfo Info = default
 ) : ControlEvent(Tick);
 
 public sealed record PointerMoveControlEvent(
-	MonoTick Tick,
+	HostTick Tick,
+	HostWindowId Window,
 	float X,
 	float Y,
 	Vector2 Delta
 ) : ControlEvent(Tick);
 
 public sealed record TextEnteredControlEvent(
-	MonoTick Tick,
+	HostTick Tick,
+	HostWindowId Window,
 	string Text
 ) : ControlEvent(Tick);

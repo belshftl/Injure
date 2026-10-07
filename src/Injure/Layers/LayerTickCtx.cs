@@ -3,14 +3,14 @@
 
 using Injure.Input;
 using Injure.Sched.Tickers;
-using Injure.Time;
+using Injure.Host;
 
 namespace Injure.Layers;
 
 public readonly ref struct LayerTickCtx(TickCallbackTimingInfo tickInfo, double dt, double rawDt, double time, double rawTime, ulong tickNum, InputView input, ControlView controls) {
 	public TickCallbackTimingInfo TickInfo { get; } = tickInfo;
-	public MonoTick Tick => TickInfo.ActualAt;
-	public MonoTick ScheduledTick => TickInfo.ScheduledAt;
+	public HostTick Tick => TickInfo.ActualAt;
+	public HostTick ScheduledTick => TickInfo.ScheduledAt;
 
 	public double DeltaTime { get; } = dt;
 	public double RawDeltaTime { get; } = rawDt;

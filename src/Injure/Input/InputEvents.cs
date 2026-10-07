@@ -1,44 +1,46 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.Time;
+using Injure.Host;
 
 namespace Injure.Input;
 
-public abstract record InputEvent(MonoTick Tick);
+public abstract record InputEvent(HostTick Tick);
 
 public sealed record KeyEvent(
-	MonoTick Tick,
+	HostTick Tick,
+	HostWindowId Window, // window that had keyboard focus / pointer; invalid if unknown
 	Key Key,
 	EdgeType Edge
 ) : InputEvent(Tick);
 
 public sealed record GamepadAddedEvent(
-	MonoTick Tick,
+	HostTick Tick,
 	GamepadId Gamepad
 ) : InputEvent(Tick);
 
 public sealed record GamepadRemovedEvent(
-	MonoTick Tick,
+	HostTick Tick,
 	GamepadId Gamepad
 ) : InputEvent(Tick);
 
 public sealed record GamepadAxisEvent(
-	MonoTick Tick,
+	HostTick Tick,
 	GamepadId Gamepad,
 	GamepadAxis Axis,
 	float Value // [-1, 1] for sticks, [0, 1] for triggers
 ) : InputEvent(Tick);
 
 public sealed record GamepadButtonEvent(
-	MonoTick Tick,
+	HostTick Tick,
 	GamepadId Gamepad,
 	GamepadButton Button,
 	EdgeType Edge
 ) : InputEvent(Tick);
 
 public sealed record PointerMoveEvent(
-	MonoTick Tick,
+	HostTick Tick,
+	HostWindowId Window, // window that had keyboard focus / pointer; invalid if unknown
 	float X,
 	float Y,
 	float DeltaX,
@@ -46,7 +48,8 @@ public sealed record PointerMoveEvent(
 ) : InputEvent(Tick);
 
 public sealed record PointerButtonEvent(
-	MonoTick Tick,
+	HostTick Tick,
+	HostWindowId Window, // window that had keyboard focus / pointer; invalid if unknown
 	PointerButton Button,
 	EdgeType Edge,
 	int Clicks,
@@ -55,7 +58,8 @@ public sealed record PointerButtonEvent(
 ) : InputEvent(Tick);
 
 public sealed record PointerWheelEvent(
-	MonoTick Tick,
+	HostTick Tick,
+	HostWindowId Window, // window that had keyboard focus / pointer; invalid if unknown
 	float X,
 	float Y,
 	int IntegerX,
@@ -65,6 +69,7 @@ public sealed record PointerWheelEvent(
 ) : InputEvent(Tick);
 
 public sealed record TextEnteredEvent(
-	MonoTick Tick,
+	HostTick Tick,
+	HostWindowId Window, // window that had keyboard focus / pointer; invalid if unknown
 	string Text
 ) : InputEvent(Tick);

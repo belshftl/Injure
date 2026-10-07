@@ -1,45 +1,42 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.Time;
+using Injure.Host;
 
 namespace Injure.Sched.Tickers;
 
 public readonly record struct TickCallbackTimingInfo(
-	MonoTick ScheduledAt,
-	MonoTick ActualAt,
-	MonoTick PreviousScheduledAt,
-	MonoTick PreviousActualAt,
-	MonoTick Period,
-	MonoTick Elapsed,
-	MonoTick Late
+	HostTick ScheduledAt,
+	HostTick ActualAt,
+	HostTick PreviousScheduledAt,
+	HostTick PreviousActualAt,
+	HostDuration Period,
+	HostDuration Elapsed,
+	HostDuration Late
 );
 
 public readonly struct TickDeadline {
-	private readonly MonoTick deadlineAt;
-	internal TickDeadline(MonoTick deadlineAt) {
+	private readonly IHostClock? clock;
+	private readonly HostTick deadlineAt;
+
+	internal TickDeadline(IHostClock clock, HostTick deadlineAt) {
+		this.clock = clock;
 		this.deadlineAt = deadlineAt;
 	}
 
-	public bool HasDeadline => deadlineAt != MonoTick.Zero;
-	public MonoTick DeadlineAt => deadlineAt;
+	public bool HasDeadline => clock is not null;
+	public HostTick DeadlineAt => deadlineAt;
 
-	public MonoTick Remaining {
+	public HostDuration Remaining {
 		get {
-			if (!HasDeadline)
-				return MonoTick.Zero;
-			var now = MonoTick.GetCurrent();
-			return now < deadlineAt ? deadlineAt - now : MonoTick.Zero;
+			if (clock is null)
+				return HostDuration.Zero;
+			HostTick now = clock.Now;
+			return now < deadlineAt ? deadlineAt - now : HostDuration.Zero;
 		}
 	}
 
-	public bool IsOverrun {
-		get {
-			if (!HasDeadline)
-				return false;
-			return MonoTick.GetCurrent() >= deadlineAt;
-		}
-	}
+	public bool IsOverrun => clock is not null && clock.Now >= deadlineAt;
 }
 
 public delegate void TickerCallback(in TickCallbackTimingInfo info, in TickDeadline deadline);

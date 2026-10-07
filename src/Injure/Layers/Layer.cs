@@ -42,7 +42,7 @@ public readonly record struct LayerBlockRule(LayerBlockMask Blocked, LayerTagSet
 /// </para>
 /// <para>
 /// Expensive preparation should be done in <see cref="WarmAsync"/>. Activation-bound
-/// services such as time domain, coroutines, <see cref="Time.IMonoTickReceiver"/> auto-update,
+/// services such as time domain, coroutines, <see cref="Host.IHostTickReceiver"/> auto-update,
 /// etc. are only available from <see cref="OnEnter"/> until <see cref="OnLeave"/> returns.
 /// </para>
 /// </remarks>
@@ -51,7 +51,7 @@ public abstract class Layer {
 	internal LayerRuntime? Runtime { get; private set; }
 
 	private const string eMsg =
-		"activation-bound layer services (time domain, coroutines, IMonoTickReceiver auto-update) are not available yet; most likely, you have to move this code from the constructor or WarmAsync to OnEnter";
+		"activation-bound layer services (time domain, coroutines, IHostTickReceiver auto-update) are not available yet; most likely, you have to move this code from the constructor or WarmAsync to OnEnter";
 
 	/// <summary>
 	/// Runtime-provided time domain for this layer.
@@ -78,7 +78,7 @@ public abstract class Layer {
 	protected CoroScope CoroutineScope => Runtime?.CoroutineScope ?? throw new InvalidOperationException(eMsg);
 
 	/// <summary>
-	/// Runtime-provided automatic updater of <see cref="Time.IMonoTickReceiver"/>
+	/// Runtime-provided automatic updater of <see cref="Host.IHostTickReceiver"/>
 	/// objects for this layer.
 	/// </summary>
 	/// <remarks>

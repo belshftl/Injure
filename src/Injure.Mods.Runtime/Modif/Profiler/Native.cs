@@ -24,7 +24,7 @@ internal static unsafe partial class Native {
 		public readonly int Hresult;
 	} // aligned to 8 bytes on 64 bit and 4 bytes on 32 bit
 
-	private const string clrprof = "injureclrprof";
+	private const string clrprof = "ijclrprof";
 
 	static Native() {
 #if DEBUG

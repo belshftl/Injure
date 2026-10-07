@@ -17,7 +17,6 @@ using Injure.Mods.Runtime.Modif;
 using Injure.Mods.Runtime.Modif.CallDispatch;
 using Injure.Mods.Runtime.Modif.Detours;
 using Injure.Mods.Runtime.Modif.Profiler;
-using Injure.Runtime;
 
 namespace Injure.Mods.Runtime;
 
@@ -204,7 +203,6 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 	private ModContractsAlc? contractsAlc;
 	private readonly Dictionary<string, LoadedCodeMod<TGameApi>> activeCode = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, LoadedContentMod> activeContent = new(StringComparer.Ordinal);
-	private GameServices? attachedGameServices;
 	private readonly HashSet<string> enabledOwners = new(StringComparer.Ordinal);
 	private readonly ProfilerHost prof;
 	private readonly ModuleIdLookup moduleIdLookup;
@@ -277,8 +275,8 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		await LinkAsync(ct).ConfigureAwait(false);
 	}
 
-	public async ValueTask AttachGameActivateAsync(GameServices gameServices, CancellationToken ct = default) {
-		await AttachGameAsync(gameServices, ct).ConfigureAwait(false);
+	public async ValueTask AttachGameActivateAsync(CancellationToken ct = default) {
+		await AttachGameAsync(ct).ConfigureAwait(false);
 		await ActivateAsync(ct).ConfigureAwait(false);
 	}
 
@@ -302,7 +300,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 	}
 
 	public void StartBlocking(CancellationToken ct = default) => block(StartAsync(ct));
-	public void AttachGameActivateBlocking(GameServices gameServices, CancellationToken ct = default) => block(AttachGameActivateAsync(gameServices, ct));
+	public void AttachGameActivateBlocking(CancellationToken ct = default) => block(AttachGameActivateAsync(ct));
 	public void DetachGameDeactivateBlocking(CancellationToken ct = default) => block(DetachGameDeactivateAsync(ct));
 	public void ShutdownOrAbortBlocking(CancellationToken ct = default) => block(ShutdownOrAbortAsync(ct));
 
@@ -529,16 +527,12 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		}
 	}
 
-	public async ValueTask AttachGameAsync(GameServices gameServices, CancellationToken ct = default) {
-		ArgumentNullException.ThrowIfNull(gameServices);
+	public async ValueTask AttachGameAsync(CancellationToken ct = default) {
 		requirePhase(RuntimePhase.Linked, nameof(AttachGameAsync));
 		await writeLock.WaitAsync(ct).ConfigureAwait(false);
 		try {
 			requirePhase(RuntimePhase.Linked, nameof(AttachGameAsync));
-			if (attachedGameServices is not null)
-				throw new InvalidOperationException("game services are already attached");
 			ct.ThrowIfCancellationRequested();
-			attachedGameServices = gameServices;
 			phase = RuntimePhase.GameAttached;
 		} catch {
 			phase = RuntimePhase.Faulted;
@@ -553,9 +547,8 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		await writeLock.WaitAsync(ct).ConfigureAwait(false);
 		try {
 			requirePhase(RuntimePhase.GameAttached, nameof(ActivateAsync));
-			GameServices gameServices = attachedGameServices ?? throw new InternalStateException("expected nonnull attachedGameServices with phase at GameAttached");
 			ct.ThrowIfCancellationRequested();
-			await activateSetAsync(activeCode.Keys.ToHashSet(), activeGraph, activeCode, gameServices, ct).ConfigureAwait(false);
+			await activateSetAsync(activeCode.Keys.ToHashSet(), activeGraph, activeCode, ct).ConfigureAwait(false);
 			phase = RuntimePhase.Active;
 		} catch {
 			phase = RuntimePhase.Faulted;
@@ -586,10 +579,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		await writeLock.WaitAsync(ct).ConfigureAwait(false);
 		try {
 			requirePhase(RuntimePhase.GameAttached, nameof(DetachGameAsync));
-			if (attachedGameServices is null)
-				return;
 			ct.ThrowIfCancellationRequested();
-			attachedGameServices = null;
 			phase = RuntimePhase.Linked;
 		} catch {
 			phase = RuntimePhase.Faulted;
@@ -599,7 +589,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		}
 	}
 
-	public void AttachGameBlocking(GameServices gameServices, CancellationToken ct = default) => block(AttachGameAsync(gameServices, ct));
+	public void AttachGameBlocking(CancellationToken ct = default) => block(AttachGameAsync(ct));
 	public void ActivateBlocking(CancellationToken ct = default) => block(ActivateAsync(ct));
 	public void DeactivateBlocking(CancellationToken ct = default) => block(DeactivateAsync(ct));
 	public void DetachGameBlocking(CancellationToken ct = default) => block(DetachGameAsync(ct));
@@ -870,7 +860,6 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		staged = Array.Empty<StagedMod>();
 		activeCode.Clear();
 		activeContent.Clear();
-		attachedGameServices = null;
 		enabledOwners.Clear();
 	}
 
@@ -1330,7 +1319,6 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 	private async ValueTask<ModOperationResult> commitTransactionAsync(Transaction txn, CancellationToken ct) {
 		BoundaryPlan plan = txn.Plan;
 		Dictionary<string, ModLiveStateBlob> capturedState = new(StringComparer.Ordinal);
-		GameServices? gameServices = attachedGameServices;
 		bool wasActive = phase == RuntimePhase.Active;
 		bool destructiveBoundaryCrossed = false;
 		bool publishBoundaryCrossed = false;
@@ -1341,7 +1329,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live)
 				foreach (string id in plan.ReloadSet)
 					if (activeCode.TryGetValue(id, out LoadedCodeMod<TGameApi>? old) && old.ReloadEntrypoint is not null) {
-						object ctx = createReloadContext(old, createApi(old), diagnosticsSinkRegistry, reloadSetSnapshot, gameServices);
+						object ctx = createReloadContext(old, createApi(old), diagnosticsSinkRegistry, reloadSetSnapshot);
 						try {
 							capturedState.Add(id, await invokeSaveStateAsync(old, ctx, ct).ConfigureAwait(false));
 						} finally {
@@ -1372,7 +1360,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			if (!plan.IsStructural && plan.ReloadKind == ReloadRequestKind.Live)
 				foreach (KeyValuePair<string, ModLiveStateBlob> kvp in capturedState)
 					if (txn.PreparedCode.TryGetValue(kvp.Key, out LoadedCodeMod<TGameApi>? next) && next.ReloadEntrypoint is not null) {
-						object ctx = createReloadContext(next, createApi(next), diagnosticsSinkRegistry, reloadSetSnapshot, gameServices);
+						object ctx = createReloadContext(next, createApi(next), diagnosticsSinkRegistry, reloadSetSnapshot);
 						try {
 							await invokeRestoreStateAsync(next, ctx, kvp.Value, ct).ConfigureAwait(false);
 						} finally {
@@ -1386,7 +1374,6 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 					plan.PrepareSet,
 					txn.CandidateGraph,
 					txn.PreparedCode,
-					gameServices ?? throw new InternalStateException("active runtime has no attached GameServices"),
 					ct
 				).ConfigureAwait(false);
 			publishTransaction(txn);
@@ -1448,7 +1435,6 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 					plan.OldTouchedSet,
 					activeGraph,
 					activeCode,
-					gameServices ?? throw new InternalStateException("active runtime has no attached GameServices"),
 					ct
 				).ConfigureAwait(false);
 		} catch (Exception ex) when (!ExceptionPolicy.IsInternalState(ex)) {
@@ -1667,12 +1653,12 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		}
 	}
 
-	private async ValueTask activateOneAsync(LoadedCodeMod<TGameApi> mod, GameServices gameServices, CancellationToken ct) {
+	private async ValueTask activateOneAsync(LoadedCodeMod<TGameApi> mod, CancellationToken ct) {
 		if (mod.ActivationScope is not null)
 			throw new InternalStateException("wasn't expecting this LoadedCodeMod to already have an ActivationScope");
 		UntypedBoundedScopeImpl activationScope = new(mod.Staged.Generation, maxScopeTeardownParallelism);
 		mod.ActivationScope = activationScope;
-		object ctx = createActivateContext(mod, createApi(mod), diagnosticsSinkRegistry, gameServices);
+		object ctx = createActivateContext(mod, createApi(mod), diagnosticsSinkRegistry);
 		try {
 			await invokeEntrypointAsync(mod, nameof(IModEntrypoint<,>.ActivateAsync), ctx, ct).ConfigureAwait(false);
 			mod.Active = true;
@@ -1720,14 +1706,13 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		HashSet<string> set,
 		ResolvedModGraph graph,
 		Dictionary<string, LoadedCodeMod<TGameApi>> source,
-		GameServices gameServices,
 		CancellationToken ct
 	) {
 		foreach (IReadOnlyList<string> wave in graph.Waves.Waves) {
 			List<Task> tasks = new();
 			foreach (string id in wave)
 				if (set.Contains(id) && source.TryGetValue(id, out LoadedCodeMod<TGameApi>? mod) && !mod.Active)
-					tasks.Add(activateOneAsync(mod, gameServices, ct).AsTask());
+					tasks.Add(activateOneAsync(mod, ct).AsTask());
 			try {
 				await Task.WhenAll(tasks).ConfigureAwait(false);
 			} finally {
@@ -2022,11 +2007,9 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 	private static object createActivateContext(
 		LoadedCodeMod<TGameApi> mod,
 		TGameApi api,
-		DiagnosticsSinkRegistry diagnosticsSinkRegistry,
-		GameServices gameServices
+		DiagnosticsSinkRegistry diagnosticsSinkRegistry
 	) => Activator.CreateInstance(
 		typeof(ModActivateCtxImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
-		gameServices,
 		mod.ActivationScope ?? throw new InternalStateException("expected this LoadedCodeMod to have an ActivationScope"),
 		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
@@ -2040,11 +2023,9 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 		LoadedCodeMod<TGameApi> mod,
 		TGameApi api,
 		DiagnosticsSinkRegistry diagnosticsSinkRegistry,
-		IReadOnlySet<string> reloadSet,
-		GameServices? gameServices
+		IReadOnlySet<string> reloadSet
 	) => Activator.CreateInstance(
 		typeof(ModReloadCtxImpl<,>).MakeGenericType(typeof(TGameApi), mod.LifetimeIdentityType),
-		gameServices,
 		reloadSet,
 		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,

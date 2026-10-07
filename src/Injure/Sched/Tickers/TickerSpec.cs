@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.DevAnalyzers.Attributes;
-using Injure.Time;
+using Injure.Host;
 
 namespace Injure.Sched.Tickers;
 
-public readonly record struct TickerTiming(MonoTick Period, MonoTick InitialOffset = default);
+public readonly record struct TickerTiming(HostDuration Period, HostDuration InitialOffset = default);
 
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct TickerOverrunMode {
@@ -37,7 +37,7 @@ public readonly record struct TickerOptions(
 	int MaxBurst,
 	TickerOverrunMode OverrunMode,
 	TickerStartMode StartMode,
-	MonoTick StartAt
+	HostTick StartAt
 ) {
 	public static readonly TickerOptions Default = new(
 		Priority: 0,

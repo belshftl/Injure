@@ -8,8 +8,8 @@ resolve_profiler_path() {
 	local name
 	local arch
 	case "$(uname -s)" in
-		Darwin*) os="osx"; name="libinjureclrprof.dylib" ;;
-		Linux*)  os="linux"; name="libinjureclrprof.so" ;;
+		Darwin*) os="osx"; name="libijclrprof.dylib" ;;
+		Linux*)  os="linux"; name="libijclrprof.so" ;;
 		*)       echo "unsupported platform '$(uname -s)'" >&2; exit 2 ;;
 	esac
 	case "$(uname -m)" in

@@ -2,21 +2,22 @@
 // SPDX-License-Identifier: MIT
 
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Injure.Time;
 
 internal static partial class PreciseWaitNative {
 	// int precisewait_init(void);
-	[LibraryImport("injuremisc")]
+	[LibraryImport("ijmisc")]
 	public static partial int precisewait_init();
 
 	// void precisewait_deinit(void);
-	[LibraryImport("injuremisc")]
+	[LibraryImport("ijmisc")]
 	public static partial void precisewait_deinit();
 
 	// int precisewait(int64_t ns, int overshoot);
-	[LibraryImport("injuremisc")]
+	[LibraryImport("ijmisc")]
 	public static partial int precisewait(long ns, [MarshalAs(UnmanagedType.Bool)] bool overshoot);
 }
 
@@ -27,12 +28,12 @@ internal static partial class PreciseWaitNative {
 /// The implementation is native and platform-dependent:
 /// <list type="bullet">
 /// <item><description>On Windows, this is implemented using <c>WaitableTimer</c> objects.</description></item>
-/// <item><description>On MacOS, this is implemented using <c>mach_wait_until()</c>.</description></item>
+/// <item><description>On macOS, this is implemented using <c>mach_wait_until()</c>.</description></item>
 /// <item><description>On Linux and FreeBSD, this is implemented using <c>clock_nanosleep(2)</c>.</description></item>
 /// </list>
 /// </remarks>
 public static class PreciseWait {
-	private static void wrap(string fn, int rv) {
+	private static void chk(string fn, int rv) {
 		if (rv != 0) {
 			if (OperatingSystem.IsWindows())
 				throw new Win32Exception(rv, fn);
@@ -40,15 +41,15 @@ public static class PreciseWait {
 				throw new InvalidOperationException($"{fn}: kern_return_t {rv}");
 			if (OperatingSystem.IsLinux() || OperatingSystem.IsFreeBSD())
 				throw new InvalidOperationException($"{fn}: errno {rv}");
-			throw new InvalidOperationException($"{fn}: {rv}");
+			throw new UnreachableException(); // type initializer should check the platform
 		}
 	}
 
 	static PreciseWait() {
 		if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux() || OperatingSystem.IsFreeBSD())
-			wrap("precisewait_init", PreciseWaitNative.precisewait_init());
+			chk("precisewait_init", PreciseWaitNative.precisewait_init());
 		else
-			throw new PlatformNotSupportedException("PreciseWait is only supported on Windows / MacOS / Linux / FreeBSD");
+			throw new PlatformNotSupportedException("PreciseWait is only supported on Windows / macOS / Linux / FreeBSD");
 	}
 
 	/// <summary>
@@ -69,7 +70,7 @@ public static class PreciseWait {
 	/// </exception>
 	public static void WaitPreferUndershoot(long ns) {
 		ArgumentOutOfRangeException.ThrowIfNegative(ns);
-		wrap("precisewait", PreciseWaitNative.precisewait(ns, false));
+		chk("precisewait", PreciseWaitNative.precisewait(ns, false));
 	}
 
 	/// <summary>
@@ -90,6 +91,6 @@ public static class PreciseWait {
 	/// </exception>
 	public static void WaitPreferOvershoot(long ns) {
 		ArgumentOutOfRangeException.ThrowIfNegative(ns);
-		wrap("precisewait", PreciseWaitNative.precisewait(ns, true));
+		chk("precisewait", PreciseWaitNative.precisewait(ns, true));
 	}
 }

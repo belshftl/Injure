@@ -24,6 +24,63 @@ anyhow, to v0.1:
   - [x] update the documentation and such to make use of the new definitions of canonical/short form and shortening
   - [x] add proper operand-agnostic instruction matching, there's `MatchIl.OpCode(ILOpCode)` but it's kind of broken i think
   - [x] benchmark il matching, transactions/pipelines, and decode/encode, currently just for informative purposes
+- [x] update the dev analyzer:
+  - [x] check for duplicate code and merge any into shared helpers
+  - [x] merge `Shared.Constants` and `Shared.AttributeSources`
+  - [x] add a warning for if a struct doesn't have the "the default value is valid/invalid" doc comments that are on every recently-added struct
+  - [x] add `DangerousCreate*` as a sibling to `DangerousGet*`; if `DangerousGet*` suppresses the "exposes external types" check for the return type, `DangerousCreate*` should suppress it for the parameter types but not the return type
+  - [x] add a `[WrapperType]` sourcegen attribute that applies to an empty `partial` class / `readonly struct` / `readonly ref struct`; takes in a type T via `typeof` and a `params[]` array of property/method names from that type; and generates a single private field of type T, properties/methods that redirect to the ones on that field (and have `inheritdoc`s), and an `internal` constructor that takes in T
+- [ ] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
+  - [x] remove the current `Runtime.*` namespace wholly
+  - [ ] touch up `docs/conventions/dangerous-get.md` and rename it
+  - [x] split out SDL-related stuff into a new `.Sdl` namespace; it should be part of the API that it is a wrapper for SDL3, and bypassing it to drive SDL3 directly should be supported albeit advanced/unsafe
+  - [x] maybe devise a "host-event" system, like a similar but more comprehensive equivalent to the old `Runtime.HostEvent`; i can't think of another way to abstract away sdl events, also see below
+  - [x] think about whether supporting not using SDL3 entirely and having a "host-event source" system is worth it; it sounds not too difficult to me
+  - [ ] look at what things need to be made public; it's quite a bit, the input system comes to mind
+  - [ ] really try to think of a better solution to mod safe/live boundaries than "between scheduler ticks"
+  - [x] make an `IGame` replacement (likely a `StandardGame` abstract class) explicitly marked as convenience
+- [ ] update the input system:
+  - [x] add window attribution to events since multi-window is now supported
+  - [ ] yet again, make it drivable by the game directly
+  - [ ] document everything with doc comments, and revise existing doc comments
+  - [ ] support custom input sources
+  - [ ] write tests
+- [ ] touch up `Rendering`, as it's the oldest part of the project and by now it has a decent amount of cruft in it:
+  - [ ] update the references to what was `Docs/conventions/dangerous-get.md`
+  - [ ] flatten the `Enums`/`Structs` directories into the main ones for namespace <-> dir layout consistency
+  - [ ] move the shaders out from `Shaders/` into some other top-level directory (alongside `native/`, `src/`, `test/`, etc.)
+  - [ ] fix some of the names using an inconsistent abbreviation style (`ABC` instead of the project's standard `Abc`)
+  - [ ] fix some of the apis still publicly exposing types from our webgpu bindings
+  - [ ] redesign `ISurfaceHost`/`IRenderOutput`/`RenderFrame` and friends completely in a way that makes custom user-provided implementations possible; `WGPUSurfaceDescriptorContainer` especially is fundamentally broken because it's a self-referential struct with nothing stopping it from being boxed or copied
+  - [ ] generally following the current "less internals magic" redesign, make the api publicly usable directly by the game without needing to rely on `Draw`
+  - [ ] document everything with doc comments, and fix the existing doc comments' various stylistic inconsistencies - this is likely gonna take a while
+  - [ ] as a way to test that the redesign works, try to sketch something more complex than rendering into a plain sdl3 window; maybe an avalonia child surface or something like that
+- [ ] fix the regular analyzer for once
+  - [ ] a decent amount of code is duplicated, merge it together into shared helpers
+  - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
+  - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
+- [ ] fix the current base tests oftentimes failing to run because of missing native libraries
+- [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
+- [ ] touch up `Draw`; it's a bit of a mess right now too
+  - [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
+  - [ ] here be dragons
+- [ ] redesign `TGameApi` and `IReloadTeardown` from the mod infrastructure
+- [ ] seriously consider introducing `OwnerId`/`LocalId` types with smart constructors; the primary thing making this a question is just how much would need refactoring
+- [ ] fix the mod analyzer for once
+  - [ ] a decent amount of code is duplicated, merge it together into shared helpers
+  - [ ] remove now-unnecessary diagnostics
+  - [ ] add more new diagnostics, think about what is useful
+  - [ ] maybe look into whether the mod can be forced to embed a manifest.json in metadata in some way that the analyzer can read; it'd simplify a lot of things and allow for e.g. better dependency-related diagnostics
+  - [ ] add basic interprocedural obligation tracking
+- [ ] pause for a bit to write a *lot* of tests and doc comments for the rest of the project; not writing them as development goes in the past was a mistake that needs to be patched up before it's too late:
+  - [ ] tests for the collections
+  - [ ] doc comments for the layers system
+  - [ ] doc comments for the input system
+  - [ ] doc comments for `Io.*`, currently just `FileHotReloadMonitor`
+  - [ ] doc comments for `Sched.*` (both coroutines and tickers)
+  - [ ] miscellaneous doc comments: `Primitives.Vector2Int` and `Common.OneOf`
+  - [ ] tests for the coroutine system
+  - [ ] look into what else is testable
 - [ ] document the mod loader properly:
   - [ ] `docs/mods/basic-definitions.md`
   - [ ] `docs/mods/dependencies.md`
@@ -36,34 +93,6 @@ anyhow, to v0.1:
   - [ ] `docs/mods/exports.md`
   - [ ] doc comments
   - [ ] here be dragons
-- [ ] fix the regular analyzer for once
-  - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
-  - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
-- [ ] fix the mod analyzer for once
-  - [ ] remove now-unnecessary diagnostics
-  - [ ] add more new diagnostics, think about what is useful
-  - [ ] maybe look into whether the mod can be forced to embed a manifest.json in metadata in some way that the analyzer can read; it'd simplify a lot of things and allow for e.g. better dependency-related diagnostics
-  - [ ] add basic interprocedural obligation tracking
-- [ ] write a readme, properly outline the design philosophy
-- [ ] for now, temporarily silence our own analyzer warning for foreign types exposed through public apis, it's planned to be properly dealt with later down the line
-- [ ] pause for a bit to write a *lot* of tests and doc comments for the rest of the project; not writing them as development goes in the past was a mistake that needs to be patched up before it's too late:
-  - [ ] tests for the collections
-  - [ ] doc comments for the layers system
-  - [ ] doc comments for the input system
-  - [ ] doc comments for `Io.*`, currently just `FileHotReloadMonitor`
-  - [ ] doc comments for `Sched.*` (both coroutines and tickers)
-  - [ ] miscellaneous doc comments: `Primitives.Vector2Int` and `Common.OneOf`
-  - [ ] tests for the coroutine and ticker systems, though tickers should probably wait for the deadline rework
-  - [ ] tests for the input system wherever possible
-  - [ ] look into what else is testable
-- [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`. the thing, though, is capturing lambdas; maybe a runtime-checked `BorrowedCanvasRef` created from `Canvas.BorrowedRef()`? i really don't know, maybe this overcomplicates it
-- [ ] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
-  - [ ] make a lot of currently only internally constructible types constructible and manageable by the game
-  - [ ] remove `Boot*` entirely
-  - [ ] rethink the `Runner`/`IGame` model, make the config less monolithic
-  - [ ] make `Runner`/`IGame` merely conveniences rather than required, and support the game driving a custom event loop (either driving a ticker scheduler or completely custom)
-  - [ ] think about what to do with `MonoTick` since it has to be explicitly documented that it only starts ticking when sdl is up, probably rename it too
-  - [ ] rename the rest of the types too to signal "convenience" more
 - [ ] unsilence the previously silenced warning from our own analyzer, clean up a lot of the apis that currently expose foreign types
 - [ ] get back to the mod loader:
   - [ ] benchmark more e2e cases like the real overhead of applying a patch/detour and calling patched/detoured methods
@@ -85,7 +114,6 @@ anyhow, to v0.1:
   - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad
   - [ ] standardize on a bunch of things (maybe by using more derived abstract types? or interfaces? unsure) like entities with a notion of position, entities with a notion of collision, entities that can serialize/deserialize, perhaps entities that "bind" in some way to a reloadable mod generation and need `<L>`, etc. the important thing isn't really that adding `public Vector2 Position` to your entity is hard, but that having everyone on the same page on how it's done is very valuable
   - [ ] here be dragons
-- [ ] flatten `Rendering/{Enums,Structs}` into the main dir for namespace <-> directory-layout consistency
 - [ ] write dedicated docs for:
   - [ ] more `conventions`, maybe one on type naming
   - [ ] probably write a better `exception-recording.md`, provide practical examples of when exceptions cause alc retention
@@ -111,11 +139,9 @@ anyhow, to v0.1:
   - [ ] wasapi backend
   - [ ] eventually asio backend, i haven't looked much into whether it'd be viable but i really hope so, i'd imagine it'd have to be a separate `.Audio.Asio` package due to the gplv3 licensing
   - [ ] here be dragons
-- [ ] something more first-class for embedding into e.g. an avalonia child surface via `IRenderOutput` and such, including dedicated docs on how to do it
 - [ ] add quite a bit more to `Draw`; support custom shaders, maybe allow for some more optional low-level control
 - [ ] maybe make `AssetRef<T>` hold an owner-ordered list of slots rather than one slot, and devise some api to allow mods to cleanly override assets; i'm really not sure though
 - [ ] sourcegen conveniences for the asset system, it's not very nice to use right now for the overwhelmingly common usecase of just having a bunch of assets known ahead of time
 - [ ] a bunch of stuff for `[ClosedEnum]`/`[ClosedEnumMirror]`/`[ClosedFlags]` needs to be defined, like serialization behavior and ffi semantics and such
   - [ ] also consider making them public
-- [ ] proper support for user-implemented custom input sources; the input system is already designed for it but actual custom input sources are missing right now
 - [ ] here be dragons

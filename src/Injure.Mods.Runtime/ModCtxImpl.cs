@@ -4,7 +4,6 @@
 using Injure.Mods.Abstractions;
 using Injure.Mods.Abstractions.Modif;
 using Injure.Mods.Runtime.Modif;
-using Injure.Runtime;
 
 namespace Injure.Mods.Runtime;
 
@@ -153,7 +152,6 @@ internal sealed class ModLinkCtxImpl<TGameApi, L>(
 }
 
 internal sealed class ModActivateCtxImpl<TGameApi, L>(
-	GameServices gameServices,
 	UntypedBoundedScopeImpl activationScope,
 	string ownerId,
 	Semver version,
@@ -163,23 +161,17 @@ internal sealed class ModActivateCtxImpl<TGameApi, L>(
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
 ) : ModCtxImpl<TGameApi, L>(nameof(IModActivateCtx<,>), ownerId, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModActivateCtx<TGameApi, L>
 	where L : struct, IModLifetimeIdentity {
-	public GameServices GameServices {
-		get => field ?? throw new ModLifecycleCtxExpiredException(nameof(IModActivateCtx<,>), Generation);
-		private set;
-	} = gameServices;
 	public IBoundedScope<L> ActivationScope {
 		get => field ?? throw new ModLifecycleCtxExpiredException(nameof(IModActivateCtx<,>), Generation);
 		private set;
 	} = activationScope.AsTyped<L>();
 
 	public override void OnDropStrongReferences() {
-		GameServices = null!;
 		ActivationScope = null!;
 	}
 }
 
 internal sealed class ModReloadCtxImpl<TGameApi, L>(
-	GameServices? gameServices,
 	IReadOnlySet<string> reloadSet,
 	string ownerId,
 	Semver version,
@@ -189,14 +181,8 @@ internal sealed class ModReloadCtxImpl<TGameApi, L>(
 	DiagnosticsSinkRegistry diagnosticsSinkRegistry
 ) : ModCtxImpl<TGameApi, L>(nameof(IModReloadCtx<,>), ownerId, version, api, diagnostics, scope, diagnosticsSinkRegistry), IModReloadCtx<TGameApi, L>
 	where L : struct, IModLifetimeIdentity {
-	private bool gameServicesDropped = false;
-	private GameServices? gameServices = gameServices;
-
 	public IReadOnlySet<string> ReloadSet { get; } = reloadSet;
-	public GameServices? GameServices => !gameServicesDropped ? gameServices : throw new ModLifecycleCtxExpiredException(nameof(IModReloadCtx<,>), Generation);
 
 	public override void OnDropStrongReferences() {
-		gameServicesDropped = true;
-		gameServices = null;
 	}
 }

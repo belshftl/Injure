@@ -5,11 +5,10 @@ using Hexa.NET.SDL3;
 using Injure.Rendering;
 using WebGPU;
 
-namespace Injure.Runtime;
+namespace Injure.Sdl;
 
-public sealed unsafe partial class SdlSurfaceHost(SDLWindow* win, void* metalLayer) : ISurfaceHost {
-	private readonly SDLWindow* win = win;
-	private readonly void* metalLayer = metalLayer;
+internal sealed unsafe class SdlSurfaceHost(SdlWindow window) : ISurfaceHost {
+	private readonly SdlWindow window = window;
 
 	private const string drvCocoa = "cocoa";
 	private const string drvWayland = "wayland";
@@ -18,15 +17,15 @@ public sealed unsafe partial class SdlSurfaceHost(SDLWindow* win, void* metalLay
 
 	public void CreateSurfaceDesc(WGPUSurfaceDescriptorContainer* container) {
 		ArgumentNullException.ThrowIfNull(container);
-		if (win is null)
-			throw new InternalStateException("this SDLSurfaceHost's Window is null");
+		SDLWindow* win = window.DangerousGetHandle();
+		void* metalLayer = window.DangerousGetMetalLayer();
 
 		uint props = SDL.GetWindowProperties(win);
 		string drv = SDL.GetCurrentVideoDriverS();
 		switch (drv) {
 		case drvCocoa:
 			if (metalLayer is null)
-				throw new InternalStateException("this SDLSurfaceHost's Metal layer is null and we need it");
+				throw new InternalStateException("cocoa video driver but no Metal layer");
 			getCocoa(metalLayer, container);
 			break;
 		case drvWayland:
@@ -45,7 +44,7 @@ public sealed unsafe partial class SdlSurfaceHost(SDLWindow* win, void* metalLay
 
 	public (uint Width, uint Height) GetDrawableSize() {
 		int w, h;
-		SDL.GetWindowSizeInPixels(win, &w, &h);
+		SdlException.Check(SDL.GetWindowSizeInPixels(window.DangerousGetHandle(), &w, &h));
 		if (w < 0 || h < 0)
 			throw new InvalidOperationException("SDL_GetWindowSizeInPixels returned negative size");
 		return ((uint)w, (uint)h);

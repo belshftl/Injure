@@ -25,32 +25,8 @@ public sealed class StronglyTypedIntAnalyzer : DiagnosticAnalyzer {
 
 	private static void analyzeNamedType(SymbolAnalysisContext ctx) {
 		var sym = (INamedTypeSymbol)ctx.Symbol;
-		AttributeData? attr = Util.GetAttribute(sym, AttributeSources.StronglyTypedIntAttributeMetadataName);
-		if (attr is null)
-			return;
-
-		Location loc = Util.GetAttributeLocation(attr, sym, ctx.CancellationToken);
-		if (sym.TypeKind != TypeKind.Struct)
-			report(ctx, Diagnostics.StronglyTypedInt.StronglyTypedIntInvalidTarget, loc, "Target must be a struct.");
-		else if (!Util.Partial(sym, ctx.CancellationToken))
-			report(ctx, Diagnostics.StronglyTypedInt.StronglyTypedIntInvalidTarget, loc, "Target must be declared 'partial'.");
-		else if (!sym.IsReadOnly)
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.StronglyTypedInt.StronglyTypedIntMustBeReadonly, loc, sym.Name));
-		else if (sym.IsRefLikeType)
-			report(ctx, Diagnostics.StronglyTypedInt.StronglyTypedIntInvalidTarget, loc, "Ref structs are not supported.");
-		else if (sym.IsRecord)
-			report(ctx, Diagnostics.StronglyTypedInt.StronglyTypedIntInvalidTarget, loc, "'record struct' is not supported.");
-		else if (sym.TypeParameters.Length != 0)
-			report(ctx, Diagnostics.StronglyTypedInt.StronglyTypedIntInvalidTarget, loc, "Generic structs are not supported.");
-		else if (attr.ConstructorArguments.Length != 1)
-			report(ctx, Diagnostics.StronglyTypedInt.StronglyTypedIntInvalidTarget, loc, "Attribute must have exactly one typeof(...) argument.");
-		else if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol backingType)
-			report(ctx, Diagnostics.StronglyTypedInt.StronglyTypedIntInvalidTarget, loc, "Attribute argument must be a concrete type.");
-		else if (!Util.TryGetStronglyTypedIntBackingInfo(backingType, out _, out _))
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.StronglyTypedInt.StronglyTypedIntUnsupportedBacking, loc, backingType.ToDisplayString()));
-		else if (Util.CheckStronglyTypedIntCollision(sym, backingType, out Location collisionLoc, out string? collisionMsg))
-			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.StronglyTypedInt.StronglyTypedIntMemberCollision, collisionLoc, collisionMsg));
+		AttributeData? attr = Util.GetAttribute(sym, Constants.StronglyTypedInt.AttributeMetadataName);
+		if (attr is not null)
+			StronglyTypedIntModel.Validate(sym, attr, new DiagnosticSink(ctx.ReportDiagnostic), ctx.CancellationToken);
 	}
-	private static void report(SymbolAnalysisContext ctx, DiagnosticDescriptor descriptor, Location loc, string msg) =>
-		ctx.ReportDiagnostic(Diagnostic.Create(descriptor, loc, msg));
 }

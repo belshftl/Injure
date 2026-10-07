@@ -4,14 +4,14 @@
 namespace Injure.Time;
 
 /// <summary>
-/// Represents a source of <see cref="ITimelineScalar{TSelf}"/> values with the capability
-/// to sample the current value, where "current" is domain-defined.
+/// Represents a source of <see cref="ITimelineInstant{TSelf}"/> values with the capability to
+/// sample the current value, where "current" is domain-defined.
 /// </summary>
 /// <remarks>
-/// Readings may not be monotonic; given two samples A and B, where B was sampled later in
-/// time than A, the two may still order B &lt; A within the domain.
+/// Readings may not be monotonic; given two samples A and B, where B was sampled later in time
+/// than A, the two may still order B &lt; A within the domain.
 /// </remarks>
-public interface ICurrentSampleable<out T> where T : struct, ITimelineScalar<T> {
+public interface ICurrentSampleable<out T> where T : struct, ITimelineInstant<T> {
 	/// <summary>
 	/// Samples the current value.
 	/// </summary>
@@ -22,12 +22,11 @@ public interface ICurrentSampleable<out T> where T : struct, ITimelineScalar<T> 
 }
 
 /// <summary>
-/// Represents a source of <see cref="ITimelineScalar{TSelf}"/> values with the capability
+/// Represents a source of <see cref="ITimelineInstant{TSelf}"/> values with the capability
 /// to sample the current value, where "current" is domain-defined but monotonically non-decreasing.
 /// </summary>
 /// <remarks>
-/// Readings are monotonic; given two samples A and B, where B was sampled later in time than
-/// A, the two are guaranteed to order B == A or B &gt; A within the domain.
+/// Readings are weakly monotonic; given two samples A and B, where B was sampled later in time than
+/// A, the two are guaranteed to order B &gt;= A within the domain.
 /// </remarks>
-public interface IMonoCurrentSampleable<out T> : ICurrentSampleable<T> where T : struct, ITimelineScalar<T> {
-}
+public interface IMonoCurrentSampleable<out T> : ICurrentSampleable<T> where T : struct, ITimelineInstant<T>;

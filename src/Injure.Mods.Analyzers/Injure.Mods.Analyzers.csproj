@@ -8,7 +8,7 @@
 		<NoPackageAnalysis>true</NoPackageAnalysis>
 
 		<PackageId>Injure.Mods.Analyzers</PackageId>
-		<Description>analyzer for mods from the game framework/engine colloquially known as Injure</Description>
+		<Description>WIP game framework/engine with first-class mod support - Roslyn analyzer for mods</Description>
 	</PropertyGroup>
 
 	<ItemGroup>

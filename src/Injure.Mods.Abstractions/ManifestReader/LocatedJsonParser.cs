@@ -212,7 +212,6 @@ public static class LocatedJsonParser {
 	}
 
 	private static string formatJsonException(JsonException ex) {
-		// this fucking sucks but it seems to work well enough from my testing
 		string msg = ex.InnerException?.Message ?? ex.Message;
 		int badLiteralMsgIdx = msg.IndexOf("is an invalid JSON literal", StringComparison.Ordinal);
 		if (badLiteralMsgIdx >= 0) {

@@ -7,7 +7,7 @@
 		<NoWarn>$(NoWarn);CS1591</NoWarn> <!-- temporary, disable warnings for undocumented public members -->
 
 		<PackageId>Injure.Mods.Runtime</PackageId>
-		<Description>game-facing mod runtime from the game framework/engine colloquially known as Injure</Description>
+		<Description>WIP game framework/engine with first-class mod support - game-facing mod runtime</Description>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -22,8 +22,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="../../native/pack/osx-arm64/libinjureclrprof.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
-		<None Include="../../native/pack/linux-x64/libinjureclrprof.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
-		<None Include="../../native/pack/linux-arm64/libinjureclrprof.so" Pack="true" PackagePath="runtimes/linux-arm64/native/" />
+		<None Include="../../native/pack/osx-arm64/libijclrprof.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
+		<None Include="../../native/pack/linux-x64/libijclrprof.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
+		<None Include="../../native/pack/linux-arm64/libijclrprof.so" Pack="true" PackagePath="runtimes/linux-arm64/native/" />
 	</ItemGroup>
 </Project>

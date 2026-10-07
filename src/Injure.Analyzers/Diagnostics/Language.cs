@@ -20,7 +20,7 @@ internal static class Language {
 	public static readonly DiagnosticDescriptor OpenClassMarkerNotAllowed = new(
 		id: "IJ0002",
 		title: "Open class marker not allowed here",
-		messageFormat: "The `/* open */` marker is only allowed on non-{{static/abstract/sealed}} classes or non-{{abstract/sealed}} records",
+		messageFormat: "The `/* open */` marker is only allowed on non-{static/abstract/sealed} classes or non-{abstract/sealed} records",
 		category: "Language",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true

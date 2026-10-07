@@ -3,7 +3,6 @@
 
 using Injure.CodeAnalysis.Internal;
 using Injure.Mods.Abstractions.Modif;
-using Injure.Runtime;
 
 namespace Injure.Mods.Abstractions;
 
@@ -57,7 +56,6 @@ public interface IModLinkCtx<out TGameApi, L> : IModCtx<TGameApi, L> where L : s
 [DontCaptureIntoClosure(ModContextCodeAnalysisMessages.DontCapture)]
 [DontImplement]
 public interface IModActivateCtx<out TGameApi, L> : IModCtx<TGameApi, L> where L : struct, IModLifetimeIdentity {
-	GameServices GameServices { get; }
 	IBoundedScope<L> ActivationScope { get; }
 }
 
@@ -66,7 +64,6 @@ public interface IModActivateCtx<out TGameApi, L> : IModCtx<TGameApi, L> where L
 [DontImplement]
 public interface IModReloadCtx<out TGameApi, L> : IModCtx<TGameApi, L> where L : struct, IModLifetimeIdentity {
 	IReadOnlySet<string> ReloadSet { get; }
-	GameServices? GameServices { get; }
 }
 
 public sealed class ModLifecycleCtxExpiredException : Exception {

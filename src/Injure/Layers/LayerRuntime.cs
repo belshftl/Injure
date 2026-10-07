@@ -4,7 +4,7 @@
 using Injure.Input;
 using Injure.Mods;
 using Injure.Sched.Coro;
-using Injure.Time;
+using Injure.Host;
 using CoroUpdatePhase = Injure.Sched.Coro.CoroUpdatePhase;
 
 namespace Injure.Layers;
@@ -14,17 +14,17 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	public CoroScheduler Coroutines { get; }
 	public CoroScope CoroutineScope { get; }
 
-	private readonly List<IMonoTickReceiver> toUpdate;
+	private readonly List<IHostTickReceiver> toUpdate;
 	private ActionCtx? actionCtx;
 
 	public LayerRuntime() {
 		Time = new LayerTimeDomain();
 		Coroutines = new CoroScheduler();
 		CoroutineScope = CoroScope.CreateRoot(Coroutines, "Layer", EngineInfo.OwnerId); // TODO think about what owner ID this should use
-		toUpdate = new List<IMonoTickReceiver>();
+		toUpdate = new List<IHostTickReceiver>();
 	}
 
-	public T Feed<T>(T obj) where T : class, IMonoTickReceiver {
+	public T Feed<T>(T obj) where T : class, IHostTickReceiver {
 		ArgumentNullException.ThrowIfNull(obj);
 		toUpdate.Add(obj);
 		return obj;
@@ -34,18 +34,18 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 		actionCtx = profile is null ? null : new ActionCtx(profile);
 	}
 
-	public void UpdateTickFed(MonoTick tick) {
-		foreach (IMonoTickReceiver r in toUpdate)
+	public void UpdateTickFed(HostTick tick) {
+		foreach (IHostTickReceiver r in toUpdate)
 			r.Update(tick);
 	}
 
-	public ControlView UpdateControls(MonoTick tick, in InputView input) {
+	public ControlView UpdateControls(HostTick tick, in InputView input) {
 		if (actionCtx is null)
 			return new ControlView(ActionStateView.Empty, ReadOnlySpan<ControlEvent>.Empty, input.State.Pointer);
 		return actionCtx.Update(tick, input);
 	}
 
-	public void SuppressControls(MonoTick tick) {
+	public void SuppressControls(HostTick tick) {
 		if (actionCtx is null)
 			return;
 		_ = actionCtx.Update(tick, InputView.Empty);

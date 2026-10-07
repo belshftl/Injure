@@ -6,7 +6,7 @@
 		<DevelopmentDependency>true</DevelopmentDependency>
 
 		<PackageId>Injure.Mods.Analyzers.CodeFixes</PackageId>
-		<Description>analyzer codefixes for mods from the game framework/engine colloquially known as Injure</Description>
+		<Description>WIP game framework/engine with first-class mod support - codefixer for the Roslyn analyzer for mods</Description>
 	</PropertyGroup>
 
 	<ItemGroup>

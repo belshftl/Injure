@@ -4,6 +4,8 @@
 using System.Collections;
 using System.Diagnostics;
 
+using Injure.Host;
+
 namespace Injure.Input;
 
 public readonly struct KeyboardState {
@@ -190,28 +192,39 @@ public readonly struct GamepadStateSet : IReadOnlyList<GamepadStateEntry> {
 public readonly struct PointerState {
 	private readonly byte buttons;
 
+	/// <summary>
+	/// The window <see cref="X"/> and <see cref="Y"/> are relative to, i.e. the window of the last
+	/// pointer event; invalid if there hasn't been one.
+	/// </summary>
+	public HostWindowId Window { get; }
 	public float X { get; }
 	public float Y { get; }
+
+	/// <summary>
+	/// Whether the pointer is currently inside <see cref="Window"/>.
+	/// </summary>
 	public bool InsideWindow { get; }
 	public bool Captured { get; } // if true, coordinates may be out of window bounds
 
 	public static readonly PointerState Rest = default;
 
-	public PointerState(ReadOnlySpan<PointerButton> down, float x, float y, bool insideWindow, bool captured) {
+	public PointerState(ReadOnlySpan<PointerButton> down, HostWindowId window, float x, float y, bool insideWindow, bool captured) {
 		foreach (PointerButton btn in down) {
 			int idx = (int)btn.Tag;
 			if ((uint)idx >= 8u)
 				throw new ArgumentOutOfRangeException(nameof(down), $"pointer button '{btn}' doesn't fit into the 8-bit bitset");
 			buttons |= (byte)(1u << idx);
 		}
+		Window = window;
 		X = x;
 		Y = y;
 		InsideWindow = insideWindow;
 		Captured = captured;
 	}
 
-	internal PointerState(byte bitset, float x, float y, bool insideWindow, bool captured) {
+	internal PointerState(byte bitset, HostWindowId window, float x, float y, bool insideWindow, bool captured) {
 		buttons = bitset;
+		Window = window;
 		X = x;
 		Y = y;
 		InsideWindow = insideWindow;

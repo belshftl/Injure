@@ -5,13 +5,21 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Hexa.NET.SDL3;
 
-namespace Injure.Runtime;
+namespace Injure.Sdl;
 
+/// <summary>
+/// Thrown when an SDL call fails.
+/// </summary>
 public sealed class SdlException(string op, string message) : Exception($"{op}: {message}") {
+	/// <summary>
+	/// Name of the SDL function that failed, e.g. <c>SDL_CreateWindow</c>.
+	/// </summary>
 	public readonly string Operation = op;
 
+	internal static SdlException FromLastError(string op) => new(op, SDL.GetErrorS());
+
 	[StackTraceHidden]
-	public static void Check(bool v, [CallerArgumentExpression(nameof(v))] string? expr = null) {
+	internal static void Check(bool v, [CallerArgumentExpression(nameof(v))] string? expr = null) {
 		if (!v)
 			throw new SdlException(getfnname(expr), SDL.GetErrorS());
 	}

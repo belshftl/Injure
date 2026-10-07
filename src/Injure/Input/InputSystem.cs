@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics;
-using System.Runtime.InteropServices;
-using Hexa.NET.SDL3;
 using Injure.Collections;
-using Injure.Time;
+using Injure.Host;
 
 namespace Injure.Input;
 
@@ -32,14 +30,14 @@ internal sealed class InputSystem : IInputSource {
 	private ulong keys3;
 
 	private byte pointerButtons;
+	private HostWindowId pointerWindow; // window pointerX/pointerY are relative to
 	private float pointerX;
 	private float pointerY;
-	private bool pointerInsideWindow;
+	private HostWindowId pointerInside; // tracked separately so enter-B-before-leave-A orderings stay right
 	private bool pointerCaptured;
+	private HostWindowId keyboardWindow; // window of the last keyboard event
 
 	private readonly List<MutableGamepadState> gamepads = new();
-	private readonly Dictionary<uint, GamepadId> gamepadBySdlInstanceId = new();
-	private uint nextGamepadId = 0; // first will be 1 since this gets incremented upfront
 
 	public InputSystem(int maxBufferedEvents) {
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferedEvents);
@@ -48,8 +46,17 @@ internal sealed class InputSystem : IInputSource {
 
 	public InputSnapshot CurrentState => new(
 		new KeyboardState(keys0, keys1, keys2, keys3),
-		new PointerState(pointerButtons, pointerX, pointerY, pointerInsideWindow, pointerCaptured),
+		currentPointerState,
 		snapshotGamepads()
+	);
+
+	private PointerState currentPointerState => new(
+		pointerButtons,
+		pointerWindow,
+		pointerX,
+		pointerY,
+		pointerInside.IsValid && pointerInside == pointerWindow,
+		pointerCaptured
 	);
 
 	private ulong oldestSeq => nextSeq - checked((ulong)events.Count);
@@ -113,21 +120,20 @@ internal sealed class InputSystem : IInputSource {
 		}
 	}
 
-	public void SetPointerInsideWindow(bool inside) => pointerInsideWindow = inside;
 	public void SetPointerCaptured(bool captured) => pointerCaptured = captured;
 
 	public void DiscardAll() {
 		events.Clear();
 	}
 
-	public void ClearKeyboardAndPointer(MonoTick tick) {
+	public void ClearKeyboardAndPointer(HostTick tick) {
 		synthesizeKeyboardReleaseAll(tick);
 		synthesizePointerReleaseAll(tick);
 		keys0 = keys1 = keys2 = keys3 = 0;
 		pointerButtons = 0;
 	}
 
-	public void ClearAllDevices(MonoTick tick) {
+	public void ClearAllDevices(HostTick tick) {
 		synthesizeKeyboardReleaseAll(tick);
 		synthesizePointerReleaseAll(tick);
 		synthesizeGamepadsReleaseAll(tick);
@@ -145,13 +151,16 @@ internal sealed class InputSystem : IInputSource {
 		switch (ev) {
 		case KeyEvent keyEv:
 			setKey(keyEv.Key, keyEv.Edge == EdgeType.Press);
+			keyboardWindow = keyEv.Window;
 			break;
 		case PointerMoveEvent pmoveEv:
+			pointerWindow = pmoveEv.Window;
 			pointerX = pmoveEv.X;
 			pointerY = pmoveEv.Y;
 			break;
 		case PointerButtonEvent pbtnEv:
 			setPointerButton(pbtnEv.Button, pbtnEv.Edge == EdgeType.Press);
+			pointerWindow = pbtnEv.Window;
 			pointerX = pbtnEv.X;
 			pointerY = pbtnEv.Y;
 			break;
@@ -269,25 +278,24 @@ internal sealed class InputSystem : IInputSource {
 		else g.Buttons &= ~mask;
 	}
 
-	private void synthesizeKeyboardReleaseAll(MonoTick tick) {
-		for (int i = 0; i <= 0xff; i++) {
-			Key key = Key.Enum.FromTag((Key.Case)i);
+	private void synthesizeKeyboardReleaseAll(HostTick tick) {
+		// declared values only; the raw tag range has gaps
+		foreach (Key key in Key.Enum.Values) {
 			if (!new KeyboardState(keys0, keys1, keys2, keys3).IsDown(key))
 				continue;
-			Push(new KeyEvent(tick, key, EdgeType.Release));
+			Push(new KeyEvent(tick, keyboardWindow, key, EdgeType.Release));
 		}
 	}
 
-	private void synthesizePointerReleaseAll(MonoTick tick) {
-		for (int i = 0; i < 8; i++) {
-			PointerButton btn = PointerButton.Enum.FromTag((PointerButton.Case)i);
-			if (!new PointerState(pointerButtons, pointerX, pointerY, pointerInsideWindow, pointerCaptured).IsDown(btn))
+	private void synthesizePointerReleaseAll(HostTick tick) {
+		foreach (PointerButton btn in PointerButton.Enum.Values) {
+			if (!currentPointerState.IsDown(btn))
 				continue;
-			Push(new PointerButtonEvent(tick, btn, EdgeType.Release, Clicks: 0, pointerX, pointerY));
+			Push(new PointerButtonEvent(tick, pointerWindow, btn, EdgeType.Release, Clicks: 0, pointerX, pointerY));
 		}
 	}
 
-	private void synthesizeGamepadsReleaseAll(MonoTick tick) {
+	private void synthesizeGamepadsReleaseAll(HostTick tick) {
 		for (int i = 0; i < gamepads.Count; i++) {
 			MutableGamepadState g = gamepads[i];
 			for (int bit = 0; bit < 32; bit++) {
@@ -304,266 +312,62 @@ internal sealed class InputSystem : IInputSource {
 		}
 	}
 
-	public bool TryHandleSDLEvent(in SDLEvent ev) {
-		var t = (SDLEventType)ev.Type;
-		if (t is SDLEventType.KeyDown or SDLEventType.KeyUp) {
-			if (ev.Key.Repeat != 0)
-				return true;
-			Key key = TranslateScancode(ev.Key.Scancode);
-			if (key != Key.Unknown)
-				Push(new KeyEvent((MonoTick)ev.Key.Timestamp, key, ev.Key.Down != 0 ? EdgeType.Press : EdgeType.Release));
-			return true;
-		} else if (t == SDLEventType.GamepadAdded) {
-			uint instance = checked((uint)ev.Gdevice.Which);
-			if (gamepadBySdlInstanceId.ContainsKey(instance))
-				return true;
-			GamepadId id = new(++nextGamepadId);
-			gamepadBySdlInstanceId.Add(instance, id);
-			Push(new GamepadAddedEvent((MonoTick)ev.Gdevice.Timestamp, id));
-			return true;
-		} else if (t == SDLEventType.GamepadRemoved) {
-			uint instance = checked((uint)ev.Gdevice.Which);
-			if (!gamepadBySdlInstanceId.Remove(instance, out GamepadId id))
-				return true;
-			Push(new GamepadRemovedEvent((MonoTick)ev.Gdevice.Timestamp, id));
-			return true;
-		} else if (t == SDLEventType.GamepadAxisMotion) {
-			uint instance = checked((uint)ev.Gdevice.Which);
-			if (!gamepadBySdlInstanceId.TryGetValue(instance, out GamepadId id))
-				return true;
-			GamepadAxis axis = TranslateGamepadAxis((SDLGamepadAxis)ev.Gaxis.Axis);
-			if (axis != GamepadAxis.Unknown) {
-				float v = NormalizeGamepadAxis(axis, ev.Gaxis.Value);
-				Push(new GamepadAxisEvent((MonoTick)ev.Gaxis.Timestamp, id, axis, v));
-			}
-			return true;
-		} else if (t is SDLEventType.GamepadButtonDown or SDLEventType.GamepadButtonUp) {
-			uint instance = checked((uint)ev.Gdevice.Which);
-			if (!gamepadBySdlInstanceId.TryGetValue(instance, out GamepadId id))
-				return true;
-			GamepadButton btn = TranslateGamepadButton((SDLGamepadButton)ev.Gbutton.Button);
-			if (btn != GamepadButton.Unknown)
-				Push(
-					new GamepadButtonEvent(
-						(MonoTick)ev.Gbutton.Timestamp,
-						id,
-						btn,
-						ev.Gbutton.Down != 0 ? EdgeType.Press : EdgeType.Release
-					)
-				);
-			return true;
-		} else if (t == SDLEventType.MouseMotion) {
-			Push(new PointerMoveEvent((MonoTick)ev.Motion.Timestamp, ev.Motion.X, ev.Motion.Y, ev.Motion.Xrel, ev.Motion.Yrel));
-			return true;
-		} else if (t is SDLEventType.MouseButtonDown or SDLEventType.MouseButtonUp) {
-			PointerButton btn = TranslatePointerButton(ev.Button.Button);
-			if (btn != PointerButton.Unknown)
-				Push(
-					new PointerButtonEvent(
-						(MonoTick)ev.Button.Timestamp,
-						btn,
-						ev.Button.Down != 0 ? EdgeType.Press : EdgeType.Release,
-						ev.Button.Clicks,
-						ev.Button.X,
-						ev.Button.Y
-					)
-				);
-			return true;
-		} else if (t == SDLEventType.MouseWheel) {
-			float x = ev.Wheel.X;
-			float y = ev.Wheel.Y;
-			int ix = ev.Wheel.IntegerX;
-			int iy = ev.Wheel.IntegerY;
-			if (ev.Wheel.Direction == SDLMouseWheelDirection.Flipped) {
-				x = -x;
-				y = -y;
-				ix = -ix;
-				iy = -iy;
-			}
-			Push(new PointerWheelEvent((MonoTick)ev.Wheel.Timestamp, x, y, ix, iy, ev.Wheel.MouseX, ev.Wheel.MouseY));
-			return true;
-		} else if (t == SDLEventType.TextInput) {
-			unsafe {
-				string? s = Marshal.PtrToStringUTF8((nint)ev.Text.Text);
-				if (s is not null)
-					Push(new TextEnteredEvent((MonoTick)ev.Text.Timestamp, s));
-			}
+	// keyboard state is shared by all windows since only one has keyboard focus at a time; pointer
+	// state remembers which window its coordinates are relative to
+	public bool TryHandle(in HostEvent ev) {
+		switch (ev.Kind.Tag) {
+		case HostEventKind.Case.Key: {
+			HostKeyEvent k = ev.Key;
+			if (!k.Repeat && k.Key != Key.Unknown)
+				Push(new KeyEvent(ev.Tick, ev.Window, k.Key, k.Edge));
 			return true;
 		}
-		return false;
-	}
-
-	public static Key TranslateScancode(SDLScancode scancode) => scancode switch {
-		SDLScancode.A => Key.A,
-		SDLScancode.B => Key.B,
-		SDLScancode.C => Key.C,
-		SDLScancode.D => Key.D,
-		SDLScancode.E => Key.E,
-		SDLScancode.F => Key.F,
-		SDLScancode.G => Key.G,
-		SDLScancode.H => Key.H,
-		SDLScancode.I => Key.I,
-		SDLScancode.J => Key.J,
-		SDLScancode.K => Key.K,
-		SDLScancode.L => Key.L,
-		SDLScancode.M => Key.M,
-		SDLScancode.N => Key.N,
-		SDLScancode.O => Key.O,
-		SDLScancode.P => Key.P,
-		SDLScancode.Q => Key.Q,
-		SDLScancode.R => Key.R,
-		SDLScancode.S => Key.S,
-		SDLScancode.T => Key.T,
-		SDLScancode.U => Key.U,
-		SDLScancode.V => Key.V,
-		SDLScancode.W => Key.W,
-		SDLScancode.X => Key.X,
-		SDLScancode.Y => Key.Y,
-		SDLScancode.Z => Key.Z,
-
-		SDLScancode.Scancode0 => Key.Digit0,
-		SDLScancode.Scancode1 => Key.Digit1,
-		SDLScancode.Scancode2 => Key.Digit2,
-		SDLScancode.Scancode3 => Key.Digit3,
-		SDLScancode.Scancode4 => Key.Digit4,
-		SDLScancode.Scancode5 => Key.Digit5,
-		SDLScancode.Scancode6 => Key.Digit6,
-		SDLScancode.Scancode7 => Key.Digit7,
-		SDLScancode.Scancode8 => Key.Digit8,
-		SDLScancode.Scancode9 => Key.Digit9,
-
-		SDLScancode.F1 => Key.F1,
-		SDLScancode.F2 => Key.F2,
-		SDLScancode.F3 => Key.F3,
-		SDLScancode.F4 => Key.F4,
-		SDLScancode.F5 => Key.F5,
-		SDLScancode.F6 => Key.F6,
-		SDLScancode.F7 => Key.F7,
-		SDLScancode.F8 => Key.F8,
-		SDLScancode.F9 => Key.F9,
-		SDLScancode.F10 => Key.F10,
-		SDLScancode.F11 => Key.F11,
-		SDLScancode.F12 => Key.F12,
-
-		SDLScancode.Escape => Key.Escape,
-		SDLScancode.Tab => Key.Tab,
-		SDLScancode.Capslock => Key.CapsLock,
-		SDLScancode.Backspace => Key.Backspace,
-		SDLScancode.Return => Key.Enter,
-		SDLScancode.Space => Key.Space,
-
-		SDLScancode.Minus => Key.Minus,
-		SDLScancode.Equals => Key.Equal,
-		SDLScancode.Leftbracket => Key.LeftBracket,
-		SDLScancode.Rightbracket => Key.RightBracket,
-		SDLScancode.Backslash => Key.Backslash,
-		SDLScancode.Semicolon => Key.Semicolon,
-		SDLScancode.Apostrophe => Key.Apostrophe,
-		SDLScancode.Grave => Key.Grave,
-		SDLScancode.Comma => Key.Comma,
-		SDLScancode.Period => Key.Period,
-		SDLScancode.Slash => Key.Slash,
-
-		SDLScancode.Printscreen => Key.PrintScreen,
-		SDLScancode.Scrolllock => Key.ScrollLock,
-		SDLScancode.Pause => Key.Pause,
-
-		SDLScancode.Insert => Key.Insert,
-		SDLScancode.Delete => Key.Delete,
-		SDLScancode.Home => Key.Home,
-		SDLScancode.End => Key.End,
-		SDLScancode.Pageup => Key.PageUp,
-		SDLScancode.Pagedown => Key.PageDown,
-
-		SDLScancode.Left => Key.Left,
-		SDLScancode.Right => Key.Right,
-		SDLScancode.Up => Key.Up,
-		SDLScancode.Down => Key.Down,
-
-		SDLScancode.Numlockclear => Key.NumLock,
-		SDLScancode.KpDivide => Key.NumpadDivide,
-		SDLScancode.KpMultiply => Key.NumpadMultiply,
-		SDLScancode.KpMinus => Key.NumpadMinus,
-		SDLScancode.KpPlus => Key.NumpadPlus,
-		SDLScancode.KpEnter => Key.NumpadEnter,
-		SDLScancode.Kp0 => Key.Numpad0,
-		SDLScancode.Kp1 => Key.Numpad1,
-		SDLScancode.Kp2 => Key.Numpad2,
-		SDLScancode.Kp3 => Key.Numpad3,
-		SDLScancode.Kp4 => Key.Numpad4,
-		SDLScancode.Kp5 => Key.Numpad5,
-		SDLScancode.Kp6 => Key.Numpad6,
-		SDLScancode.Kp7 => Key.Numpad7,
-		SDLScancode.Kp8 => Key.Numpad8,
-		SDLScancode.Kp9 => Key.Numpad9,
-		SDLScancode.KpPeriod => Key.NumpadPeriod,
-
-		SDLScancode.Lctrl => Key.LeftCtrl,
-		SDLScancode.Rctrl => Key.RightCtrl,
-		SDLScancode.Lshift => Key.LeftShift,
-		SDLScancode.Rshift => Key.RightShift,
-		SDLScancode.Lalt => Key.LeftAlt,
-		SDLScancode.Ralt => Key.RightAlt,
-		SDLScancode.Lgui => Key.LeftGui,
-		SDLScancode.Rgui => Key.RightGui,
-
-		SDLScancode.Application => Key.Application,
-
-		_ => Key.Unknown,
-	};
-
-	public static GamepadAxis TranslateGamepadAxis(SDLGamepadAxis axis) => axis switch {
-		SDLGamepadAxis.Leftx => GamepadAxis.LeftX,
-		SDLGamepadAxis.Lefty => GamepadAxis.LeftY,
-		SDLGamepadAxis.Rightx => GamepadAxis.RightX,
-		SDLGamepadAxis.Righty => GamepadAxis.RightY,
-		SDLGamepadAxis.LeftTrigger => GamepadAxis.LeftTrigger,
-		SDLGamepadAxis.RightTrigger => GamepadAxis.RightTrigger,
-		_ => GamepadAxis.Unknown,
-	};
-
-	public static GamepadButton TranslateGamepadButton(SDLGamepadButton button) => button switch {
-		SDLGamepadButton.South => GamepadButton.South,
-		SDLGamepadButton.East => GamepadButton.East,
-		SDLGamepadButton.West => GamepadButton.West,
-		SDLGamepadButton.North => GamepadButton.North,
-		SDLGamepadButton.Back => GamepadButton.Back,
-		SDLGamepadButton.Guide => GamepadButton.Guide,
-		SDLGamepadButton.Start => GamepadButton.Start,
-		SDLGamepadButton.LeftStick => GamepadButton.LeftStick,
-		SDLGamepadButton.RightStick => GamepadButton.RightStick,
-		SDLGamepadButton.LeftShoulder => GamepadButton.LeftShoulder,
-		SDLGamepadButton.RightShoulder => GamepadButton.RightShoulder,
-		SDLGamepadButton.DpadUp => GamepadButton.DpadUp,
-		SDLGamepadButton.DpadDown => GamepadButton.DpadDown,
-		SDLGamepadButton.DpadLeft => GamepadButton.DpadLeft,
-		SDLGamepadButton.DpadRight => GamepadButton.DpadRight,
-		SDLGamepadButton.Misc1 => GamepadButton.Misc1,
-		SDLGamepadButton.RightPaddle1 => GamepadButton.RightPaddle1,
-		SDLGamepadButton.RightPaddle2 => GamepadButton.RightPaddle2,
-		SDLGamepadButton.LeftPaddle1 => GamepadButton.LeftPaddle1,
-		SDLGamepadButton.LeftPaddle2 => GamepadButton.LeftPaddle2,
-		SDLGamepadButton.Touchpad => GamepadButton.Touchpad,
-		_ => GamepadButton.Unknown,
-	};
-
-	public static PointerButton TranslatePointerButton(byte button) => button switch {
-		SDL.SDL_BUTTON_LEFT => PointerButton.Left,
-		SDL.SDL_BUTTON_RIGHT => PointerButton.Right,
-		SDL.SDL_BUTTON_MIDDLE => PointerButton.Middle,
-		SDL.SDL_BUTTON_X1 => PointerButton.X1,
-		SDL.SDL_BUTTON_X2 => PointerButton.X2,
-		_ => PointerButton.Unknown,
-	};
-
-	public static float NormalizeGamepadAxis(GamepadAxis axis, short raw) {
-		static float normalizeStick(short v) => v < 0 ? v / 32768f : v / 32767f;
-		static float normalizeTrigger(short v) => Math.Clamp(v / 32767f, 0f, 1f);
-		return axis.Tag switch {
-			GamepadAxis.Case.Unknown => throw new ArgumentException("unknown gamepad axis", nameof(axis)),
-			GamepadAxis.Case.LeftX or GamepadAxis.Case.LeftY or GamepadAxis.Case.RightX or GamepadAxis.Case.RightY => normalizeStick(raw),
-			GamepadAxis.Case.LeftTrigger or GamepadAxis.Case.RightTrigger => normalizeTrigger(raw),
-			_ => throw new UnreachableException(),
-		};
+		case HostEventKind.Case.TextInput:
+			Push(new TextEnteredEvent(ev.Tick, ev.Window, ev.Text));
+			return true;
+		case HostEventKind.Case.PointerMove: {
+			HostPointerMoveEvent m = ev.PointerMove;
+			Push(new PointerMoveEvent(ev.Tick, ev.Window, m.X, m.Y, m.DeltaX, m.DeltaY));
+			return true;
+		}
+		case HostEventKind.Case.PointerButton: {
+			HostPointerButtonEvent b = ev.PointerButton;
+			if (b.Button != PointerButton.Unknown)
+				Push(new PointerButtonEvent(ev.Tick, ev.Window, b.Button, b.Edge, b.Clicks, b.X, b.Y));
+			return true;
+		}
+		case HostEventKind.Case.PointerWheel: {
+			HostPointerWheelEvent w = ev.PointerWheel;
+			Push(new PointerWheelEvent(ev.Tick, ev.Window, w.X, w.Y, w.IntegerX, w.IntegerY, w.PointerX, w.PointerY));
+			return true;
+		}
+		case HostEventKind.Case.WindowPointerEntered:
+			pointerInside = ev.Window;
+			return false; // also of interest to window state tracking
+		case HostEventKind.Case.WindowPointerLeft:
+			if (pointerInside == ev.Window)
+				pointerInside = default;
+			return false;
+		case HostEventKind.Case.GamepadAdded:
+			Push(new GamepadAddedEvent(ev.Tick, ev.Gamepad));
+			return true;
+		case HostEventKind.Case.GamepadRemoved:
+			Push(new GamepadRemovedEvent(ev.Tick, ev.Gamepad));
+			return true;
+		case HostEventKind.Case.GamepadAxis: {
+			HostGamepadAxisEvent a = ev.GamepadAxis;
+			if (a.Axis != GamepadAxis.Unknown)
+				Push(new GamepadAxisEvent(ev.Tick, a.Gamepad, a.Axis, a.Value));
+			return true;
+		}
+		case HostEventKind.Case.GamepadButton: {
+			HostGamepadButtonEvent b = ev.GamepadButton;
+			if (b.Button != GamepadButton.Unknown)
+				Push(new GamepadButtonEvent(ev.Tick, b.Gamepad, b.Button, b.Edge));
+			return true;
+		}
+		default:
+			return false;
+		}
 	}
 }

@@ -29,7 +29,7 @@ internal static unsafe partial class FriBidi {
 
 internal static unsafe partial class Unibreak {
 	// void set_linebreaks_utf16(const utf16_t *s, size_t len, const char *lang, char *brks);
-	[LibraryImport("injuremisc", StringMarshalling = StringMarshalling.Utf8)]
+	[LibraryImport("ijmisc", StringMarshalling = StringMarshalling.Utf8)]
 	public static partial void set_linebreaks_utf16(char* s, nuint len, string? lang, byte* brks);
 
 	public static void SetLineBreaks(string text, Span<byte> breaks, string? lang = null) {

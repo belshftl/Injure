@@ -6,7 +6,7 @@
 		<NoWarn>$(NoWarn);CS1591</NoWarn> <!-- temporary, disable warnings for undocumented public members -->
 
 		<PackageId>Injure.Mods.Abstractions</PackageId>
-		<Description>mod-specific APIs and infrastructure from the game framework/engine colloquially known as Injure</Description>
+		<Description>WIP game framework/engine with first-class mod support - mod-specific infrastructure</Description>
 	</PropertyGroup>
 
 	<ItemGroup>

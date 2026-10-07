@@ -6,7 +6,7 @@ using static Injure.Tests.Draw.Text.Util;
 
 namespace Injure.Tests.Draw.Text;
 
-[Collection("needs_libinjuremisc")]
+[Collection("needs_libmisc")]
 public sealed class TextAnalysisTests {
 	public static readonly TheoryData<string, (int Start, int Length)[]> GraphemeCases = new() {
 		{ "a", new[] { (0, 1) } },

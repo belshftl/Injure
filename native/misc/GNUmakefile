@@ -30,13 +30,13 @@ LDFLAGS   ?=
 LDLIBS    ?=
 
 ifneq ($(filter osx-x64 osx-arm64,$(RID)),)
-	OUT := $(OUTDIR)/libinjuremisc.dylib
-	CPPFLAGS += -DINJUREMISC_MACOS
+	OUT := $(OUTDIR)/libijmisc.dylib
+	CPPFLAGS += -DIJMISC_MACOS
 	CFLAGS += -fPIC
 	LDFLAGS += -dynamiclib
 else ifneq ($(filter linux-x64 linux-arm64,$(RID)),)
-	OUT := $(OUTDIR)/libinjuremisc.so
-	CPPFLAGS += -DINJUREMISC_POSIX -D_POSIX_C_SOURCE=200112L
+	OUT := $(OUTDIR)/libijmisc.so
+	CPPFLAGS += -DIJMISC_POSIX -D_POSIX_C_SOURCE=200112L
 	CFLAGS += -fPIC
 	LDFLAGS += -shared
 else

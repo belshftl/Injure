@@ -394,7 +394,9 @@ public sealed unsafe class WebGpuDevice : IDisposable {
 	) {
 		var h = GCHandle.FromIntPtr((nint)userdata1);
 		var st = (DeviceLostCallbackState)h.Target!;
-		DeviceLossEventReason r = DeviceLossEventReason.Enum.FromTag((DeviceLossEventReason.Case)((int)reason - 1)); // TODO this fucking sucks
+		// TODO: this just happens to rely on the fact that the enum members match with an offset of 1, it
+		// needs something less fragile
+		DeviceLossEventReason r = DeviceLossEventReason.Enum.FromTag((DeviceLossEventReason.Case)((int)reason - 1));
 		st.Owner.NotifyLost(new DeviceLostInfo(DeviceLossInfoKind.Final, r, message.ToString()));
 	}
 

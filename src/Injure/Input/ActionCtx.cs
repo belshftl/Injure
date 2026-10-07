@@ -4,7 +4,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Injure.Time;
+using Injure.Host;
 
 namespace Injure.Input;
 
@@ -47,7 +47,7 @@ public sealed class ActionCtx(ActionProfile profile) {
 	private bool forceEmitStateAxes;
 	private bool forceEmitStateAxes2D;
 
-	public ControlView Update(MonoTick tick, in InputView input) {
+	public ControlView Update(HostTick tick, in InputView input) {
 		if (input.HistoryLost)
 			throw new NotImplementedException();
 
@@ -80,7 +80,7 @@ public sealed class ActionCtx(ActionProfile profile) {
 		return new ControlView(actions, CollectionsMarshal.AsSpan(events), input.State.Pointer);
 	}
 
-	private void refreshMapIfNeeded(MonoTick tick, InputSnapshot raw) {
+	private void refreshMapIfNeeded(HostTick tick, InputSnapshot raw) {
 		ulong version = profile.Version;
 		if (version == mapVersion)
 			return;
@@ -101,7 +101,7 @@ public sealed class ActionCtx(ActionProfile profile) {
 		forceEmitStateAxes2D = true;
 	}
 
-	private void synthesizeResetEvents(MonoTick tick) {
+	private void synthesizeResetEvents(HostTick tick) {
 		foreach ((ActionId action, bool down) in previousButtonDown)
 			if (down)
 				events.Add(new ButtonActionEvent(tick, action, EdgeType.Release));
@@ -113,7 +113,7 @@ public sealed class ActionCtx(ActionProfile profile) {
 				events.Add(new StateAxis2DActionEvent(tick, action, Vector2.Zero));
 	}
 
-	private void baselineButtonsFromCurrentState(MonoTick tick, InputSnapshot raw) {
+	private void baselineButtonsFromCurrentState(HostTick tick, InputSnapshot raw) {
 		foreach (InputButtonSource source in lookup.TrackedButtonSources) {
 			if (!isButtonSourceDown(raw, source))
 				continue;
@@ -201,21 +201,21 @@ public sealed class ActionCtx(ActionProfile profile) {
 			handleButtonSourceEdge(gp.Tick, InputButtonSource.GamepadButton(gp.Button), gp.Edge, ButtonActionEventInfo.None);
 			break;
 		case PointerMoveEvent move:
-			events.Add(new PointerMoveControlEvent(move.Tick, move.X, move.Y, new Vector2(move.DeltaX, move.DeltaY)));
+			events.Add(new PointerMoveControlEvent(move.Tick, move.Window, move.X, move.Y, new Vector2(move.DeltaX, move.DeltaY)));
 			break;
 		case PointerButtonEvent ptr:
-			handleButtonSourceEdge(ptr.Tick, InputButtonSource.PointerButton(ptr.Button), ptr.Edge, ButtonActionEventInfo.FromPointer(ptr.X, ptr.Y, ptr.Clicks));
+			handleButtonSourceEdge(ptr.Tick, InputButtonSource.PointerButton(ptr.Button), ptr.Edge, ButtonActionEventInfo.FromPointer(ptr.Window, ptr.X, ptr.Y, ptr.Clicks));
 			break;
 		case PointerWheelEvent wheel:
 			handlePointerWheel(wheel);
 			break;
 		case TextEnteredEvent text:
-			events.Add(new TextEnteredControlEvent(text.Tick, text.Text));
+			events.Add(new TextEnteredControlEvent(text.Tick, text.Window, text.Text));
 			break;
 		}
 	}
 
-	private void handleButtonSourceEdge(MonoTick tick, InputButtonSource source, EdgeType edge, ButtonActionEventInfo info) {
+	private void handleButtonSourceEdge(HostTick tick, InputButtonSource source, EdgeType edge, ButtonActionEventInfo info) {
 		if (!lookup.TrackedButtonSources.Contains(source))
 			return;
 
@@ -254,17 +254,17 @@ public sealed class ActionCtx(ActionProfile profile) {
 			wheel.Tick,
 			InputImpulseAxisSource.PointerWheel(PointerWheelAxis.X),
 			wheel.X,
-			ImpulseAxisActionEventInfo.FromPointer(wheel.MouseX, wheel.MouseY, wheel.IntegerX)
+			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.MouseX, wheel.MouseY, wheel.IntegerX)
 		);
 		handleImpulseAxis(
 			wheel.Tick,
 			InputImpulseAxisSource.PointerWheel(PointerWheelAxis.Y),
 			wheel.Y,
-			ImpulseAxisActionEventInfo.FromPointer(wheel.MouseX, wheel.MouseY, wheel.IntegerY)
+			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.MouseX, wheel.MouseY, wheel.IntegerY)
 		);
 	}
 
-	private void handleImpulseAxis(MonoTick tick, InputImpulseAxisSource source, float amount, ImpulseAxisActionEventInfo info) {
+	private void handleImpulseAxis(HostTick tick, InputImpulseAxisSource source, float amount, ImpulseAxisActionEventInfo info) {
 		if (amount == 0f)
 			return;
 		if (!lookup.ImpulseAxesBySource.TryGetValue(source, out List<ImpulseAxisBinding>? bindings))
@@ -296,7 +296,7 @@ public sealed class ActionCtx(ActionProfile profile) {
 		}
 	}
 
-	private void evaluateStateAxesFinal(MonoTick tick, InputSnapshot raw) {
+	private void evaluateStateAxesFinal(HostTick tick, InputSnapshot raw) {
 		Dictionary<ActionId, float> nextValues = [];
 
 		foreach (StateAxisBinding b in map.StateAxisBindings) {
@@ -324,7 +324,7 @@ public sealed class ActionCtx(ActionProfile profile) {
 		}
 	}
 
-	private void evaluateStateAxes2DFinal(MonoTick tick, InputSnapshot raw) {
+	private void evaluateStateAxes2DFinal(HostTick tick, InputSnapshot raw) {
 		Dictionary<ActionId, Vector2> nextValues = [];
 
 		foreach (StateAxis2DBinding b in map.StateAxis2DBindings) {

@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.CodeAnalysis.Internal;
-using Injure.Time;
+using Injure.Host;
 
 namespace Injure.Layers;
 
 [DontImplement]
 public interface ILayerTickFeeder {
-	T Feed<T>(T obj) where T : class, IMonoTickReceiver;
+	T Feed<T>(T obj) where T : class, IHostTickReceiver;
 }

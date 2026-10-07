@@ -13,8 +13,7 @@ public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
 		StringComparer.Ordinal,
 		"Injure",
 		"Injure.Mods.Abstractions",
-		"Injure.Mods.Runtime",
-		"Injure.Native"
+		"Injure.Mods.Runtime"
 	);
 
 	private static readonly ImmutableHashSet<string> bclPublicKeyTokens = ImmutableHashSet.Create(
@@ -33,7 +32,7 @@ public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(ctx => {
-			// TODO this should probably use a KnownSymbols type like everything else does but auguhag i'm tired rn
+			// TODO: this should probably use a KnownSymbols type like everything else does
 			IAssemblySymbol compilationAssembly = ctx.Compilation.Assembly;
 			IAssemblySymbol coreLibrary = ctx.Compilation.GetSpecialType(SpecialType.System_Object).ContainingAssembly;
 			ctx.RegisterSymbolAction(
@@ -76,7 +75,7 @@ public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
 		if (type.TypeKind == TypeKind.Class && type.BaseType is not null)
 			walker.Visit(type.BaseType);
 		if (type.TypeKind == TypeKind.Delegate && type.DelegateInvokeMethod is IMethodSymbol invokeMethod)
-			visitMethodSignature(invokeMethod, walker, exemptReturnType: false);
+			visitMethodSignature(invokeMethod, walker, exemptReturnType: false, exemptParameters: false);
 	}
 
 	private static void analyzeMethod(SymbolAnalysisContext ctx, IMethodSymbol method, IAssemblySymbol compilationAssembly, IAssemblySymbol coreLibrary) {
@@ -87,8 +86,11 @@ public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
 		TypeWalker? walker = createWalker(ctx, method, compilationAssembly, coreLibrary);
 		if (walker is null)
 			return;
+		// DangerousGet* hands out the foreign type, DangerousCreate* takes it in to build our own
+		// type; either way only that direction is exempt
 		bool exemptReturnType = method.Name.StartsWith("DangerousGet", StringComparison.Ordinal);
-		visitMethodSignature(method, walker, exemptReturnType);
+		bool exemptParameters = method.Name.StartsWith("DangerousCreate", StringComparison.Ordinal);
+		visitMethodSignature(method, walker, exemptReturnType, exemptParameters);
 	}
 
 	private static void analyzeProperty(SymbolAnalysisContext ctx, IPropertySymbol property, IAssemblySymbol compilationAssembly, IAssemblySymbol coreLibrary) {
@@ -124,10 +126,11 @@ public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
 		walker.Visit(@event.Type);
 	}
 
-	private static void visitMethodSignature(IMethodSymbol method, TypeWalker walker, bool exemptReturnType) {
+	private static void visitMethodSignature(IMethodSymbol method, TypeWalker walker, bool exemptReturnType, bool exemptParameters) {
 		visitConstraints(method.TypeParameters, walker);
-		foreach (IParameterSymbol param in method.Parameters)
-			visitParameter(param, walker);
+		if (!exemptParameters)
+			foreach (IParameterSymbol param in method.Parameters)
+				visitParameter(param, walker);
 		if (!exemptReturnType && !method.ReturnsVoid && method.MethodKind is not MethodKind.Constructor and not MethodKind.StaticConstructor and not MethodKind.Destructor) {
 			walker.Visit(method.ReturnType);
 			walker.VisitCustomModifiers(method.ReturnTypeCustomModifiers);
@@ -224,7 +227,7 @@ public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
 				Visit(pointer.PointedAtType);
 				break;
 			case IFunctionPointerTypeSymbol functionPointer:
-				visitMethodSignature(functionPointer.Signature, this, exemptReturnType: false);
+				visitMethodSignature(functionPointer.Signature, this, exemptReturnType: false, exemptParameters: false);
 				break;
 			case INamedTypeSymbol namedType:
 				visitNamedType(namedType);
