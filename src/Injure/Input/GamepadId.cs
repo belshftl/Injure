@@ -22,7 +22,10 @@ namespace Injure.Input;
 public readonly struct GamepadId : IEquatable<GamepadId> {
 	private static int next = 0;
 
-	internal readonly uint Value; // 0 is invalid
+	/// <summary>
+	/// The allocated ID. 0 only for <see langword="default"/>.
+	/// </summary>
+	internal readonly uint Value;
 
 	private GamepadId(uint value) {
 		Value = value;
@@ -42,15 +45,25 @@ public readonly struct GamepadId : IEquatable<GamepadId> {
 	/// </remarks>
 	public static GamepadId Allocate() => new(unchecked((uint)Interlocked.Increment(ref next)));
 
+	/// <summary>Whether this and <paramref name="other"/> are the same ID.</summary>
 	public bool Equals(GamepadId other) => Value == other.Value;
+	/// <summary>
+	/// Equivalent to <see cref="Equals(GamepadId)"/> if <paramref name="obj"/> is a
+	/// <see cref="GamepadId"/>; otherwise <see langword="false"/>.
+	/// </summary>
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is GamepadId other && Equals(other);
+	/// <summary>Computes a hash consistent with <see cref="Equals(GamepadId)"/>.</summary>
 	public override int GetHashCode() => unchecked((int)Value);
+	/// <summary>Equivalent to <see cref="Equals(GamepadId)"/>.</summary>
 	public static bool operator ==(GamepadId left, GamepadId right) => left.Value == right.Value;
+	/// <summary>Equivalent to the negation of <see cref="Equals(GamepadId)"/>.</summary>
 	public static bool operator !=(GamepadId left, GamepadId right) => left.Value != right.Value;
 
 	/// <summary>
 	/// Returns a string of the form <c>gamepad#N</c>, or <c>gamepad#invalid</c> for the
 	/// <see langword="default"/> value.
 	/// </summary>
-	public override string ToString() => Value != 0 ? "gamepad#" + Value.ToString(CultureInfo.InvariantCulture) : "gamepad#invalid";
+	public override string ToString() => Value != 0
+		? "gamepad#" + Value.ToString(CultureInfo.InvariantCulture)
+		: "gamepad#invalid";
 }

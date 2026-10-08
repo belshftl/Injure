@@ -126,7 +126,7 @@ public abstract class StandardGame {
 	/// Raw input, fed by the loop from <see cref="Events"/>.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected IInputSource Input => current.Input;
+	protected InputSystem Input => current.Input;
 
 	/// <summary>
 	/// The action registry.

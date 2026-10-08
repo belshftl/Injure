@@ -11,7 +11,7 @@ public sealed class InputWindowAttributionTests {
 
 	private static List<InputEvent> drain(InputSystem input, ref InputCursor cursor) {
 		List<InputEvent> result = new();
-		foreach (InputEvent ev in input.CreateViewSince(ref cursor).Events)
+		foreach (InputEvent ev in input.CreateViewAndAdvance(ref cursor).Events)
 			result.Add(ev);
 		return result;
 	}

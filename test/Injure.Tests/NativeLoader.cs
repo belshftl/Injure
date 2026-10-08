@@ -10,20 +10,27 @@ namespace Injure.Tests;
 public static class LibmiscNativeLoader {
 	private static int inited = 0;
 	private static nint ijmisc;
+	private static nint fribidi;
 
+	// loads everything native/misc builds
 	public static void Init() {
 		if (Interlocked.Exchange(ref inited, 1) != 0)
 			return;
-		string path = Path.Combine(Paths.RepoRoot, "native", "misc", "out", getRID(), getLibName());
-		if (!File.Exists(path))
-			path = Path.Combine(Paths.RepoRoot, "native", "pack", getRID(), getLibName());
-		if (!File.Exists(path))
-			throw new FileNotFoundException($"'{path}' not found");
-		ijmisc = NativeLibrary.Load(path);
+		ijmisc = load("ijmisc");
+		fribidi = load("fribidi");
 		NativeLibrary.SetDllImportResolver(typeof(Injure.Draw.Text.Unibreak).Assembly, dllImportResolver);
 	}
 
-	private static string getRID() {
+	private static nint load(string name) {
+		string path = Path.Combine(Paths.RepoRoot, "native", "misc", "out", getRid(), getLibName(name));
+		if (!File.Exists(path))
+			path = Path.Combine(Paths.RepoRoot, "native", "pack", getRid(), getLibName(name));
+		if (!File.Exists(path))
+			throw new FileNotFoundException($"'{path}' not found");
+		return NativeLibrary.Load(path);
+	}
+
+	private static string getRid() {
 		string arch = RuntimeInformation.ProcessArchitecture switch {
 			Architecture.X64 => "x64",
 			Architecture.Arm64 => "arm64",
@@ -38,13 +45,13 @@ public static class LibmiscNativeLoader {
 		throw new NotSupportedException("OS not supported (supported: Windows, OSX, Linux)");
 	}
 
-	private static string getLibName() {
+	private static string getLibName(string name) {
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-			return "ijmisc.dll";
+			return name + ".dll";
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-			return "libijmisc.dylib";
+			return "lib" + name + ".dylib";
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-			return "libijmisc.so";
+			return "lib" + name + ".so";
 		throw new NotSupportedException("OS not supported (supported: Windows, OSX, Linux)");
 	}
 
@@ -57,6 +64,8 @@ public static class LibmiscNativeLoader {
 	private static nint dllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath) {
 		if (matchLib("ijmisc", libraryName))
 			return ijmisc;
+		if (matchLib("fribidi", libraryName))
+			return fribidi;
 		return 0;
 	}
 }

@@ -22,5 +22,5 @@ public readonly ref struct LayerTickCtx(TickCallbackTimingInfo tickInfo, double 
 	public ControlView Controls { get; } = controls;
 
 	public ActionStateView Actions => Controls.Actions;
-	public PointerState Pointer => Controls.Pointer;
+	public PointerState Pointer => Controls.RawPointer;
 }

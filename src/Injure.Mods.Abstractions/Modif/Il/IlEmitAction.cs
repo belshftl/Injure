@@ -6,9 +6,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// <summary>
 /// Uses the passed <see cref="IlEmitter"/> to emit a transaction-local instruction fragment.
 /// </summary>
-/// <param name="emitter">
-/// Emitter given to this callback.
-/// </param>
+/// <param name="emitter">Emitter given to this callback.</param>
 /// <remarks>
 /// If the callback throws, the entire fragment is discarded.
 /// </remarks>

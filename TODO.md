@@ -39,12 +39,12 @@ anyhow, to v0.1:
   - [ ] look at what things need to be made public; it's quite a bit, the input system comes to mind
   - [ ] really try to think of a better solution to mod safe/live boundaries than "between scheduler ticks"
   - [x] make an `IGame` replacement (likely a `StandardGame` abstract class) explicitly marked as convenience
-- [ ] update the input system:
+- [x] update the input system:
   - [x] add window attribution to events since multi-window is now supported
-  - [ ] yet again, make it drivable by the game directly
-  - [ ] document everything with doc comments, and revise existing doc comments
-  - [ ] support custom input sources
-  - [ ] write tests
+  - [x] yet again, make it drivable by the game directly
+  - [x] document everything with doc comments, and revise existing doc comments
+  - [x] write tests
+- [x] fix the current base tests failing because of missing `libfribidi`
 - [ ] touch up `Rendering`, as it's the oldest part of the project and by now it has a decent amount of cruft in it:
   - [ ] update the references to what was `Docs/conventions/dangerous-get.md`
   - [ ] flatten the `Enums`/`Structs` directories into the main ones for namespace <-> dir layout consistency
@@ -55,11 +55,16 @@ anyhow, to v0.1:
   - [ ] generally following the current "less internals magic" redesign, make the api publicly usable directly by the game without needing to rely on `Draw`
   - [ ] document everything with doc comments, and fix the existing doc comments' various stylistic inconsistencies - this is likely gonna take a while
   - [ ] as a way to test that the redesign works, try to sketch something more complex than rendering into a plain sdl3 window; maybe an avalonia child surface or something like that
+- [ ] fix remaining abbreviations with out-of-date abbreviation style in the codebase
+- [ ] add support for more things to the input system:
+  - [ ] support per-gamepad bindings
+  - [ ] support text input
+  - [ ] support custom input sources
+  - [ ] support built-in serialization/deserialization for bindings (probably to json); this is something every game will be forced to reinvent if it's not built-in
 - [ ] fix the regular analyzer for once
   - [ ] a decent amount of code is duplicated, merge it together into shared helpers
   - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
-- [ ] fix the current base tests oftentimes failing to run because of missing native libraries
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
 - [ ] touch up `Draw`; it's a bit of a mess right now too
   - [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
@@ -144,4 +149,5 @@ anyhow, to v0.1:
 - [ ] sourcegen conveniences for the asset system, it's not very nice to use right now for the overwhelmingly common usecase of just having a bunch of assets known ahead of time
 - [ ] a bunch of stuff for `[ClosedEnum]`/`[ClosedEnumMirror]`/`[ClosedFlags]` needs to be defined, like serialization behavior and ffi semantics and such
   - [ ] also consider making them public
+- [ ] support windows
 - [ ] here be dragons

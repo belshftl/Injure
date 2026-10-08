@@ -46,7 +46,6 @@
 		<PackageReference Include="FreeTypeSharp" Version="3.1.0" />
 		<PackageReference Include="HarfBuzzSharp" Version="8.3.1.3" />
 		<PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="8.3.1.3" />
-		<PackageReference Include="FriBidiNative" Version="1.0.10" />
 	</ItemGroup>
 
 	<!-- ====================================================================================== -->
@@ -59,6 +58,10 @@
 		<None Include="../../native/pack/osx-arm64/libijmisc.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
 		<None Include="../../native/pack/linux-x64/libijmisc.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
 		<None Include="../../native/pack/linux-arm64/libijmisc.so" Pack="true" PackagePath="runtimes/linux-arm64/native/" />
+
+		<None Include="../../native/pack/osx-arm64/libfribidi.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
+		<None Include="../../native/pack/linux-x64/libfribidi.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
+		<None Include="../../native/pack/linux-arm64/libfribidi.so" Pack="true" PackagePath="runtimes/linux-arm64/native/" />
 	</ItemGroup>
 
 	<!-- ====================================================================================== -->

@@ -8,6 +8,32 @@ using Injure.Host;
 
 namespace Injure.Input;
 
+/// <summary>
+/// Evaluates actions for one consumer (e.g. a layer), turning raw input from an
+/// <see cref="IInputSource"/> into action states and control events according to an
+/// <see cref="ActionProfile"/>'s current map.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Call <see cref="Update"/> once per step with the input the consumer hasn't seen yet. Button
+/// actions are edge-driven from raw events; state axes are evaluated from the device state at the
+/// end of the step; impulse axes accumulate within the step.
+/// </para>
+/// <para>
+/// If the profile's map changes or the input view reports lost history, this context resyncs from
+/// the current device state: every button action that was held gets a release, then every button
+/// action whose bound inputs are currently held gets a press, then every state axis that was active
+/// or is bound emits exactly one event with its current value (0 for now-unbound axes).
+/// </para>
+/// <para>
+/// Gamepad bindings currently match any connected gamepad: a gamepad button action is held while
+/// any gamepad holds the button, and a gamepad axis or stick reads the most deflected gamepad. This
+/// is a known limitation; per-gamepad bindings will be added before the first stable release.
+/// </para>
+/// <para>
+/// Not thread-safe.
+/// </para>
+/// </remarks>
 public sealed class ActionCtx(ActionProfile profile) {
 	private sealed class Lookup {
 		public readonly Dictionary<InputButtonSource, List<ActionId>> ButtonActionsBySource = new();
@@ -15,7 +41,7 @@ public sealed class ActionCtx(ActionProfile profile) {
 		public readonly HashSet<InputButtonSource> TrackedButtonSources = new();
 		public readonly HashSet<ActionId> ButtonActions = new();
 		public readonly HashSet<ActionId> StateAxisActions = new();
-		public readonly HashSet<ActionId> StateAxis2DActions = new();
+		public readonly HashSet<ActionId> StateAxis2dActions = new();
 		public readonly HashSet<ActionId> ImpulseAxisActions = new();
 	}
 
@@ -27,17 +53,22 @@ public sealed class ActionCtx(ActionProfile profile) {
 
 	private ulong nextPressStamp = 1;
 
+	/// <summary>
+	/// Which gamepads hold each gamepad button. A gamepad button source counts as down while its set is
+	/// nonempty.
+	/// </summary>
+	private readonly Dictionary<GamepadButton, HashSet<GamepadId>> gamepadButtonHolders = new();
 	private readonly Dictionary<InputButtonSource, bool> buttonSourceDown = new();
 	private readonly Dictionary<InputButtonSource, ulong> buttonSourcePressedAt = new();
 	private readonly Dictionary<ActionId, int> buttonHeldCounts = new();
 	private readonly Dictionary<ActionId, bool> previousButtonDown = new();
 
 	private readonly Dictionary<ActionId, float> stateAxisValues = new();
-	private readonly Dictionary<ActionId, Vector2> stateAxis2DValues = new();
+	private readonly Dictionary<ActionId, Vector2> stateAxis2dValues = new();
 
 	private readonly Dictionary<ActionId, ButtonActionState> buttonStates = new();
 	private readonly Dictionary<ActionId, StateAxisActionState> stateAxisStates = new();
-	private readonly Dictionary<ActionId, StateAxis2DActionState> stateAxis2DStates = new();
+	private readonly Dictionary<ActionId, StateAxis2dActionState> stateAxis2dStates = new();
 	private readonly Dictionary<ActionId, ImpulseAxisActionState> impulseAxisStates = new();
 
 	private readonly Dictionary<ActionId, float> stepImpulseAmounts = new();
@@ -45,72 +76,88 @@ public sealed class ActionCtx(ActionProfile profile) {
 	private readonly List<ControlEvent> events = new();
 
 	private bool forceEmitStateAxes;
-	private bool forceEmitStateAxes2D;
+	private bool forceEmitStateAxes2d;
 
+	/// <summary>
+	/// Advances by one step, consuming <paramref name="input"/>.
+	/// </summary>
+	/// <param name="tick">Timestamp for events this step generates itself (resync).</param>
+	/// <param name="input">The raw input since the previous step.</param>
+	/// <returns>
+	/// The action states and control events of this step; only valid until the next call.
+	/// </returns>
 	public ControlView Update(HostTick tick, in InputView input) {
-		if (input.HistoryLost)
-			throw new NotImplementedException();
-
 		events.Clear();
 		buttonStates.Clear();
 		stateAxisStates.Clear();
-		stateAxis2DStates.Clear();
+		stateAxis2dStates.Clear();
 		impulseAxisStates.Clear();
 		stepImpulseAmounts.Clear();
 
-		refreshMapIfNeeded(tick, input.State);
+		ulong version = profile.Version;
+		bool mapChanged = version != mapVersion;
+		if (mapChanged || input.HistoryLost)
+			resync(tick, input.State, mapChanged ? version : null);
 
 		foreach (InputEvent ev in input.Events)
 			processInputEvent(ev);
 
 		evaluateButtonsFinal();
 		evaluateStateAxesFinal(tick, input.State);
-		evaluateStateAxes2DFinal(tick, input.State);
+		evaluateStateAxes2dFinal(tick, input.State);
 		evaluateImpulseAxesFinal();
 
 		forceEmitStateAxes = false;
-		forceEmitStateAxes2D = false;
+		forceEmitStateAxes2d = false;
 
 		ActionStateView actions = new(
 			new ButtonActionStateView(buttonStates),
 			new StateAxisActionStateView(stateAxisStates),
-			new StateAxis2DActionStateView(stateAxis2DStates),
+			new StateAxis2dActionStateView(stateAxis2dStates),
 			new ImpulseAxisActionStateView(impulseAxisStates)
 		);
-		return new ControlView(actions, CollectionsMarshal.AsSpan(events), input.State.Pointer);
+		return new ControlView(actions, CollectionsMarshal.AsSpan(events), input.State);
 	}
 
-	private void refreshMapIfNeeded(HostTick tick, InputSnapshot raw) {
-		ulong version = profile.Version;
-		if (version == mapVersion)
-			return;
+	/// <summary>
+	/// Releases every held button action, optionally switches to the profile's current map, then
+	/// re-derives what's held from the device state and forces every state axis to emit its value.
+	/// </summary>
+	private void resync(HostTick tick, InputSnapshot raw, ulong? newMapVersion) {
+		synthesizeButtonReleases(tick);
 
-		synthesizeResetEvents(tick);
-
-		map = profile.Current;
-		mapVersion = version;
-		lookup = makeLookup(map);
+		if (newMapVersion is ulong version) {
+			map = profile.Current;
+			mapVersion = version;
+			lookup = makeLookup(map);
+		}
 
 		buttonSourceDown.Clear();
 		buttonSourcePressedAt.Clear();
 		buttonHeldCounts.Clear();
+		gamepadButtonHolders.Clear();
+		foreach (GamepadStateEntry ent in raw.Gamepads)
+			foreach (GamepadButton button in GamepadButton.Enum.Values)
+				if (ent.State.IsDown(button))
+					getHolders(button).Add(ent.Id);
 
 		baselineButtonsFromCurrentState(tick, raw);
 
 		forceEmitStateAxes = true;
-		forceEmitStateAxes2D = true;
+		forceEmitStateAxes2d = true;
 	}
 
-	private void synthesizeResetEvents(HostTick tick) {
+	/// <summary>
+	/// Emits a release for every currently-held button action.
+	/// </summary>
+	/// <remarks>
+	/// State axes need no equivalent, since a resync forces every axis that was active or is bound to
+	/// emit its value once during evaluation, or 0 for now-unbound axes.
+	/// </remarks>
+	private void synthesizeButtonReleases(HostTick tick) {
 		foreach ((ActionId action, bool down) in previousButtonDown)
 			if (down)
 				events.Add(new ButtonActionEvent(tick, action, EdgeType.Release));
-		foreach ((ActionId action, float val) in stateAxisValues)
-			if (val != 0f)
-				events.Add(new StateAxisActionEvent(tick, action, 0f));
-		foreach ((ActionId action, Vector2 val) in stateAxis2DValues)
-			if (val != Vector2.Zero)
-				events.Add(new StateAxis2DActionEvent(tick, action, Vector2.Zero));
 	}
 
 	private void baselineButtonsFromCurrentState(HostTick tick, InputSnapshot raw) {
@@ -150,8 +197,8 @@ public sealed class ActionCtx(ActionProfile profile) {
 			addTrackedSources(ret, b.Source);
 		}
 
-		foreach (StateAxis2DBinding b in map.StateAxis2DBindings) {
-			ret.StateAxis2DActions.Add(b.Action);
+		foreach (StateAxis2dBinding b in map.StateAxis2dBindings) {
+			ret.StateAxis2dActions.Add(b.Action);
 			addTrackedSources(ret, b.Source);
 		}
 
@@ -175,17 +222,17 @@ public sealed class ActionCtx(ActionProfile profile) {
 		}
 	}
 
-	private static void addTrackedSources(Lookup lookup, InputStateAxis2DSource source) {
+	private static void addTrackedSources(Lookup lookup, InputStateAxis2dSource source) {
 		switch (source.Kind.Tag) {
-		case InputStateAxis2DSourceKind.Case.DigitalButtons:
-			DigitalAxis2DSource d = source.DigitalValue;
+		case InputStateAxis2dSourceKind.Case.DigitalButtons:
+			DigitalAxis2dSource d = source.DigitalValue;
 			lookup.TrackedButtonSources.Add(d.Left);
 			lookup.TrackedButtonSources.Add(d.Right);
 			lookup.TrackedButtonSources.Add(d.Up);
 			lookup.TrackedButtonSources.Add(d.Down);
 			break;
-		case InputStateAxis2DSourceKind.Case.Pair:
-			StateAxis2DPairSource p = source.PairValue;
+		case InputStateAxis2dSourceKind.Case.Pair:
+			StateAxis2dPairSource p = source.PairValue;
 			addTrackedSources(lookup, p.X);
 			addTrackedSources(lookup, p.Y);
 			break;
@@ -195,10 +242,16 @@ public sealed class ActionCtx(ActionProfile profile) {
 	private void processInputEvent(InputEvent ev) {
 		switch (ev) {
 		case KeyEvent key:
-			handleButtonSourceEdge(key.Tick, InputButtonSource.Key(key.Key), key.Edge, ButtonActionEventInfo.None);
+			handleButtonSourceEdge(key.Tick, InputButtonSource.Key(key.Key), key.Edge, ButtonActionEventInfo.FromKey(key.Window));
 			break;
 		case GamepadButtonEvent gp:
-			handleButtonSourceEdge(gp.Tick, InputButtonSource.GamepadButton(gp.Button), gp.Edge, ButtonActionEventInfo.None);
+			handleGamepadButton(gp.Tick, gp.Gamepad, gp.Button, gp.Edge == EdgeType.Press);
+			break;
+		case GamepadRemovedEvent removed:
+			// normally the input source has already released everything the gamepad held
+			foreach ((GamepadButton button, HashSet<GamepadId> holders) in gamepadButtonHolders)
+				if (holders.Contains(removed.Gamepad))
+					handleGamepadButton(removed.Tick, removed.Gamepad, button, down: false);
 			break;
 		case PointerMoveEvent move:
 			events.Add(new PointerMoveControlEvent(move.Tick, move.Window, move.X, move.Y, new Vector2(move.DeltaX, move.DeltaY)));
@@ -213,6 +266,34 @@ public sealed class ActionCtx(ActionProfile profile) {
 			events.Add(new TextEnteredControlEvent(text.Tick, text.Window, text.Text));
 			break;
 		}
+	}
+
+	/// <summary>
+	/// Tracks which gamepads hold <paramref name="button"/> and forwards edges of the corresponding
+	/// button source.
+	/// </summary>
+	/// <remarks>
+	/// The source is down while any gamepad holds the button, so only the first press and the last
+	/// release are edges.
+	/// </remarks>
+	private void handleGamepadButton(HostTick tick, GamepadId gamepad, GamepadButton button, bool down) {
+		HashSet<GamepadId> holders = getHolders(button);
+		bool wasHeld = holders.Count != 0;
+		if (down)
+			holders.Add(gamepad);
+		else
+			holders.Remove(gamepad);
+		bool isHeld = holders.Count != 0;
+		if (wasHeld != isHeld)
+			handleButtonSourceEdge(tick, InputButtonSource.GamepadButton(button), isHeld ? EdgeType.Press : EdgeType.Release, ButtonActionEventInfo.None);
+	}
+
+	private HashSet<GamepadId> getHolders(GamepadButton button) {
+		if (!gamepadButtonHolders.TryGetValue(button, out HashSet<GamepadId>? holders)) {
+			holders = new HashSet<GamepadId>();
+			gamepadButtonHolders.Add(button, holders);
+		}
+		return holders;
 	}
 
 	private void handleButtonSourceEdge(HostTick tick, InputButtonSource source, EdgeType edge, ButtonActionEventInfo info) {
@@ -254,13 +335,13 @@ public sealed class ActionCtx(ActionProfile profile) {
 			wheel.Tick,
 			InputImpulseAxisSource.PointerWheel(PointerWheelAxis.X),
 			wheel.X,
-			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.MouseX, wheel.MouseY, wheel.IntegerX)
+			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.PointerX, wheel.PointerY, wheel.IntegerX)
 		);
 		handleImpulseAxis(
 			wheel.Tick,
 			InputImpulseAxisSource.PointerWheel(PointerWheelAxis.Y),
 			wheel.Y,
-			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.MouseX, wheel.MouseY, wheel.IntegerY)
+			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.PointerX, wheel.PointerY, wheel.IntegerY)
 		);
 	}
 
@@ -297,10 +378,10 @@ public sealed class ActionCtx(ActionProfile profile) {
 	}
 
 	private void evaluateStateAxesFinal(HostTick tick, InputSnapshot raw) {
-		Dictionary<ActionId, float> nextValues = [];
+		Dictionary<ActionId, float> nextValues = new();
 
 		foreach (StateAxisBinding b in map.StateAxisBindings) {
-			float val = getStateAxisValue(raw, b.Source) * b.Scale;
+			float val = Math.Clamp(b.Deadzone.Apply(getStateAxisValue(raw, b.Source)) * b.Scale, -1f, 1f);
 			nextValues.TryGetValue(b.Action, out float current);
 			nextValues[b.Action] = mergeStateAxis(current, val, map.StateAxisMergePolicy);
 		}
@@ -324,35 +405,35 @@ public sealed class ActionCtx(ActionProfile profile) {
 		}
 	}
 
-	private void evaluateStateAxes2DFinal(HostTick tick, InputSnapshot raw) {
-		Dictionary<ActionId, Vector2> nextValues = [];
+	private void evaluateStateAxes2dFinal(HostTick tick, InputSnapshot raw) {
+		Dictionary<ActionId, Vector2> nextValues = new();
 
-		foreach (StateAxis2DBinding b in map.StateAxis2DBindings) {
-			Vector2 v = getStateAxis2DValue(raw, b.Source);
+		foreach (StateAxis2dBinding b in map.StateAxis2dBindings) {
+			Vector2 v = getStateAxis2dValue(raw, b.Source);
 			v = b.Deadzone.Apply(v);
 			v *= b.Scale;
 			v = clampMag1(v);
 
 			nextValues.TryGetValue(b.Action, out Vector2 current);
-			nextValues[b.Action] = mergeStateAxis2D(current, v, map.StateAxis2DMergePolicy);
+			nextValues[b.Action] = mergeStateAxis2d(current, v, map.StateAxis2dMergePolicy);
 		}
 
-		HashSet<ActionId> actions = new(lookup.StateAxis2DActions);
-		foreach (ActionId action in stateAxis2DValues.Keys)
+		HashSet<ActionId> actions = new(lookup.StateAxis2dActions);
+		foreach (ActionId action in stateAxis2dValues.Keys)
 			actions.Add(action);
 
 		foreach (ActionId action in actions) {
-			stateAxis2DValues.TryGetValue(action, out Vector2 old);
+			stateAxis2dValues.TryGetValue(action, out Vector2 old);
 			nextValues.TryGetValue(action, out Vector2 next);
 
-			stateAxis2DStates[action] = new StateAxis2DActionState(next, old);
-			if (forceEmitStateAxes2D || !nearlyEqual(old, next))
-				events.Add(new StateAxis2DActionEvent(tick, action, next));
+			stateAxis2dStates[action] = new StateAxis2dActionState(next, old);
+			if (forceEmitStateAxes2d || !nearlyEqual(old, next))
+				events.Add(new StateAxis2dActionEvent(tick, action, next));
 
 			if (next != Vector2.Zero)
-				stateAxis2DValues[action] = next;
+				stateAxis2dValues[action] = next;
 			else
-				stateAxis2DValues.Remove(action);
+				stateAxis2dValues.Remove(action);
 		}
 	}
 
@@ -370,21 +451,21 @@ public sealed class ActionCtx(ActionProfile profile) {
 		};
 	}
 
-	private Vector2 getStateAxis2DValue(InputSnapshot raw, InputStateAxis2DSource source) {
+	private Vector2 getStateAxis2dValue(InputSnapshot raw, InputStateAxis2dSource source) {
 		return source.Kind.Tag switch {
-			InputStateAxis2DSourceKind.Case.GamepadStick => getAnyGamepadStick(raw.Gamepads, source.GamepadStickValue),
-			InputStateAxis2DSourceKind.Case.DigitalButtons => getDigital2D(source.DigitalValue),
-			InputStateAxis2DSourceKind.Case.Pair => getPair2D(raw, source.PairValue),
+			InputStateAxis2dSourceKind.Case.GamepadStick => getAnyGamepadStick(raw.Gamepads, source.GamepadStickValue),
+			InputStateAxis2dSourceKind.Case.DigitalButtons => getDigital2d(source.DigitalValue),
+			InputStateAxis2dSourceKind.Case.Pair => getPair2d(raw, source.PairValue),
 			_ => throw new UnreachableException(),
 		};
 	}
 
-	private Vector2 getPair2D(InputSnapshot raw, StateAxis2DPairSource source) => new(
+	private Vector2 getPair2d(InputSnapshot raw, StateAxis2dPairSource source) => new(
 		getStateAxisValue(raw, source.X),
 		getStateAxisValue(raw, source.Y)
 	);
 
-	private Vector2 getDigital2D(DigitalAxis2DSource source) {
+	private Vector2 getDigital2d(DigitalAxis2dSource source) {
 		float x = getDigitalAxisValue(source.Left, source.Right, source.XSocd);
 		float y = getDigitalAxisValue(source.Up, source.Down, source.YSocd);
 		return clampMag1(new Vector2(x, y));
@@ -479,10 +560,10 @@ public sealed class ActionCtx(ActionProfile profile) {
 		};
 	}
 
-	private static Vector2 mergeStateAxis2D(Vector2 a, Vector2 b, StateAxis2DMergePolicy policy) {
+	private static Vector2 mergeStateAxis2d(Vector2 a, Vector2 b, StateAxis2dMergePolicy policy) {
 		return policy.Tag switch {
-			StateAxis2DMergePolicy.Case.MaxMagnitude => b.LengthSquared() > a.LengthSquared() ? b : a,
-			StateAxis2DMergePolicy.Case.SumClamp => clampMag1(a + b),
+			StateAxis2dMergePolicy.Case.MaxMagnitude => b.LengthSquared() > a.LengthSquared() ? b : a,
+			StateAxis2dMergePolicy.Case.SumClamp => clampMag1(a + b),
 			_ => throw new UnreachableException(),
 		};
 	}
@@ -494,6 +575,6 @@ public sealed class ActionCtx(ActionProfile profile) {
 		return v / MathF.Sqrt(lenSq);
 	}
 
-	private static bool nearlyEqual(Vector2 a, Vector2 b, float epsilon = 0.0001f) =>
+	private static bool nearlyEqual(Vector2 a, Vector2 b, float epsilon = 1e-4f) =>
 		MathF.Abs(a.X - b.X) <= epsilon && MathF.Abs(a.Y - b.Y) <= epsilon;
 }

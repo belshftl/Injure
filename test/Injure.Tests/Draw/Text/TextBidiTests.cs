@@ -7,6 +7,7 @@ using static Injure.Tests.Draw.Text.Util;
 
 namespace Injure.Tests.Draw.Text;
 
+[Collection("needs_libmisc")]
 public sealed class TextBidiTests {
 	[Fact]
 	public static void LogicalRunsPureLtrWorks() {

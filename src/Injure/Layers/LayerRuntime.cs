@@ -41,7 +41,7 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 
 	public ControlView UpdateControls(HostTick tick, in InputView input) {
 		if (actionCtx is null)
-			return new ControlView(ActionStateView.Empty, ReadOnlySpan<ControlEvent>.Empty, input.State.Pointer);
+			return new ControlView(ActionStateView.Empty, ReadOnlySpan<ControlEvent>.Empty, input.State);
 		return actionCtx.Update(tick, input);
 	}
 

@@ -262,7 +262,7 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input) : ID
 				bool allowInput = st.ActiveFeatures.HasAny(LayerFeatures.Input);
 				InputView inputView;
 				if (allowInput) {
-					inputView = input.CreateViewSince(ref ent.InputCursor);
+					inputView = input.CreateViewAndAdvance(ref ent.InputCursor);
 				} else {
 					input.AdvanceToCurrent(ref ent.InputCursor);
 					inputView = InputView.Empty;
