@@ -3,6 +3,7 @@
 
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -23,6 +24,14 @@ namespace Injure.Gpu;
 /// <see cref="DeviceLostException"/>. These exceptions aren't repeated on each method.
 /// </para>
 /// <para>
+/// Errors WebGPU reports, e.g. for a call that breaks its validation rules, are passed to
+/// <see cref="GpuDeviceOptions.ErrorHandler"/> synchronously, on the thread making the failing
+/// call, before that call returns. Errors in recorded commands are reported by
+/// <see cref="GpuCommandEncoder.Finish()"/>. WebGPU keeps working after an error, but the object or
+/// commands involved are invalid, which later calls using them report as further errors. Device
+/// loss is not an error in this sense; see <see cref="State"/>.
+/// </para>
+/// <para>
 /// Thread-safety isn't promised yet; use a device and the objects created from it from one thread.
 /// </para>
 /// </remarks>
@@ -31,7 +40,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 	private readonly ConcurrentQueue<MapRequest> mapCompletions = new();
 
 	// ==========================================================================
-	// internal types
+	// private types
 	private sealed class Request<TStatus, TObject> where TStatus : unmanaged, Enum where TObject : unmanaged {
 		public TStatus Status;
 		public TObject Object;
@@ -39,18 +48,31 @@ public sealed unsafe class GpuDevice : IDisposable {
 		public readonly ManualResetEventSlim Done = new(false);
 	}
 
-	private sealed class DeviceLostCallbackState {
+	// target of the GCHandle passed as userdata to WebGPU's device callbacks
+	private sealed class CallbackState {
 		public required GpuDevice Owner;
 	}
 
 	// ==========================================================================
-	// internal objects / properties
+	// private constants
+	private const uint spirvMagic = 0x07230203;
+	private const int spirvHeaderWords = 5;
+
+	// ==========================================================================
+	// private state
 	internal readonly WGPUInstance Instance;
 	internal readonly WGPUAdapter Adapter;
 	internal readonly WGPUDevice Device;
 	internal readonly WGPUQueue Queue;
 
-	private readonly GCHandle deviceLostCallbackStateHandle;
+	private readonly GCHandle callbackStateHandle;
+	private readonly GpuErrorHandler errorHandler;
+
+	// counts errors reported on this thread, across all devices; WebGPU reports errors synchronously
+	// on the thread making the failing call, so comparing it before and after a call can determine if
+	// that call failed; see GpuCommandEncoder.Finish
+	[ThreadStatic] private static ulong errorsOnThread;
+	internal static ulong ErrorsOnCurrentThread => errorsOnThread;
 
 	// see GetOrAttach
 	private readonly Lock attachmentsLock = new();
@@ -115,7 +137,8 @@ public sealed unsafe class GpuDevice : IDisposable {
 				wgpuSurfaceRelease(compatibleSurface);
 		}
 		Features = selectFeatures(Adapter, options.RequiredFeatures, options.OptionalFeatures);
-		Device = requestDeviceBlocking(this, Adapter, Features, out deviceLostCallbackStateHandle);
+		errorHandler = options.ErrorHandler ?? GpuErrorHandlers.FailFast;
+		Device = requestDeviceBlocking(this, Adapter, Features, out callbackStateHandle);
 		Queue = Check(wgpuDeviceGetQueue(Device));
 		WGPULimits limits = default;
 		if (wgpuDeviceGetLimits(Device, &limits) != WGPUStatus.Success)
@@ -189,9 +212,9 @@ public sealed unsafe class GpuDevice : IDisposable {
 		return selected;
 	}
 
-	private static WGPUDevice requestDeviceBlocking(GpuDevice owner, WGPUAdapter adapter, GpuFeatures features, out GCHandle lostCallbackStateHandle) {
+	private static WGPUDevice requestDeviceBlocking(GpuDevice owner, WGPUAdapter adapter, GpuFeatures features, out GCHandle callbackStateHandle) {
 		Request<WGPURequestDeviceStatus, WGPUDevice> req = new();
-		DeviceLostCallbackState st = new() { Owner = owner };
+		CallbackState st = new() { Owner = owner };
 		var reqHandle = GCHandle.Alloc(req);
 		var stHandle = GCHandle.Alloc(st);
 		try {
@@ -208,6 +231,10 @@ public sealed unsafe class GpuDevice : IDisposable {
 					callback = &deviceLostCallback,
 					userdata1 = (void*)GCHandle.ToIntPtr(stHandle),
 				},
+				uncapturedErrorCallbackInfo = new WGPUUncapturedErrorCallbackInfo {
+					callback = &uncapturedErrorCallback,
+					userdata1 = (void*)GCHandle.ToIntPtr(stHandle),
+				},
 			};
 			WGPURequestDeviceCallbackInfo cb = new() {
 				mode = WGPUCallbackMode.AllowSpontaneous,
@@ -218,7 +245,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 			req.Done.Wait();
 			if (req.Status != WGPURequestDeviceStatus.Success || req.Object.IsNull)
 				throw new WebgpuException("wgpuAdapterRequestDevice", req.Message ?? req.Status.ToString());
-			lostCallbackStateHandle = stHandle;
+			callbackStateHandle = stHandle;
 			stHandle = default;
 			return req.Object;
 		} finally {
@@ -253,11 +280,40 @@ public sealed unsafe class GpuDevice : IDisposable {
 		void* userdata2
 	) {
 		var h = GCHandle.FromIntPtr((nint)userdata1);
-		var st = (DeviceLostCallbackState)h.Target!;
+		var st = (CallbackState)h.Target!;
+		if (Volatile.Read(ref st.Owner.disposed) != 0)
+			return;
 		// TODO: this just happens to rely on the fact that the enum members match with an offset of 1, it
 		// needs something less fragile
 		DeviceLossEventReason r = DeviceLossEventReason.Enum.FromTag((DeviceLossEventReason.Case)((int)reason - 1));
 		st.Owner.NotifyLost(new DeviceLostInfo(DeviceLossInfoKind.Final, r, message.ToString()));
+	}
+
+	[UnmanagedCallersOnly]
+	private static void uncapturedErrorCallback(
+		WGPUDevice* device,
+		WGPUErrorType type,
+		WGPUStringView message,
+		void* userdata1,
+		void* userdata2
+	) {
+		var st = (CallbackState)GCHandle.FromIntPtr((nint)userdata1).Target!;
+		GpuDevice owner = st.Owner;
+		if (Volatile.Read(ref owner.disposed) != 0)
+			return;
+		GpuErrorKind kind = type switch {
+			WGPUErrorType.Validation => GpuErrorKind.Validation,
+			WGPUErrorType.OutOfMemory => GpuErrorKind.OutOfMemory,
+			WGPUErrorType.Internal => GpuErrorKind.Internal,
+			_ => GpuErrorKind.Unknown,
+		};
+		GpuError error = new(kind, message.ToString());
+		errorsOnThread++;
+		try {
+			owner.errorHandler(owner, in error);
+		} catch (Exception e) {
+			Environment.FailFast($"GpuDevice error handler threw while handling WebGPU {kind} error '{error.Message}'; can't unwind here, aborting", e);
+		}
 	}
 
 	// ==========================================================================
@@ -269,7 +325,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 	public GpuCommandEncoder CreateCommandEncoder() {
 		chk();
 		WGPUCommandEncoderDescriptor desc = default;
-		return new GpuCommandEncoder(Check(wgpuDeviceCreateCommandEncoder(Device, &desc)), Limits.MaxColorAttachments);
+		return new GpuCommandEncoder(Check(wgpuDeviceCreateCommandEncoder(Device, &desc)), Limits);
 	}
 
 	/// <summary>
@@ -280,6 +336,9 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="commands"/> has already been submitted or disposed.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if <paramref name="commands"/> isn't <see cref="GpuCommandBuffer.IsValid"/>.
 	/// </exception>
 	public void Submit(GpuCommandBuffer commands) {
 		ArgumentNullException.ThrowIfNull(commands);
@@ -296,6 +355,10 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Thrown if any element of <paramref name="commands"/> has already been submitted or disposed,
 	/// or appears more than once.
 	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if any element of <paramref name="commands"/> isn't
+	/// <see cref="GpuCommandBuffer.IsValid"/>.
+	/// </exception>
 	/// <remarks>
 	/// Equivalent to submitting each buffer separately, but cheaper.
 	/// </remarks>
@@ -306,6 +369,8 @@ public sealed unsafe class GpuDevice : IDisposable {
 			GpuCommandBuffer c = commands[i] ?? throw new ArgumentNullException(nameof(commands), "element is null");
 			if (c.IsConsumed)
 				throw new ArgumentException("command buffer has already been submitted or disposed", nameof(commands));
+			if (!c.IsValid)
+				throw new InvalidOperationException("command buffer is invalid, since WebGPU reported an error while it was being finished; see the device's error handler");
 			for (int j = 0; j < i; j++)
 				if (ReferenceEquals(commands[j], c))
 					throw new ArgumentException("command buffer appears more than once", nameof(commands));
@@ -389,11 +454,20 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <param name="buffer">Destination buffer.</param>
 	/// <param name="offset">Byte offset into <paramref name="buffer"/>.</param>
 	/// <param name="val">Value to upload.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="buffer"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="buffer"/> lacks <see cref="BufferUsage.CopyDst"/>,
+	/// <paramref name="offset"/> or the number of bytes to write isn't a multiple of 4, or the
+	/// written range is out of bounds.
+	/// </exception>
 	/// <remarks>
 	/// This is a queue write, not a mapped-buffer write.
 	/// </remarks>
 	public void WriteToBuffer<T>(GpuBufferHandle buffer, ulong offset, in T val) where T : unmanaged {
 		chk();
+		requireWritable(buffer, offset, (ulong)sizeof(T));
 		fixed (T* p = &val)
 			wgpuQueueWriteBuffer(Queue, buffer.WgpuBuffer, offset, p, (nuint)sizeof(T));
 	}
@@ -405,13 +479,16 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <param name="buffer">Destination buffer.</param>
 	/// <param name="offset">Byte offset into <paramref name="buffer"/>.</param>
 	/// <param name="data">Data to upload.</param>
+	/// <inheritdoc cref="WriteToBuffer{T}(GpuBufferHandle, ulong, in T)" path="/exception"/>
 	/// <remarks>
 	/// This is a queue write, not a mapped-buffer write. Empty spans are accepted and are a no-op.
 	/// </remarks>
 	public void WriteToBuffer<T>(GpuBufferHandle buffer, ulong offset, ReadOnlySpan<T> data) where T : unmanaged {
 		chk();
+		ArgumentNullException.ThrowIfNull(buffer);
 		if (data.IsEmpty)
 			return;
+		requireWritable(buffer, offset, (ulong)data.Length * (ulong)sizeof(T));
 		fixed (T* p = data)
 			wgpuQueueWriteBuffer(Queue, buffer.WgpuBuffer, offset, p, (nuint)(data.Length * sizeof(T)));
 	}
@@ -423,13 +500,28 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <param name="offset">Byte offset into <paramref name="buffer"/>.</param>
 	/// <param name="data">Pointer to the data to upload.</param>
 	/// <param name="size">Number of bytes to upload from <paramref name="data"/>.</param>
+	/// <inheritdoc cref="WriteToBuffer{T}(GpuBufferHandle, ulong, in T)" path="/exception"/>
 	/// <remarks>
 	/// This is a queue write, not a mapped-buffer write. <paramref name="data"/> need only remain
 	/// valid for the duration of the call.
 	/// </remarks>
 	public void WriteToBuffer(GpuBufferHandle buffer, ulong offset, void* data, nuint size) {
 		chk();
+		requireWritable(buffer, offset, size);
 		wgpuQueueWriteBuffer(Queue, buffer.WgpuBuffer, offset, data, size);
+	}
+
+	[StackTraceHidden]
+	private static void requireWritable(GpuBufferHandle buffer, ulong offset, ulong size) {
+		ArgumentNullException.ThrowIfNull(buffer);
+		if (buffer.Usage.HasNone(BufferUsage.CopyDst))
+			throw new ArgumentException("buffer must have CopyDst set in its usages", nameof(buffer));
+		if (offset % 4 != 0)
+			throw new ArgumentException("must be a multiple of 4", nameof(offset));
+		if (size % 4 != 0)
+			throw new ArgumentException("the number of bytes to write must be a multiple of 4");
+		if (offset > buffer.Size || size > buffer.Size - offset)
+			throw new ArgumentException("written range is out of the buffer's bounds", nameof(offset));
 	}
 
 	/// <summary>
@@ -443,7 +535,9 @@ public sealed unsafe class GpuDevice : IDisposable {
 	public GpuTexture CreateTexture(in GpuTextureCreateParams @params) {
 		chk();
 
-		ReadOnlySpan<TextureFormat> viewFormats = @params.ViewFormats.IsDefault ? ReadOnlySpan<TextureFormat>.Empty : @params.ViewFormats.AsSpan();
+		ReadOnlySpan<TextureFormat> viewFormats = @params.ViewFormats.IsDefault
+			? ReadOnlySpan<TextureFormat>.Empty
+			: @params.ViewFormats.AsSpan();
 		WGPUTextureFormat[] wgpuViewFormats;
 		if (viewFormats.Length > 0) {
 			wgpuViewFormats = new WGPUTextureFormat[viewFormats.Length];
@@ -501,6 +595,13 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <param name="dst">Destination texture region and subresource.</param>
 	/// <param name="data">Source texel data.</param>
 	/// <param name="layout">Source memory layout.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="tex"/> lacks <see cref="TextureUsage.CopyDst"/>, or
+	/// <paramref name="dst"/> names a mip level that doesn't exist or is out of its bounds.
+	/// </exception>
 	/// <remarks>
 	/// <para>
 	/// The number of bytes consumed from each source row is determined by the uploaded texture region
@@ -514,8 +615,14 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Empty spans are accepted and are a no-op.
 	/// </para>
 	/// </remarks>
-	public void WriteToTexture<T>(GpuTextureHandle tex, in GpuTextureRegion dst, ReadOnlySpan<T> data, in GpuTextureLayout layout) where T : unmanaged {
+	public void WriteToTexture<T>(
+		GpuTextureHandle tex,
+		in GpuTextureRegion dst,
+		ReadOnlySpan<T> data,
+		in GpuTextureLayout layout
+	) where T : unmanaged {
 		chk();
+		requireTextureWritable(tex, dst);
 		if (data.IsEmpty)
 			return;
 		fixed (T* p = data)
@@ -530,6 +637,13 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <param name="data">Pointer to the source texel data.</param>
 	/// <param name="size">Number of bytes to upload from <paramref name="data"/>.</param>
 	/// <param name="layout">Source memory layout.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="tex"/> lacks <see cref="TextureUsage.CopyDst"/>, or
+	/// <paramref name="dst"/> names a mip level that doesn't exist or is out of its bounds.
+	/// </exception>
 	/// <remarks>
 	/// <para>
 	/// The number of bytes consumed from each source row is determined by the uploaded texture region
@@ -543,8 +657,15 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <paramref name="data"/> need only remain valid for the duration of the call.
 	/// </para>
 	/// </remarks>
-	public void WriteToTexture(GpuTextureHandle tex, in GpuTextureRegion dst, void* data, nuint size, in GpuTextureLayout layout) {
+	public void WriteToTexture(
+		GpuTextureHandle tex,
+		in GpuTextureRegion dst,
+		void* data,
+		nuint size,
+		in GpuTextureLayout layout
+	) {
 		chk();
+		requireTextureWritable(tex, dst);
 		WGPUTexelCopyTextureInfo copyDst = new() {
 			texture = tex.WgpuTexture,
 			mipLevel = dst.MipLevel,
@@ -566,6 +687,14 @@ public sealed unsafe class GpuDevice : IDisposable {
 			depthOrArrayLayers = dst.DepthOrArrayLayers,
 		};
 		wgpuQueueWriteTexture(Queue, &copyDst, data, size, &dataLayout, &texSize);
+	}
+
+	[StackTraceHidden]
+	private static void requireTextureWritable(GpuTextureHandle tex, in GpuTextureRegion dst) {
+		ArgumentNullException.ThrowIfNull(tex);
+		if (tex.Usage.HasNone(TextureUsage.CopyDst))
+			throw new ArgumentException("texture must have CopyDst set in its usages", nameof(tex));
+		tex.RequireRegionInBounds(dst, nameof(dst));
 	}
 
 	/// <summary>
@@ -683,7 +812,13 @@ public sealed unsafe class GpuDevice : IDisposable {
 			entryCount = (nuint)entries.Length,
 			entries = rawEntries,
 		};
-		return new GpuBindGroupLayout(Check(wgpuDeviceCreateBindGroupLayout(Device, &desc)));
+		List<(uint Binding, BufferBindingType Type)> dynamic = new();
+		foreach (GpuBindGroupLayoutEntry e in entries)
+			if (e.Layout is GpuBufferBindingLayout { HasDynamicOffset: true } b)
+				dynamic.Add((e.Binding, b.Type));
+		dynamic.Sort(static (x, y) => x.Binding.CompareTo(y.Binding));
+		BufferBindingType[] dynamicBindings = dynamic.ConvertAll(static d => d.Type).ToArray();
+		return new GpuBindGroupLayout(Check(wgpuDeviceCreateBindGroupLayout(Device, &desc)), dynamicBindings);
 	}
 
 	private static WGPUBindGroupEntry toRawBindGroupEntry(in GpuBindGroupEntry entry) {
@@ -771,7 +906,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 			entryCount = (nuint)entries.Length,
 			entries = rawEntries,
 		};
-		return new GpuBindGroup(Check(wgpuDeviceCreateBindGroup(Device, &desc)));
+		return new GpuBindGroup(Check(wgpuDeviceCreateBindGroup(Device, &desc)), layout.DynamicBindings);
 	}
 
 	/// <summary>
@@ -809,12 +944,23 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// </summary>
 	/// <param name="code">SPIR-V code as 32-bit words.</param>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="code"/> is empty.
+	/// Thrown if <paramref name="code"/> is shorter than the 5-word SPIR-V header or doesn't start
+	/// with the SPIR-V magic number, including if its words are byte-swapped, e.g. because a SPIR-V
+	/// file was read with the wrong byte order.
 	/// </exception>
+	/// <remarks>
+	/// Only the header is checked; the rest of the code is validated by WebGPU, which reports
+	/// problems to the device's <see cref="GpuDeviceOptions.ErrorHandler"/>.
+	/// </remarks>
 	public GpuShaderModule CreateShaderModuleSpirv(ReadOnlySpan<uint> code) {
 		chk();
-		if (code.IsEmpty)
-			throw new ArgumentException("SPIR-V code must not be empty", nameof(code));
+		if (code.Length < spirvHeaderWords)
+			throw new ArgumentException($"SPIR-V code must be at least {spirvHeaderWords} words (its header), but is {code.Length}", nameof(code));
+		if (code[0] != spirvMagic) {
+			if (BinaryPrimitives.ReverseEndianness(code[0]) == spirvMagic)
+				throw new ArgumentException("SPIR-V words are byte-swapped; the code was likely read from a file with the wrong byte order", nameof(code));
+			throw new ArgumentException($"code isn't SPIR-V; it starts with 0x{code[0]:x8} instead of the magic number 0x{spirvMagic:x8}", nameof(code));
+		}
 
 		fixed (uint* p = code) {
 			WGPUShaderSourceSPIRV src = new() {
@@ -840,14 +986,17 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// bytes 4..7 encode word 1, and so on.
 	/// </param>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="code"/> is empty or if its length is not a multiple of 4.
+	/// Thrown if the length of <paramref name="code"/> is not a multiple of 4, it's shorter than the
+	/// 5-word SPIR-V header, or it doesn't start with the SPIR-V magic number. Big-endian SPIR-V is
+	/// rejected with a message saying so.
 	/// </exception>
+	/// <inheritdoc cref="CreateShaderModuleSpirv(ReadOnlySpan{uint})" path="/remarks"/>
 	public GpuShaderModule CreateShaderModuleSpirv(ReadOnlySpan<byte> code) {
 		chk();
-		if (code.IsEmpty)
-			throw new ArgumentException("SPIR-V code must not be empty", nameof(code));
 		if ((code.Length & 0b11) != 0)
 			throw new ArgumentException("byte length of SPIR-V code encoded as bytes must be a multiple of 4", nameof(code));
+		if (code.Length >= 4 && BinaryPrimitives.ReadUInt32BigEndian(code) == spirvMagic)
+			throw new ArgumentException("SPIR-V code is big-endian, but this overload expects little-endian bytes", nameof(code));
 
 		Span<uint> words = code.Length <= 1024 ? stackalloc uint[code.Length >> 2] : new uint[code.Length >> 2];
 		for (int i = 0; i < words.Length; i++)
@@ -1033,11 +1182,12 @@ public sealed unsafe class GpuDevice : IDisposable {
 				a.Dispose();
 			attachments.Clear();
 		}
-		deviceLostCallbackStateHandle.Free();
 		wgpuQueueRelease(Queue);
 		wgpuDeviceRelease(Device);
 		wgpuAdapterRelease(Adapter);
 		wgpuInstanceRelease(Instance);
+		// after the releases, in case WebGPU calls back during them; the callbacks check disposed
+		callbackStateHandle.Free();
 	}
 
 	// ==========================================================================

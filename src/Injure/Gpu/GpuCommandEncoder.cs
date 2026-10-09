@@ -30,9 +30,9 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	private const uint copyBytesPerRowAlignment = 256;
 
 	// shared by an owning encoder and all of its refs
-	internal sealed class EncoderState(WGPUCommandEncoder encoder, uint maxColorAttachments) {
+	internal sealed class EncoderState(WGPUCommandEncoder encoder, GpuLimits limits) {
 		public WGPUCommandEncoder Encoder = encoder;
-		public readonly uint MaxColorAttachments = maxColorAttachments;
+		public readonly GpuLimits Limits = limits;
 		public bool ActivePass = false;
 		public bool Done = false;
 	}
@@ -93,8 +93,8 @@ public abstract unsafe class GpuCommandEncoderHandle {
 		chkRecording();
 		if (colorAttachments.IsEmpty && depthStencil is null)
 			throw new ArgumentException("a render pass needs at least one attachment", nameof(colorAttachments));
-		if (colorAttachments.Length > State.MaxColorAttachments)
-			throw new ArgumentException($"at most {State.MaxColorAttachments} color attachments are supported", nameof(colorAttachments));
+		if (colorAttachments.Length > State.Limits.MaxColorAttachments)
+			throw new ArgumentException($"at most {State.Limits.MaxColorAttachments} color attachments are supported", nameof(colorAttachments));
 
 		GpuTextureViewHandle? first = null;
 		foreach (RenderPassColorAttachment ca in colorAttachments) {
@@ -151,7 +151,8 @@ public abstract unsafe class GpuCommandEncoderHandle {
 
 		WGPURenderPassEncoder passEnc = WebgpuException.Check(wgpuCommandEncoderBeginRenderPass(State.Encoder, &desc));
 		State.ActivePass = true;
-		return new RenderPass(passEnc, onPassFinished);
+		GpuTextureViewHandle sizeSource = first ?? depthStencil!.Value.View;
+		return new RenderPass(passEnc, onPassFinished, State.Limits, sizeSource.Width, sizeSource.Height);
 	}
 
 	[StackTraceHidden]
@@ -361,8 +362,9 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> lacks the required usage, or
-	/// <see cref="GpuTextureLayout.BytesPerRow"/> isn't a multiple of 256.
+	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> lacks the required usage,
+	/// <see cref="GpuTextureLayout.BytesPerRow"/> isn't a multiple of 256, or the texture region
+	/// names a mip level that doesn't exist or is out of its bounds.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the encoder has already been finished or disposed, or if a render pass is active.
@@ -374,6 +376,7 @@ public abstract unsafe class GpuCommandEncoderHandle {
 		requireBufferUsage(src, BufferUsage.CopySrc, nameof(src));
 		requireTextureUsage(dst, TextureUsage.CopyDst, nameof(dst));
 		requireCopyLayout(srcLayout, nameof(srcLayout));
+		dst.RequireRegionInBounds(dstRegion, nameof(dstRegion));
 		WGPUTexelCopyBufferInfo b = toBufferInfo(src, srcLayout);
 		WGPUTexelCopyTextureInfo t = toTextureInfo(dst, dstRegion);
 		WGPUExtent3D extent = toExtent(dstRegion);
@@ -394,8 +397,9 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> lacks the required usage, or
-	/// <see cref="GpuTextureLayout.BytesPerRow"/> isn't a multiple of 256.
+	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> lacks the required usage,
+	/// <see cref="GpuTextureLayout.BytesPerRow"/> isn't a multiple of 256, or the texture region
+	/// names a mip level that doesn't exist or is out of its bounds.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the encoder has already been finished or disposed, or if a render pass is active.
@@ -412,6 +416,7 @@ public abstract unsafe class GpuCommandEncoderHandle {
 		requireTextureUsage(src, TextureUsage.CopySrc, nameof(src));
 		requireBufferUsage(dst, BufferUsage.CopyDst, nameof(dst));
 		requireCopyLayout(dstLayout, nameof(dstLayout));
+		src.RequireRegionInBounds(srcRegion, nameof(srcRegion));
 		WGPUTexelCopyTextureInfo t = toTextureInfo(src, srcRegion);
 		WGPUTexelCopyBufferInfo b = toBufferInfo(dst, dstLayout);
 		WGPUExtent3D extent = toExtent(srcRegion);
@@ -432,8 +437,9 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> lacks the required usage, or the
-	/// regions differ in size.
+	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> lacks the required usage, the
+	/// regions differ in size, or a region names a mip level that doesn't exist or is out of its
+	/// bounds.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the encoder has already been finished or disposed, or if a render pass is active.
@@ -450,6 +456,8 @@ public abstract unsafe class GpuCommandEncoderHandle {
 			|| srcRegion.DepthOrArrayLayers != dstRegion.DepthOrArrayLayers
 		)
 			throw new ArgumentException("source and destination regions must be the same size", nameof(dstRegion));
+		src.RequireRegionInBounds(srcRegion, nameof(srcRegion));
+		dst.RequireRegionInBounds(dstRegion, nameof(dstRegion));
 		WGPUTexelCopyTextureInfo s = toTextureInfo(src, srcRegion);
 		WGPUTexelCopyTextureInfo d = toTextureInfo(dst, dstRegion);
 		WGPUExtent3D extent = toExtent(srcRegion);
@@ -554,8 +562,8 @@ public abstract unsafe class GpuCommandEncoderHandle {
 /// the recording rules.
 /// </remarks>
 public sealed unsafe class GpuCommandEncoder : GpuCommandEncoderHandle, IDisposable {
-	internal GpuCommandEncoder(WGPUCommandEncoder encoder, uint maxColorAttachments) {
-		State = new EncoderState(encoder, maxColorAttachments);
+	internal GpuCommandEncoder(WGPUCommandEncoder encoder, GpuLimits limits) {
+		State = new EncoderState(encoder, limits);
 	}
 
 	internal override EncoderState State { get; }
@@ -573,14 +581,23 @@ public sealed unsafe class GpuCommandEncoder : GpuCommandEncoderHandle, IDisposa
 	/// Thrown if the encoder has already been finished or disposed, or if a render pass is active.
 	/// </exception>
 	/// <remarks>
+	/// <para>
+	/// Errors in the recorded commands are reported to the device's
+	/// <see cref="GpuDeviceOptions.ErrorHandler"/> during this call, and make the returned buffer
+	/// invalid; see <see cref="GpuCommandBuffer.IsValid"/>.
+	/// </para>
+	/// <para>
 	/// The encoder can't be used afterwards; disposing it is still allowed and does nothing.
+	/// </para>
 	/// </remarks>
 	public GpuCommandBuffer Finish() {
 		chkRecording();
 		WGPUCommandBufferDescriptor desc = default;
+		ulong errorsBefore = GpuDevice.ErrorsOnCurrentThread;
 		WGPUCommandBuffer cmdbuf = WebgpuException.Check(wgpuCommandEncoderFinish(State.Encoder, &desc));
+		bool valid = GpuDevice.ErrorsOnCurrentThread == errorsBefore;
 		release();
-		return new GpuCommandBuffer(cmdbuf);
+		return new GpuCommandBuffer(cmdbuf, valid);
 	}
 
 	/// <summary>
@@ -628,9 +645,20 @@ public sealed class GpuCommandEncoderRef : GpuCommandEncoderHandle {
 public sealed class GpuCommandBuffer : IDisposable {
 	internal WGPUCommandBuffer WgpuCommandBuffer { get; private set; }
 
-	internal GpuCommandBuffer(WGPUCommandBuffer cmdbuf) {
+	internal GpuCommandBuffer(WGPUCommandBuffer cmdbuf, bool valid) {
 		WgpuCommandBuffer = cmdbuf;
+		IsValid = valid;
 	}
+
+	/// <summary>
+	/// Whether the commands are valid, i.e. WebGPU reported no error while
+	/// <see cref="GpuCommandEncoder.Finish()"/> produced them.
+	/// </summary>
+	/// <remarks>
+	/// An invalid buffer can't be submitted, since WebGPU treats submitting one as fatal; the error
+	/// itself went to the device's <see cref="GpuDeviceOptions.ErrorHandler"/>. Dispose it instead.
+	/// </remarks>
+	public bool IsValid { get; }
 
 	/// <summary>
 	/// Whether this buffer has been submitted or disposed.

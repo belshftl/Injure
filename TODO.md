@@ -56,7 +56,7 @@ anyhow, to v0.1:
   - [x] generally following the current "less internals magic" redesign, make the api publicly usable directly by the game without needing to rely on `Draw`
   - [x] document everything with doc comments, and revise the existing doc comments
   - [ ] as a way to test that the redesign works, try to sketch something more complex than rendering into a plain sdl3 window; maybe an avalonia child surface or something like that
-  - [ ] write tests; more of it seems to be testable than i initially realized
+  - [x] write tests; more of it seems to be testable than i initially realized
 - [ ] redesign `Draw` while we're at it; it's a bit of a mess right now
   - [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
   - [ ] look at what else looks out of date and needs to be redesigned; here be dragons (the whole batch/canvas resources system kind of comes to mind but i'm unsure whether it's actually problematic)
@@ -72,6 +72,7 @@ anyhow, to v0.1:
   - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
+- [ ] expose WebGPU error scopes in `Gpu` (push/pop around specific operations, popping asynchronously through `GpuDevice.Poll()` like buffer mapping), for code that wants to detect and recover from a specific failure instead of only having the device-wide `GpuErrorHandler`
 - [ ] support compute pipelines, compute passes, etc. in `Gpu`
 - [ ] redesign `TGameApi` and `IReloadTeardown` from the mod infrastructure
 - [ ] really try to think of a better solution to mod safe/live boundaries than "between scheduler ticks"

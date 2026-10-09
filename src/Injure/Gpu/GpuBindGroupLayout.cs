@@ -13,6 +13,10 @@ namespace Injure.Gpu;
 public abstract class GpuBindGroupLayoutHandle {
 	internal abstract WGPUBindGroupLayout WgpuBindGroupLayout { get; }
 
+	// the types of the buffer bindings declared with HasDynamicOffset, in binding order, i.e. the
+	// order SetBindGroup expects their offsets in
+	internal abstract BufferBindingType[] DynamicBindings { get; }
+
 	/// <summary>
 	/// Returns the underlying <see cref="WGPUBindGroupLayout"/>, bypassing ownership/lifetime. Dangles
 	/// once freed by <see cref="GpuBindGroupLayout.Dispose()"/>.
@@ -30,11 +34,13 @@ public abstract class GpuBindGroupLayoutHandle {
 public sealed class GpuBindGroupLayout : GpuBindGroupLayoutHandle, IDisposable {
 	private WGPUBindGroupLayout bindGroupLayout;
 
-	internal GpuBindGroupLayout(WGPUBindGroupLayout bindGroupLayout) {
+	internal GpuBindGroupLayout(WGPUBindGroupLayout bindGroupLayout, BufferBindingType[] dynamicBindings) {
 		this.bindGroupLayout = bindGroupLayout;
+		DynamicBindings = dynamicBindings;
 	}
 
 	internal override WGPUBindGroupLayout WgpuBindGroupLayout => bindGroupLayout;
+	internal override BufferBindingType[] DynamicBindings { get; }
 
 	/// <summary>
 	/// Creates a non-owning view of this bind group layout.
@@ -61,4 +67,5 @@ public sealed class GpuBindGroupLayoutRef : GpuBindGroupLayoutHandle {
 	}
 
 	internal override WGPUBindGroupLayout WgpuBindGroupLayout => source.WgpuBindGroupLayout;
+	internal override BufferBindingType[] DynamicBindings => source.DynamicBindings;
 }

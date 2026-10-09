@@ -101,6 +101,17 @@ public abstract class GpuTextureHandle {
 	/// </summary>
 	/// <param name="params">View creation parameters.</param>
 	public abstract GpuTextureView CreateView(in GpuTextureViewCreateParams @params);
+
+	// checks that region names an existing mip level and lies within it
+	internal void RequireRegionInBounds(in GpuTextureRegion region, string paramName) {
+		if (region.MipLevel >= MipLevelCount)
+			throw new ArgumentException($"mip level {region.MipLevel} doesn't exist; the texture has {MipLevelCount}", paramName);
+		uint w = Math.Max(1u, Width >> (int)region.MipLevel);
+		uint h = Math.Max(1u, Height >> (int)region.MipLevel);
+		uint d = Dimension == TextureDimension.Dimension3d ? Math.Max(1u, DepthOrArrayLayers >> (int)region.MipLevel) : DepthOrArrayLayers;
+		if ((ulong)region.X + region.Width > w || (ulong)region.Y + region.Height > h || (ulong)region.Z + region.DepthOrArrayLayers > d)
+			throw new ArgumentException($"region is out of the bounds of mip level {region.MipLevel} ({w}x{h}x{d})", paramName);
+	}
 }
 
 /// <summary>

@@ -40,6 +40,22 @@ public readonly struct GpuDeviceOptions {
 	public ISurfaceHost? CompatibleHost { get; init; }
 
 	/// <summary>
+	/// Called for every error WebGPU reports on the device; <see langword="null"/> means
+	/// <see cref="GpuErrorHandlers.FailFast"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// See <see cref="GpuDevice"/> for when and on which thread the handler is called.
+	/// </para>
+	/// <para>
+	/// This must not throw; if it does, the process will be killed with
+	/// <see cref="Environment.FailFast(string?, Exception?)"/> as to prevent it from unwinding across
+	/// an FFI boundary.
+	/// </para>
+	/// </remarks>
+	public GpuErrorHandler? ErrorHandler { get; init; } = GpuErrorHandlers.FailFast;
+
+	/// <summary>
 	/// Creates options with the defaults described on each property; <see cref="RequiredFeatures"/>
 	/// still has to be set.
 	/// </summary>

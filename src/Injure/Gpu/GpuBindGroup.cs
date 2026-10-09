@@ -13,6 +13,9 @@ namespace Injure.Gpu;
 public abstract class GpuBindGroupHandle {
 	internal abstract WGPUBindGroup WgpuBindGroup { get; }
 
+	// see GpuBindGroupLayoutHandle.DynamicBindings; copied from the layout at creation
+	internal abstract BufferBindingType[] DynamicBindings { get; }
+
 	/// <summary>
 	/// Returns the underlying <see cref="WGPUBindGroup"/>, bypassing ownership/lifetime. Dangles once
 	/// freed by <see cref="GpuBindGroup.Dispose()"/>.
@@ -30,11 +33,13 @@ public abstract class GpuBindGroupHandle {
 public sealed class GpuBindGroup : GpuBindGroupHandle, IDisposable {
 	private WGPUBindGroup bindGroup;
 
-	internal GpuBindGroup(WGPUBindGroup bindGroup) {
+	internal GpuBindGroup(WGPUBindGroup bindGroup, BufferBindingType[] dynamicBindings) {
 		this.bindGroup = bindGroup;
+		DynamicBindings = dynamicBindings;
 	}
 
 	internal override WGPUBindGroup WgpuBindGroup => bindGroup;
+	internal override BufferBindingType[] DynamicBindings { get; }
 
 	/// <summary>
 	/// Creates a non-owning view of this bind group.
@@ -61,4 +66,5 @@ public sealed class GpuBindGroupRef : GpuBindGroupHandle {
 	}
 
 	internal override WGPUBindGroup WgpuBindGroup => source.WgpuBindGroup;
+	internal override BufferBindingType[] DynamicBindings => source.DynamicBindings;
 }

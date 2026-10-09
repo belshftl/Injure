@@ -32,6 +32,7 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 	private readonly IAcquiredOutput? primaryOutput;
 	private readonly List<IDisposable> deferred = new();
 	private bool done = false;
+	private bool finalCommandsRecorded = false;
 
 	/// <summary>
 	/// Begins a frame, taking ownership of <paramref name="primaryOutput"/> (<b>including if this
@@ -166,7 +167,13 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 	public void Submit() {
 		if (done)
 			throw new InvalidOperationException("frame already submitted/disposed");
-		primaryOutput?.RecordFinalCommands(Encoder);
+		if (encoder.State.ActivePass)
+			throw new InvalidOperationException("frame still has an active render pass");
+		// IAcquiredOutput promises at most one call, even if finishing fails and Submit is retried
+		if (!finalCommandsRecorded) {
+			finalCommandsRecorded = true;
+			primaryOutput?.RecordFinalCommands(Encoder);
+		}
 		GpuCommandBuffer cmdbuf = encoder.Finish();
 		done = true;
 		try {
