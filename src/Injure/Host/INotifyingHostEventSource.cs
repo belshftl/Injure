@@ -15,7 +15,8 @@ namespace Injure.Host;
 public interface INotifyingHostEventSource : IHostEventSource {
 	/// <summary>
 	/// Sets the callback to invoke whenever an event becomes available to
-	/// <see cref="IHostEventSource.TryPoll"/>, or clears it with <see langword="null"/>.
+	/// <see cref="IHostEventSource.TryPoll(out HostEvent)"/>, or clears it with
+	/// <see langword="null"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if an attempt is made to set a callback while another is set; it must be cleared first.

@@ -12,7 +12,7 @@ namespace Injure.Sdl;
 /// <remarks>
 /// <para>
 /// This is the state the engine has been told about, not the state the window system has right now;
-/// for example, after <see cref="SdlWindow.RequestSize"/>, <see cref="Width"/> and
+/// for example, after <see cref="SdlWindow.RequestSize(int, int)"/>, <see cref="Width"/> and
 /// <see cref="Height"/> only change after the resulting resize event has been polled.
 /// </para>
 /// <para>

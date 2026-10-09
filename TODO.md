@@ -32,12 +32,11 @@ anyhow, to v0.1:
   - [x] add a `[WrapperType]` sourcegen attribute that applies to an empty `partial` class / `readonly struct` / `readonly ref struct`; takes in a type T via `typeof` and a `params[]` array of property/method names from that type; and generates a single private field of type T, properties/methods that redirect to the ones on that field (and have `inheritdoc`s), and an `internal` constructor that takes in T
 - [ ] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
   - [x] remove the current `Runtime.*` namespace wholly
-  - [ ] touch up `docs/conventions/dangerous-get.md` and rename it
+  - [x] touch up `docs/conventions/dangerous-get.md` and rename it
   - [x] split out SDL-related stuff into a new `.Sdl` namespace; it should be part of the API that it is a wrapper for SDL3, and bypassing it to drive SDL3 directly should be supported albeit advanced/unsafe
   - [x] maybe devise a "host-event" system, like a similar but more comprehensive equivalent to the old `Runtime.HostEvent`; i can't think of another way to abstract away sdl events, also see below
   - [x] think about whether supporting not using SDL3 entirely and having a "host-event source" system is worth it; it sounds not too difficult to me
   - [ ] look at what things need to be made public; it's quite a bit, the input system comes to mind
-  - [ ] really try to think of a better solution to mod safe/live boundaries than "between scheduler ticks"
   - [x] make an `IGame` replacement (likely a `StandardGame` abstract class) explicitly marked as convenience
 - [x] update the input system:
   - [x] add window attribution to events since multi-window is now supported
@@ -45,16 +44,23 @@ anyhow, to v0.1:
   - [x] document everything with doc comments, and revise existing doc comments
   - [x] write tests
 - [x] fix the current base tests failing because of missing `libfribidi`
-- [ ] touch up `Rendering`, as it's the oldest part of the project and by now it has a decent amount of cruft in it:
-  - [ ] update the references to what was `Docs/conventions/dangerous-get.md`
-  - [ ] flatten the `Enums`/`Structs` directories into the main ones for namespace <-> dir layout consistency
-  - [ ] move the shaders out from `Shaders/` into some other top-level directory (alongside `native/`, `src/`, `test/`, etc.)
-  - [ ] fix some of the names using an inconsistent abbreviation style (`ABC` instead of the project's standard `Abc`)
-  - [ ] fix some of the apis still publicly exposing types from our webgpu bindings
-  - [ ] redesign `ISurfaceHost`/`IRenderOutput`/`RenderFrame` and friends completely in a way that makes custom user-provided implementations possible; `WGPUSurfaceDescriptorContainer` especially is fundamentally broken because it's a self-referential struct with nothing stopping it from being boxed or copied
-  - [ ] generally following the current "less internals magic" redesign, make the api publicly usable directly by the game without needing to rely on `Draw`
-  - [ ] document everything with doc comments, and fix the existing doc comments' various stylistic inconsistencies - this is likely gonna take a while
+- [ ] touch up `Gpu` (formerly `Rendering`), as it's the oldest part of the project and by now it has a decent amount of cruft in it:
+  - [x] update the references to what was `Docs/conventions/dangerous-get.md`
+  - [x] flatten the `Enums`/`Structs` directories into the main ones for namespace <-> dir layout consistency
+  - [x] move the shaders out from `Shaders/` into some other top-level directory (alongside `native/`, `src/`, `test/`, etc.)
+  - [x] fix some of the names using an inconsistent abbreviation style (`ABC` instead of the project's standard `Abc`)
+  - [x] redesign `ISurfaceHost`/`IRenderOutput`/`RenderFrame` and friends completely in a way that makes custom user-provided implementations possible; `WGPUSurfaceDescriptorContainer` especially is fundamentally broken because it's a self-referential struct with nothing stopping it from being boxed or copied
+  - [x] add a public command-encoder wrapper (`GpuCommandEncoder`/`GpuCommandBuffer`), with the user in charge of submission
+  - [x] add buffer mapping/readback, both poll/callback-based and blocking
+  - [x] fix some of the apis still publicly exposing types from our webgpu bindings
+  - [x] generally following the current "less internals magic" redesign, make the api publicly usable directly by the game without needing to rely on `Draw`
+  - [x] document everything with doc comments, and revise the existing doc comments
   - [ ] as a way to test that the redesign works, try to sketch something more complex than rendering into a plain sdl3 window; maybe an avalonia child surface or something like that
+  - [ ] write tests; more of it seems to be testable than i initially realized
+- [ ] redesign `Draw` while we're at it; it's a bit of a mess right now
+  - [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
+  - [ ] look at what else looks out of date and needs to be redesigned; here be dragons (the whole batch/canvas resources system kind of comes to mind but i'm unsure whether it's actually problematic)
+  - [ ] doc comments
 - [ ] fix remaining abbreviations with out-of-date abbreviation style in the codebase
 - [ ] add support for more things to the input system:
   - [ ] support per-gamepad bindings
@@ -66,10 +72,9 @@ anyhow, to v0.1:
   - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
-- [ ] touch up `Draw`; it's a bit of a mess right now too
-  - [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
-  - [ ] here be dragons
+- [ ] support compute pipelines, compute passes, etc. in `Gpu`
 - [ ] redesign `TGameApi` and `IReloadTeardown` from the mod infrastructure
+- [ ] really try to think of a better solution to mod safe/live boundaries than "between scheduler ticks"
 - [ ] seriously consider introducing `OwnerId`/`LocalId` types with smart constructors; the primary thing making this a question is just how much would need refactoring
 - [ ] fix the mod analyzer for once
   - [ ] a decent amount of code is duplicated, merge it together into shared helpers
@@ -119,11 +124,13 @@ anyhow, to v0.1:
   - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad
   - [ ] standardize on a bunch of things (maybe by using more derived abstract types? or interfaces? unsure) like entities with a notion of position, entities with a notion of collision, entities that can serialize/deserialize, perhaps entities that "bind" in some way to a reloadable mod generation and need `<L>`, etc. the important thing isn't really that adding `public Vector2 Position` to your entity is hard, but that having everyone on the same page on how it's done is very valuable
   - [ ] here be dragons
+- [ ] write more kernels/etc for the pixel converter
+- [ ] touch up the text renderer
 - [ ] write dedicated docs for:
   - [ ] more `conventions`, maybe one on type naming
   - [ ] probably write a better `exception-recording.md`, provide practical examples of when exceptions cause alc retention
   - [ ] the standard flow for a hello-world game project and where to expand from there
-  - [ ] the `Rendering` system
+  - [ ] the `Gpu` system
   - [ ] the `Draw` system
   - [ ] the collections/primitives/`Common` namespaces (three separate `docs/` directories, not one)
   - [ ] the asset system

@@ -6,7 +6,7 @@ using System.Diagnostics;
 namespace Injure.Host;
 
 /// <summary>
-/// An <see cref="IHostClock"/> backed by <see cref="Stopwatch.GetTimestamp"/>.
+/// An <see cref="IHostClock"/> backed by <see cref="Stopwatch.GetTimestamp()"/>.
 /// </summary>
 /// <remarks>
 /// <para>

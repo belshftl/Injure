@@ -9,7 +9,7 @@ using Injure.Assets;
 using Injure.Assets.Builtin;
 using Injure.DevAnalyzers.Attributes;
 using Injure.Primitives;
-using Injure.Rendering;
+using Injure.Gpu;
 
 namespace Injure.Draw;
 
@@ -107,7 +107,7 @@ public sealed class TexturedBatchSharedState : IDisposable {
 	}
 
 	public TexturedBatchSharedState(
-		WebGpuDevice device,
+		GpuDevice device,
 		EngineResourceStore engineResources,
 		BlendState? blend,
 		ColorWriteMask colorWriteMask,
@@ -122,16 +122,16 @@ public sealed class TexturedBatchSharedState : IDisposable {
 			TextureInterpretation.Case.Sdf => BuiltinShaders.Textured2dSdf,
 			_ => throw new UnreachableException(),
 		};
-		shader = device.CreateShaderModuleWGSL(engineResources.GetText(shaderInfo.ResourceId));
+		shader = device.CreateShaderModuleWgsl(engineResources.GetText(shaderInfo.ResourceId));
 		if (interp != TextureInterpretation.Sdf)
 			localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)TexturedBatchLocalsUniformPlain.Size);
 		else
 			localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex | ShaderStage.Fragment, (ulong)TexturedBatchLocalsUniformSdf.Size);
 		pipelineLayout = device.CreatePipelineLayout(
 			[
-				device.StdGlobalsUniformLayout,
+				DrawDeviceResources.For(device).GlobalsUniformLayout,
 				localsBindGroupLayout,
-				device.StdColorTexture2dLayout,
+				DrawDeviceResources.For(device).ColorTexture2dLayout,
 			]
 		);
 		pipeline = device.CreateRenderPipeline(
@@ -177,7 +177,7 @@ public sealed class TexturedBatchSharedState : IDisposable {
 				),
 				Primitive: new PrimitiveState(
 					Topology: PrimitiveTopology.TriangleList,
-					FrontFace: FrontFace.CCW,
+					FrontFace: FrontFace.Ccw,
 					CullMode: CullMode.None
 				)
 			)
@@ -209,7 +209,7 @@ public sealed class TexturedBatch : IDisposable {
 		public uint IndexCount;
 	}
 
-	private readonly WebGpuDevice device;
+	private readonly GpuDevice device;
 	private readonly ViewGlobals globals;
 	private readonly RenderFrame frame;
 	private readonly RenderPass pass;
@@ -231,7 +231,7 @@ public sealed class TexturedBatch : IDisposable {
 	private bool disposed = false;
 
 	public TexturedBatch(
-		WebGpuDevice device,
+		GpuDevice device,
 		ViewGlobals globals,
 		RenderFrame frame,
 		RenderPass pass,

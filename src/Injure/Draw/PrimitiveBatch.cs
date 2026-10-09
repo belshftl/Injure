@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 using Injure.Assets;
 using Injure.Assets.Builtin;
 using Injure.Primitives;
-using Injure.Rendering;
+using Injure.Gpu;
 
 namespace Injure.Draw;
 
@@ -52,18 +52,18 @@ public sealed class PrimitiveBatchSharedState : IDisposable {
 	}
 
 	public PrimitiveBatchSharedState(
-		WebGpuDevice device,
+		GpuDevice device,
 		EngineResourceStore engineResources,
 		BlendState? blend,
 		ColorWriteMask colorWriteMask,
 		TextureFormat colorTargetFormat
 	) {
 		ColorTargetFormat = colorTargetFormat;
-		shader = device.CreateShaderModuleWGSL(engineResources.GetText(BuiltinShaders.Primitive2d.ResourceId));
+		shader = device.CreateShaderModuleWgsl(engineResources.GetText(BuiltinShaders.Primitive2d.ResourceId));
 		localsBindGroupLayout = device.CreateUniformBufferBindGroupLayout(ShaderStage.Vertex, (ulong)PrimitiveBatchLocalsUniform.Size);
 		pipelineLayout = device.CreatePipelineLayout(
 			[
-				device.StdGlobalsUniformLayout,
+				DrawDeviceResources.For(device).GlobalsUniformLayout,
 				localsBindGroupLayout,
 			]
 		);
@@ -105,7 +105,7 @@ public sealed class PrimitiveBatchSharedState : IDisposable {
 				),
 				Primitive: new PrimitiveState(
 					Topology: PrimitiveTopology.TriangleList,
-					FrontFace: FrontFace.CCW,
+					FrontFace: FrontFace.Ccw,
 					CullMode: CullMode.None
 				)
 			)
@@ -129,7 +129,7 @@ public readonly record struct PrimitiveBatchParams(
 
 // policy: ccw winding for generated geometry, preserve existing order for user-passed geometry
 public sealed class PrimitiveBatch : IDisposable {
-	private readonly WebGpuDevice device;
+	private readonly GpuDevice device;
 	private readonly ViewGlobals globals;
 	private readonly RenderFrame frame;
 	private readonly RenderPass pass;
@@ -149,7 +149,7 @@ public sealed class PrimitiveBatch : IDisposable {
 	private bool disposed = false;
 
 	public PrimitiveBatch(
-		WebGpuDevice device,
+		GpuDevice device,
 		ViewGlobals globals,
 		RenderFrame frame,
 		RenderPass pass,

@@ -544,7 +544,7 @@ public static class OwnerOrderedSorter {
 /// must be externally mutexed/synchronized, otherwise they will race and corrupt state.
 /// </para>
 /// <para>
-/// <see cref="ReadSnapshot"/> may be called concurrently, including concurrently with writes.
+/// <see cref="ReadSnapshot()"/> may be called concurrently, including concurrently with writes.
 /// It returns the last successfully published snapshot. Mutating operations publish a new
 /// snapshot only if sorting succeeds.
 /// </para>

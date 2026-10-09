@@ -4,11 +4,12 @@
 namespace Injure.Host;
 
 /// <summary>
-/// Represents an object that receives intermittent updates of the current <see cref="HostTick"/> value.
+/// Represents an object that receives intermittent updates of the current <see cref="HostTick"/>
+/// value.
 /// </summary>
 /// <remarks>
-/// Updates are typically periodic but are not required to be. The elapsed time between calls may vary
-/// and may be zero (in terms of elapsed <see cref="HostTick"/>s, not real time).
+/// Updates are typically periodic but are not required to be. The elapsed time between calls may
+/// vary and may be zero (in terms of elapsed <see cref="HostTick"/>s, not real time).
 /// </remarks>
 public interface IHostTickReceiver {
 	/// <summary>

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
+using Injure.DevAnalyzers.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -9,21 +10,6 @@ namespace Injure.DevAnalyzers.PublicApi;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
-	private static readonly ImmutableHashSet<string> whitelist = ImmutableHashSet.Create(
-		StringComparer.Ordinal,
-		"Injure",
-		"Injure.Mods.Abstractions",
-		"Injure.Mods.Runtime"
-	);
-
-	private static readonly ImmutableHashSet<string> bclPublicKeyTokens = ImmutableHashSet.Create(
-		StringComparer.Ordinal,
-		"b77a5c561934e089",
-		"b03f5f7f11d50a3a",
-		"7cec85d7bea7798e",
-		"cc7b13ffcd2ddd51"
-	);
-
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
 		Diagnostics.PublicApi.PublicForeignType
 	);
@@ -161,46 +147,6 @@ public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
 		return new TypeWalker(ctx, owner, loc, compilationAssembly, coreLibrary);
 	}
 
-	private static bool isAllowedAssembly(IAssemblySymbol? assembly, IAssemblySymbol compilationAssembly, IAssemblySymbol coreLibrary) {
-		if (assembly is null)
-			return true;
-		if (SymbolEqualityComparer.Default.Equals(assembly, compilationAssembly))
-			return true;
-		if (whitelist.Contains(assembly.Identity.Name))
-			return true;
-		return isBclAssembly(assembly, coreLibrary);
-	}
-
-	private static bool isBclAssembly(IAssemblySymbol assembly, IAssemblySymbol coreLibrary) {
-		if (SymbolEqualityComparer.Default.Equals(assembly, coreLibrary))
-			return true;
-		string name = assembly.Identity.Name;
-		bool hasBclName =
-			name == "mscorlib" ||
-			name == "netstandard" ||
-			name == "System" ||
-			name.StartsWith("System.", StringComparison.Ordinal) ||
-			name == "Microsoft.CSharp" ||
-			name == "Microsoft.VisualBasic" ||
-			name == "Microsoft.VisualBasic.Core" ||
-			name.StartsWith("Microsoft.Win32.", StringComparison.Ordinal);
-		if (!hasBclName)
-			return false;
-		return bclPublicKeyTokens.Contains(publicKeyTokenString(assembly.Identity.PublicKeyToken));
-	}
-
-	private static string publicKeyTokenString(ImmutableArray<byte> token) {
-		if (token.IsDefaultOrEmpty)
-			return string.Empty;
-		const string hex = "0123456789abcdef";
-		char[] result = new char[token.Length * 2];
-		for (int i = 0; i < token.Length; ++i) {
-			result[i * 2] = hex[token[i] >> 4];
-			result[i * 2 + 1] = hex[token[i] & 0xf];
-		}
-		return new string(result);
-	}
-
 	private sealed class TypeWalker(
 		SymbolAnalysisContext context,
 		ISymbol owner,
@@ -244,7 +190,7 @@ public sealed class PublicForeignTypeAnalyzer : DiagnosticAnalyzer {
 			if (type.TypeKind == TypeKind.Error)
 				return;
 			INamedTypeSymbol definition = type.OriginalDefinition;
-			if (reportedTypes.Add(definition) && !isAllowedAssembly(definition.ContainingAssembly, compilationAssembly, coreLibrary))
+			if (reportedTypes.Add(definition) && !ForeignTypes.IsAllowedAssembly(definition.ContainingAssembly, compilationAssembly, coreLibrary))
 				ctx.ReportDiagnostic(
 					Diagnostic.Create(
 						Diagnostics.PublicApi.PublicForeignType,

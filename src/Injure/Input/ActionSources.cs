@@ -635,7 +635,8 @@ public readonly partial struct InputImpulseAxisSourceKind {
 }
 
 /// <summary>
-/// An input that produces discrete amounts instead of a held value, such as pointer wheel scrolling.
+/// An input that produces discrete amounts instead of a held value, such as pointer wheel
+/// scrolling.
 /// </summary>
 /// <remarks>
 /// The <see langword="default"/> value is invalid.

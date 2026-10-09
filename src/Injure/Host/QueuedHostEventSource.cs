@@ -7,12 +7,13 @@ namespace Injure.Host;
 
 /// <summary>
 /// An <see cref="IHostEventSource"/> backed by a thread-safe queue that events are
-/// <see cref="Post"/>ed to, e.g. from a UI toolkit's thread.
+/// <see cref="Post(in HostEvent)"/>ed to, e.g. from a UI toolkit's thread.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Post"/> and <see cref="Wake"/> are callable from any thread; the other members follow
-/// the usual <see cref="IHostEventSource"/> rule of one consuming thread at a time.
+/// <see cref="Post(in HostEvent)"/> and <see cref="Wake()"/> are callable from any thread; the
+/// other members follow the usual <see cref="IHostEventSource"/> rule of one consuming thread at a
+/// time.
 /// </para>
 /// <para>
 /// Events are returned in posting order. Their ticks have to be on <see cref="Clock"/>; this
@@ -31,7 +32,7 @@ public sealed class QueuedHostEventSource : INotifyingHostEventSource, IDisposab
 	// inheritdoc caused the inherited <remarks> to override the new ones entirely
 
 	/// <summary>
-	/// The coarsest granularity at which <see cref="WaitUntil"/> can hit its deadline. See
+	/// The coarsest granularity at which <see cref="WaitUntil(HostTick)"/> can hit its deadline. See
 	/// <see cref="IHostEventSource.WaitGranularity"/>.
 	/// </summary>
 	/// <remarks>

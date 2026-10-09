@@ -8,12 +8,12 @@ namespace Injure.Input;
 /// <summary>
 /// A raw input event recorded by an <see cref="IInputSource"/>.
 /// </summary>
+/// <param name="Tick">When the event happened.</param>
 /// <remarks>
-/// Keyboard, text and pointer events carry the window they belong to (the window with keyboard
+/// Keyboard, text, and pointer events carry the window they belong to (the window with keyboard
 /// focus, or the window the pointer coordinates are relative to); it is invalid if the event
 /// couldn't be attributed to a window. Gamepad events belong to no window.
 /// </remarks>
-/// <param name="Tick">When the event happened.</param>
 public abstract record InputEvent(HostTick Tick);
 
 /// <summary>

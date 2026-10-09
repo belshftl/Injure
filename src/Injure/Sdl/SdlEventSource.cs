@@ -14,14 +14,15 @@ namespace Injure.Sdl;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Obtained from <see cref="SdlContext.Events"/>. Everything except <see cref="Wake"/> and
+/// Obtained from <see cref="SdlContext.Events"/>. Everything except <see cref="Wake()"/> and
 /// <see cref="Clock"/> is bound to the context's thread, like the rest of <c>Injure.Sdl</c>.
 /// </para>
 /// <para>
 /// SDL events that have no <see cref="HostEvent"/> equivalent, and window events for windows that
-/// weren't created through <see cref="SdlWindow"/>, are skipped by <see cref="TryPoll"/>. To see
-/// them, poll with <see cref="DangerousGetNextRaw"/> and translate the rest with
-/// <see cref="DangerousCreateHostEvent"/>.
+/// weren't created through <see cref="SdlWindow"/>, are skipped by
+/// <see cref="TryPoll(out HostEvent)"/>. To see them, poll with
+/// <see cref="DangerousGetNextRaw()"/> and translate the rest with
+/// <see cref="DangerousCreateHostEvent(in SDLEvent, out HostEvent)"/>.
 /// </para>
 /// <para>
 /// Gamepads are opened when SDL reports them and closed when they are removed, so gamepad events
@@ -78,12 +79,13 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// <remarks>
 	/// <para>
 	/// Returns <see langword="null"/> if no event is pending. Events used internally for
-	/// <see cref="Wake"/> are filtered out. Every returned event <b>must</b> be passed to
-	/// <see cref="DangerousCreateHostEvent"/> exactly once, even ones the caller handles itself,
-	/// since translation also keeps track of gamepads.
+	/// <see cref="Wake()"/> are filtered out. Every returned event <b>must</b> be passed to
+	/// <see cref="DangerousCreateHostEvent(in SDLEvent, out HostEvent)"/> exactly once, even ones the
+	/// caller handles itself, since translation also keeps track of gamepads.
 	/// </para>
 	/// <para>
-	/// The return type is not a stable API; see <c>docs/conventions/dangerous-get.md</c>.
+	/// <b>The return type is not a stable API and may change without notice.</b> See
+	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </para>
 	/// </remarks>
 	public SDLEvent? DangerousGetNextRaw() {
@@ -100,7 +102,7 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	}
 
 	/// <summary>
-	/// Translates a raw SDL event obtained from <see cref="DangerousGetNextRaw"/>.
+	/// Translates a raw SDL event obtained from <see cref="DangerousGetNextRaw()"/>.
 	/// </summary>
 	/// <returns>
 	/// <see langword="false"/> if the event has no <see cref="HostEvent"/> equivalent.
@@ -117,8 +119,8 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// translated exactly once.
 	/// </para>
 	/// <para>
-	/// The parameter type of <paramref name="ev"/> is not a stable API; see
-	/// <c>docs/conventions/dangerous-get.md</c>.
+	/// <b>The parameter type of <paramref name="ev"/> is not a stable API and may change without
+	/// notice.</b> See <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </para>
 	/// </remarks>
 	public bool DangerousCreateHostEvent(in SDLEvent ev, out HostEvent result) {

@@ -8,7 +8,7 @@ using Injure.Draw;
 using Injure.Draw.Text;
 using Injure.Host;
 using Injure.Input;
-using Injure.Rendering;
+using Injure.Gpu;
 using Injure.Sched.Tickers;
 using Injure.Sdl;
 
@@ -20,13 +20,14 @@ namespace Injure.Game;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Run"/> must be called on the process's main thread, which is also the thread every
+/// <see cref="Run()"/> must be called on the process's main thread, which is also the thread every
 /// hook runs on.
 /// </para>
 /// <para>
 /// Each iteration of the loop: handles pending events (input, surface resizing, then
-/// <see cref="OnEvent"/>), reaches the safe boundary for asset reloads, runs due tickers, renders
-/// if a frame is due, and then waits until the next frame/ticker/event (whichever comes first).
+/// <see cref="OnEvent(in HostEvent)"/>), reaches the safe boundary for asset reloads, runs due
+/// tickers, renders if a frame is due, and then waits until the next frame/ticker/event (whichever
+/// comes first).
 /// </para>
 /// <para>
 /// Everything this class does is built from public APIs (<see cref="SdlContext"/>,
@@ -40,7 +41,7 @@ public abstract class StandardGame {
 	private sealed class Session {
 		public required SdlContext Sdl;
 		public required SdlWindow Window;
-		public required WebGpuDevice GpuDevice;
+		public required GpuDevice GpuDevice;
 		public required SurfaceRenderOutput RenderOutput;
 		public required ViewGlobals ViewGlobals;
 		public required CanvasSharedResources CanvasResources;
@@ -61,7 +62,7 @@ public abstract class StandardGame {
 	private int running;
 
 	/// <summary>
-	/// Creates the game with the given options. Nothing is initialized until <see cref="Run"/>.
+	/// Creates the game with the given options. Nothing is initialized until <see cref="Run()"/>.
 	/// </summary>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="options"/> is invalid; see <see cref="StandardGameOptions"/>.
@@ -99,8 +100,8 @@ public abstract class StandardGame {
 	/// The clock everything in the loop runs on.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if accessed outside of <see cref="Run"/>, i.e. before <see cref="OnInit"/> or after
-	/// <see cref="OnShutdown"/> has returned.
+	/// Thrown if accessed outside of <see cref="Run()"/>, i.e. before <see cref="OnInit()"/> or after
+	/// <see cref="OnShutdown()"/> has returned.
 	/// </exception>
 	protected IHostClock Clock => current.Sdl.Clock;
 
@@ -114,7 +115,7 @@ public abstract class StandardGame {
 	/// The WebGPU device.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected WebGpuDevice GpuDevice => current.GpuDevice;
+	protected GpuDevice GpuDevice => current.GpuDevice;
 
 	/// <summary>
 	/// The ticker registry the loop runs.
@@ -145,7 +146,7 @@ public abstract class StandardGame {
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <see cref="StandardGameOptions.Assets"/> was not set, or if accessed outside of
-	/// <see cref="Run"/>.
+	/// <see cref="Run()"/>.
 	/// </exception>
 	protected AssetStore Assets => current.Assets ?? throw new InvalidOperationException("the asset store is not enabled (StandardGameOptions.Assets)");
 
@@ -160,7 +161,7 @@ public abstract class StandardGame {
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <see cref="StandardGameOptions.Text"/> was not set, or if accessed outside of
-	/// <see cref="Run"/>.
+	/// <see cref="Run()"/>.
 	/// </exception>
 	protected TextSystem Text => current.Text ?? throw new InvalidOperationException("the text system is not enabled (StandardGameOptions.Text)");
 
@@ -173,16 +174,25 @@ public abstract class StandardGame {
 	protected abstract void OnInit();
 
 	/// <summary>
-	/// Called to draw a frame into the window.
+	/// Called to render a frame into the window.
 	/// </summary>
-	protected abstract void OnRender(Canvas cv);
+	/// <param name="frame">
+	/// The frame, presenting on the window. Owned by the engine, which submits it once this
+	/// returns.
+	/// </param>
+	/// <remarks>
+	/// Record rendering into <paramref name="frame"/>'s <see cref="RenderFrame.Encoder"/>, or use
+	/// <see cref="CreateCanvas(RenderFrame)"/> for 2D drawing; both can be mixed, as long as each
+	/// <see cref="Canvas"/> is disposed before passes are recorded directly.
+	/// </remarks>
+	protected abstract void OnRender(RenderFrame frame);
 
 	/// <summary>
 	/// Called for every event, after the engine's own handling of it (feeding input, resizing the
 	/// surface).
 	/// </summary>
 	/// <remarks>
-	/// The default implementation calls <see cref="RequestQuit"/> on
+	/// The default implementation calls <see cref="RequestQuit()"/> on
 	/// <see cref="HostEventKind.Quit"/> and on <see cref="HostEventKind.WindowCloseRequested"/> for
 	/// <see cref="Window"/>.
 	/// </remarks>
@@ -233,7 +243,27 @@ public abstract class StandardGame {
 	// running
 
 	/// <summary>
-	/// Sets everything up, runs the loop until <see cref="RequestQuit"/> is called, and tears
+	/// Creates a <see cref="Canvas"/> drawing into <paramref name="frame"/>, set up for the
+	/// window's size.
+	/// </summary>
+	/// <param name="frame">The frame passed to <see cref="OnRender(RenderFrame)"/>.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
+	/// </exception>
+	/// <remarks>
+	/// The canvas records its passes lazily, so it must be disposed (which flushes it) before
+	/// recording passes into <paramref name="frame"/> directly, and before
+	/// <see cref="OnRender(RenderFrame)"/> returns.
+	/// </remarks>
+	protected Canvas CreateCanvas(RenderFrame frame) {
+		ArgumentNullException.ThrowIfNull(frame);
+		Session ses = current;
+		ses.ViewGlobals.Update(frame.PrimaryView.Width, frame.PrimaryView.Height);
+		return new Canvas(ses.GpuDevice, ses.ViewGlobals, frame, ses.CanvasResources, in baseCanvasParams);
+	}
+
+	/// <summary>
+	/// Sets everything up, runs the loop until <see cref="RequestQuit()"/> is called, and tears
 	/// everything down again.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
@@ -246,7 +276,7 @@ public abstract class StandardGame {
 
 		SdlContext? sdl = null;
 		SdlWindow? window = null;
-		WebGpuDevice? gpuDevice = null;
+		GpuDevice? gpuDevice = null;
 		SurfaceRenderOutput? renderOutput = null;
 		ViewGlobals? viewGlobals = null;
 		CanvasSharedResources? canvasResources = null;
@@ -255,7 +285,7 @@ public abstract class StandardGame {
 		try {
 			sdl = SdlContext.Init(options.Sdl);
 			window = SdlWindow.Create(sdl, options.Window);
-			gpuDevice = new WebGpuDevice();
+			gpuDevice = new GpuDevice(options.GpuDevice with { CompatibleHost = window.SurfaceHost });
 			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, options.PresentModePolicy);
 			viewGlobals = new ViewGlobals(gpuDevice, renderOutput.Width, renderOutput.Height);
 
@@ -366,13 +396,11 @@ public abstract class StandardGame {
 	}
 
 	private void render(Session ses) {
-		if (!ses.RenderOutput.TryBeginFrame(out RenderFrame? frame))
+		if (!RenderFrame.TryBegin(ses.GpuDevice, ses.RenderOutput, out RenderFrame? frame))
 			return;
 		using (frame) {
-			ses.ViewGlobals.Update(frame.PrimaryView.Width, frame.PrimaryView.Height);
-			using (Canvas cv = new(ses.GpuDevice, ses.ViewGlobals, frame, ses.CanvasResources, in baseCanvasParams))
-				OnRender(cv);
-			frame.SubmitAndPresent();
+			OnRender(frame);
+			frame.Submit();
 		}
 	}
 

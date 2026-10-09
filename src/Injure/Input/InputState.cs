@@ -291,7 +291,9 @@ public readonly struct GamepadStateSet : IReadOnlyList<GamepadStateEntry> {
 	/// Gets the state of the gamepad <paramref name="gamepadId"/>, if it is in the set.
 	/// </summary>
 	/// <param name="gamepadId">Gamepad to look up.</param>
-	/// <param name="state">The gamepad's state, or <see cref="GamepadState.Rest"/> if not found.</param>
+	/// <param name="state">
+	/// The gamepad's state, or <see cref="GamepadState.Rest"/> if not found.
+	/// </param>
 	public bool TryGetState(GamepadId gamepadId, out GamepadState state) {
 		foreach (GamepadStateEntry ent in entries)
 			if (ent.Id == gamepadId) {

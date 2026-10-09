@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 using Injure.Draw;
 using Injure.Draw.PixelConv;
 using Injure.Primitives;
-using Injure.Rendering;
+using Injure.Gpu;
 using StbImageSharp;
 
 namespace Injure.Assets.Builtin;
@@ -117,8 +117,8 @@ public sealed class Texture2dAssetPreparedData(uint width, uint height, byte[] r
 	public readonly Texture2dAssetMetadata Metadata = metadata;
 }
 
-public sealed class Texture2dAssetCreator(WebGpuDevice gpuDevice) : IAssetStagedCreator<Texture2d, Texture2dAssetPreparedData> {
-	private readonly WebGpuDevice gpuDevice = gpuDevice;
+public sealed class Texture2dAssetCreator(GpuDevice gpuDevice) : IAssetStagedCreator<Texture2d, Texture2dAssetPreparedData> {
+	private readonly GpuDevice gpuDevice = gpuDevice;
 
 	public async ValueTask<AssetPrepareResult<Texture2dAssetPreparedData>> TryPrepareAsync(AssetCreateInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
 		ct.ThrowIfCancellationRequested();

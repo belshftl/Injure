@@ -22,7 +22,7 @@ Statements labeled *Behavioral* are informative (not normative) statements about
 
 This document defines encodings, instructions, the layout and encodability of instruction sequences, the canonical form of instructions and instruction sequences, and the short form of instruction sequences and of instructions other than branches. It does not define operand serialization, exception handling clauses, method headers, or debug information.
 
-(Informative: informative notes use "this framework" for the IL-patching framework whose documentation this document is part of, and name its components similarly: "the IR", "the encoder", etc.)
+(Informative: informative notes use "this framework" for the Injure IL-patching framework for mods, and name its components similarly: "the IR", "the encoder", etc.)
 
 (Informative: the definitions of encodings, prefix encodings, prefixes, instructions, instruction sequences, and their layout define a model of the code of a method body. The model exists so that this document can define the canonical form, equivalence, the short form, shortening, and encodability, which this framework applies, and prove their properties from Facts that are checked by inspection of ECMA-335.)
 

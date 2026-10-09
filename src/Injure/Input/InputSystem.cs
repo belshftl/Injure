@@ -13,8 +13,8 @@ namespace Injure.Input;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Fed by passing every host event to <see cref="TryHandle"/>; a <c>StandardGame</c> does this on
-/// its own, and a custom loop has to do it manually.
+/// Fed by passing every host event to <see cref="TryHandle(in HostEvent)"/>; a <c>StandardGame</c>
+/// does this on its own, and a custom loop has to do it manually.
 /// </para>
 /// <para>
 /// Keyboard state is shared by all windows, since only one window has keyboard focus at a time.
@@ -23,8 +23,8 @@ namespace Injure.Input;
 /// <see cref="GamepadId"/>.
 /// </para>
 /// <para>
-/// Key repeats and input values without an engine equivalent (<c>Unknown</c> keys, buttons and
-/// axes) are dropped and never become input events.
+/// Key repeats and input values without an engine equivalent (<c>Unknown</c> keys, buttons,
+/// and axes) are dropped and never become input events.
 /// </para>
 /// <para>
 /// Not thread-safe; use it from the thread that feeds it.
@@ -178,7 +178,7 @@ public sealed class InputSystem : IInputSource {
 	/// </summary>
 	/// <returns>
 	/// <see langword="true"/> if <paramref name="ev"/> is purely an input event (keyboard, text,
-	/// pointer or gamepad), so other handlers can ignore it; <see langword="false"/> for every
+	/// pointer, or gamepad), so other handlers can ignore it; <see langword="false"/> for every
 	/// other event, including <see cref="HostEventKind.WindowPointerEntered"/> and
 	/// <see cref="HostEventKind.WindowPointerLeft"/>, which this uses but which are also relevant
 	/// to window state tracking.
@@ -289,8 +289,8 @@ public sealed class InputSystem : IInputSource {
 	}
 
 	/// <summary>
-	/// Like <see cref="ClearKeyboardAndPointer"/>, but also records releases for every pressed
-	/// gamepad button and resets every deflected gamepad axis to 0.
+	/// Like <see cref="ClearKeyboardAndPointer(HostTick)"/>, but also records releases for every
+	/// pressed gamepad button and resets every deflected gamepad axis to 0.
 	/// </summary>
 	/// <param name="tick">Timestamp for the recorded events.</param>
 	public void ClearAllDevices(HostTick tick) {

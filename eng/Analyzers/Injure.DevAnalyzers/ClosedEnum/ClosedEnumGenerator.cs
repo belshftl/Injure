@@ -14,11 +14,11 @@ namespace Injure.DevAnalyzers.ClosedEnum;
 public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 	// ==========================================================================
 	// internal types
-	private sealed class TargetInfo(INamedTypeSymbol symbol, bool defaultIsInvalid, ImmutableArray<CaseInfo> cases, ImmutableArray<string> mirrorTypeNames) {
+	private sealed class TargetInfo(INamedTypeSymbol symbol, bool defaultIsInvalid, ImmutableArray<CaseInfo> cases, ImmutableArray<MirrorInfo> mirrors) {
 		public INamedTypeSymbol Symbol { get; } = symbol;
 		public bool DefaultIsInvalid { get; } = defaultIsInvalid;
 		public ImmutableArray<CaseInfo> Cases { get; } = cases;
-		public ImmutableArray<string> MirrorTypeNames { get; } = mirrorTypeNames;
+		public ImmutableArray<MirrorInfo> Mirrors { get; } = mirrors;
 	}
 
 	private readonly record struct CaseInfo(string Name, bool IsZero);
@@ -48,7 +48,11 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 			sym,
 			shape.DefaultIsInvalid,
 			shape.Members.Select(static m => new CaseInfo(m.Field.Name, m.Value == 0)).ToImmutableArray(),
-			shape.Mirrors.Select(static m => m.Enum.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).ToImmutableArray()
+			shape.Mirrors.Select(m => new MirrorInfo(
+				m.Enum.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+				// foreign types must stay out of public API, see IJDEV0100
+				ForeignTypes.IsForeign(m.Enum, ctx.SemanticModel.Compilation) ? "internal" : "public"
+			)).ToImmutableArray()
 		);
 	}
 
@@ -123,8 +127,12 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		sb.Append("\t\tpublic static bool operator !=(").Append(targetType).Append(" left, ").Append(targetType).Append(" right) => left.")
 			.Append(Constants.ClosedEnum.BackingFieldName).Append(" != right.").Append(Constants.ClosedEnum.BackingFieldName).AppendLine(";");
 
-		foreach (string mirror in info.MirrorTypeNames)
+		foreach ((string mirror, string access) in info.Mirrors) {
+			// operators must be public, so foreign mirrors only get the internal FromMirror helpers
+			if (access != "public")
+				continue;
 			sb.Append("\t\tpublic static explicit operator ").Append(mirror).Append('(').Append(targetType).Append(" value) => (").Append(mirror).AppendLine(")value.Tag;");
+		}
 
 		sb.AppendLine("\t\t/// <summary>");
 		sb.AppendLine("\t\t/// Returns the declared case name for this value.");
@@ -176,10 +184,10 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		sb.AppendLine("\t\t\t\tthrow new global::System.ArgumentOutOfRangeException(nameof(tag), tag, null);");
 		sb.AppendLine("\t\t\t}");
 
-		foreach (string mirror in info.MirrorTypeNames) {
-			sb.Append("\t\t\tpublic static bool TryFromMirror(").Append(mirror).Append(" mirror, out ").Append(targetType)
+		foreach ((string mirror, string access) in info.Mirrors) {
+			sb.Append("\t\t\t").Append(access).Append(" static bool TryFromMirror(").Append(mirror).Append(" mirror, out ").Append(targetType)
 				.AppendLine(" val) => TryFromTag((Case)mirror, out val);");
-			sb.Append("\t\t\tpublic static ").Append(targetType).Append(" FromMirror(").Append(mirror).AppendLine(" mirror) {");
+			sb.Append("\t\t\t").Append(access).Append(" static ").Append(targetType).Append(" FromMirror(").Append(mirror).AppendLine(" mirror) {");
 			sb.Append("\t\t\t\tif (TryFromTag((Case)mirror, out ").Append(targetType).AppendLine(" val))");
 			sb.AppendLine("\t\t\t\t\treturn val;");
 			sb.AppendLine("\t\t\t\tthrow new global::System.ArgumentOutOfRangeException(nameof(mirror), mirror, null);");

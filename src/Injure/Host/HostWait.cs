@@ -21,7 +21,7 @@ public static class HostWait {
 	/// </summary>
 	/// <returns>
 	/// <see langword="true"/> if the method returned early because of an event or
-	/// <see cref="IHostEventSource.Wake"/>; otherwise, i.e. if the deadline was reached,
+	/// <see cref="IHostEventSource.Wake()"/>; otherwise, i.e. if the deadline was reached,
 	/// <see langword="false"/>.
 	/// </returns>
 	/// <exception cref="ArgumentNullException">
@@ -30,7 +30,7 @@ public static class HostWait {
 	/// <remarks>
 	/// <para>
 	/// Waits in three stages: an interruptible wait on the source
-	/// (<see cref="IHostEventSource.WaitUntil"/>) until shortly before the deadline, then a
+	/// (<see cref="IHostEventSource.WaitUntil(HostTick)"/>) until shortly before the deadline, then a
 	/// <see cref="PreciseWait"/> sleep, then a short spin. Returns no earlier than the deadline
 	/// unless woken, and typically within a few microseconds after it.
 	/// </para>

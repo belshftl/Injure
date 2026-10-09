@@ -10,7 +10,7 @@ namespace Injure.Host;
 /// </summary>
 /// <remarks>
 /// <para>
-/// IDs come from a single process-wide allocator (<see cref="Allocate"/>), so IDs minted by
+/// IDs come from a single process-wide allocator (<see cref="Allocate()"/>), so IDs minted by
 /// different event sources do not collide. IDs are never reused within a process.
 /// </para>
 /// <para>

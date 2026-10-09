@@ -7,7 +7,7 @@ using System.Numerics;
 using Injure.Assets;
 using Injure.DevAnalyzers.Attributes;
 using Injure.Primitives;
-using Injure.Rendering;
+using Injure.Gpu;
 
 namespace Injure.Draw;
 
@@ -183,7 +183,7 @@ public static class CanvasOutputStates {
 	};
 
 	public static readonly CanvasOutputState PremultipliedAlpha = new() {
-		Blend = BlendStates.PremultipliedAlpha,
+		Blend = BlendStates.PremulAlpha,
 		WriteMask = ColorWriteMask.All,
 	};
 }
@@ -346,7 +346,7 @@ public readonly record struct CanvasParamsOverride(
 ///
 /// Batch state is stored per format as pipelines are color-target-format-specific.
 /// </remarks>
-public sealed class CanvasSharedResources(WebGpuDevice device, EngineResourceStore engineResources) : IDisposable {
+public sealed class CanvasSharedResources(GpuDevice device, EngineResourceStore engineResources) : IDisposable {
 	public readonly record struct PrimBatchKey(
 		BlendState? BlendState,
 		ColorWriteMask ColorWriteMask,
@@ -360,7 +360,7 @@ public sealed class CanvasSharedResources(WebGpuDevice device, EngineResourceSto
 		TextureFormat ColorTargetFormat
 	);
 
-	private readonly WebGpuDevice device = device;
+	private readonly GpuDevice device = device;
 	private readonly EngineResourceStore engineResources = engineResources;
 	private readonly Dictionary<PrimBatchKey, PrimitiveBatchSharedState> primState = new();
 	private readonly Dictionary<TexBatchKey, TexturedBatchSharedState> texState = new();
@@ -466,7 +466,7 @@ public sealed class Canvas : IDisposable {
 
 	// ==========================================================================
 	// internal objects / properties
-	private readonly WebGpuDevice device;
+	private readonly GpuDevice device;
 	private readonly ViewGlobals globals;
 	private readonly RenderFrame frame;
 	private readonly CanvasSharedResources shared;
@@ -524,7 +524,7 @@ public sealed class Canvas : IDisposable {
 	/// Thrown if <paramref name="baseParams"/> is invalid or contains a scissor
 	/// of kind <see cref="CanvasScissorKind.Intersect"/>.
 	/// </exception>
-	public Canvas(WebGpuDevice device, ViewGlobals globals, RenderFrame frame, CanvasSharedResources shared, in CanvasParams baseParams) {
+	public Canvas(GpuDevice device, ViewGlobals globals, RenderFrame frame, CanvasSharedResources shared, in CanvasParams baseParams) {
 		this.device = device;
 		this.globals = globals;
 		this.frame = frame;
@@ -1183,7 +1183,7 @@ public sealed class Canvas : IDisposable {
 			throw new InternalStateException("tried to open a render pass but there's already an active one");
 
 		// see above on indirection
-		pass = p.Target.IsPrimary ? frame.BeginPrimaryPass(p.ColorAttachmentOps) : frame.BeginColorPass(p.Target.RenderTarget.ColorView, p.ColorAttachmentOps);
+		pass = p.Target.IsPrimary ? frame.BeginPrimaryPass(p.ColorAttachmentOps) : frame.Encoder.BeginColorPass(p.Target.RenderTarget.ColorView, p.ColorAttachmentOps);
 		applyScissor(pass, in p);
 	}
 

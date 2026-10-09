@@ -67,17 +67,17 @@
 	<!-- ====================================================================================== -->
 	<!-- embedded resources -->
 	<ItemGroup>
-		<EmbeddedResource Include="Rendering/Shaders/primitive2d.wgsl">
+		<EmbeddedResource Include="../../shaders/primitive2d.wgsl">
 			<LogicalName>shaders/primitive2d.wgsl</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Rendering/Shaders/textured2dColor.wgsl">
+		<EmbeddedResource Include="../../shaders/textured2dColor.wgsl">
 			<LogicalName>shaders/textured2dColor.wgsl</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Rendering/Shaders/textured2dRMask.wgsl">
+		<EmbeddedResource Include="../../shaders/textured2dRMask.wgsl">
 			<LogicalName>shaders/textured2dRMask.wgsl</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Rendering/Shaders/textured2dSDF.wgsl">
-			<LogicalName>shaders/textured2dSDF.wgsl</LogicalName>
+		<EmbeddedResource Include="../../shaders/textured2dSdf.wgsl">
+			<LogicalName>shaders/textured2dSdf.wgsl</LogicalName>
 		</EmbeddedResource>
 	</ItemGroup>
 </Project>

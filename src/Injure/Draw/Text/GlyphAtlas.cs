@@ -4,7 +4,7 @@
 using FreeTypeSharp;
 using Injure.Draw.PixelConv;
 using Injure.Primitives;
-using Injure.Rendering;
+using Injure.Gpu;
 using static FreeTypeSharp.FT;
 
 namespace Injure.Draw.Text;
@@ -51,8 +51,8 @@ internal readonly record struct GlyphAtlasEntry(
 	int Height
 );
 
-internal sealed unsafe class GlyphAtlas(WebGpuDevice gpuDevice, TextSystem text, int pageWidth = 1024, int pageHeight = 1024, int padding = 1, int maxPages = 16) : IDisposable {
-	private readonly WebGpuDevice gpuDevice = gpuDevice;
+internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, int pageWidth = 1024, int pageHeight = 1024, int padding = 1, int maxPages = 16) : IDisposable {
+	private readonly GpuDevice gpuDevice = gpuDevice;
 	private readonly TextSystem text = text;
 	private readonly Dictionary<GlyphAtlasKey, GlyphAtlasEntry> entries = new();
 	private readonly List<GlyphAtlasPage> pages = new();

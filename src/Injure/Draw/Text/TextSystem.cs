@@ -5,7 +5,7 @@ using System.Diagnostics;
 using FreeTypeSharp;
 using Injure.Assets;
 using Injure.Primitives;
-using Injure.Rendering;
+using Injure.Gpu;
 using static FreeTypeSharp.FT;
 
 namespace Injure.Draw.Text;
@@ -71,7 +71,7 @@ public sealed unsafe class TextSystem : IDisposable {
 		}
 	}
 
-	internal TextSystem(WebGpuDevice gpuDevice, ITextItemizer? itemizer = null, TextCacheOptions? cacheOptions = null) {
+	internal TextSystem(GpuDevice gpuDevice, ITextItemizer? itemizer = null, TextCacheOptions? cacheOptions = null) {
 		fixed (FT_LibraryRec_** l = &ftLibrary)
 			FTException.Check(FT_Init_FreeType(l));
 		this.itemizer = itemizer ?? new DefaultTextItemizer();

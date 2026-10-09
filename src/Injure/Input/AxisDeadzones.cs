@@ -88,7 +88,7 @@ public readonly record struct AxisDeadzone {
 	/// <summary>
 	/// Creates an <see cref="AxisDeadzoneKind.Scaled"/> deadzone.
 	/// </summary>
-	/// <inheritdoc cref="Threshold" path="/exception"/>
+	/// <inheritdoc cref="Threshold(float, float)" path="/exception"/>
 	public static AxisDeadzone Scaled(float inner, float outer = 1f) =>
 		new(AxisDeadzoneKind.Scaled, inner, outer);
 
@@ -195,28 +195,28 @@ public readonly record struct Axis2dDeadzone {
 	/// <summary>
 	/// Creates an <see cref="Axis2dDeadzoneKind.Radial"/> deadzone.
 	/// </summary>
-	/// <inheritdoc cref="AxisDeadzone.Threshold" path="/exception"/>
+	/// <inheritdoc cref="AxisDeadzone.Threshold(float, float)" path="/exception"/>
 	public static Axis2dDeadzone Radial(float inner, float outer = 1f) =>
 		new(Axis2dDeadzoneKind.Radial, inner, outer);
 
 	/// <summary>
 	/// Creates an <see cref="Axis2dDeadzoneKind.ScaledRadial"/> deadzone.
 	/// </summary>
-	/// <inheritdoc cref="AxisDeadzone.Threshold" path="/exception"/>
+	/// <inheritdoc cref="AxisDeadzone.Threshold(float, float)" path="/exception"/>
 	public static Axis2dDeadzone ScaledRadial(float inner, float outer = 1f) =>
 		new(Axis2dDeadzoneKind.ScaledRadial, inner, outer);
 
 	/// <summary>
 	/// Creates an <see cref="Axis2dDeadzoneKind.Axial"/> deadzone.
 	/// </summary>
-	/// <inheritdoc cref="AxisDeadzone.Threshold" path="/exception"/>
+	/// <inheritdoc cref="AxisDeadzone.Threshold(float, float)" path="/exception"/>
 	public static Axis2dDeadzone Axial(float inner, float outer = 1f) =>
 		new(Axis2dDeadzoneKind.Axial, inner, outer);
 
 	/// <summary>
 	/// Creates an <see cref="Axis2dDeadzoneKind.ScaledAxial"/> deadzone.
 	/// </summary>
-	/// <inheritdoc cref="AxisDeadzone.Threshold" path="/exception"/>
+	/// <inheritdoc cref="AxisDeadzone.Threshold(float, float)" path="/exception"/>
 	public static Axis2dDeadzone ScaledAxial(float inner, float outer = 1f) =>
 		new(Axis2dDeadzoneKind.ScaledAxial, inner, outer);
 

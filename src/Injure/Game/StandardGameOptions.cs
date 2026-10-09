@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.Primitives;
-using Injure.Rendering;
+using Injure.Gpu;
 using Injure.Sdl;
 
 namespace Injure.Game;
@@ -27,7 +27,8 @@ public readonly struct StandardGameOptions {
 
 	/// <summary>
 	/// Render rate limit in frames per second, or <see langword="null"/> to render as often as
-	/// presentation allows. Can be changed while running with <see cref="StandardGame.SetMaxFps"/>.
+	/// presentation allows. Can be changed while running with
+	/// <see cref="StandardGame.SetMaxFps(double?)"/>.
 	/// </summary>
 	/// <remarks>
 	/// Also determines the ticker scheduler's per-batch time budget (one frame period, or 1/60th
@@ -36,14 +37,23 @@ public readonly struct StandardGameOptions {
 	public required double? MaxFps { get; init; }
 
 	/// <summary>
+	/// Options for the GPU device.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="GpuDeviceOptions.CompatibleHost"/> is ignored; the device is always created
+	/// to be compatible with the window. Defaults to no features and a high-performance adapter.
+	/// </remarks>
+	public GpuDeviceOptions GpuDevice { get; init; } = new() { RequiredFeatures = GpuFeatures.None };
+
+	/// <summary>
 	/// Surface present mode policy. Can be changed while running with
-	/// <see cref="StandardGame.SetPresentModePolicy"/>.
+	/// <see cref="StandardGame.SetPresentModePolicy(SurfacePresentModePolicy)"/>.
 	/// </summary>
 	public SurfacePresentModePolicy PresentModePolicy { get; init; } =
 		SurfacePresentModePolicy.AutoMailbox;
 
 	/// <summary>
-	/// The color each frame is cleared to before <see cref="StandardGame.OnRender"/>.
+	/// The color each frame is cleared to before <see cref="StandardGame.OnRender(RenderFrame)"/>.
 	/// </summary>
 	public Color32 ClearColor { get; init; } = Color32.Black;
 

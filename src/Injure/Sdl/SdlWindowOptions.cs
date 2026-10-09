@@ -59,7 +59,7 @@ public readonly struct SdlWindowPosition : IEquatable<SdlWindowPosition> {
 	public static SdlWindowPosition At(int x, int y) => new(Kind.Explicit, x, y);
 
 	/// <summary>
-	/// Gets the coordinates if this is an explicit position created with <see cref="At"/>.
+	/// Gets the coordinates if this is an explicit position created with <see cref="At(int, int)"/>.
 	/// </summary>
 	public bool TryGetExplicit(out int x, out int y) {
 		x = this.x;

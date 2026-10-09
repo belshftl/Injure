@@ -29,7 +29,7 @@ public static class BuiltinShaders {
 	);
 
 	public static readonly BuiltinShaderInfo Textured2dSdf = new(
-		ResourceId: new EngineResourceId("shaders/textured2dSDF.wgsl"),
+		ResourceId: new EngineResourceId("shaders/textured2dSdf.wgsl"),
 		VsEntry: "vs_main",
 		FsEntry: "fs_main"
 	);

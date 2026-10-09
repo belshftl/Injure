@@ -3,7 +3,7 @@
 
 using Injure.Draw.Text;
 using Injure.Mods;
-using Injure.Rendering;
+using Injure.Gpu;
 
 namespace Injure.Assets.Builtin;
 
@@ -19,7 +19,7 @@ public static class BuiltinAssetRegistrations {
 		);
 	}
 
-	public static void RegisterTexture2dInto(AssetStore store, WebGpuDevice gpuDevice) {
+	public static void RegisterTexture2dInto(AssetStore store, GpuDevice gpuDevice) {
 		ArgumentNullException.ThrowIfNull(store);
 		store.RegisterResolver(
 			new OwnerOrderedEntry<IAssetResolver>(

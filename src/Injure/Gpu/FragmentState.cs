@@ -1,0 +1,21 @@
+// SPDX-FileCopyrightText: 2026 belshftl
+// SPDX-License-Identifier: MIT
+
+using System.Collections.Immutable;
+
+namespace Injure.Gpu;
+
+/// <summary>
+/// Fragment stage state for a render pipeline.
+/// </summary>
+/// <param name="ShaderModule">Shader module containing the fragment entry point.</param>
+/// <param name="EntryPoint">Fragment entry point name.</param>
+/// <param name="Targets">Color targets written by the fragment stage.</param>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly record struct FragmentState(
+	GpuShaderModuleHandle ShaderModule,
+	string EntryPoint,
+	ImmutableArray<ColorTargetState> Targets
+);

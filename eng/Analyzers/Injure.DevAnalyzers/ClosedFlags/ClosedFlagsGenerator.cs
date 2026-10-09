@@ -14,11 +14,11 @@ namespace Injure.DevAnalyzers.ClosedFlags;
 public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 	// ==========================================================================
 	// internal types
-	private sealed class TargetInfo(INamedTypeSymbol symbol, bool defaultIsInvalid, ImmutableArray<BitInfo> bits, ImmutableArray<string> mirrorTypeNames) {
+	private sealed class TargetInfo(INamedTypeSymbol symbol, bool defaultIsInvalid, ImmutableArray<BitInfo> bits, ImmutableArray<MirrorInfo> mirrors) {
 		public INamedTypeSymbol Symbol { get; } = symbol;
 		public bool DefaultIsInvalid { get; } = defaultIsInvalid;
 		public ImmutableArray<BitInfo> Bits { get; } = bits;
-		public ImmutableArray<string> MirrorTypeNames { get; } = mirrorTypeNames;
+		public ImmutableArray<MirrorInfo> Mirrors { get; } = mirrors;
 	}
 
 	private readonly record struct BitInfo(string Name, ulong Value);
@@ -48,7 +48,11 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 			sym,
 			shape.DefaultIsInvalid,
 			shape.Members.Select(static m => new BitInfo(m.Field.Name, m.Value)).ToImmutableArray(),
-			shape.Mirrors.Select(static m => m.Enum.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).ToImmutableArray()
+			shape.Mirrors.Select(m => new MirrorInfo(
+				m.Enum.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+				// foreign types must stay out of public API, see IJDEV0100
+				ForeignTypes.IsForeign(m.Enum, ctx.SemanticModel.Compilation) ? "internal" : "public"
+			)).ToImmutableArray()
 		);
 	}
 
@@ -138,8 +142,12 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		sb.Append("\t\tpublic static ").Append(targetType).Append(" operator ~(").Append(targetType).Append(" val) => new(").Append(Constants.ClosedFlags.ValidateMethodName)
 			.Append("((~val.Mask) & ").Append(Constants.ClosedFlags.AllBitsConstName).AppendLine("));");
 
-		foreach (string mirror in info.MirrorTypeNames)
+		foreach ((string mirror, string access) in info.Mirrors) {
+			// operators must be public, so foreign mirrors only get the internal FromMirror helpers
+			if (access != "public")
+				continue;
 			sb.Append("\t\tpublic static explicit operator ").Append(mirror).Append('(').Append(targetType).Append(" value) => (").Append(mirror).AppendLine(")value.Mask;");
+		}
 
 		sb.AppendLine("\t\t/// <summary>");
 		sb.AppendLine("\t\t/// Returns the declared mask value for this value.");
@@ -191,10 +199,10 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		sb.AppendLine("\t\t\t\tthrow new global::System.ArgumentOutOfRangeException(nameof(mask), mask, null);");
 		sb.AppendLine("\t\t\t}");
 
-		foreach (string mirror in info.MirrorTypeNames) {
-			sb.Append("\t\t\tpublic static bool TryFromMirror(").Append(mirror).Append(" mirror, out ").Append(targetType)
+		foreach ((string mirror, string access) in info.Mirrors) {
+			sb.Append("\t\t\t").Append(access).Append(" static bool TryFromMirror(").Append(mirror).Append(" mirror, out ").Append(targetType)
 				.AppendLine(" val) => TryFromMask((Bits)mirror, out val);");
-			sb.Append("\t\t\tpublic static ").Append(targetType).Append(" FromMirror(").Append(mirror).AppendLine(" mirror) {");
+			sb.Append("\t\t\t").Append(access).Append(" static ").Append(targetType).Append(" FromMirror(").Append(mirror).AppendLine(" mirror) {");
 			sb.Append("\t\t\t\tif (TryFromMask((Bits)mirror, out ").Append(targetType).AppendLine(" val))");
 			sb.AppendLine("\t\t\t\t\treturn val;");
 			sb.AppendLine("\t\t\t\tthrow new global::System.ArgumentOutOfRangeException(nameof(mirror), mirror, null);");

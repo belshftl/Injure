@@ -11,9 +11,9 @@ namespace Injure.Input;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Created by <see cref="IInputSource.CreateCursor"/>, and only usable with the source that created
-/// it. A cursor is a plain value: copying it creates an independent cursor at the same position,
-/// and it doesn't need to be disposed.
+/// Created by <see cref="IInputSource.CreateCursor()"/>, and only usable with the source that
+/// created it. A cursor is a plain value: copying it creates an independent cursor at the same
+/// position, and it doesn't need to be disposed.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid; every source rejects it.

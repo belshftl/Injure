@@ -148,7 +148,7 @@ public readonly record struct HostGamepadButtonEvent(GamepadId Gamepad, GamepadB
 /// (<see cref="IHostEventSource.Clock"/>).
 /// </para>
 /// <para>
-/// <see cref="Window"/> is valid for all <c>Window*</c> kinds. For keyboard, text and pointer
+/// <see cref="Window"/> is valid for all <c>Window*</c> kinds. For keyboard, text, and pointer
 /// events, it is the window that had focus, or invalid if the source couldn't attribute the
 /// event to a window. It is always invalid for <see cref="HostEventKind.Quit"/> and gamepad events.
 /// </para>
@@ -226,7 +226,8 @@ public readonly struct HostEvent {
 	}
 
 	/// <summary>
-	/// Payload of <see cref="HostEventKind.WindowResized"/> and <see cref="HostEventKind.WindowPixelSizeChanged"/>.
+	/// Payload of <see cref="HostEventKind.WindowResized"/> and
+	/// <see cref="HostEventKind.WindowPixelSizeChanged"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <see cref="Kind"/> is neither of those.
@@ -287,7 +288,8 @@ public readonly struct HostEvent {
 	public HostPointerWheelEvent PointerWheel => require(Kind == HostEventKind.PointerWheel).payload.PointerWheel;
 
 	/// <summary>
-	/// Payload of <see cref="HostEventKind.GamepadAdded"/> and <see cref="HostEventKind.GamepadRemoved"/>.
+	/// Payload of <see cref="HostEventKind.GamepadAdded"/> and
+	/// <see cref="HostEventKind.GamepadRemoved"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <see cref="Kind"/> is neither of those.

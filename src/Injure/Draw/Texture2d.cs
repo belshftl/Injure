@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 using Injure.Assets;
 using Injure.Draw.PixelConv;
 using Injure.DevAnalyzers.Attributes;
-using Injure.Rendering;
+using Injure.Gpu;
 
 namespace Injure.Draw;
 
@@ -42,7 +42,7 @@ public readonly partial struct Texture2dFormat {
 /// </para>
 /// </remarks>
 public sealed class Texture2d : IRevokable, IDisposable {
-	private readonly WebGpuDevice device;
+	private readonly GpuDevice device;
 	private readonly GpuTexture texture;
 	private readonly GpuSampler sampler;
 	private GpuBindGroup? bindGroup = null;
@@ -64,7 +64,7 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	internal GpuBindGroupRef BindGroup {
 		get {
 			chk();
-			return (bindGroup ??= device.CreateStdColorTexture2dBindGroup(Texture, Sampler)).AsRef();
+			return (bindGroup ??= DrawDeviceResources.For(device).CreateColorTexture2dBindGroup(Texture, Sampler)).AsRef();
 		}
 	}
 
@@ -72,24 +72,24 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	/// Returns the underlying <see cref="GpuTexture"/>, bypassing ownership/lifetime/revocation contracts.
 	/// </summary>
 	/// <remarks>
-	/// See <c>Docs/conventions/dangerous-get.md</c> on <c>DangerousGet*</c> methods for more info.
+	/// See <c>docs/conventions/dangerous-get-create.md</c> on <c>DangerousGet*</c> methods for more info.
 	/// </remarks>
-	public GpuTexture DangerousGetGPUTexture() => Texture;
+	public GpuTexture DangerousGetGpuTexture() => Texture;
 
 	/// <summary>
 	/// Returns the underlying <see cref="GpuSampler"/>, bypassing ownership/lifetime/revocation contracts.
 	/// </summary>
 	/// <remarks>
-	/// See <c>Docs/conventions/dangerous-get.md</c> on <c>DangerousGet*</c> methods for more info.
+	/// See <c>docs/conventions/dangerous-get-create.md</c> on <c>DangerousGet*</c> methods for more info.
 	/// </remarks>
-	public GpuSampler DangerousGetGPUSampler() => Sampler;
+	public GpuSampler DangerousGetGpuSampler() => Sampler;
 
 	/// <summary>
 	/// Returns a standard color texture bind group with the texture's default
 	/// view and sampler, bypassing ownership/lifetime/revocation contracts.
 	/// </summary>
 	/// <remarks>
-	/// See <c>Docs/conventions/dangerous-get.md</c> on <c>DangerousGet*</c> methods for more info.
+	/// See <c>docs/conventions/dangerous-get-create.md</c> on <c>DangerousGet*</c> methods for more info.
 	/// </remarks>
 	public GpuBindGroupRef DangerousGetBindGroup() => BindGroup;
 
@@ -116,21 +116,21 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	/// <summary>
 	/// Creates an empty <see cref="Texture2d"/> with the given size and <see cref="Texture2dFormat.Rgba32_Unorm"/>.
 	/// </summary>
-	public Texture2d(WebGpuDevice device, uint width, uint height)
+	public Texture2d(GpuDevice device, uint width, uint height)
 		: this(device, new Texture2dCreateParams(width, height)) {
 	}
 
 	/// <summary>
 	/// Creates an empty <see cref="Texture2d"/> with the given size and format.
 	/// </summary>
-	public Texture2d(WebGpuDevice device, uint width, uint height, Texture2dFormat format)
+	public Texture2d(GpuDevice device, uint width, uint height, Texture2dFormat format)
 		: this(device, new Texture2dCreateParams(width, height, format)) {
 	}
 
 	/// <summary>
 	/// Creates an empty <see cref="Texture2d"/>.
 	/// </summary>
-	public Texture2d(WebGpuDevice device, in Texture2dCreateParams @params) {
+	public Texture2d(GpuDevice device, in Texture2dCreateParams @params) {
 		ArgumentNullException.ThrowIfNull(device);
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Width);
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Height);
@@ -150,7 +150,7 @@ public sealed class Texture2d : IRevokable, IDisposable {
 					DepthOrArrayLayers: 1,
 					MipLevelCount: 1,
 					SampleCount: 1,
-					Dimension: TextureDimension.Dimension2D,
+					Dimension: TextureDimension.Dimension2d,
 					Format: getTextureFormat(fmt),
 					Usage: TextureUsage.TextureBinding | TextureUsage.CopyDst
 				)
@@ -225,7 +225,7 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	/// <remarks>
 	/// This is used by the asset system when a leased <see cref="Texture2d"/> obtained by
 	/// borrowing a <see cref="AssetRef{Texture2d}"/> expires. Revocation is logical
-	/// invalidation only; the underlying GPU resources remain alive until <see cref="Dispose"/>.
+	/// invalidation only; the underlying GPU resources remain alive until <see cref="Dispose()"/>.
 	/// </remarks>
 	public void Revoke() {
 		Volatile.Write(ref revoked, 1);
@@ -245,11 +245,11 @@ public sealed class Texture2d : IRevokable, IDisposable {
 
 	private static TextureFormat getTextureFormat(Texture2dFormat fmt) => fmt.Tag switch {
 		Texture2dFormat.Case.R8_Unorm => TextureFormat.R8Unorm,
-		Texture2dFormat.Case.Rg16_Unorm => TextureFormat.RG8Unorm,
-		Texture2dFormat.Case.Rgba32_Unorm => TextureFormat.RGBA8Unorm,
-		Texture2dFormat.Case.Rgba32_Unorm_Srgb => TextureFormat.RGBA8UnormSrgb,
-		Texture2dFormat.Case.Bgra32_Unorm => TextureFormat.BGRA8Unorm,
-		Texture2dFormat.Case.Bgra32_Unorm_Srgb => TextureFormat.BGRA8UnormSrgb,
+		Texture2dFormat.Case.Rg16_Unorm => TextureFormat.Rg8Unorm,
+		Texture2dFormat.Case.Rgba32_Unorm => TextureFormat.Rgba8Unorm,
+		Texture2dFormat.Case.Rgba32_Unorm_Srgb => TextureFormat.Rgba8UnormSrgb,
+		Texture2dFormat.Case.Bgra32_Unorm => TextureFormat.Bgra8Unorm,
+		Texture2dFormat.Case.Bgra32_Unorm_Srgb => TextureFormat.Bgra8UnormSrgb,
 		_ => throw new UnreachableException(),
 	};
 

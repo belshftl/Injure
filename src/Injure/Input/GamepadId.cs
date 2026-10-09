@@ -11,7 +11,7 @@ namespace Injure.Input;
 /// </summary>
 /// <remarks>
 /// <para>
-/// IDs come from a single process-wide allocator (<see cref="Allocate"/>), so IDs minted by
+/// IDs come from a single process-wide allocator (<see cref="Allocate()"/>), so IDs minted by
 /// different event sources do not collide. A gamepad that is disconnected and reconnected gets a
 /// new ID.
 /// </para>

@@ -42,7 +42,7 @@ Every other opcode has exactly one encoding and no alternate compact encodings, 
 
 ## How branches are encoded
 
-Typically, IL-authoring APIs describe the target of a branch as a label; this includes this framework's `IlLabel` and MonoMod's `ILLabel`. This is much more convenient than what CIL actually does from a developer perspective, which is why patching frameworks opt to use labels.
+Typically, IL-authoring APIs describe the target of a branch as a label; this includes Injure's `IlLabel` and MonoMod's `ILLabel`. This is much more convenient than what CIL actually does from a developer perspective, which is why patching frameworks opt to use labels.
 
 In pure CIL, there are no labels. Instead, a branch stores the *displacement* to its target. A displacement is the signed number of bytes from the **end** of the branch instruction to the **start** of the target instruction. A positive displacement jumps forward (or downward, if you visualize code as executing top-to-bottom) and a negative displacement jumps backward (or upward).
 

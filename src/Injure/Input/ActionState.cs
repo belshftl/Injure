@@ -89,7 +89,7 @@ public readonly record struct StateAxis2dActionStateEntry(ActionId Action, State
 public readonly record struct ImpulseAxisActionStateEntry(ActionId Action, ImpulseAxisActionState State);
 
 /// <summary>
-/// An immutable copy of action states, e.g. from <see cref="ActionStateView.ToSnapshot"/>, for
+/// An immutable copy of action states, e.g. from <see cref="ActionStateView.ToSnapshot()"/>, for
 /// keeping beyond the step.
 /// </summary>
 public sealed class ActionStateSnapshot {
@@ -304,7 +304,8 @@ public readonly ref struct ImpulseAxisActionStateView {
 /// Read-only access to the states of all actions.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and contains no states, same as <see cref="Empty"/>.
+/// The <see langword="default"/> value is valid and contains no states, same as
+/// <see cref="Empty"/>.
 /// </remarks>
 public readonly ref struct ActionStateView {
 	/// <summary>Button action states.</summary>

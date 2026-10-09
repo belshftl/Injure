@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using Injure.Host;
+
 namespace Injure.Input;
 
 /// <summary>
-/// The result of one <see cref="ActionCtx.Update"/>: action states, the control events of the step,
-/// and the raw device state.
+/// The result of one <see cref="ActionCtx.Update(HostTick, in InputView)"/>: action states, the
+/// control events of the step, and the raw device state.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -14,7 +16,8 @@ namespace Injure.Input;
 /// such as showing which physical key is held.
 /// </para>
 /// <para>
-/// Only valid until the next <see cref="ActionCtx.Update"/> on the same context.
+/// Only valid until the next <see cref="ActionCtx.Update(HostTick, in InputView)"/> on the same
+/// context.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is an empty view: no action states, no events,

@@ -153,7 +153,7 @@ public readonly ref struct InputView {
 
 	/// <summary>
 	/// Whether events the cursor hadn't seen yet were already gone from the history (overwritten,
-	/// or discarded with <see cref="InputSystem.DiscardHistory"/>). If set, <see cref="Events"/> is
+	/// or discarded with <see cref="InputSystem.DiscardHistory()"/>). If set, <see cref="Events"/> is
 	/// empty.
 	/// </summary>
 	public bool HistoryLost { get; }

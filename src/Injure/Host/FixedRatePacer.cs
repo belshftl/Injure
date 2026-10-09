@@ -9,11 +9,12 @@ namespace Injure.Host;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The intended use is: do the work when <see cref="IsDue"/>, then call <see cref="Advance"/>, and
-/// wait until <see cref="Next"/> otherwise.
+/// The intended use is: do the work when <see cref="IsDue(HostTick)"/>, then call
+/// <see cref="Advance(HostTick)"/>, and wait until <see cref="Next"/> otherwise.
 /// </para>
 /// <para>
-/// Created through the <see cref="Skipping"/> or <see cref="CatchingUp"/> factories.
+/// Created through the <see cref="Skipping(HostDuration, HostTick)"/> or
+/// <see cref="CatchingUp(HostDuration, HostTick, int)"/> factories.
 /// </para>
 /// </remarks>
 public sealed class FixedRatePacer {

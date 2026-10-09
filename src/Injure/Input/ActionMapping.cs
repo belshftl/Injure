@@ -264,13 +264,14 @@ public sealed class ActionMapBuilder {
 /// A replaceable reference to the current <see cref="ActionMapSnapshot"/>, e.g. a player's control
 /// settings, shared by the <see cref="ActionCtx"/>s that evaluate it.
 /// </summary>
-/// <remarks>
-/// Thread-safe. Contexts pick up a replaced map on their next <see cref="ActionCtx.Update"/>.
-/// </remarks>
 /// <param name="initial">The initial map.</param>
 /// <exception cref="ArgumentNullException">
 /// Thrown if <paramref name="initial"/> is <see langword="null"/>.
 /// </exception>
+/// <remarks>
+/// Thread-safe. Contexts pick up a replaced map on their next
+/// <see cref="ActionCtx.Update(Host.HostTick, in InputView)"/>.
+/// </remarks>
 public sealed class ActionProfile(ActionMapSnapshot initial) {
 	private ActionMapSnapshot current = initial ?? throw new ArgumentNullException(nameof(initial));
 	private ulong version = 1;
@@ -279,7 +280,7 @@ public sealed class ActionProfile(ActionMapSnapshot initial) {
 	public ActionMapSnapshot Current => Volatile.Read(ref current);
 
 	/// <summary>
-	/// Incremented on every <see cref="Replace"/>; starts at 1.
+	/// Incremented on every <see cref="Replace(ActionMapSnapshot)"/>; starts at 1.
 	/// </summary>
 	public ulong Version => Volatile.Read(ref version);
 

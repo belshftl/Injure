@@ -18,7 +18,7 @@ namespace Injure.Host;
 /// </para>
 /// <para>
 /// There is deliberately no conversion from or to raw numbers other than
-/// <see cref="DangerousCreateFromRaw(ulong)"/> and <see cref="DangerousGetRaw"/>, since a raw
+/// <see cref="DangerousCreateFromRaw(ulong)"/> and <see cref="DangerousGetRaw()"/>, since a raw
 /// timestamp from some other source (e.g. an OS or library event timestamp) is only a valid
 /// <see cref="HostTick"/> if it happens to use the same clock and epoch.
 /// </para>

@@ -3,7 +3,7 @@
 
 using Hexa.NET.SDL3;
 using Injure.Host;
-using Injure.Rendering;
+using Injure.Gpu;
 using static Injure.Sdl.SdlException;
 
 namespace Injure.Sdl;
@@ -45,7 +45,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	public ISurfaceHost SurfaceHost { get; }
 
 	/// <summary>
-	/// Whether <see cref="Dispose"/> has been called.
+	/// Whether <see cref="Dispose()"/> has been called.
 	/// </summary>
 	public bool IsDisposed => handle is null;
 
@@ -121,6 +121,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, options.HighPixelDensity));
 			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_MINIMIZED_BOOLEAN, options.Mode == SdlWindowMode.Minimized));
 			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_MAXIMIZED_BOOLEAN, options.Mode == SdlWindowMode.Maximized));
+			if (OperatingSystem.IsMacOS())
+				Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN, true));
 			return createFrom(context, props);
 		} finally {
 			SDL.DestroyProperties(props);
@@ -136,8 +138,11 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// contracts it must uphold.
 	/// </param>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="context"/> is <see langword="null"/>; or, if on macOS, and
-	/// <c>SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN</c> is not set to true in <paramref name="props"/>.
+	/// Thrown if <paramref name="context"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if on macOS and <c>SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN</c> is not set to true in
+	/// <paramref name="props"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if called from a thread other than the one that created <paramref name="context"/>.
@@ -195,7 +200,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 	}
 
 	/// <summary>
-	/// Gets the underlying <c>SDL_Window</c>, bypassing ownership.
+	/// Gets the underlying <c>SDL_Window</c>, bypassing ownership/lifetime. Dangles once destroyed by
+	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
@@ -204,8 +210,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Thrown if this window has been disposed.
 	/// </exception>
 	/// <remarks>
-	/// The pointer dangles once this window is disposed, and destroying it through SDL directly breaks
-	/// this object. See <c>docs/conventions/dangerous-get.md</c>.
+	/// <b>The return type is not a stable API and may change without notice.</b> See
+	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public SDLWindow* DangerousGetHandle() {
 		CheckAccess();
@@ -213,8 +219,9 @@ public sealed unsafe class SdlWindow : IDisposable {
 	}
 
 	/// <summary>
-	/// Gets the <c>SDL_MetalView</c> created for this window on macOS, bypassing ownership, or
-	/// <see langword="null"/> on other platforms.
+	/// Gets the <c>SDL_MetalView</c> created for this window on macOS, bypassing ownership/lifetime,
+	/// or <see langword="null"/> on other platforms. Dangles once destroyed by
+	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
@@ -223,8 +230,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Thrown if this window has been disposed.
 	/// </exception>
 	/// <remarks>
-	/// The pointer dangles once this window is disposed, and destroying it through SDL directly breaks
-	/// this object. See <c>docs/conventions/dangerous-get.md</c>.
+	/// <b>The return type is not a stable API and may change without notice.</b> See
+	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public void* DangerousGetMetalView() {
 		CheckAccess();
@@ -232,8 +239,9 @@ public sealed unsafe class SdlWindow : IDisposable {
 	}
 
 	/// <summary>
-	/// Gets the <c>CAMetalLayer</c> of this window's Metal view on macOS, bypassing ownership, or
-	/// <see langword="null"/> on other platforms.
+	/// Gets the <c>CAMetalLayer</c> of this window's Metal view on macOS, bypassing
+	/// ownership/lifetime, or <see langword="null"/> on other platforms. Dangles once destroyed by
+	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
@@ -242,8 +250,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Thrown if this window has been disposed.
 	/// </exception>
 	/// <remarks>
-	/// The pointer dangles once this window is disposed, and destroying it through SDL directly breaks
-	/// this object. See <c>docs/conventions/dangerous-get.md</c>.
+	/// <b>The return type is not a stable API and may change without notice.</b> See
+	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public void* DangerousGetMetalLayer() {
 		CheckAccess();
@@ -333,7 +341,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Like every <c>Request*</c> method here, this is only a request: the window system may apply it
 	/// later, adjust it, or ignore it (e.g. for a maximized or fullscreen window). The outcome arrives
 	/// later as window events, and <see cref="State"/> changes once they're polled. Use
-	/// <see cref="TrySync"/> to wait for pending requests.
+	/// <see cref="TrySync()"/> to wait for pending requests.
 	/// </remarks>
 	public void RequestSize(int width, int height) {
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
@@ -345,8 +353,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <summary>
 	/// Asks the window system to move the window.
 	/// </summary>
-	/// <inheritdoc cref="RequestVisible" path="/exception"/>
-	/// <inheritdoc cref="RequestSize" path="/remarks"/>
+	/// <inheritdoc cref="RequestVisible(bool)" path="/exception"/>
+	/// <inheritdoc cref="RequestSize(int, int)" path="/remarks"/>
 	public void RequestPosition(SdlWindowPosition position) {
 		CheckAccess();
 		(int x, int y) = position.ToSdl();
@@ -356,8 +364,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <summary>
 	/// Asks the window system to enter or leave fullscreen.
 	/// </summary>
-	/// <inheritdoc cref="RequestVisible" path="/exception"/>
-	/// <inheritdoc cref="RequestSize" path="/remarks"/>
+	/// <inheritdoc cref="RequestVisible(bool)" path="/exception"/>
+	/// <inheritdoc cref="RequestSize(int, int)" path="/remarks"/>
 	public void RequestFullscreen(bool fullscreen) {
 		CheckAccess();
 		Check(SDL.SetWindowFullscreen(handle, fullscreen));
@@ -366,8 +374,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <summary>
 	/// Asks the window system to minimize, maximize, or restore the window.
 	/// </summary>
-	/// <inheritdoc cref="RequestVisible" path="/exception"/>
-	/// <inheritdoc cref="RequestSize" path="/remarks"/>
+	/// <inheritdoc cref="RequestVisible(bool)" path="/exception"/>
+	/// <inheritdoc cref="RequestSize(int, int)" path="/remarks"/>
 	public void RequestMode(SdlWindowMode mode) {
 		CheckAccess();
 		switch (mode.Tag) {
@@ -395,7 +403,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <exception cref="SdlException">
 	/// Thrown if the SDL call fails.
 	/// </exception>
-	/// <inheritdoc cref="RequestSize" path="/remarks"/>
+	/// <inheritdoc cref="RequestSize(int, int)" path="/remarks"/>
 	public void RequestVisible(bool visible) {
 		CheckAccess();
 		if (visible)

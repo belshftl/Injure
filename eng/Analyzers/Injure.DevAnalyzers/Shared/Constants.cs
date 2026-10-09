@@ -26,6 +26,7 @@ internal static class Constants {
 			"Normal",
 			"Empty",
 			"Unset",
+			"Unmapped",
 			"Null",
 			"Zero",
 			"NotHandled",

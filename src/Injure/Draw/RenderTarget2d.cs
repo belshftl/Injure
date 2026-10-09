@@ -3,7 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using Injure.Rendering;
+using Injure.Gpu;
 
 namespace Injure.Draw;
 
@@ -23,7 +23,7 @@ namespace Injure.Draw;
 /// </para>
 /// </remarks>
 public sealed class RenderTarget2d : IDisposable {
-	private readonly WebGpuDevice device;
+	private readonly GpuDevice device;
 	private readonly GpuTexture colorTexture;
 	private readonly GpuTexture? depthStencilTexture;
 	private readonly GpuTextureView? depthSampleView; // only for depth+stencil formats
@@ -112,7 +112,7 @@ public sealed class RenderTarget2d : IDisposable {
 	public GpuBindGroupRef ColorBindGroup {
 		get {
 			chk();
-			return (colorBindGroup ??= device.CreateStdColorTexture2dBindGroup(ColorView, ColorSampler)).AsRef();
+			return (colorBindGroup ??= DrawDeviceResources.For(device).CreateColorTexture2dBindGroup(ColorView, ColorSampler)).AsRef();
 		}
 	}
 
@@ -163,15 +163,15 @@ public sealed class RenderTarget2d : IDisposable {
 	public bool HasStencil => depthStencilTexture is not null && formatHasStencil(depthStencilTexture.Format);
 
 	/// <summary>
-	/// Creates a new <see cref="RenderTarget2d"/> with the given size and <see cref="TextureFormat.RGBA8Unorm"/>.
+	/// Creates a new <see cref="RenderTarget2d"/> with the given size and <see cref="TextureFormat.Rgba8Unorm"/>.
 	/// </summary>
-	public RenderTarget2d(WebGpuDevice device, uint width, uint height) : this(device, new RenderTarget2dCreateParams(width, height, TextureFormat.RGBA8Unorm)) {
+	public RenderTarget2d(GpuDevice device, uint width, uint height) : this(device, new RenderTarget2dCreateParams(width, height, TextureFormat.Rgba8Unorm)) {
 	}
 
 	/// <summary>
 	/// Creates a new <see cref="RenderTarget2d"/>.
 	/// </summary>
-	public RenderTarget2d(WebGpuDevice device, in RenderTarget2dCreateParams @params) {
+	public RenderTarget2d(GpuDevice device, in RenderTarget2dCreateParams @params) {
 		this.device = device ?? throw new ArgumentNullException(nameof(device));
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Width);
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Height);
@@ -188,7 +188,7 @@ public sealed class RenderTarget2d : IDisposable {
 					DepthOrArrayLayers: 1,
 					MipLevelCount: 1,
 					SampleCount: 1,
-					Dimension: TextureDimension.Dimension2D,
+					Dimension: TextureDimension.Dimension2d,
 					Format: @params.ColorFormat,
 					Usage: TextureUsage.RenderAttachment | TextureUsage.TextureBinding
 				)
@@ -201,7 +201,7 @@ public sealed class RenderTarget2d : IDisposable {
 						DepthOrArrayLayers: 1,
 						MipLevelCount: 1,
 						SampleCount: 1,
-						Dimension: TextureDimension.Dimension2D,
+						Dimension: TextureDimension.Dimension2d,
 						Format: fmt,
 						Usage: TextureUsage.RenderAttachment | TextureUsage.TextureBinding
 					)
@@ -241,7 +241,7 @@ public sealed class RenderTarget2d : IDisposable {
 	public GpuBindGroup CreateFilteringDepthBindGroup(GpuSamplerHandle sampler) {
 		chk();
 		GpuTextureViewRef view = DepthSampleView ?? throw new InvalidOperationException("render target has no depth attachment");
-		return device.CreateStdFilteringDepthTexture2dBindGroup(view, sampler);
+		return DrawDeviceResources.For(device).CreateFilteringDepthTexture2dBindGroup(view, sampler);
 	}
 
 	/// <summary>
@@ -254,7 +254,7 @@ public sealed class RenderTarget2d : IDisposable {
 	public GpuBindGroup CreateComparisonDepthBindGroup(GpuSamplerHandle sampler) {
 		chk();
 		GpuTextureViewRef view = DepthSampleView ?? throw new InvalidOperationException("render target has no depth attachment");
-		return device.CreateStdComparisonDepthTexture2dBindGroup(view, sampler);
+		return DrawDeviceResources.For(device).CreateComparisonDepthTexture2dBindGroup(view, sampler);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

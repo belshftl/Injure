@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Injure.Assets;
-using Injure.Rendering;
+using Injure.Gpu;
 
 namespace Injure.Draw;
 

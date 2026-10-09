@@ -32,6 +32,10 @@ internal readonly record struct ClosedTypeMember(IFieldSymbol Field, ulong Value
 
 internal readonly record struct ClosedTypeMirror(INamedTypeSymbol Enum, Location Location, bool Subset);
 
+// a mirror as the generators need it: the fully qualified type name, and the accessibility of the
+// conversions to/from it
+internal readonly record struct MirrorInfo(string TypeName, string Accessibility);
+
 internal sealed class ClosedTypeShape(
 	INamedTypeSymbol nestedEnum,
 	bool defaultIsInvalid,

@@ -15,9 +15,9 @@ namespace Injure.Input;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Call <see cref="Update"/> once per step with the input the consumer hasn't seen yet. Button
-/// actions are edge-driven from raw events; state axes are evaluated from the device state at the
-/// end of the step; impulse axes accumulate within the step.
+/// Call <see cref="Update(HostTick, in InputView)"/> once per step with the input the consumer
+/// hasn't seen yet. Button actions are edge-driven from raw events; state axes are evaluated from
+/// the device state at the end of the step; impulse axes accumulate within the step.
 /// </para>
 /// <para>
 /// If the profile's map changes or the input view reports lost history, this context resyncs from
@@ -54,8 +54,8 @@ public sealed class ActionCtx(ActionProfile profile) {
 	private ulong nextPressStamp = 1;
 
 	/// <summary>
-	/// Which gamepads hold each gamepad button. A gamepad button source counts as down while its set is
-	/// nonempty.
+	/// Which gamepads hold each gamepad button. A gamepad button source counts as down while its set
+	/// is nonempty.
 	/// </summary>
 	private readonly Dictionary<GamepadButton, HashSet<GamepadId>> gamepadButtonHolders = new();
 	private readonly Dictionary<InputButtonSource, bool> buttonSourceDown = new();

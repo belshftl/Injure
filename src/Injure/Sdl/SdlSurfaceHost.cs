@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using Hexa.NET.SDL3;
-using Injure.Rendering;
-using WebGPU;
+using Injure.Gpu;
 
 namespace Injure.Sdl;
 
@@ -15,28 +14,32 @@ internal sealed unsafe class SdlSurfaceHost(SdlWindow window) : ISurfaceHost {
 	private const string drvWindows = "windows";
 	private const string drvX11 = "x11";
 
-	public void CreateSurfaceDesc(WGPUSurfaceDescriptorContainer* container) {
-		ArgumentNullException.ThrowIfNull(container);
+	public SurfaceSource GetSurfaceSource() {
 		SDLWindow* win = window.DangerousGetHandle();
-		void* metalLayer = window.DangerousGetMetalLayer();
-
 		uint props = SDL.GetWindowProperties(win);
 		string drv = SDL.GetCurrentVideoDriverS();
 		switch (drv) {
-		case drvCocoa:
+		case drvCocoa: {
+			void* metalLayer = window.DangerousGetMetalLayer();
 			if (metalLayer is null)
 				throw new InternalStateException("cocoa video driver but no Metal layer");
-			getCocoa(metalLayer, container);
-			break;
+			return SurfaceSource.DangerousCreateFromMetalLayer((nint)metalLayer);
+		}
 		case drvWayland:
-			getWayland(props, container);
-			break;
+			return SurfaceSource.DangerousCreateFromWaylandSurface(
+				(nint)SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, null),
+				(nint)SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, null)
+			);
 		case drvWindows:
-			getWindows(props, container);
-			break;
+			return SurfaceSource.DangerousCreateFromWindowsHwnd(
+				(nint)SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_WIN32_HWND_POINTER, null),
+				(nint)SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, null)
+			);
 		case drvX11:
-			getX11(props, container);
-			break;
+			return SurfaceSource.DangerousCreateFromXlibWindow(
+				(nint)SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_X11_DISPLAY_POINTER, null),
+				(ulong)SDL.GetNumberProperty(props, SDL.SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0)
+			);
 		default:
 			throw new PlatformNotSupportedException($"unsupported SDL videodriver '{drv}'");
 		}
@@ -48,71 +51,5 @@ internal sealed unsafe class SdlSurfaceHost(SdlWindow window) : ISurfaceHost {
 		if (w < 0 || h < 0)
 			throw new InvalidOperationException("SDL_GetWindowSizeInPixels returned negative size");
 		return ((uint)w, (uint)h);
-	}
-
-	private static void getWindows(uint props, WGPUSurfaceDescriptorContainer* container) {
-		void* hwnd = SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_WIN32_HWND_POINTER, null);
-		void* hinstance = SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, null);
-
-		container->WindowsHwnd = new WGPUSurfaceSourceWindowsHWND {
-			chain = new WGPUChainedStruct {
-				sType = WGPUSType.SurfaceSourceWindowsHWND,
-				next = null,
-			},
-			hwnd = hwnd,
-			hinstance = hinstance,
-		};
-		container->Desc = new WGPUSurfaceDescriptor {
-			nextInChain = &container->WindowsHwnd.chain,
-		};
-	}
-
-	private static void getCocoa(void* metalLayer, WGPUSurfaceDescriptorContainer* container) {
-		container->MetalLayer = new WGPUSurfaceSourceMetalLayer {
-			chain = new WGPUChainedStruct {
-				sType = WGPUSType.SurfaceSourceMetalLayer,
-				next = null,
-			},
-			layer = metalLayer,
-		};
-		container->Desc = new WGPUSurfaceDescriptor {
-			nextInChain = &container->MetalLayer.chain,
-		};
-	}
-
-	private static void getX11(uint props, WGPUSurfaceDescriptorContainer* container) {
-		// xlib windows are 32-bit resource IDs, it's 64-bit here because
-		// C unsigned long is 64-bit on LP64 ABIs
-		void* dpy = SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_X11_DISPLAY_POINTER, null);
-		ulong win = (ulong)SDL.GetNumberProperty(props, SDL.SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
-
-		container->XlibWindow = new WGPUSurfaceSourceXlibWindow {
-			chain = new WGPUChainedStruct {
-				sType = WGPUSType.SurfaceSourceXlibWindow,
-				next = null,
-			},
-			display = dpy,
-			window = win,
-		};
-		container->Desc = new WGPUSurfaceDescriptor {
-			nextInChain = &container->XlibWindow.chain,
-		};
-	}
-
-	private static void getWayland(uint props, WGPUSurfaceDescriptorContainer* container) {
-		void* wl_display = SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, null);
-		void* wl_surface = SDL.GetPointerProperty(props, SDL.SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, null);
-
-		container->WaylandSurface = new WGPUSurfaceSourceWaylandSurface {
-			chain = new WGPUChainedStruct {
-				sType = WGPUSType.SurfaceSourceWaylandSurface,
-				next = null,
-			},
-			display = wl_display,
-			surface = wl_surface,
-		};
-		container->Desc = new WGPUSurfaceDescriptor {
-			nextInChain = &container->WaylandSurface.chain,
-		};
 	}
 }

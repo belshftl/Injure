@@ -41,9 +41,10 @@ public readonly record struct LayerBlockRule(LayerBlockMask Blocked, LayerTagSet
 /// by the ticker it was pushed with and may optionally render or receive input.
 /// </para>
 /// <para>
-/// Expensive preparation should be done in <see cref="WarmAsync"/>. Activation-bound
-/// services such as time domain, coroutines, <see cref="Host.IHostTickReceiver"/> auto-update,
-/// etc. are only available from <see cref="OnEnter"/> until <see cref="OnLeave"/> returns.
+/// Expensive preparation should be done in <see cref="WarmAsync(CancellationToken)"/>.
+/// Activation-bound services such as time domain, coroutines, <see cref="Host.IHostTickReceiver"/>
+/// auto-update, etc. are only available from <see cref="OnEnter()"/> until <see cref="OnLeave()"/>
+/// returns.
 /// </para>
 /// </remarks>
 public abstract class Layer {
@@ -70,7 +71,8 @@ public abstract class Layer {
 	protected CoroScheduler Coroutines => Runtime?.Coroutines ?? throw new InvalidOperationException(eMsg);
 
 	/// <summary>
-	/// Runtime-provided coroutine scope for this layer, intended to be paired with <see cref="Coroutines"/>.
+	/// Runtime-provided coroutine scope for this layer, intended to be paired with
+	/// <see cref="Coroutines"/>.
 	/// </summary>
 	/// <remarks>
 	/// This is an activation-bound service.
@@ -154,7 +156,8 @@ public abstract class Layer {
 	public abstract void Update(in LayerTickCtx ctx, in TickDeadline deadline);
 
 	/// <summary>
-	/// Called during rendering if this layer has the render feature and render is not blocked by a higher layer.
+	/// Called during rendering if this layer has the render feature and render is not blocked by a
+	/// higher layer.
 	/// </summary>
 	/// <param name="cv">Canvas for this render frame.</param>
 	public abstract void Render(Canvas cv);
