@@ -2,6 +2,8 @@
 
 This document describes the naming and doc comment conventions used throughout Injure. They apply to all code in this repository; code that predates a convention may not follow it yet, and fixing that is tracked in `TODO.md`.
 
+Name parts with a reserved meaning, such as `Ctx` or `Untyped`, are described in [`reserved-names.md`](reserved-names.md).
+
 ---
 
 ## Casing
@@ -12,22 +14,22 @@ Members use PascalCase if they are accessible from outside the declaring type, i
 
 ```csharp
 public sealed class Example {
-    public const int MaxBufferedReloadFailures;
-    public static readonly BlendState PremultipliedAlpha;
-    public int InstructionCount { get; }
-    public HostTick? EventAt;
-    public void PushTop(Layer layer, TickerHandle ticker);
+	public const int MaxBufferedReloadFailures;
+	public static readonly BlendState PremultipliedAlpha;
+	public int InstructionCount { get; }
+	public HostTick? EventAt;
+	public void PushTop(Layer layer, TickerHandle ticker);
 
-    private const string ownerId;
+	private const string ownerId;
 	private static readonly Regex whitespace;
-    private ulong oldestSeq { get; }
+	private ulong oldestSeq { get; }
 	private int inFlight;
 	private bool tryFindGamepad(GamepadId id, out int idx);
 
-    internal static readonly HostDuration SpinThreshold;
-    internal FontSourceKind SourceKind { get; }
-    internal readonly ulong RegistryId;
-    internal bool TryConsumeSignal();
+	internal static readonly HostDuration SpinThreshold;
+	internal FontSourceKind SourceKind { get; }
+	internal readonly ulong RegistryId;
+	internal bool TryConsumeSignal();
 }
 ```
 
@@ -74,15 +76,6 @@ A ubiquitous part of a name may be shortened if the shorter form is unambiguous 
 The rationale, which holds for members just as much as types, is that a name rarely tells you everything you need to know, so you'll read its docs anyways, but only once; after that, you read and type the name every time you use it. Rust's `Arc<T>` is a good example: `Arc` says almost nothing about what the type does, but even if it was named `AtomicallyRefCounted<T>`, you'd still have to read the docs to learn what it is: a smart pointer that updates a shared reference count on clone and drop, provides no interior mutability, is `Send + Sync` if `T` is, may hold an unsized type, and so on. After you have learned that, there's no more use in a verbose name, and a short one saves effort on every single use. The problem is not so much that reading three words is difficult, but that code becomes cluttered and lower in information density.
 
 This does not apply to rarely used names, where the reader is likely to have forgotten what the abbreviation means.
-
----
-
-## `Untyped` names
-
-The `Untyped` prefix (`IUntyped*` for interfaces, `Untyped*` otherwise) has two meanings:
-
-- **A non-generic view of a generic type.** An `IUntyped*` interface exposes the parts of a generic type that don't depend on its type arguments, so that instances with different type arguments can be handled together, e.g. stored in one collection. Example: `IUntypedAssetRef`, implemented by every `AssetRef<T>`.
-- **A variant of a normally generic type without its type parameters.** This is rare and mostly appears in internal mod-related code, when a lifetime identity type can't be named statically. Example: `UntypedModExportTable`, an internal type of the mod runtime. It stores a mod's exports without needing the lifetime identity at compile time, and is converted into the generic form with reflection before being handed to a mod.
 
 ---
 

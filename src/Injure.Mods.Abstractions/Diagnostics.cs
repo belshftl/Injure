@@ -232,7 +232,7 @@ public sealed class DiagnosticsSinkRegistration : IReloadTeardown {
 	/// <summary>
 	/// <see cref="IReloadTeardown"/> implementation; equivalent to <see cref="Remove()"/>.
 	/// </summary>
-	void IReloadTeardown.Teardown(in ReloadTeardownContext ctx) => Remove();
+	void IReloadTeardown.Teardown(in ReloadTeardownCtx ctx) => Remove();
 }
 
 /// <summary>

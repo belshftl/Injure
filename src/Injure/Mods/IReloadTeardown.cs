@@ -19,7 +19,7 @@ public readonly partial struct ReloadTeardownReason {
 	}
 }
 
-public readonly record struct ReloadTeardownContext(
+public readonly record struct ReloadTeardownCtx(
 	string OwnerId,
 	ReloadGeneration OldGeneration,
 	ReloadTeardownReason Reason
@@ -45,8 +45,8 @@ public interface IReloadTeardown {
 	/// <param name="ctx">Context describing the teardown reason and generation; primarily for diagnostics/debugging.</param>
 	/// <remarks>
 	/// Implementations must be idempotent, not depend on ordering relative to other
-	/// <see cref="Teardown(in ReloadTeardownContext)"/> calls, and may run on any arbitrary thread.
+	/// <see cref="Teardown(in ReloadTeardownCtx)"/> calls, and may run on any arbitrary thread.
 	/// </remarks>
 	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
-	void Teardown(in ReloadTeardownContext ctx);
+	void Teardown(in ReloadTeardownCtx ctx);
 }

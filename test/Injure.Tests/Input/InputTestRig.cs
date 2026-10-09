@@ -20,13 +20,13 @@ internal sealed record InputStep(
 internal sealed class InputRig {
 	public readonly InputSystem Input;
 	public readonly ActionProfile Profile;
-	public readonly ActionCtx Ctx;
+	public readonly ActionTracker Tracker;
 	public InputCursor Cursor;
 
 	public InputRig(ActionMapSnapshot map, int capacity = 256) {
 		Input = new InputSystem(capacity);
 		Profile = new ActionProfile(map);
-		Ctx = new ActionCtx(Profile);
+		Tracker = new ActionTracker(Profile);
 		Cursor = Input.CreateCursor();
 	}
 
@@ -37,7 +37,7 @@ internal sealed class InputRig {
 	}
 
 	public InputStep Step() {
-		ControlView view = Ctx.Update(Ev.Tm, Input.CreateViewAndAdvance(ref Cursor));
+		ControlView view = Tracker.Update(Ev.Tm, Input.CreateViewAndAdvance(ref Cursor));
 		return new InputStep(view.Actions.ToSnapshot(), view.Events.ToArray().ToList(), view.RawKeyboard, view.RawPointer, view.RawGamepads);
 	}
 

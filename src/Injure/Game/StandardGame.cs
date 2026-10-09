@@ -30,7 +30,7 @@ namespace Injure.Game;
 /// comes first).
 /// </para>
 /// <para>
-/// Everything this class does is built from public APIs (<see cref="SdlContext"/>,
+/// Everything this class does is built from public APIs (<see cref="SdlInstance"/>,
 /// <see cref="SdlWindow"/>, <see cref="IHostEventSource"/>, <see cref="HostWait"/>,
 /// <see cref="FixedRatePacer"/>, <see cref="TickerScheduler"/>, ...); a game that needs a
 /// different structure is expected to write its own loop from those instead of customizing this
@@ -39,7 +39,7 @@ namespace Injure.Game;
 /// </remarks>
 public abstract class StandardGame {
 	private sealed class Session {
-		public required SdlContext Sdl;
+		public required SdlInstance Sdl;
 		public required SdlWindow Window;
 		public required GpuDevice GpuDevice;
 		public required SurfaceRenderOutput RenderOutput;
@@ -50,7 +50,7 @@ public abstract class StandardGame {
 		public required ActionRegistry Actions;
 		public required EngineResourceStore EngineResources;
 		public required AssetStore? Assets;
-		public required AssetThreadCtx? AssetCtx;
+		public required AssetThreadAttachment? AssetAttachment;
 		public required TextSystem? Text;
 		public FixedRatePacer? RenderPacer; // null = uncapped
 	}
@@ -85,10 +85,10 @@ public abstract class StandardGame {
 	private Session current => session ?? throw new InvalidOperationException("only available while Run is executing, from OnInit until OnShutdown returns");
 
 	/// <summary>
-	/// The SDL context.
+	/// The SDL instance.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected SdlContext Sdl => current.Sdl;
+	protected SdlInstance Sdl => current.Sdl;
 
 	/// <summary>
 	/// The game's window.
@@ -151,10 +151,10 @@ public abstract class StandardGame {
 	protected AssetStore Assets => current.Assets ?? throw new InvalidOperationException("the asset store is not enabled (StandardGameOptions.Assets)");
 
 	/// <summary>
-	/// The main thread's asset thread context.
+	/// The main thread's attachment to <see cref="Assets"/>.
 	/// </summary>
 	/// <inheritdoc cref="Assets" path="/exception"/>
-	protected AssetThreadCtx AssetMainThreadContext => current.AssetCtx ?? throw new InvalidOperationException("the asset store is not enabled (StandardGameOptions.Assets)");
+	protected AssetThreadAttachment AssetMainThreadAttachment => current.AssetAttachment ?? throw new InvalidOperationException("the asset store is not enabled (StandardGameOptions.Assets)");
 
 	/// <summary>
 	/// The text system.
@@ -274,16 +274,16 @@ public abstract class StandardGame {
 			throw new InvalidOperationException("a StandardGame instance can only be run once");
 		Volatile.Write(ref quitRequested, 0);
 
-		SdlContext? sdl = null;
+		SdlInstance? sdl = null;
 		SdlWindow? window = null;
 		GpuDevice? gpuDevice = null;
 		SurfaceRenderOutput? renderOutput = null;
 		ViewGlobals? viewGlobals = null;
 		CanvasSharedResources? canvasResources = null;
-		AssetThreadCtx? assetCtx = null;
+		AssetThreadAttachment? assetAttachment = null;
 		TextSystem? text = null;
 		try {
-			sdl = SdlContext.Init(options.Sdl);
+			sdl = SdlInstance.Init(options.Sdl);
 			window = SdlWindow.Create(sdl, options.Window);
 			gpuDevice = new GpuDevice(options.GpuDevice with { CompatibleHost = window.SurfaceHost });
 			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, options.PresentModePolicy);
@@ -297,7 +297,7 @@ public abstract class StandardGame {
 				assets = new AssetStore();
 				BuiltinAssetRegistrations.RegisterBaseInto(assets);
 				BuiltinAssetRegistrations.RegisterTexture2dInto(assets, gpuDevice);
-				assetCtx = assets.AttachCurrentThread();
+				assetAttachment = assets.AttachCurrentThread();
 			}
 			if (options.Text) {
 				text = new TextSystem(gpuDevice);
@@ -321,7 +321,7 @@ public abstract class StandardGame {
 				Actions = new ActionRegistry(),
 				EngineResources = engineResources,
 				Assets = assets,
-				AssetCtx = assetCtx,
+				AssetAttachment = assetAttachment,
 				Text = text,
 				RenderPacer = makeRenderPacer(options.MaxFps, sdl.Clock.Now),
 			};
@@ -336,7 +336,7 @@ public abstract class StandardGame {
 			session = null;
 			canvasResources?.Dispose();
 			text?.Dispose();
-			assetCtx?.Dispose();
+			assetAttachment?.Dispose();
 			viewGlobals?.Dispose();
 			renderOutput?.Dispose();
 			gpuDevice?.Dispose();
@@ -356,7 +356,7 @@ public abstract class StandardGame {
 			}
 
 			// TODO: the mod safe boundary needs its own design, for now it's asset reloads only
-			ses.AssetCtx?.AtSafeBoundary();
+			ses.AssetAttachment?.AtSafeBoundary();
 			ses.Assets?.ApplyQueuedReloads();
 
 			ses.Tickers.ApplyPending();

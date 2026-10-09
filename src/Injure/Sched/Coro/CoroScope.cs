@@ -73,7 +73,7 @@ public sealed class CoroScope : IReloadTeardown, IDisposable {
 	internal bool TryRegister(CoroHandle handle) => !Cancelled && members.Add(handle);
 	internal void Unregister(CoroHandle handle) => members.Remove(handle);
 
-	public void Teardown(in ReloadTeardownContext ctx) => Cancel();
+	public void Teardown(in ReloadTeardownCtx ctx) => Cancel();
 
 	[SatisfiesObjectObligation(ObligationSatisfactionLevel.Method)]
 	public void Dispose() => Cancel();

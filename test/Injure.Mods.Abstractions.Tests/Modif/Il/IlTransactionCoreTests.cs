@@ -9,7 +9,7 @@ using Injure.Mods.Abstractions.Modif.Il.Metadata;
 namespace Injure.Mods.Abstractions.Tests.Modif.Il;
 
 public sealed class IlTransactionCoreTests {
-	private static IlTransactionCore open(IlMethodBody body, IlOwnerCtx ctx = default) => new(body, IlTest.OwnerId, IlTest.LocalId, ctx, null);
+	private static IlTransactionCore open(IlMethodBody body, IlOwnerInfo info = default) => new(body, IlTest.OwnerId, IlTest.LocalId, info, null);
 	private static int boundaryOf(IlMethodBody body, IlAnchorId anchor) => body.GetAnchorBoundary(anchor);
 
 	// ==========================================================================================
@@ -326,7 +326,7 @@ public sealed class IlTransactionCoreTests {
 
 	private const string reloadableAssembly = "Reloadable";
 
-	private static IlOwnerCtx reloadableCtx() => new(
+	private static IlOwnerInfo reloadableInfo() => new(
 		new Dictionary<string, (string, bool)> { [reloadableAssembly] = ("reloadable", true) },
 		new HashSet<string>()
 	);
@@ -503,14 +503,14 @@ public sealed class IlTransactionCoreTests {
 
 	[Fact]
 	public static void ReloadableValueTypeLocalIsRejected() {
-		IlTransactionCore core = open(new BodyBuilder().Ret().Build(), reloadableCtx());
+		IlTransactionCore core = open(new BodyBuilder().Ret().Build(), reloadableInfo());
 
 		Assert.Throws<IlCollectibleReferenceException>(() => core.DeclareLocal(reloadableStruct()));
 	}
 
 	[Fact]
 	public static void ByrefToReloadableValueTypeLocalIsAccepted() {
-		IlTransactionCore core = open(new BodyBuilder().Ret().Build(), reloadableCtx());
+		IlTransactionCore core = open(new BodyBuilder().Ret().Build(), reloadableInfo());
 
 		IlLocal local = core.DeclareLocal(IlRefFactory.ByRef(reloadableStruct()));
 

@@ -53,7 +53,7 @@ public sealed class AssetStoreRegistration : IReloadTeardown {
 	/// <summary>
 	/// <see cref="IReloadTeardown"/> implementation; equivalent to <see cref="Remove()"/>.
 	/// </summary>
-	public void Teardown(in ReloadTeardownContext ctx) => Remove();
+	public void Teardown(in ReloadTeardownCtx ctx) => Remove();
 }
 
 /// <summary>
@@ -73,7 +73,7 @@ public sealed class AssetStoreRegistration : IReloadTeardown {
 /// </para>
 /// <para>
 /// Threads may attach to the store with <see cref="AttachCurrentThread()"/> and
-/// report quiescent points with <see cref="AssetThreadCtx.AtSafeBoundary()"/> (or the convenience
+/// report quiescent points with <see cref="AssetThreadAttachment.AtSafeBoundary()"/> (or the convenience
 /// method <see cref="AtSafeBoundary()"/>). When reloads are published, previously live versions are
 /// not reclaimed immediately; instead, the reclamation is deferred until every attached thread
 /// has passed a safe boundary after that publication. In other words, call <see cref="AtSafeBoundary()"/>
@@ -650,13 +650,13 @@ public sealed class AssetStore {
 	private ImmutableDictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>> creators = ImmutableDictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>>.Empty;
 
 	// ==========================================================================
-	// publication / reclamation / thread context bookkeeping
+	// publication / reclamation / thread attachment bookkeeping
 	private readonly ConcurrentQueue<PendingRetired> retired = new();
 	private ulong publishedEpoch = 0;
 	internal ulong GetPublishedEpoch() => Volatile.Read(ref publishedEpoch);
 
-	[ThreadStatic] private static Dictionary<ulong, AssetThreadCtx>? tlsContextsByStoreId;
-	private readonly ConcurrentDictionary<ulong, AssetThreadCtx> attachedContextsByCtxId = new();
+	[ThreadStatic] private static Dictionary<ulong, AssetThreadAttachment>? tlsAttachmentsByStoreId;
+	private readonly ConcurrentDictionary<ulong, AssetThreadAttachment> attachedThreadsById = new();
 
 	// ==========================================================================
 	// dependency bookkeeping
@@ -708,7 +708,7 @@ public sealed class AssetStore {
 	/// asset version reclamation tracking.
 	/// </summary>
 	/// <returns>
-	/// An <see cref="AssetThreadCtx"/> object representing this thread's participation
+	/// An <see cref="AssetThreadAttachment"/> object representing this thread's participation
 	/// in this store's safe-boundary / deferred-reclaim model.
 	/// </returns>
 	/// <remarks>
@@ -718,34 +718,34 @@ public sealed class AssetStore {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the current thread is already attached to this store.
 	/// </exception>
-	public AssetThreadCtx AttachCurrentThread() {
-		AssetThreadCtx ctx = new(this);
-		tlsContextsByStoreId ??= new Dictionary<ulong, AssetThreadCtx>();
-		if (tlsContextsByStoreId.ContainsKey(StoreId))
+	public AssetThreadAttachment AttachCurrentThread() {
+		AssetThreadAttachment attachment = new(this);
+		tlsAttachmentsByStoreId ??= new Dictionary<ulong, AssetThreadAttachment>();
+		if (tlsAttachmentsByStoreId.ContainsKey(StoreId))
 			throw new InvalidOperationException("current thread is already attached to this AssetStore");
-		if (!attachedContextsByCtxId.TryAdd(ctx.Id, ctx))
-			throw new InternalStateException("duplicate asset thread context id");
-		tlsContextsByStoreId.Add(StoreId, ctx);
-		Volatile.Write(ref ctx.QuiescentEpoch, Volatile.Read(ref publishedEpoch));
-		return ctx;
+		if (!attachedThreadsById.TryAdd(attachment.Id, attachment))
+			throw new InternalStateException("duplicate asset thread attachment id");
+		tlsAttachmentsByStoreId.Add(StoreId, attachment);
+		Volatile.Write(ref attachment.QuiescentEpoch, Volatile.Read(ref publishedEpoch));
+		return attachment;
 	}
 
 	/// <summary>
-	/// Reports a safe boundary for the current thread's attached context in this store.
+	/// Reports a safe boundary for the current thread's attachment to this store.
 	/// </summary>
 	/// <remarks>
-	/// This method is a convenience wrapper over <see cref="AssetThreadCtx.AtSafeBoundary()"/>
-	/// for the current thread's attached context in this store.
+	/// This method is a convenience wrapper over <see cref="AssetThreadAttachment.AtSafeBoundary()"/>
+	/// for the current thread's attachment to this store.
 	/// </remarks>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the current thread is not attached to this store.
 	/// </exception>
 	public void AtSafeBoundary() {
-		if (tlsContextsByStoreId is null || !tlsContextsByStoreId.TryGetValue(StoreId, out AssetThreadCtx? ctx))
+		if (tlsAttachmentsByStoreId is null || !tlsAttachmentsByStoreId.TryGetValue(StoreId, out AssetThreadAttachment? attachment))
 			throw new InvalidOperationException(
 				"the current thread is not attached to this AssetStore. if you're using Task/etc., crossing an await is not guaranteed to resume on the same physical thread, use a real Thread"
 			);
-		ctx.AtSafeBoundary();
+		attachment.AtSafeBoundary();
 	}
 
 	/// <summary>
@@ -1134,9 +1134,9 @@ public sealed class AssetStore {
 
 	// ==========================================================================
 	// internal api
-	internal void DetachThread(AssetThreadCtx ctx) {
-		attachedContextsByCtxId.TryRemove(ctx.Id, out _);
-		if (tlsContextsByStoreId is null || !tlsContextsByStoreId.Remove(StoreId))
+	internal void DetachThread(AssetThreadAttachment attachment) {
+		attachedThreadsById.TryRemove(attachment.Id, out _);
+		if (tlsAttachmentsByStoreId is null || !tlsAttachmentsByStoreId.Remove(StoreId))
 			throw new InvalidOperationException(
 				"tried to detach a thread that is not attached to this AssetStore. if you're using Task/etc., crossing an await is not guaranteed to resume on the same physical thread, use a real Thread"
 			);
@@ -1156,8 +1156,8 @@ public sealed class AssetStore {
 
 	internal void TryCollectRetired() {
 		ulong cutoff = ulong.MaxValue;
-		foreach (AssetThreadCtx ctx in attachedContextsByCtxId.Values) {
-			ulong e = Volatile.Read(ref ctx.QuiescentEpoch);
+		foreach (AssetThreadAttachment attachment in attachedThreadsById.Values) {
+			ulong e = Volatile.Read(ref attachment.QuiescentEpoch);
 			cutoff = Math.Min(e, cutoff);
 		}
 		while (retired.TryPeek(out PendingRetired? rv) && rv.RetireEpoch <= cutoff) {

@@ -12,7 +12,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// The <see langword="default"/> value is valid and describes an environment with no loaded mods
 /// and no declared dependencies by the current owner.
 /// </remarks>
-internal readonly struct IlOwnerCtx {
+internal readonly struct IlOwnerInfo {
 	/// <summary>
 	/// Info on loaded code owners (engine, game, and code mods), in the form of simple assembly names (keys)
 	/// to owner ID + reloadability (values).
@@ -20,7 +20,7 @@ internal readonly struct IlOwnerCtx {
 	public FrozenDictionary<string, (string OwnerId, bool IsReloadable)> CodeOwnerInfo => field ?? FrozenDictionary<string, (string OwnerId, bool IsReloadable)>.Empty;
 	public FrozenSet<string> DeclaredDeps => field ?? [];
 
-	public IlOwnerCtx(IReadOnlyDictionary<string, (string OwnerId, bool isReloadable)> codeOwnerInfo, IReadOnlySet<string> declaredDeps) {
+	public IlOwnerInfo(IReadOnlyDictionary<string, (string OwnerId, bool isReloadable)> codeOwnerInfo, IReadOnlySet<string> declaredDeps) {
 		InternalStateException.ThrowIfNull(codeOwnerInfo);
 		InternalStateException.ThrowIfNull(declaredDeps);
 		CodeOwnerInfo = codeOwnerInfo.ToFrozenDictionary(StringComparer.Ordinal);

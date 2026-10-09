@@ -17,10 +17,10 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// The <see langword="default"/> value is valid and formats every anchor by ID.
 /// </para>
 /// </remarks>
-internal readonly struct IlFormatCtx {
+internal readonly struct IlFormatInfo {
 	private readonly IlSnapshot? snapshot;
 
-	public IlFormatCtx(IlSnapshot snapshot) {
+	public IlFormatInfo(IlSnapshot snapshot) {
 		InternalStateException.ThrowIfNull(snapshot);
 		this.snapshot = snapshot;
 	}

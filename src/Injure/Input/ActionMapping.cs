@@ -262,15 +262,15 @@ public sealed class ActionMapBuilder {
 
 /// <summary>
 /// A replaceable reference to the current <see cref="ActionMapSnapshot"/>, e.g. a player's control
-/// settings, shared by the <see cref="ActionCtx"/>s that evaluate it.
+/// settings, shared by the <see cref="ActionTracker"/>s that evaluate it.
 /// </summary>
 /// <param name="initial">The initial map.</param>
 /// <exception cref="ArgumentNullException">
 /// Thrown if <paramref name="initial"/> is <see langword="null"/>.
 /// </exception>
 /// <remarks>
-/// Thread-safe. Contexts pick up a replaced map on their next
-/// <see cref="ActionCtx.Update(Host.HostTick, in InputView)"/>.
+/// Thread-safe. Trackers pick up a replaced map on their next
+/// <see cref="ActionTracker.Update(Host.HostTick, in InputView)"/>.
 /// </remarks>
 public sealed class ActionProfile(ActionMapSnapshot initial) {
 	private ActionMapSnapshot current = initial ?? throw new ArgumentNullException(nameof(initial));

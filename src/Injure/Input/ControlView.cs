@@ -6,7 +6,7 @@ using Injure.Host;
 namespace Injure.Input;
 
 /// <summary>
-/// The result of one <see cref="ActionCtx.Update(HostTick, in InputView)"/>: action states, the
+/// The result of one <see cref="ActionTracker.Update(HostTick, in InputView)"/>: action states, the
 /// control events of the step, and the raw device state.
 /// </summary>
 /// <remarks>
@@ -16,8 +16,8 @@ namespace Injure.Input;
 /// such as showing which physical key is held.
 /// </para>
 /// <para>
-/// Only valid until the next <see cref="ActionCtx.Update(HostTick, in InputView)"/> on the same
-/// context.
+/// Only valid until the next <see cref="ActionTracker.Update(HostTick, in InputView)"/> on the same
+/// tracker.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is an empty view: no action states, no events,
@@ -26,7 +26,7 @@ namespace Injure.Input;
 /// </remarks>
 public readonly ref struct ControlView {
 	/// <summary>
-	/// States of all actions bound in the context's current map.
+	/// States of all actions bound in the tracker's current map.
 	/// </summary>
 	public ActionStateView Actions { get; }
 

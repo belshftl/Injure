@@ -87,7 +87,7 @@ public readonly struct SdlWindowPosition : IEquatable<SdlWindowPosition> {
 }
 
 /// <summary>
-/// Options for <see cref="SdlWindow.Create(SdlContext, in SdlWindowOptions)"/>.
+/// Options for <see cref="SdlWindow.Create(SdlInstance, in SdlWindowOptions)"/>.
 /// </summary>
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since it has a <see langword="null"/> title and

@@ -7,7 +7,7 @@ namespace Injure.Sdl;
 
 /// <summary>
 /// A snapshot of an <see cref="SdlWindow"/>'s state, as of the last window event that went through
-/// <see cref="SdlContext.Events"/> or the last immediate setter call.
+/// <see cref="SdlInstance.Events"/> or the last immediate setter call.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -75,7 +75,7 @@ public readonly struct SdlWindowState {
 	public bool HasPointer { get; internal init; }
 
 	/// <summary>
-	/// When this state last changed, on <see cref="SdlContext.Clock"/>.
+	/// When this state last changed, on <see cref="SdlInstance.Clock"/>.
 	/// </summary>
 	public HostTick UpdatedAt { get; internal init; }
 }

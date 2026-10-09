@@ -45,7 +45,7 @@ internal sealed class IlTransactionCore {
 	private readonly IlMethodBody working;
 	private readonly InternalIlProvenance provenance;
 	private readonly IlSnapshot snapshot;
-	private readonly IlFormatCtx formatContext;
+	private readonly IlFormatInfo formatInfo;
 	private readonly ulong transactionId;
 	private readonly Dictionary<int, LabelState> labels = new();
 	private readonly List<IlTypeRef> declaredLocals = new();
@@ -57,7 +57,7 @@ internal sealed class IlTransactionCore {
 
 	public string OwnerId { get; }
 	public string? LocalId { get; }
-	public IlOwnerCtx OwnerContext { get; }
+	public IlOwnerInfo OwnerInfo { get; }
 	public IIlCallDispatch? CallDispatch { get; }
 	public string TargetMethodDisplayName => working.Method.ToString();
 	public IlMethodRef TargetMethod {
@@ -89,7 +89,7 @@ internal sealed class IlTransactionCore {
 		IlMethodBody working,
 		string ownerId,
 		string? localId,
-		IlOwnerCtx ownerContext,
+		IlOwnerInfo ownerInfo,
 		IIlCallDispatch? callDispatch
 	) {
 		InternalStateException.ThrowIfNull(working);
@@ -98,13 +98,13 @@ internal sealed class IlTransactionCore {
 		this.working = working;
 		provenance = new InternalIlProvenance(ownerId, localId);
 		snapshot = new IlSnapshot(working);
-		formatContext = new IlFormatCtx(snapshot);
+		formatInfo = new IlFormatInfo(snapshot);
 		transactionId = Interlocked.Increment(ref nextTransactionId);
 		if (transactionId == 0)
 			throw new InternalStateException("transaction ID counter wrapped to zero");
 		OwnerId = ownerId;
 		LocalId = localId;
-		OwnerContext = ownerContext;
+		OwnerInfo = ownerInfo;
 		CallDispatch = callDispatch;
 	}
 
@@ -120,7 +120,7 @@ internal sealed class IlTransactionCore {
 		ArgumentNullException.ThrowIfNull(type);
 		if (type.IsVoid)
 			throw new ArgumentException("a local cannot be of type void", nameof(type));
-		IlTypeRestrictionCheck.AssertUnrestricted($"local of type {type}", IlTypeRestrictionCheck.CheckSignatureType(type, OwnerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"local of type {type}", IlTypeRestrictionCheck.CheckSignatureType(type, OwnerInfo));
 
 		int index = snapshot.Locals.Length + declaredLocals.Count;
 		if (index > ushort.MaxValue)
@@ -144,7 +144,7 @@ internal sealed class IlTransactionCore {
 			throw new ArgumentOutOfRangeException(nameof(boundary));
 
 		IlFragmentBuilder builder = new(transactionId, labels.Keys.ToHashSet());
-		emit(new IlEmitter(builder, OwnerContext, CallDispatch));
+		emit(new IlEmitter(builder, OwnerInfo, CallDispatch));
 		IlFragment fragment = builder.Finish();
 
 		foreach (int labelId in fragment.MarkedLabels)
@@ -179,7 +179,7 @@ internal sealed class IlTransactionCore {
 				start++;
 			}
 		}
-		IlPatternSearchInfo info = new(0, IlSearchDirection.Forward, pattern, provenanceConstraint, formatContext);
+		IlPatternSearchInfo info = new(0, IlSearchDirection.Forward, pattern, provenanceConstraint, formatInfo);
 		return new IlMatches(this, matches.ToArray(), info);
 	}
 
@@ -196,7 +196,7 @@ internal sealed class IlTransactionCore {
 		for (int start = startBoundary; start <= lastStart; start++)
 			if (matchesAt(start, pattern, provenanceConstraint))
 				return new IlMatch(this, new IlRange(start, start + pattern.Length));
-		IlPatternSearchInfo info = new(startBoundary, IlSearchDirection.Forward, pattern, provenanceConstraint, formatContext);
+		IlPatternSearchInfo info = new(startBoundary, IlSearchDirection.Forward, pattern, provenanceConstraint, formatInfo);
 		throw IlMatchException.ExpectedAny(in info);
 	}
 
@@ -212,7 +212,7 @@ internal sealed class IlTransactionCore {
 		for (int start = endBoundary - pattern.Length; start >= 0; start--)
 			if (matchesAt(start, pattern, provenanceConstraint))
 				return new IlMatch(this, new IlRange(start, start + pattern.Length));
-		IlPatternSearchInfo info = new(endBoundary, IlSearchDirection.Backward, pattern, provenanceConstraint, formatContext);
+		IlPatternSearchInfo info = new(endBoundary, IlSearchDirection.Backward, pattern, provenanceConstraint, formatInfo);
 		throw IlMatchException.ExpectedAny(in info);
 	}
 

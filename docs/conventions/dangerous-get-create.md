@@ -25,7 +25,7 @@ A member gets the prefix if, and only if, it lets the caller break an invariant 
 - **Unverifiable input.** The member accepts a value that Injure can't check, and trusts the caller that it is valid.
   - `DangerousCreateFromRaw(ulong ns)` trusts that the raw value comes from the same clock as every other `HostTick` in the program. A value from any other clock creates a bogus value that's, on the surface, indistinguishable from a correct one.
   - `SurfaceSource.DangerousCreateFrom*` trusts that the native handles are valid and stay valid while a surface uses them; only null handles are rejected.
-  - `SdlWindow.DangerousCreateFromProperties(SdlContext context, uint props)` trusts the caller with raw SDL window creation properties, including setting the ones Injure relies on.
+  - `SdlWindow.DangerousCreateFromProperties(SdlInstance context, uint props)` trusts the caller with raw SDL window creation properties, including setting the ones Injure relies on.
 - **Bypassing engine processing.** The member gives access to data before, or instead of, the processing Injure would normally do on it.
   - `SdlEventSource.DangerousGetNextRaw()` removes an SDL event from the queue before Injure translates it. The caller becomes responsible for passing every such event to `DangerousCreateHostEvent(in SDLEvent ev, out HostEvent result)` exactly once, in order to keep things such as Injure's gamepad tracking up to date.
 - **Foreign types.** The member exposes a type from a dependency, such as the WebGPU or SDL bindings, as a return value or parameter. This is never the only reason for the prefix: a foreign type always comes with one of the reasons above, typically an unmanaged lifetime. It does, however, affect stability; see [Stability](#stability).

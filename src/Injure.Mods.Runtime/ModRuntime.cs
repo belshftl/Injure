@@ -20,8 +20,8 @@ using Injure.Mods.Runtime.Modif.Profiler;
 
 namespace Injure.Mods.Runtime;
 
-public readonly struct ModApiFactoryContext {
-	internal ModApiFactoryContext(string forOwnerId, IUntypedBoundedScope ownerScope) {
+public readonly struct ModApiFactoryCtx {
+	internal ModApiFactoryCtx(string forOwnerId, IUntypedBoundedScope ownerScope) {
 		ForOwnerId = forOwnerId;
 		OwnerScope = ownerScope;
 	}
@@ -35,7 +35,7 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public required IReadOnlyList<Assembly> GameAssemblies { get; init; }
 	public required string ModDirectory { get; init; }
 	public required string CacheDirectory { get; init; }
-	public required Func<ModApiFactoryContext, TGameApi> ApiFactory { get; init; }
+	public required Func<ModApiFactoryCtx, TGameApi> ApiFactory { get; init; }
 	public required IReadOnlyList<string> AdditionalSharedAssemblies { get; init; }
 
 	public IDiagnosticsSink DiagnosticsSink { get; init; } = new DefaultDiagnosticsSink();
@@ -74,7 +74,7 @@ public readonly partial struct RuntimePhase {
 	}
 }
 
-public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProvider {
+public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoProvider {
 	// ==========================================================================
 	// bookkeeping
 	private readonly record struct ActiveDependent(string OwnerId, bool IsHard);
@@ -185,7 +185,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 	private readonly FrozenSet<string> gameAssemblyNames;
 	private readonly string modDir;
 	private readonly string cacheDir;
-	private readonly Func<ModApiFactoryContext, TGameApi> apiFactory;
+	private readonly Func<ModApiFactoryCtx, TGameApi> apiFactory;
 	private readonly string[] sharedAssemblies;
 	private readonly DiagnosticsSinkRegistry diagnosticsSinkRegistry;
 	private readonly TimeSpan unloadGracePeriod;
@@ -809,14 +809,14 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 	}
 
 	// ==========================================================================
-	// IIlOwnerCtxProvider
-	IlOwnerCtx IIlOwnerCtxProvider.GetContext(string ownerId) {
+	// IIlOwnerInfoProvider
+	IlOwnerInfo IIlOwnerInfoProvider.GetOwnerInfo(string ownerId) {
 		Dictionary<string, (string OwnerId, bool isReloadable)> codeOwnerInfo = new(StringComparer.Ordinal);
 		foreach (Assembly asm in new[] { mainAssembly, abstractionsAssembly, runtimeAssembly })
 			codeOwnerInfo[asm.GetName().Name ?? throw new InternalStateException($"engine assembly '{asm}' has no simple name")] = (EngineInfo.OwnerId, false);
 		foreach (string name in gameAssemblyNames)
 			codeOwnerInfo[name] = (gameOwnerId, false);
-		foreach (LoadedCodeMod<TGameApi> mod in modifPassCode ?? throw new InternalStateException("GetContext outside a modif pass")) {
+		foreach (LoadedCodeMod<TGameApi> mod in modifPassCode ?? throw new InternalStateException("GetOwnerInfo outside a modif pass")) {
 			if (mod.Alc.IsCollectible != mod.Staged.Manifest.Reloadable)
 				throw new InternalStateException($"mod ALC collectibility vs reloadability mismatch: '{mod.Staged.Manifest.OwnerId}' is reloadable = {mod.Staged.Manifest.Reloadable} but has ALC collectibility = {mod.Alc.IsCollectible}");
 			foreach (Assembly asm in mod.Alc.Assemblies)
@@ -829,7 +829,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 			foreach (ModRelationshipManifest relationship in resolved.Manifest.Relationships)
 				declaredDeps.Add(relationship.OwnerId);
 
-		return new IlOwnerCtx(codeOwnerInfo, declaredDeps);
+		return new IlOwnerInfo(codeOwnerInfo, declaredDeps);
 	}
 
 	// ==========================================================================
@@ -1957,7 +1957,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerCtxProv
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) => apiFactory(new ModApiFactoryContext(mod.Staged.Manifest.OwnerId, mod.Scope));
+	private TGameApi createApi(LoadedCodeMod<TGameApi> mod) => apiFactory(new ModApiFactoryCtx(mod.Staged.Manifest.OwnerId, mod.Scope));
 
 	private static object createLoadDetourDecl(LoadedCodeMod<TGameApi> mod) => Activator.CreateInstance(
 		typeof(DetourDeclImpl<>).MakeGenericType(mod.LifetimeIdentityType),

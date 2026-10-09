@@ -247,13 +247,13 @@ public sealed class IlPipelineTests {
 
 	// ==========================================================================================
 	// locals
-	private sealed class FixedOwnerCtx(IlOwnerCtx ctx) : IIlOwnerCtxProvider {
-		public IlOwnerCtx GetContext(string ownerId) => ctx;
+	private sealed class FixedOwnerInfo(IlOwnerInfo info) : IIlOwnerInfoProvider {
+		public IlOwnerInfo GetOwnerInfo(string ownerId) => info;
 	}
 
 	private const string reloadableAssembly = "Reloadable";
 
-	private static readonly IIlOwnerCtxProvider reloadableMod = new FixedOwnerCtx(new IlOwnerCtx(
+	private static readonly IIlOwnerInfoProvider reloadableMod = new FixedOwnerInfo(new IlOwnerInfo(
 		new Dictionary<string, (string, bool)> { [reloadableAssembly] = ("reloadable", true) },
 		new HashSet<string>()
 	));

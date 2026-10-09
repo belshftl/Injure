@@ -87,7 +87,7 @@ internal static class IlPipeline {
 	public static IlPipelineResult Transform(
 		IlMethodBody baseline,
 		IReadOnlyList<IlManipulatorRegistration> manipulators,
-		IIlOwnerCtxProvider? ownerCtxProvider,
+		IIlOwnerInfoProvider? ownerInfoProvider,
 		IIlCallDispatch? callDispatch,
 		in IlPipelineOptions options = default
 	) {
@@ -101,7 +101,7 @@ internal static class IlPipeline {
 		bool modified = run(
 			working,
 			manipulators,
-			ownerCtxProvider,
+			ownerInfoProvider,
 			callDispatch,
 			options,
 			options.ValidateAfterEachManipulator,
@@ -114,7 +114,7 @@ internal static class IlPipeline {
 			try {
 				IlMaxStackAnalyzer.Analyze(working);
 			} catch (IlInvalidMethodException ex) {
-				throw attribute(baseline, manipulators, ownerCtxProvider, callDispatch, options, ex);
+				throw attribute(baseline, manipulators, ownerInfoProvider, callDispatch, options, ex);
 			}
 		}
 
@@ -124,7 +124,7 @@ internal static class IlPipeline {
 	private static bool run(
 		IlMethodBody working,
 		IReadOnlyList<IlManipulatorRegistration> manipulators,
-		IIlOwnerCtxProvider? ownerCtxProvider,
+		IIlOwnerInfoProvider? ownerInfoProvider,
 		IIlCallDispatch? callDispatch,
 		in IlPipelineOptions options,
 		bool validateEachStep,
@@ -136,7 +136,7 @@ internal static class IlPipeline {
 			InternalStateException.ThrowIfNull(m);
 			InternalStateException.ThrowIfInvalidOwnerId(m.OwnerId);
 			InternalStateException.ThrowIfInvalidLocalId(m.LocalId);
-			IlTransactionCore core = new(working, m.OwnerId, m.LocalId, ownerCtxProvider?.GetContext(m.OwnerId) ?? default, callDispatch);
+			IlTransactionCore core = new(working, m.OwnerId, m.LocalId, ownerInfoProvider?.GetOwnerInfo(m.OwnerId) ?? default, callDispatch);
 			try {
 				m.Invoke(core);
 			} catch (Exception) when (options.SkipFailingManipulators) {
@@ -172,7 +172,7 @@ internal static class IlPipeline {
 	private static IlPipelineValidationException attribute(
 		IlMethodBody baseline,
 		IReadOnlyList<IlManipulatorRegistration> manipulators,
-		IIlOwnerCtxProvider? ownerCtxProvider,
+		IIlOwnerInfoProvider? ownerInfoProvider,
 		IIlCallDispatch? callDispatch,
 		in IlPipelineOptions options,
 		IlInvalidMethodException failure
@@ -183,7 +183,7 @@ internal static class IlPipeline {
 		IlManipulatorRegistration? culprit = null;
 		IlInvalidMethodException attributed = failure;
 		try {
-			run(baseline.Clone(), manipulators, ownerCtxProvider, callDispatch, options, validateEachStep: true, out culprit);
+			run(baseline.Clone(), manipulators, ownerInfoProvider, callDispatch, options, validateEachStep: true, out culprit);
 		} catch (IlInvalidMethodException ex) {
 			attributed = ex;
 		} catch (Exception) {

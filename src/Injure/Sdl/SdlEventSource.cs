@@ -14,8 +14,8 @@ namespace Injure.Sdl;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Obtained from <see cref="SdlContext.Events"/>. Everything except <see cref="Wake()"/> and
-/// <see cref="Clock"/> is bound to the context's thread, like the rest of <c>Injure.Sdl</c>.
+/// Obtained from <see cref="SdlInstance.Events"/>. Everything except <see cref="Wake()"/> and
+/// <see cref="Clock"/> is bound to the instance's thread, like the rest of <c>Injure.Sdl</c>.
 /// </para>
 /// <para>
 /// SDL events that have no <see cref="HostEvent"/> equivalent, and window events for windows that
@@ -30,21 +30,21 @@ namespace Injure.Sdl;
 /// </para>
 /// </remarks>
 public sealed unsafe class SdlEventSource : IHostEventSource {
-	private readonly SdlContext context;
+	private readonly SdlInstance sdl;
 	private readonly uint wakeEventType;
 	private readonly Dictionary<int, (GamepadId Id, nint Handle)> gamepads = new(); // by SDL_JoystickID
 	private int wakePending = 0;
 	private int shutDown = 0;
 
-	internal SdlEventSource(SdlContext context) {
-		this.context = context;
+	internal SdlEventSource(SdlInstance sdl) {
+		this.sdl = sdl;
 		wakeEventType = SDL.RegisterEvents(1);
 		if (wakeEventType == 0)
 			throw SdlException.FromLastError("SDL_RegisterEvents");
 	}
 
 	/// <inheritdoc/>
-	public IHostClock Clock => context.Clock;
+	public IHostClock Clock => sdl.Clock;
 
 	/// <inheritdoc/>
 	/// <remarks>
@@ -54,10 +54,10 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 
 	/// <inheritdoc/>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created the context.
+	/// Thrown if called from a thread other than the one that created the instance.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if the context has been disposed.
+	/// Thrown if the instance has been disposed.
 	/// </exception>
 	public bool TryPoll(out HostEvent ev) {
 		while (DangerousGetNextRaw() is SDLEvent raw)
@@ -71,10 +71,10 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// Removes and returns the next pending raw SDL event, if there is one. Never blocks.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created the context.
+	/// Thrown if called from a thread other than the one that created the instance.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if the context has been disposed.
+	/// Thrown if the instance has been disposed.
 	/// </exception>
 	/// <remarks>
 	/// <para>
@@ -89,7 +89,7 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// </para>
 	/// </remarks>
 	public SDLEvent? DangerousGetNextRaw() {
-		context.CheckAccess();
+		sdl.CheckAccess();
 		SDLEvent e;
 		while (SDL.PollEvent(&e)) {
 			if (e.Type == wakeEventType) {
@@ -108,10 +108,10 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// <see langword="false"/> if the event has no <see cref="HostEvent"/> equivalent.
 	/// </returns>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created the context.
+	/// Thrown if called from a thread other than the one that created the instance.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if the context has been disposed.
+	/// Thrown if the instance has been disposed.
 	/// </exception>
 	/// <remarks>
 	/// <para>
@@ -132,9 +132,9 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 
 	// owner is set for Window* events, whose window state needs updating
 	private bool translate(in SDLEvent ev, out HostEvent result, out SdlWindow? owner) {
-		context.CheckAccess();
+		sdl.CheckAccess();
 		owner = null;
-		HostTick tick = context.Clock.FromSdlTimestamp(ev.Common.Timestamp);
+		HostTick tick = sdl.Clock.FromSdlTimestamp(ev.Common.Timestamp);
 		switch ((SDLEventType)ev.Type) {
 		case SDLEventType.Quit:
 			result = HostEvent.Quit(tick);
@@ -154,25 +154,25 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 		case SDLEventType.WindowMouseEnter: return window(HostEventKind.WindowPointerEntered, in ev, tick, out result, out owner);
 		case SDLEventType.WindowMouseLeave: return window(HostEventKind.WindowPointerLeft, in ev, tick, out result, out owner);
 		case SDLEventType.WindowMoved:
-			if (!context.TryGetWindow(ev.Window.WindowID, out SdlWindow? moved))
+			if (!sdl.TryGetWindow(ev.Window.WindowID, out SdlWindow? moved))
 				break;
 			owner = moved;
 			result = HostEvent.WindowMoved(tick, moved.Id, ev.Window.Data1, ev.Window.Data2);
 			return true;
 		case SDLEventType.WindowResized:
-			if (!context.TryGetWindow(ev.Window.WindowID, out SdlWindow? resized))
+			if (!sdl.TryGetWindow(ev.Window.WindowID, out SdlWindow? resized))
 				break;
 			owner = resized;
 			result = HostEvent.WindowResized(tick, resized.Id, ev.Window.Data1, ev.Window.Data2);
 			return true;
 		case SDLEventType.WindowPixelSizeChanged:
-			if (!context.TryGetWindow(ev.Window.WindowID, out SdlWindow? pxResized))
+			if (!sdl.TryGetWindow(ev.Window.WindowID, out SdlWindow? pxResized))
 				break;
 			owner = pxResized;
 			result = HostEvent.WindowPixelSizeChanged(tick, pxResized.Id, ev.Window.Data1, ev.Window.Data2);
 			return true;
 		case SDLEventType.WindowDisplayScaleChanged:
-			if (!context.TryGetWindow(ev.Window.WindowID, out SdlWindow? rescaled))
+			if (!sdl.TryGetWindow(ev.Window.WindowID, out SdlWindow? rescaled))
 				break;
 			owner = rescaled;
 			result = HostEvent.WindowDisplayScaleChanged(tick, rescaled.Id, SDL.GetWindowDisplayScale(rescaled.DangerousGetHandle()));
@@ -269,15 +269,15 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 
 	/// <inheritdoc/>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created the context.
+	/// Thrown if called from a thread other than the one that created the instance.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if the context has been disposed.
+	/// Thrown if the instance has been disposed.
 	/// </exception>
 	public bool WaitUntil(HostTick deadline) {
-		context.CheckAccess();
+		sdl.CheckAccess();
 		for (;;) {
-			HostDuration remaining = deadline - context.Clock.Now;
+			HostDuration remaining = deadline - sdl.Clock.Now;
 			if (remaining < WaitGranularity)
 				return false;
 			int ms = (int)Math.Min(remaining.Ns / 1_000_000, int.MaxValue);
@@ -288,19 +288,19 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 
 	/// <inheritdoc/>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created the context.
+	/// Thrown if called from a thread other than the one that created the instance.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if the context has been disposed.
+	/// Thrown if the instance has been disposed.
 	/// </exception>
 	public void WaitIndefinitely() {
-		context.CheckAccess();
+		sdl.CheckAccess();
 		SdlException.Check(SDL.WaitEvent(null));
 	}
 
 	/// <inheritdoc/>
 	/// <remarks>
-	/// Does nothing if the context has been disposed.
+	/// Does nothing if the instance has been disposed.
 	/// </remarks>
 	public void Wake() {
 		if (Volatile.Read(ref shutDown) != 0 || Interlocked.Exchange(ref wakePending, 1) != 0)
@@ -319,7 +319,7 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	}
 
 	private bool window(HostEventKind kind, in SDLEvent ev, HostTick tick, out HostEvent result, out SdlWindow? owner) {
-		if (!context.TryGetWindow(ev.Window.WindowID, out owner)) {
+		if (!sdl.TryGetWindow(ev.Window.WindowID, out owner)) {
 			result = default;
 			return false;
 		}
@@ -328,7 +328,7 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	}
 
 	private HostWindowId windowOrInvalid(uint sdlWindowId) =>
-		context.TryGetWindow(sdlWindowId, out SdlWindow? w) ? w.Id : default;
+		sdl.TryGetWindow(sdlWindowId, out SdlWindow? w) ? w.Id : default;
 
 	private static EdgeType edge(byte down) => down != 0 ? EdgeType.Press : EdgeType.Release;
 }

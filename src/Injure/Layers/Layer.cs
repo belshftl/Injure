@@ -120,8 +120,8 @@ public abstract class Layer {
 	public virtual ReadOnlySpan<LayerBlockRule> BlockRules => ReadOnlySpan<LayerBlockRule>.Empty;
 
 	/// <summary>
-	/// Action profile used by the layer's primary action context, or <see langword="null"/>
-	/// if the layer doesn't use the primary action context.
+	/// Action profile used by the layer's primary action tracker, or <see langword="null"/>
+	/// if the layer doesn't use the primary action tracker.
 	/// </summary>
 	public virtual ActionProfile? ActionProfile => null;
 

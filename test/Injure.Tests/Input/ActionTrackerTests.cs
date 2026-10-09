@@ -8,7 +8,7 @@ using static Injure.Tests.Input.Ev;
 
 namespace Injure.Tests.Input;
 
-public sealed class ActionCtxTests {
+public sealed class ActionTrackerTests {
 	private static readonly InputButtonSource keyA = InputButtonSource.Key(Key.A);
 	private static readonly InputButtonSource keyD = InputButtonSource.Key(Key.D);
 	private static readonly InputButtonSource keyW = InputButtonSource.Key(Key.W);

@@ -10,7 +10,7 @@ using static Injure.Sdl.SdlException;
 namespace Injure.Sdl;
 
 /// <summary>
-/// Options for <see cref="SdlContext.Init(in SdlInitOptions)"/>.
+/// Options for <see cref="SdlInstance.Init(in SdlInitOptions)"/>.
 /// </summary>
 /// <remarks>
 /// The <see langword="default"/> value is valid and initializes SDL with its own default video
@@ -44,7 +44,7 @@ public readonly struct SdlInitOptions {
 /// </summary>
 /// <remarks>
 /// <para>
-/// At most one <see cref="SdlContext"/> can be alive in a process at a time. It is bound to the
+/// At most one <see cref="SdlInstance"/> can be alive in a process at a time. It is bound to the
 /// thread that created it: every SDL-touching member of it and of the objects created from it
 /// (such as <see cref="SdlWindow"/>) throws <see cref="InvalidOperationException"/> when called
 /// from any other thread. The exception is <see cref="Clock"/>, which is usable from any thread.
@@ -56,7 +56,7 @@ public readonly struct SdlInitOptions {
 /// disposed, SDL stays up until the process exits.
 /// </para>
 /// </remarks>
-public sealed partial class SdlContext : IDisposable {
+public sealed partial class SdlInstance : IDisposable {
 	private static partial class MacNative {
 		[LibraryImport("/usr/lib/libSystem.B.dylib")]
 		[SupportedOSPlatform("macos")]
@@ -79,33 +79,33 @@ public sealed partial class SdlContext : IDisposable {
 	/// </summary>
 	public SdlEventSource Events { get; }
 
-	private SdlContext() {
+	private SdlInstance() {
 		ownerThreadId = Environment.CurrentManagedThreadId;
 		Clock = new SdlHostClock();
 		Events = new SdlEventSource(this);
 	}
 
 	/// <summary>
-	/// Initializes SDL and returns the context that owns it.
+	/// Initializes SDL and returns the instance that owns it.
 	/// </summary>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="options"/> sets both <see cref="SdlInitOptions.VideoDriver"/> and
 	/// a raw <c>SDL_HINT_VIDEO_DRIVER</c> hint.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if another <see cref="SdlContext"/> is alive, or if called from a thread other than the
+	/// Thrown if another <see cref="SdlInstance"/> is alive, or if called from a thread other than the
 	/// main thread on macOS.
 	/// </exception>
 	/// <exception cref="SdlException">
 	/// Thrown if setting a hint or initializing SDL fails.
 	/// </exception>
-	public static SdlContext Init(in SdlInitOptions options = default) {
+	public static SdlInstance Init(in SdlInitOptions options = default) {
 		if (options.VideoDriver is not null && options.Hints is not null && options.Hints.ContainsKey(SDL.SDL_HINT_VIDEO_DRIVER))
 			throw new ArgumentException("VideoDriver and a raw SDL_HINT_VIDEO_DRIVER hint are both set", nameof(options));
 		if (OperatingSystem.IsMacOS() && MacNative.pthread_main_np() == 0)
 			throw new InvalidOperationException("on macOS, SDL must be initialized on the process's main thread");
 		if (Interlocked.CompareExchange(ref active, 1, 0) != 0)
-			throw new InvalidOperationException("an SdlContext is already alive; only one can exist at a time");
+			throw new InvalidOperationException("an SdlInstance is already alive; only one can exist at a time");
 
 		try {
 			if (options.Hints is not null)
@@ -122,7 +122,7 @@ public sealed partial class SdlContext : IDisposable {
 			throw;
 		}
 		try {
-			return new SdlContext();
+			return new SdlInstance();
 		} catch {
 			SDL.Quit();
 			Volatile.Write(ref active, 0);
@@ -134,7 +134,7 @@ public sealed partial class SdlContext : IDisposable {
 	/// Shuts SDL down.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created this context, or if any
+	/// Thrown if called from a thread other than the one that created this instance, or if any
 	/// <see cref="SdlWindow"/> created from it is still alive.
 	/// </exception>
 	/// <remarks>
@@ -146,7 +146,7 @@ public sealed partial class SdlContext : IDisposable {
 		if (disposed)
 			return;
 		if (windows.Count != 0)
-			throw new InvalidOperationException($"cannot dispose an SdlContext while {windows.Count} SdlWindow(s) created from it are still alive");
+			throw new InvalidOperationException($"cannot dispose an SdlInstance while {windows.Count} SdlWindow(s) created from it are still alive");
 		disposed = true;
 		Events.Shutdown();
 		Clock.Invalidate();
@@ -165,6 +165,6 @@ public sealed partial class SdlContext : IDisposable {
 
 	private void checkThread() {
 		if (Environment.CurrentManagedThreadId != ownerThreadId)
-			throw new InvalidOperationException("SDL objects can only be used from the thread that created the SdlContext");
+			throw new InvalidOperationException("SDL objects can only be used from the thread that created the SdlInstance");
 	}
 }

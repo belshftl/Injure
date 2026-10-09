@@ -22,7 +22,7 @@ internal sealed class ApplyResult(
 }
 
 internal sealed class ModifOrchestrator : IDisposable {
-	private sealed record ModuleContext(
+	private sealed record ModuleDecoding(
 		MetadataReader Metadata,
 		SrmReferenceDecoder Decoder,
 		ProfilerTokenResolver Resolver
@@ -31,12 +31,12 @@ internal sealed class ModifOrchestrator : IDisposable {
 	private readonly IProfilerHost prof;
 	private readonly ModifRegistry registry;
 	private readonly MethodTransformCache cache;
-	private readonly IIlOwnerCtxProvider? ownerCtxProvider;
+	private readonly IIlOwnerInfoProvider? ownerInfoProvider;
 	private readonly IIlCallDispatch? callDispatch;
 	private readonly IDetourTransform detours;
 	private readonly IModuleOwnerResolver? moduleOwnerResolver;
 	private readonly Lock @lock = new();
-	private readonly Dictionary<ModuleId, ModuleContext> modules = new();
+	private readonly Dictionary<ModuleId, ModuleDecoding> modules = new();
 	private readonly HashSet<MethodIdentity> installed = new();
 	private byte[] scratch = new byte[512];
 
@@ -44,7 +44,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 		IProfilerHost prof,
 		ModifRegistry registry,
 		MethodTransformCache cache,
-		IIlOwnerCtxProvider? ownerCtxProvider,
+		IIlOwnerInfoProvider? ownerInfoProvider,
 		IIlCallDispatch? callDispatch,
 		IDetourTransform detours,
 		IModuleOwnerResolver? moduleOwnerResolver
@@ -56,7 +56,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 		this.prof = prof;
 		this.registry = registry;
 		this.cache = cache;
-		this.ownerCtxProvider = ownerCtxProvider;
+		this.ownerInfoProvider = ownerInfoProvider;
 		this.callDispatch = callDispatch;
 		this.detours = detours;
 		this.moduleOwnerResolver = moduleOwnerResolver;
@@ -170,16 +170,16 @@ internal sealed class ModifOrchestrator : IDisposable {
 	}
 
 	private void prepare(MethodIdentity method, MethodGeneration generation) {
-		ModuleContext ctx = contextFor(method.Module);
+		ModuleDecoding dec = decodingFor(method.Module);
 
 		if (!cache.TryGetBaseline(method, out IlMethodBody baseline)) {
-			baseline = decode(ctx, method);
+			baseline = decode(dec, method);
 			cache.SetBaseline(method, baseline);
 		}
 
 		if (!cache.TryGetTransformed(method, generation.Patch, out IlMethodBody transformed)) {
 			ImmutableArray<IlManipulatorRegistration> manipulators = registry.GetManipulators(method);
-			transformed = IlPipeline.Transform(baseline, manipulators, ownerCtxProvider, callDispatch).Body;
+			transformed = IlPipeline.Transform(baseline, manipulators, ownerInfoProvider, callDispatch).Body;
 			cache.SetTransformed(method, generation.Patch, transformed);
 		}
 
@@ -192,7 +192,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 			detours.UpdateChain(method, []);
 		}
 
-		IlEncodedMethodBody encoded = SrmMethodBodyEncoder.Prepare(final, ctx.Resolver);
+		IlEncodedMethodBody encoded = SrmMethodBodyEncoder.Prepare(final, dec.Resolver);
 		cache.SetEncoded(method, generation, encoded);
 		prof.SetPreparedBody(method, write(encoded));
 	}
@@ -209,12 +209,12 @@ internal sealed class ModifOrchestrator : IDisposable {
 
 	private void commit(HashSet<ModuleId> touchedModules) {
 		foreach (ModuleId module in touchedModules)
-			if (modules.TryGetValue(module, out ModuleContext? context))
-				context.Resolver.Commit();
+			if (modules.TryGetValue(module, out ModuleDecoding? dec))
+				dec.Resolver.Commit();
 		touchedModules.Clear();
 	}
 
-	private IlMethodBody decode(ModuleContext context, MethodIdentity method) {
+	private IlMethodBody decode(ModuleDecoding dec, MethodIdentity method) {
 		ImmutableArray<byte> il = prof.GetBaselineIl(method);
 		var handle = (MethodDefinitionHandle)MetadataTokens.EntityHandle(method.MethodDefToken);
 		InternalIlProvenance baseline = (moduleOwnerResolver?.TryGetOwner(method.Module, out string? ownerId) ?? false)
@@ -222,7 +222,7 @@ internal sealed class ModifOrchestrator : IDisposable {
 			: default;
 		unsafe {
 			fixed (byte* p = il.AsSpan())
-				return SrmMethodBodyDecoder.Decode(context.Metadata, handle, new BlobReader(p, il.Length), baseline);
+				return SrmMethodBodyDecoder.Decode(dec.Metadata, handle, new BlobReader(p, il.Length), baseline);
 		}
 	}
 
@@ -233,18 +233,18 @@ internal sealed class ModifOrchestrator : IDisposable {
 		return scratch.AsSpan(0, encoded.Size);
 	}
 
-	private ModuleContext contextFor(ModuleId module) {
-		if (modules.TryGetValue(module, out ModuleContext? existing))
+	private ModuleDecoding decodingFor(ModuleId module) {
+		if (modules.TryGetValue(module, out ModuleDecoding? existing))
 			return existing;
 
 		MetadataReader metadata = prof.GetMetadata(module);
 		SrmReferenceDecoder decoder = new(metadata);
-		ModuleContext context = new(
+		ModuleDecoding dec = new(
 			metadata,
 			decoder,
 			new ProfilerTokenResolver(metadata, prof.GetMetadataEmitter(module), decoder)
 		);
-		modules[module] = context;
-		return context;
+		modules[module] = dec;
+		return dec;
 	}
 }

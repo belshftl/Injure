@@ -22,13 +22,13 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// </remarks>
 public readonly ref struct IlEmitter {
 	private IlFragmentBuilder builder => field ?? throw new InvalidOperationException("this IlEmitter value is uninitialized/invalid");
-	private readonly IlOwnerCtx ownerContext;
+	private readonly IlOwnerInfo ownerInfo;
 	private readonly IIlCallDispatch? callDispatch;
 
-	internal IlEmitter(IlFragmentBuilder builder, IlOwnerCtx ownerContext, IIlCallDispatch? callDispatch) {
+	internal IlEmitter(IlFragmentBuilder builder, IlOwnerInfo ownerInfo, IIlCallDispatch? callDispatch) {
 		InternalStateException.ThrowIfNull(builder);
 		this.builder = builder;
-		this.ownerContext = ownerContext;
+		this.ownerInfo = ownerInfo;
 		this.callDispatch = callDispatch;
 	}
 
@@ -109,7 +109,7 @@ public readonly ref struct IlEmitter {
 			throw new ArgumentException("method is a method with no CIL body, P/Invoke impl, runtime management flags, or [UnsafeAccessor]", nameof(method));
 
 		IlMethodSignature signature = IlRefFactory.Method(method).Signature;
-		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerInfo));
 		int slot = callDispatch.AllocateSlot(method);
 		RawNonbranch(ILOpCode.Ldc_i4, new IlInt32Operand(slot));
 		RawNonbranch(ILOpCode.Call, new IlMethodOperand(callDispatch.ResolveTarget));
@@ -477,7 +477,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Ldfld(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
-		IlTypeRestrictionCheck.AssertUnrestricted($"ldfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerInfo));
 		RawNonbranch(ILOpCode.Ldfld, new IlFieldOperand(field));
 	}
 
@@ -493,7 +493,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Ldflda(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
-		IlTypeRestrictionCheck.AssertUnrestricted($"ldflda {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldflda {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerInfo));
 		RawNonbranch(ILOpCode.Ldflda, new IlFieldOperand(field));
 	}
 
@@ -509,7 +509,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Stfld(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
-		IlTypeRestrictionCheck.AssertUnrestricted($"stfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"stfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerInfo));
 		RawNonbranch(ILOpCode.Stfld, new IlFieldOperand(field));
 	}
 
@@ -525,7 +525,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Ldsfld(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
-		IlTypeRestrictionCheck.AssertUnrestricted($"ldsfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldsfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerInfo));
 		RawNonbranch(ILOpCode.Ldsfld, new IlFieldOperand(field));
 	}
 
@@ -541,7 +541,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Ldsflda(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
-		IlTypeRestrictionCheck.AssertUnrestricted($"ldsflda {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldsflda {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerInfo));
 		RawNonbranch(ILOpCode.Ldsflda, new IlFieldOperand(field));
 	}
 
@@ -557,7 +557,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Stsfld(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
-		IlTypeRestrictionCheck.AssertUnrestricted($"stsfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"stsfld {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerInfo));
 		RawNonbranch(ILOpCode.Stsfld, new IlFieldOperand(field));
 	}
 
@@ -598,7 +598,7 @@ public readonly ref struct IlEmitter {
 	/// </remarks>
 	public void Call(IlMethodRef method) {
 		ArgumentNullException.ThrowIfNull(method);
-		IlTypeRestrictionCheck.AssertUnrestricted($"call {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"call {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerInfo));
 		RawNonbranch(ILOpCode.Call, new IlMethodOperand(method));
 	}
 
@@ -633,7 +633,7 @@ public readonly ref struct IlEmitter {
 	/// </remarks>
 	public void Callvirt(IlMethodRef method) {
 		ArgumentNullException.ThrowIfNull(method);
-		IlTypeRestrictionCheck.AssertUnrestricted($"callvirt {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"callvirt {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerInfo));
 		RawNonbranch(ILOpCode.Callvirt, new IlMethodOperand(method));
 	}
 
@@ -649,7 +649,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Calli(IlMethodSignature signature) {
 		ArgumentNullException.ThrowIfNull(signature);
-		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"calli {signature}", IlTypeRestrictionCheck.CheckSignature(signature, ownerInfo));
 		RawNonbranch(ILOpCode.Calli, new IlCallSiteOperand(signature));
 	}
 
@@ -668,7 +668,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Newobj(IlMethodRef constructor) {
 		ArgumentNullException.ThrowIfNull(constructor);
-		IlTypeRestrictionCheck.AssertUnrestricted($"newobj {constructor}", IlTypeRestrictionCheck.CheckMethodOperand(constructor, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"newobj {constructor}", IlTypeRestrictionCheck.CheckMethodOperand(constructor, ownerInfo));
 		RawNonbranch(ILOpCode.Newobj, new IlMethodOperand(constructor));
 	}
 
@@ -684,7 +684,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Box(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
-		IlTypeRestrictionCheck.AssertUnrestricted($"box {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"box {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerInfo));
 		RawNonbranch(ILOpCode.Box, new IlTypeOperand(type));
 	}
 
@@ -700,7 +700,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void UnboxAny(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
-		IlTypeRestrictionCheck.AssertUnrestricted($"unbox.any {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"unbox.any {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerInfo));
 		RawNonbranch(ILOpCode.Unbox_any, new IlTypeOperand(type));
 	}
 
@@ -716,7 +716,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Castclass(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
-		IlTypeRestrictionCheck.AssertUnrestricted($"castclass {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"castclass {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerInfo));
 		RawNonbranch(ILOpCode.Castclass, new IlTypeOperand(type));
 	}
 
@@ -732,7 +732,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Isinst(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
-		IlTypeRestrictionCheck.AssertUnrestricted($"isinst {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"isinst {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerInfo));
 		RawNonbranch(ILOpCode.Isinst, new IlTypeOperand(type));
 	}
 
@@ -748,7 +748,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Newarr(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
-		IlTypeRestrictionCheck.AssertUnrestricted($"newarr {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"newarr {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerInfo));
 		RawNonbranch(ILOpCode.Newarr, new IlTypeOperand(type));
 	}
 
@@ -764,7 +764,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Ldtoken(IlTypeRef type) {
 		ArgumentNullException.ThrowIfNull(type);
-		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {type}", IlTypeRestrictionCheck.CheckTypeOperand(type, ownerInfo));
 		RawNonbranch(ILOpCode.Ldtoken, new IlTypeOperand(type));
 	}
 
@@ -780,7 +780,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Ldtoken(IlMethodRef method) {
 		ArgumentNullException.ThrowIfNull(method);
-		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {method}", IlTypeRestrictionCheck.CheckMethodOperand(method, ownerInfo));
 		RawNonbranch(ILOpCode.Ldtoken, new IlMethodOperand(method));
 	}
 
@@ -796,7 +796,7 @@ public readonly ref struct IlEmitter {
 	/// </exception>
 	public void Ldtoken(IlFieldRef field) {
 		ArgumentNullException.ThrowIfNull(field);
-		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerContext));
+		IlTypeRestrictionCheck.AssertUnrestricted($"ldtoken {field}", IlTypeRestrictionCheck.CheckFieldOperand(field, ownerInfo));
 		RawNonbranch(ILOpCode.Ldtoken, new IlFieldOperand(field));
 	}
 

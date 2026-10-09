@@ -5,7 +5,7 @@ using Injure.Assets;
 
 namespace Injure.Tests.Assets;
 
-public sealed class AssetStoreThreadContextTests {
+public sealed class AssetStoreThreadAttachmentTests {
 	private const string ownerId = "test";
 
 	[Fact]
@@ -13,18 +13,18 @@ public sealed class AssetStoreThreadContextTests {
 		AssetStore a = new();
 		AssetStore b = new();
 		AssetStore c = new();
-		using AssetThreadCtx ctxA = a.AttachCurrentThread();
-		using AssetThreadCtx ctxB = b.AttachCurrentThread();
-		using AssetThreadCtx ctxC = c.AttachCurrentThread();
-		ctxA.AtSafeBoundary();
-		ctxB.AtSafeBoundary();
-		ctxC.AtSafeBoundary();
+		using AssetThreadAttachment attA = a.AttachCurrentThread();
+		using AssetThreadAttachment attB = b.AttachCurrentThread();
+		using AssetThreadAttachment attC = c.AttachCurrentThread();
+		attA.AtSafeBoundary();
+		attB.AtSafeBoundary();
+		attC.AtSafeBoundary();
 	}
 
 	[Fact]
 	public static void RetiredVerIsReclaimedOnlyAfterSafeBoundary() {
 		AssetStore store = new();
-		using AssetThreadCtx mainCtx = store.AttachCurrentThread();
+		using AssetThreadAttachment mainAtt = store.AttachCurrentThread();
 		store.RegisterSource(new TestSource(), "source");
 		store.RegisterResolver(new TestResolver(), "resolver");
 		store.RegisterStagedCreator(new TestCreator(), "creator");
@@ -37,9 +37,9 @@ public sealed class AssetStoreThreadContextTests {
 		Exception? ex = null;
 		Thread thread = new(() => {
 				try {
-					using AssetThreadCtx ctx = store.AttachCurrentThread();
+					using AssetThreadAttachment att = store.AttachCurrentThread();
 					first.Wait();
-					ctx.AtSafeBoundary();
+					att.AtSafeBoundary();
 					second.Wait();
 					// dispose happens here from `using`
 				} catch (Exception caught) {
@@ -74,9 +74,9 @@ public sealed class AssetStoreThreadContextTests {
 	}
 
 	[Fact]
-	public static void DisposingContextAllowsReclamation() {
+	public static void DisposingAttachmentAllowsReclamation() {
 		AssetStore store = new();
-		using AssetThreadCtx mainCtx = store.AttachCurrentThread();
+		using AssetThreadAttachment mainAtt = store.AttachCurrentThread();
 		store.RegisterSource(new TestSource(), "source");
 		store.RegisterResolver(new TestResolver(), "resolver");
 		store.RegisterStagedCreator(new TestCreator(), "creator");
@@ -88,7 +88,7 @@ public sealed class AssetStoreThreadContextTests {
 		Exception? ex = null;
 		Thread thread = new(() => {
 				try {
-					using AssetThreadCtx ctx = store.AttachCurrentThread();
+					using AssetThreadAttachment att = store.AttachCurrentThread();
 					ckp.Wait();
 					// dispose happens here from `using`
 				} catch (Exception caught) {

@@ -15,7 +15,7 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	public CoroScope CoroutineScope { get; }
 
 	private readonly List<IHostTickReceiver> toUpdate;
-	private ActionCtx? actionCtx;
+	private ActionTracker? actionTracker;
 
 	public LayerRuntime() {
 		Time = new LayerTimeDomain();
@@ -31,7 +31,7 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	}
 
 	public void InitActions(ActionProfile? profile) {
-		actionCtx = profile is null ? null : new ActionCtx(profile);
+		actionTracker = profile is null ? null : new ActionTracker(profile);
 	}
 
 	public void UpdateTickFed(HostTick tick) {
@@ -40,15 +40,15 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	}
 
 	public ControlView UpdateControls(HostTick tick, in InputView input) {
-		if (actionCtx is null)
+		if (actionTracker is null)
 			return new ControlView(ActionStateView.Empty, ReadOnlySpan<ControlEvent>.Empty, input.State);
-		return actionCtx.Update(tick, input);
+		return actionTracker.Update(tick, input);
 	}
 
 	public void SuppressControls(HostTick tick) {
-		if (actionCtx is null)
+		if (actionTracker is null)
 			return;
-		_ = actionCtx.Update(tick, InputView.Empty);
+		_ = actionTracker.Update(tick, InputView.Empty);
 	}
 
 	public void TickCoroutines(double dt, double rawDt) {

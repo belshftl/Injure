@@ -232,7 +232,7 @@ public readonly struct ImpulseAxisActionEventInfo {
 }
 
 /// <summary>
-/// An event produced by an <see cref="ActionCtx"/>: an action changed, or pointer movement or text
+/// An event produced by an <see cref="ActionTracker"/>: an action changed, or pointer movement or text
 /// that is passed through for every consumer.
 /// </summary>
 /// <param name="Tick">When the underlying input happened.</param>

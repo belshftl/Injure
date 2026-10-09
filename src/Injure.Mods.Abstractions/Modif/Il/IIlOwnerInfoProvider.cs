@@ -4,8 +4,8 @@
 namespace Injure.Mods.Abstractions.Modif.Il;
 
 /// <summary>
-/// Obtains an <see cref="IlOwnerCtx"/> for a given owner.
+/// Obtains an <see cref="IlOwnerInfo"/> for a given owner.
 /// </summary>
-internal interface IIlOwnerCtxProvider {
-	IlOwnerCtx GetContext(string ownerId);
+internal interface IIlOwnerInfoProvider {
+	IlOwnerInfo GetOwnerInfo(string ownerId);
 }

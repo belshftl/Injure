@@ -6,7 +6,7 @@ namespace Injure.Assets;
 /// <summary>
 /// Per-thread attachment to an <see cref="AssetStore"/> for deferred asset reclamation tracking.
 /// </summary>
-public sealed class AssetThreadCtx : IDisposable {
+public sealed class AssetThreadAttachment : IDisposable {
 	private static ulong nextId = 0;
 	private readonly AssetStore owner;
 	private int disposed = 0;
@@ -14,7 +14,7 @@ public sealed class AssetThreadCtx : IDisposable {
 	internal ulong Id { get; }
 	internal ulong QuiescentEpoch; // owner writes to here
 
-	internal AssetThreadCtx(AssetStore owner) {
+	internal AssetThreadAttachment(AssetStore owner) {
 		this.owner = owner;
 		Id = Interlocked.Increment(ref nextId);
 	}
@@ -33,7 +33,7 @@ public sealed class AssetThreadCtx : IDisposable {
 	}
 
 	/// <summary>
-	/// Detaches this thread context from its <see cref="AssetStore"/>.
+	/// Detaches this thread from its <see cref="AssetStore"/>.
 	/// </summary>
 	public void Dispose() {
 		if (Interlocked.Exchange(ref disposed, 1) != 0)

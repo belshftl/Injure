@@ -20,7 +20,7 @@ namespace Injure.Input;
 /// the device state at the end of the step; impulse axes accumulate within the step.
 /// </para>
 /// <para>
-/// If the profile's map changes or the input view reports lost history, this context resyncs from
+/// If the profile's map changes or the input view reports lost history, this tracker resyncs from
 /// the current device state: every button action that was held gets a release, then every button
 /// action whose bound inputs are currently held gets a press, then every state axis that was active
 /// or is bound emits exactly one event with its current value (0 for now-unbound axes).
@@ -34,7 +34,7 @@ namespace Injure.Input;
 /// Not thread-safe.
 /// </para>
 /// </remarks>
-public sealed class ActionCtx(ActionProfile profile) {
+public sealed class ActionTracker(ActionProfile profile) {
 	private sealed class Lookup {
 		public readonly Dictionary<InputButtonSource, List<ActionId>> ButtonActionsBySource = new();
 		public readonly Dictionary<InputImpulseAxisSource, List<ImpulseAxisBinding>> ImpulseAxesBySource = new();

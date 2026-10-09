@@ -12,10 +12,10 @@ namespace Injure.Sdl;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Obtained from <see cref="SdlContext.Clock"/>. The epoch is the moment SDL was initialized.
+/// Obtained from <see cref="SdlInstance.Clock"/>. The epoch is the moment SDL was initialized.
 /// </para>
 /// <para>
-/// Usable from any thread. Once the owning <see cref="SdlContext"/> is disposed, <see cref="Now"/>
+/// Usable from any thread. Once the owning <see cref="SdlInstance"/> is disposed, <see cref="Now"/>
 /// throws <see cref="ObjectDisposedException"/>, since a re-inited SDL would start counting from a
 /// new epoch and silently produce values that aren't comparable with earlier ones. A call racing
 /// with the disposal either finishes before SDL is shut down or throws; disposal waits for
@@ -31,12 +31,12 @@ public sealed class SdlHostClock : IHostClock {
 
 	/// <inheritdoc/>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if the owning <see cref="SdlContext"/> has been disposed.
+	/// Thrown if the owning <see cref="SdlInstance"/> has been disposed.
 	/// </exception>
 	public HostTick Now {
 		get {
 			// SDL_GetTicksNS lazily reinitializes SDL's (non-atomic) tick state if it runs after SDL_Quit,
-			// so a call must never be in flight once the context starts shutting down
+			// so a call must never be in flight once the instance starts shutting down
 			//
 			// Interlocked.Increment is a full fence so either this sees valid == 0 or Invalidate sees
 			// inFlight != 0
@@ -55,7 +55,7 @@ public sealed class SdlHostClock : IHostClock {
 	/// <see cref="HostTick"/> on this clock.
 	/// </summary>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if the owning <see cref="SdlContext"/> has been disposed.
+	/// Thrown if the owning <see cref="SdlInstance"/> has been disposed.
 	/// </exception>
 	/// <remarks>
 	/// Currently just a clearer-intent wrapper for
@@ -67,7 +67,7 @@ public sealed class SdlHostClock : IHostClock {
 	}
 
 	/// <remarks>
-	/// Called by <see cref="SdlContext.Dispose()"/> right before <c>SDL_Quit</c>; returns once no
+	/// Called by <see cref="SdlInstance.Dispose()"/> right before <c>SDL_Quit</c>; returns once no
 	/// <see cref="Now"/> call can still reach <c>SDL_GetTicksNS</c>.
 	/// </remarks>
 	internal void Invalidate() {
@@ -80,6 +80,6 @@ public sealed class SdlHostClock : IHostClock {
 
 	private void checkValid() {
 		if (Volatile.Read(ref valid) == 0)
-			throw new ObjectDisposedException(nameof(SdlHostClock), "the SdlContext this clock belongs to has been disposed");
+			throw new ObjectDisposedException(nameof(SdlHostClock), "the SdlInstance this clock belongs to has been disposed");
 	}
 }

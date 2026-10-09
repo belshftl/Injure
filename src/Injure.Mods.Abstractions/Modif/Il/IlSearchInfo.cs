@@ -39,13 +39,13 @@ internal readonly ref struct IlPatternSearchInfo(
 	IlSearchDirection direction,
 	ReadOnlySpan<IlPatternElement> pattern,
 	IlProvenanceConstr provenance,
-	IlFormatCtx ctx
+	IlFormatInfo formatInfo
 ) {
 	public int StartInstructionBoundary { get; } = startInstrBoundary;
 	public IlSearchDirection Direction { get; } = direction;
 	public ReadOnlySpan<IlPatternElement> Pattern { get; } = pattern;
 	public IlProvenanceConstr Provenance { get; } = provenance;
-	public IlFormatCtx Context { get; } = ctx;
+	public IlFormatInfo FormatInfo { get; } = formatInfo;
 }
 
 /// <summary>
@@ -58,14 +58,14 @@ internal static class IlPatternDisplay {
 	public static string FormatPattern(
 		ReadOnlySpan<IlPatternElement> pattern,
 		IlProvenanceConstr provenance,
-		in IlFormatCtx ctx
+		in IlFormatInfo info
 	) {
 		StringBuilder sb = new();
 		for (int i = 0; i < pattern.Length; i++) {
 			sb.Append(' ');
 			sb.Append(i.ToString(CultureInfo.InvariantCulture).PadLeft(3));
 			sb.Append(". ");
-			sb.Append(FormatElement(pattern[i], in ctx));
+			sb.Append(FormatElement(pattern[i], in info));
 			sb.AppendLine();
 		}
 		sb.Append("    + ");
@@ -74,12 +74,12 @@ internal static class IlPatternDisplay {
 	}
 
 	public static string FormatPattern(in IlPatternSearchInfo info) =>
-		FormatPattern(info.Pattern, info.Provenance, info.Context);
+		FormatPattern(info.Pattern, info.Provenance, info.FormatInfo);
 
-	public static string FormatElement(IlPatternElement element, in IlFormatCtx ctx) => element.Kind switch {
+	public static string FormatElement(IlPatternElement element, in IlFormatInfo info) => element.Kind switch {
 		IlPatternElement.PatternKind.Any => "<any instruction>",
 		IlPatternElement.PatternKind.OpCode => formatAnyOperand(element.OpCodeValue),
-		IlPatternElement.PatternKind.Instruction => IlInstructionDisplay.Format(element.OpCodeValue, element.Operand, null, ctx.FormatAnchor),
+		IlPatternElement.PatternKind.Instruction => IlInstructionDisplay.Format(element.OpCodeValue, element.Operand, null, info.FormatAnchor),
 		_ => "<invalid pattern element>",
 	};
 

@@ -31,5 +31,5 @@ public sealed class TickerSubscriptionHandle : IReloadTeardown {
 		return ret;
 	}
 
-	public void Teardown(in ReloadTeardownContext ctx) => Remove();
+	public void Teardown(in ReloadTeardownCtx ctx) => Remove();
 }

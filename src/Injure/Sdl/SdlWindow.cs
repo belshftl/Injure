@@ -13,8 +13,8 @@ namespace Injure.Sdl;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Bound to the thread of its <see cref="SdlContext"/> like everything else SDL-related; see
-/// <see cref="SdlContext"/> for details. A context can't be disposed while any of its windows are
+/// Bound to the thread of its <see cref="SdlInstance"/> like everything else SDL-related; see
+/// <see cref="SdlInstance"/> for details. An instance can't be disposed while any of its windows are
 /// alive.
 /// </para>
 /// <para>
@@ -30,9 +30,9 @@ public sealed unsafe class SdlWindow : IDisposable {
 	private SdlWindowState state;
 
 	/// <summary>
-	/// The context this window was created from.
+	/// The instance this window was created from.
 	/// </summary>
-	public SdlContext Context { get; }
+	public SdlInstance Sdl { get; }
 
 	/// <summary>
 	/// This window's process-wide ID.
@@ -53,7 +53,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// The window's state as of the last processed window event or immediate setter call.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -70,38 +70,38 @@ public sealed unsafe class SdlWindow : IDisposable {
 		}
 	}
 
-	private SdlWindow(SdlContext context, SDLWindow* handle, void* metalView, void* metalLayer, uint sdlWindowId) {
-		Context = context;
+	private SdlWindow(SdlInstance sdl, SDLWindow* handle, void* metalView, void* metalLayer, uint sdlWindowId) {
+		Sdl = sdl;
 		this.handle = handle;
 		this.metalView = metalView;
 		this.metalLayer = metalLayer;
 		this.sdlWindowId = sdlWindowId;
 		Id = HostWindowId.Allocate();
 		SurfaceHost = new SdlSurfaceHost(this);
-		state = queryState(handle, context.Clock.Now);
+		state = queryState(handle, sdl.Clock.Now);
 	}
 
 	/// <summary>
 	/// Creates a window.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="context"/> is <see langword="null"/>.
+	/// Thrown if <paramref name="sdl"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="options"/> is invalid; see <see cref="SdlWindowOptions"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <paramref name="context"/>.
+	/// Thrown if called from a thread other than the one that created <paramref name="sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if <paramref name="context"/> has been disposed.
+	/// Thrown if <paramref name="sdl"/> has been disposed.
 	/// </exception>
 	/// <exception cref="SdlException">
 	/// Thrown if an SDL call fails.
 	/// </exception>
-	public static SdlWindow Create(SdlContext context, in SdlWindowOptions options) {
-		ArgumentNullException.ThrowIfNull(context);
-		context.CheckAccess();
+	public static SdlWindow Create(SdlInstance sdl, in SdlWindowOptions options) {
+		ArgumentNullException.ThrowIfNull(sdl);
+		sdl.CheckAccess();
 		options.Validate(nameof(options));
 
 		uint props = SDL.CreateProperties();
@@ -123,7 +123,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_MAXIMIZED_BOOLEAN, options.Mode == SdlWindowMode.Maximized));
 			if (OperatingSystem.IsMacOS())
 				Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN, true));
-			return createFrom(context, props);
+			return createFrom(sdl, props);
 		} finally {
 			SDL.DestroyProperties(props);
 		}
@@ -132,23 +132,23 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <summary>
 	/// Creates a window from raw <c>SDL_CreateWindowWithProperties</c> properties.
 	/// </summary>
-	/// <param name="context">Context to create the window in.</param>
+	/// <param name="sdl">Instance to create the window in.</param>
 	/// <param name="props">
 	/// A valid <c>SDL_PropertiesID</c>. Stays owned by the caller. Also see this method's remarks for
 	/// contracts it must uphold.
 	/// </param>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="context"/> is <see langword="null"/>.
+	/// Thrown if <paramref name="sdl"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if on macOS and <c>SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN</c> is not set to true in
 	/// <paramref name="props"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <paramref name="context"/>.
+	/// Thrown if called from a thread other than the one that created <paramref name="sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
-	/// Thrown if <paramref name="context"/> has been disposed.
+	/// Thrown if <paramref name="sdl"/> has been disposed.
 	/// </exception>
 	/// <exception cref="SdlException">
 	/// Thrown if an SDL call fails.
@@ -157,13 +157,13 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// On macOS, <c>SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN</c> <b>must</b> be set to true in
 	/// <paramref name="props"/>.
 	/// </remarks>
-	public static SdlWindow DangerousCreateFromProperties(SdlContext context, uint props) {
-		ArgumentNullException.ThrowIfNull(context);
-		context.CheckAccess();
-		return createFrom(context, props);
+	public static SdlWindow DangerousCreateFromProperties(SdlInstance sdl, uint props) {
+		ArgumentNullException.ThrowIfNull(sdl);
+		sdl.CheckAccess();
+		return createFrom(sdl, props);
 	}
 
-	private static SdlWindow createFrom(SdlContext context, uint props) {
+	private static SdlWindow createFrom(SdlInstance sdl, uint props) {
 		if (
 			OperatingSystem.IsMacOS()
 			&& !SDL.GetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN, false)
@@ -188,8 +188,8 @@ public sealed unsafe class SdlWindow : IDisposable {
 				if (metalLayer is null)
 					throw FromLastError("SDL_Metal_GetLayer");
 			}
-			SdlWindow window = new(context, handle, metalView, metalLayer, sdlWindowId);
-			context.RegisterWindow(sdlWindowId, window);
+			SdlWindow window = new(sdl, handle, metalView, metalLayer, sdlWindowId);
+			sdl.RegisterWindow(sdlWindowId, window);
 			return window;
 		} catch {
 			if (metalView is not null)
@@ -204,7 +204,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -224,7 +224,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -244,7 +244,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -268,7 +268,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Thrown if <paramref name="title"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -280,14 +280,14 @@ public sealed unsafe class SdlWindow : IDisposable {
 		ArgumentNullException.ThrowIfNull(title);
 		CheckAccess();
 		Check(SDL.SetWindowTitle(handle, title));
-		state = state with { Title = title, UpdatedAt = Context.Clock.Now };
+		state = state with { Title = title, UpdatedAt = Sdl.Clock.Now };
 	}
 
 	/// <summary>
 	/// Sets whether the user can resize the window. Takes effect immediately.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -298,14 +298,14 @@ public sealed unsafe class SdlWindow : IDisposable {
 	public void SetResizable(bool resizable) {
 		CheckAccess();
 		Check(SDL.SetWindowResizable(handle, resizable));
-		state = state with { Resizable = resizable, UpdatedAt = Context.Clock.Now };
+		state = state with { Resizable = resizable, UpdatedAt = Sdl.Clock.Now };
 	}
 
 	/// <summary>
 	/// Sets whether the window has window decorations. Takes effect immediately.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -316,7 +316,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	public void SetBorderless(bool borderless) {
 		CheckAccess();
 		Check(SDL.SetWindowBordered(handle, !borderless));
-		state = state with { Borderless = borderless, UpdatedAt = Context.Clock.Now };
+		state = state with { Borderless = borderless, UpdatedAt = Sdl.Clock.Now };
 	}
 
 	// ==========================================================================
@@ -329,7 +329,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Thrown if <paramref name="width"/> or <paramref name="height"/> is not positive.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -395,7 +395,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Asks the window system to show or hide the window.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -420,7 +420,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <see langword="true"/> if all requests were applied; <see langword="false"/> on timeout.
 	/// </returns>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this window has been disposed.
@@ -494,24 +494,24 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Destroys the window.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if called from a thread other than the one that created <see cref="Context"/>.
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	public void Dispose() {
 		if (handle is null)
 			return;
-		// the context can't be disposed while this window is alive, so only the thread check can fail
-		Context.CheckAccess();
+		// the instance can't be disposed while this window is alive, so only the thread check can fail
+		Sdl.CheckAccess();
 		if (metalView is not null)
 			SDL.MetalDestroyView(metalView);
 		SDL.DestroyWindow(handle);
-		Context.UnregisterWindow(sdlWindowId);
+		Sdl.UnregisterWindow(sdlWindowId);
 		handle = null;
 		metalView = null;
 		metalLayer = null;
 	}
 
 	internal void CheckAccess() {
-		Context.CheckAccess();
+		Sdl.CheckAccess();
 		ObjectDisposedException.ThrowIf(handle is null, this);
 	}
 }
