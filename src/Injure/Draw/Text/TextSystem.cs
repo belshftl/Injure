@@ -20,12 +20,12 @@ public readonly record struct TextLayoutOptions(
 
 public readonly record struct TextStyle(
 	FontOptions FontOptions,
-	Color32 Color,
+	SrgbColor32 Color,
 	TextLayoutOptions LayoutOptions,
 	string Locale = "und",
 	string? LanguageBcp47 = null
 ) {
-	public TextStyle(int fontSize, Color32 color, TextLayoutOptions? layoutOptions = null) : this(
+	public TextStyle(int fontSize, SrgbColor32 color, TextLayoutOptions? layoutOptions = null) : this(
 		new FontOptions(fontSize),
 		color,
 		layoutOptions ?? new TextLayoutOptions()

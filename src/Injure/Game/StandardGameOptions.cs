@@ -55,7 +55,7 @@ public readonly struct StandardGameOptions {
 	/// <summary>
 	/// The color each frame is cleared to before <see cref="StandardGame.OnRender(RenderFrame)"/>.
 	/// </summary>
-	public Color32 ClearColor { get; init; } = Color32.Black;
+	public SrgbColor32 ClearColor { get; init; } = SrgbColor32.Black;
 
 	/// <summary>
 	/// Whether to create an <see cref="Assets.AssetStore"/>; see <see cref="StandardGame.Assets"/>.

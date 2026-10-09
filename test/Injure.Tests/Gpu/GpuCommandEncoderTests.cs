@@ -147,17 +147,17 @@ public sealed class GpuCommandEncoderTests(GpuDeviceFixture fixture) : GpuTestBa
 		using GpuTexture a = GpuRig.Target(dev, 4, 4);
 		using GpuTexture b = GpuRig.Target(dev, 4, 4, extraUsage: TextureUsage.CopyDst);
 		GpuRig.Run(dev, enc => {
-			enc.BeginColorPass(a.DefaultView, ColorAttachmentOps.Clear(Color32.Red)).Dispose();
-			enc.BeginColorPass(b.DefaultView, ColorAttachmentOps.Clear(Color32.Black)).Dispose();
+			enc.BeginColorPass(a.DefaultView, ColorAttachmentOps.Clear(RawColor32.Red.ToRawF128())).Dispose();
+			enc.BeginColorPass(b.DefaultView, ColorAttachmentOps.Clear(RawColor32.Black.ToRawF128())).Dispose();
 			enc.CopyTextureToTexture(
 				a, new GpuTextureRegion(0, 0, 0, 2, 2, 1, 0, TextureAspect.All),
 				b, new GpuTextureRegion(2, 2, 0, 2, 2, 1, 0, TextureAspect.All)
 			);
 		});
 		byte[] texels = GpuRig.Read(dev, b);
-		Assert.Equal(Color32.Black, GpuRig.At(texels, 4, 1, 1));
-		Assert.Equal(Color32.Red, GpuRig.At(texels, 4, 3, 3));
-		Assert.Equal(Color32.Black, GpuRig.At(texels, 4, 1, 3));
+		Assert.Equal(RawColor32.Black, GpuRig.At(texels, 4, 1, 1));
+		Assert.Equal(RawColor32.Red, GpuRig.At(texels, 4, 3, 3));
+		Assert.Equal(RawColor32.Black, GpuRig.At(texels, 4, 1, 3));
 	}
 
 	[Fact]

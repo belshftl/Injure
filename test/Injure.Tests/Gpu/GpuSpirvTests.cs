@@ -35,7 +35,7 @@ public sealed class GpuSpirvTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 		using GpuTexture target = GpuRig.Target(Device, 4, 4);
 		using GpuBuffer vb = GpuRig.BufferWith(Device, BufferUsage.Vertex, GpuRig.Fullscreen().AsSpan());
 		GpuRig.Run(Device, enc => {
-			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(Color32.Black));
+			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(RawColor32.Black.ToRawF128()));
 			pass.SetPipeline(p);
 			pass.SetBindGroup(0, tint.Group, [tint.Stride]);
 			pass.SetVertexBuffer(0, vb);
@@ -46,7 +46,7 @@ public sealed class GpuSpirvTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 
 	[Fact]
 	public void SpirvMatchesTheEquivalentWgsl() {
-		using GpuRig.Tinted tint = new(Device, Color32.Red, new Color32(12, 34, 56, 255));
+		using GpuRig.Tinted tint = new(Device, RawColor32.Red, new RawColor32(12, 34, 56, 255));
 		// one module through each overload
 		using GpuShaderModule vs = Device.CreateShaderModuleSpirv(loadFixture("tint.vert").AsSpan());
 		using GpuShaderModule fs = Device.CreateShaderModuleSpirv(words(loadFixture("tint.frag")).AsSpan());
@@ -58,7 +58,7 @@ public sealed class GpuSpirvTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 		using GpuRenderPipeline wgsl = tint.Pipeline(Device, [GpuRig.Opaque()]);
 
 		byte[] fromSpirv = render(tint, spirv);
-		Assert.Equal(new Color32(12, 34, 56, 255), GpuRig.At(fromSpirv, 4, 2, 2));
+		Assert.Equal(new RawColor32(12, 34, 56, 255), GpuRig.At(fromSpirv, 4, 2, 2));
 		Assert.Equal(render(tint, wgsl), fromSpirv);
 	}
 

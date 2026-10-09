@@ -86,7 +86,7 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 
 	[Fact]
 	public void DynamicOffsetsAreValidated() {
-		using GpuRig.Tinted tint = new(Device, Color32.Red, Color32.White);
+		using GpuRig.Tinted tint = new(Device, RawColor32.Red, RawColor32.White);
 		using GpuBindGroupLayout plainLayout = Device.CreateUniformBufferBindGroupLayout(ShaderStage.Fragment);
 		using GpuBindGroup plain = Device.CreateUniformBufferBindGroup(plainLayout, tint.Uniforms, size: 16);
 		inPass(4, pass => {
@@ -130,7 +130,7 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 
 	[Fact]
 	public void DrawsRequireTheirState() {
-		using GpuRig.Tinted tint = new(Device, Color32.Red);
+		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuRenderPipeline p = tint.Pipeline(Device, [GpuRig.Opaque()]);
 		using GpuBuffer args = Device.CreateBuffer(32, BufferUsage.Indirect);
 		inPass(4, pass => {

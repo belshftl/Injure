@@ -549,4 +549,86 @@ public readonly partial struct TextureFormat {
 		/// </summary>
 		Astc12x12UnormSrgb = 95,
 	}
+
+}
+
+/// <summary>
+/// sRGB-related helpers for <see cref="TextureFormat"/>.
+/// </summary>
+public static class TextureFormatSrgbExtensions {
+	/// <summary>
+	/// Whether <paramref name="format"/> is an sRGB-encoded format, i.e. one that decodes to linear on reads and encodes
+	/// from linear on writes.
+	/// </summary>
+	public static bool IsSrgb(this TextureFormat format) => format.ToNonSrgb() != format;
+
+	/// <summary>
+	/// Returns the non-sRGB counterpart of <paramref name="format"/> if it's sRGB-encoded (e.g.
+	/// <see cref="TextureFormat.Rgba8Unorm"/> for <see cref="TextureFormat.Rgba8UnormSrgb"/>), and
+	/// <paramref name="format"/> otherwise.
+	/// </summary>
+	/// <remarks>
+	/// A format and its counterpart can be listed as each other's view formats.
+	/// </remarks>
+	public static TextureFormat ToNonSrgb(this TextureFormat format) => format.Tag switch {
+		TextureFormat.Case.Rgba8UnormSrgb => TextureFormat.Rgba8Unorm,
+		TextureFormat.Case.Bgra8UnormSrgb => TextureFormat.Bgra8Unorm,
+		TextureFormat.Case.Bc1RgbaUnormSrgb => TextureFormat.Bc1RgbaUnorm,
+		TextureFormat.Case.Bc2RgbaUnormSrgb => TextureFormat.Bc2RgbaUnorm,
+		TextureFormat.Case.Bc3RgbaUnormSrgb => TextureFormat.Bc3RgbaUnorm,
+		TextureFormat.Case.Bc7RgbaUnormSrgb => TextureFormat.Bc7RgbaUnorm,
+		TextureFormat.Case.Etc2Rgb8UnormSrgb => TextureFormat.Etc2Rgb8Unorm,
+		TextureFormat.Case.Etc2Rgb8a1UnormSrgb => TextureFormat.Etc2Rgb8a1Unorm,
+		TextureFormat.Case.Etc2Rgba8UnormSrgb => TextureFormat.Etc2Rgba8Unorm,
+		TextureFormat.Case.Astc4x4UnormSrgb => TextureFormat.Astc4x4Unorm,
+		TextureFormat.Case.Astc5x4UnormSrgb => TextureFormat.Astc5x4Unorm,
+		TextureFormat.Case.Astc5x5UnormSrgb => TextureFormat.Astc5x5Unorm,
+		TextureFormat.Case.Astc6x5UnormSrgb => TextureFormat.Astc6x5Unorm,
+		TextureFormat.Case.Astc6x6UnormSrgb => TextureFormat.Astc6x6Unorm,
+		TextureFormat.Case.Astc8x5UnormSrgb => TextureFormat.Astc8x5Unorm,
+		TextureFormat.Case.Astc8x6UnormSrgb => TextureFormat.Astc8x6Unorm,
+		TextureFormat.Case.Astc8x8UnormSrgb => TextureFormat.Astc8x8Unorm,
+		TextureFormat.Case.Astc10x5UnormSrgb => TextureFormat.Astc10x5Unorm,
+		TextureFormat.Case.Astc10x6UnormSrgb => TextureFormat.Astc10x6Unorm,
+		TextureFormat.Case.Astc10x8UnormSrgb => TextureFormat.Astc10x8Unorm,
+		TextureFormat.Case.Astc10x10UnormSrgb => TextureFormat.Astc10x10Unorm,
+		TextureFormat.Case.Astc12x10UnormSrgb => TextureFormat.Astc12x10Unorm,
+		TextureFormat.Case.Astc12x12UnormSrgb => TextureFormat.Astc12x12Unorm,
+		_ => format,
+	};
+
+	/// <summary>
+	/// Returns the sRGB counterpart of <paramref name="format"/> if it has one (e.g.
+	/// <see cref="TextureFormat.Rgba8UnormSrgb"/> for <see cref="TextureFormat.Rgba8Unorm"/>), and
+	/// <paramref name="format"/> otherwise.
+	/// </summary>
+	/// <remarks>
+	/// A format and its counterpart can be listed as each other's view formats.
+	/// </remarks>
+	public static TextureFormat ToSrgb(this TextureFormat format) => format.Tag switch {
+		TextureFormat.Case.Rgba8Unorm => TextureFormat.Rgba8UnormSrgb,
+		TextureFormat.Case.Bgra8Unorm => TextureFormat.Bgra8UnormSrgb,
+		TextureFormat.Case.Bc1RgbaUnorm => TextureFormat.Bc1RgbaUnormSrgb,
+		TextureFormat.Case.Bc2RgbaUnorm => TextureFormat.Bc2RgbaUnormSrgb,
+		TextureFormat.Case.Bc3RgbaUnorm => TextureFormat.Bc3RgbaUnormSrgb,
+		TextureFormat.Case.Bc7RgbaUnorm => TextureFormat.Bc7RgbaUnormSrgb,
+		TextureFormat.Case.Etc2Rgb8Unorm => TextureFormat.Etc2Rgb8UnormSrgb,
+		TextureFormat.Case.Etc2Rgb8a1Unorm => TextureFormat.Etc2Rgb8a1UnormSrgb,
+		TextureFormat.Case.Etc2Rgba8Unorm => TextureFormat.Etc2Rgba8UnormSrgb,
+		TextureFormat.Case.Astc4x4Unorm => TextureFormat.Astc4x4UnormSrgb,
+		TextureFormat.Case.Astc5x4Unorm => TextureFormat.Astc5x4UnormSrgb,
+		TextureFormat.Case.Astc5x5Unorm => TextureFormat.Astc5x5UnormSrgb,
+		TextureFormat.Case.Astc6x5Unorm => TextureFormat.Astc6x5UnormSrgb,
+		TextureFormat.Case.Astc6x6Unorm => TextureFormat.Astc6x6UnormSrgb,
+		TextureFormat.Case.Astc8x5Unorm => TextureFormat.Astc8x5UnormSrgb,
+		TextureFormat.Case.Astc8x6Unorm => TextureFormat.Astc8x6UnormSrgb,
+		TextureFormat.Case.Astc8x8Unorm => TextureFormat.Astc8x8UnormSrgb,
+		TextureFormat.Case.Astc10x5Unorm => TextureFormat.Astc10x5UnormSrgb,
+		TextureFormat.Case.Astc10x6Unorm => TextureFormat.Astc10x6UnormSrgb,
+		TextureFormat.Case.Astc10x8Unorm => TextureFormat.Astc10x8UnormSrgb,
+		TextureFormat.Case.Astc10x10Unorm => TextureFormat.Astc10x10UnormSrgb,
+		TextureFormat.Case.Astc12x10Unorm => TextureFormat.Astc12x10UnormSrgb,
+		TextureFormat.Case.Astc12x12Unorm => TextureFormat.Astc12x12UnormSrgb,
+		_ => format,
+	};
 }

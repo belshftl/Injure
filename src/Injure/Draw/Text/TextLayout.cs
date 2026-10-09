@@ -458,7 +458,7 @@ internal readonly record struct TextGlyph(
 	GlyphAtlasPage Page,
 	RectI SrcPixels,
 	RectF DstPixels,
-	Color32 Color,
+	SrgbColor32 Color,
 	uint GlyphId,
 	uint Cluster
 );

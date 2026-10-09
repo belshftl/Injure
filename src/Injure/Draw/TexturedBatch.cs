@@ -50,7 +50,7 @@ public readonly record struct SdfParams(
 	float EdgeValue = 0.5f,
 	float SoftnessPixels = 1.0f,
 	float OutlineWidthPixels = 0.0f,
-	Color32 OutlineColor = default
+	SrgbColor32 OutlineColor = default
 );
 
 [StructLayout(LayoutKind.Sequential)]
@@ -262,7 +262,7 @@ public sealed class TexturedBatch : IDisposable {
 				EdgeValue = p.EdgeValue,
 				SoftnessPixels = p.SoftnessPixels,
 				OutlineWidthPixels = p.OutlineWidthPixels,
-				OutlineColor = p.OutlineColor.ToVector4(),
+				OutlineColor = p.OutlineColor.ToRawF128().ToVector4(),
 			};
 			localsUniformBuffer = device.CreateBuffer((ulong)TexturedBatchLocalsUniformSdf.Size, BufferUsage.Uniform | BufferUsage.CopyDst);
 			device.WriteToBuffer(localsUniformBuffer, 0, in l);
@@ -321,13 +321,13 @@ public sealed class TexturedBatch : IDisposable {
 			};
 	}
 
-	public void Quad(TextureSource tex, RectF dst, RectF uv, Color32 color) {
+	public void Quad(TextureSource tex, RectF dst, RectF uv, SrgbColor32 color) {
 		chk();
 		ResolvedTextureSource r = tex.Resolve();
 		Quad(in r, dst, uv, color);
 	}
 
-	internal void Quad(in ResolvedTextureSource tex, RectF dst, RectF uv, Color32 color) {
+	internal void Quad(in ResolvedTextureSource tex, RectF dst, RectF uv, SrgbColor32 color) {
 		chk();
 		ensure(4, 6, 1);
 		startrun(tex, 6);

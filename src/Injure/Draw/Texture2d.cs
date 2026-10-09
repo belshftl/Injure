@@ -13,6 +13,10 @@ namespace Injure.Draw;
 /// <summary>
 /// High-level storage formats supported by <see cref="Texture2d"/>.
 /// </summary>
+/// <remarks>
+/// There are no sRGB formats, since <see cref="Canvas"/> takes texels as stored; color textures
+/// hold sRGB-encoded values in plain unorm formats.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct Texture2dFormat {
 	/// <summary>Raw switch tag for <see cref="Texture2dFormat"/>.</summary>
@@ -20,9 +24,7 @@ public readonly partial struct Texture2dFormat {
 		R8_Unorm = 1,
 		Rg16_Unorm,
 		Rgba32_Unorm,
-		Rgba32_Unorm_Srgb,
 		Bgra32_Unorm,
-		Bgra32_Unorm_Srgb,
 	}
 }
 
@@ -247,9 +249,7 @@ public sealed class Texture2d : IRevokable, IDisposable {
 		Texture2dFormat.Case.R8_Unorm => TextureFormat.R8Unorm,
 		Texture2dFormat.Case.Rg16_Unorm => TextureFormat.Rg8Unorm,
 		Texture2dFormat.Case.Rgba32_Unorm => TextureFormat.Rgba8Unorm,
-		Texture2dFormat.Case.Rgba32_Unorm_Srgb => TextureFormat.Rgba8UnormSrgb,
 		Texture2dFormat.Case.Bgra32_Unorm => TextureFormat.Bgra8Unorm,
-		Texture2dFormat.Case.Bgra32_Unorm_Srgb => TextureFormat.Bgra8UnormSrgb,
 		_ => throw new UnreachableException(),
 	};
 
@@ -257,9 +257,7 @@ public sealed class Texture2d : IRevokable, IDisposable {
 		Texture2dFormat.Case.R8_Unorm => PixelFormat.R8_Unorm,
 		Texture2dFormat.Case.Rg16_Unorm => PixelFormat.Rg16_Unorm,
 		Texture2dFormat.Case.Rgba32_Unorm => PixelFormat.Rgba32_Unorm,
-		Texture2dFormat.Case.Rgba32_Unorm_Srgb => PixelFormat.Rgba32_Unorm,
 		Texture2dFormat.Case.Bgra32_Unorm => PixelFormat.Bgra32_Unorm,
-		Texture2dFormat.Case.Bgra32_Unorm_Srgb => PixelFormat.Bgra32_Unorm,
 		_ => throw new UnreachableException(),
 	};
 

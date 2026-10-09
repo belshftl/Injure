@@ -57,6 +57,7 @@ anyhow, to v0.1:
   - [x] document everything with doc comments, and revise the existing doc comments
   - [ ] as a way to test that the redesign works, try to sketch something more complex than rendering into a plain sdl3 window; maybe an avalonia child surface or something like that
   - [x] write tests; more of it seems to be testable than i initially realized
+- [x] split the current color type to encode srgb vs raw, and introduce a float color type
 - [ ] redesign `Draw` while we're at it; it's a bit of a mess right now
   - [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
   - [ ] look at what else looks out of date and needs to be redesigned; here be dragons (the whole batch/canvas resources system kind of comes to mind but i'm unsure whether it's actually problematic)

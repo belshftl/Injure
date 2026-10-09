@@ -64,7 +64,7 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 	[Fact]
 	public void RecordingErrorsInvalidateTheCommandBuffer() {
 		using GpuTexture target = GpuRig.Target(Device, 4, 4);
-		using GpuRig.Tinted tint = new(Device, Color32.Red);
+		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuRenderPipeline p = tint.Pipeline(Device, [GpuRig.Opaque()]);
 		using GpuBuffer vb = GpuRig.BufferWith(Device, BufferUsage.Vertex, GpuRig.Fullscreen().AsSpan());
 		using GpuCommandEncoder enc = Device.CreateCommandEncoder();
@@ -90,12 +90,12 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 	[Fact]
 	public void FrameWithInvalidCommandsIsNotPresented() {
 		using GpuTexture target = GpuRig.Target(Device, 4, 4);
-		using GpuRig.Tinted tint = new(Device, Color32.Red);
+		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuRenderPipeline p = tint.Pipeline(Device, [GpuRig.Opaque()]);
 		using GpuBuffer vb = GpuRig.BufferWith(Device, BufferUsage.Vertex, GpuRig.Fullscreen().AsSpan());
 		GpuRig.FakeOutput output = new(target);
 		RenderFrame frame = new(Device, output);
-		using (RenderPass pass = frame.Encoder.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(Color32.Red)))
+		using (RenderPass pass = frame.Encoder.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(RawColor32.Red.ToRawF128())))
 			drawWithoutBindGroup(pass, p, vb);
 		Assert.Throws<InvalidOperationException>(frame.Submit);
 		Assert.Single(Errors.TakeAll());
@@ -167,7 +167,7 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 
 	[Fact]
 	public void DrawWithMissingVertexBufferIsInvalid() {
-		using GpuRig.Tinted tint = new(Device, Color32.Red);
+		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuRenderPipeline p = tint.Pipeline(Device, [GpuRig.Opaque()]);
 		using GpuTexture target = GpuRig.Target(Device, 4, 4);
 		assertInvalidCommands(enc => {
@@ -180,7 +180,7 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 
 	[Fact]
 	public void PipelineIncompatibleWithThePassIsInvalid() {
-		using GpuRig.Tinted tint = new(Device, Color32.Red);
+		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuRenderPipeline rgba = tint.Pipeline(Device, [GpuRig.Opaque()]);
 		using GpuRenderPipeline multisampled = tint.Pipeline(Device, [GpuRig.Opaque()], samples: 4);
 		using GpuTexture bgra = GpuRig.Target(Device, 4, 4, format: TextureFormat.Bgra8Unorm);
@@ -202,7 +202,7 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 	// compatibility documented as validated only by WebGPU
 	[Fact]
 	public void PipelineLayoutNotMatchingTheShaderIsReported() {
-		using GpuRig.Tinted tint = new(Device, Color32.Red);
+		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuPipelineLayout empty = Device.CreatePipelineLayout([]);
 		using GpuRenderPipeline p = Device.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
 			empty, new VertexState(tint.Shader, "vs", [GpuRig.Vertex3]), new FragmentState(tint.Shader, "fs", [GpuRig.Opaque()])

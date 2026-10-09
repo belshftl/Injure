@@ -20,7 +20,7 @@ public sealed class RenderFrameTests(GpuDeviceFixture fixture) : GpuTestBase(fix
 		RenderFrame frame = new(dev, output);
 		Assert.True(frame.HasPrimaryOutput);
 		Assert.Equal(4u, frame.PrimaryView.Width);
-		frame.BeginPrimaryPass(ColorAttachmentOps.Clear(Color32.Red)).Dispose();
+		frame.BeginPrimaryPass(ColorAttachmentOps.Clear(RawColor32.Red.ToRawF128())).Dispose();
 		frame.Submit();
 		Assert.Equal(["final", "present", "dispose"], output.Calls);
 
@@ -40,7 +40,7 @@ public sealed class RenderFrameTests(GpuDeviceFixture fixture) : GpuTestBase(fix
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
 		GpuRig.FakeOutput output = new(target);
 		using (RenderFrame frame = new(dev, output))
-			frame.BeginPrimaryPass(ColorAttachmentOps.Clear(Color32.Red)).Dispose();
+			frame.BeginPrimaryPass(ColorAttachmentOps.Clear(RawColor32.Red.ToRawF128())).Dispose();
 		Assert.Equal(["dispose"], output.Calls);
 	}
 

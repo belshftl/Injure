@@ -230,7 +230,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		uint i2 = addvert(c);
 		add3idxs(i0, i1, i2);
 	}
-	public void Triangle(Vector2 a, Vector2 b, Vector2 c, Color32 color) =>
+	public void Triangle(Vector2 a, Vector2 b, Vector2 c, SrgbColor32 color) =>
 		Triangle(new Vertex2dColor(a, color), new Vertex2dColor(b, color), new Vertex2dColor(c, color));
 
 	public void Quad(Vertex2dColor topleft, Vertex2dColor topright, Vertex2dColor bottomleft, Vertex2dColor bottomright) {
@@ -243,7 +243,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		add3idxs(i0, i2, i1);
 		add3idxs(i3, i1, i2);
 	}
-	public void Quad(Vector2 topleft, Vector2 topright, Vector2 bottomleft, Vector2 bottomright, Color32 color) =>
+	public void Quad(Vector2 topleft, Vector2 topright, Vector2 bottomleft, Vector2 bottomright, SrgbColor32 color) =>
 		Quad(
 			new Vertex2dColor(topleft, color),
 			new Vertex2dColor(topright, color),
@@ -251,14 +251,14 @@ public sealed class PrimitiveBatch : IDisposable {
 			new Vertex2dColor(bottomright, color)
 		);
 
-	public void Rect(RectF rect, Color32 cTopleft, Color32 cTopright, Color32 cBottomleft, Color32 cBottomright) =>
+	public void Rect(RectF rect, SrgbColor32 cTopleft, SrgbColor32 cTopright, SrgbColor32 cBottomleft, SrgbColor32 cBottomright) =>
 		Quad(
 			new Vertex2dColor(rect.X, rect.Y, cTopleft),
 			new Vertex2dColor(rect.X + rect.Width, rect.Y, cTopright),
 			new Vertex2dColor(rect.X, rect.Y + rect.Height, cBottomleft),
 			new Vertex2dColor(rect.X + rect.Width, rect.Y + rect.Height, cBottomright)
 		);
-	public void Rect(RectF rect, Color32 color) =>
+	public void Rect(RectF rect, SrgbColor32 color) =>
 		Rect(rect, color, color, color, color);
 
 	public void Line(Vertex2dColor a, Vertex2dColor b, float thickness = 1f) {
@@ -291,10 +291,10 @@ public sealed class PrimitiveBatch : IDisposable {
 			add3idxs(i0, i2, i3);
 		}
 	}
-	public void Line(Vector2 a, Vector2 b, Color32 color, float thickness = 1f) =>
+	public void Line(Vector2 a, Vector2 b, SrgbColor32 color, float thickness = 1f) =>
 		Line(new Vertex2dColor(a, color), new Vertex2dColor(b, color), thickness);
 
-	private void flatcolor(Action<ReadOnlySpan<Vertex2dColor>> draw, ReadOnlySpan<Vector2> points, Color32 color) {
+	private void flatcolor(Action<ReadOnlySpan<Vertex2dColor>> draw, ReadOnlySpan<Vector2> points, SrgbColor32 color) {
 		const int maxstack = 256;
 		Span<Vertex2dColor> verts = points.Length <= maxstack ? stackalloc Vertex2dColor[points.Length] : new Vertex2dColor[points.Length];
 		for (int i = 0; i < points.Length; i++)
@@ -302,7 +302,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		draw(verts);
 	}
 
-	private void flatcolor(Action<ReadOnlySpan<Vertex2dColor>, float> draw, ReadOnlySpan<Vector2> points, Color32 color, float thickness) {
+	private void flatcolor(Action<ReadOnlySpan<Vertex2dColor>, float> draw, ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness) {
 		const int maxstack = 256;
 		Span<Vertex2dColor> verts = points.Length <= maxstack ? stackalloc Vertex2dColor[points.Length] : new Vertex2dColor[points.Length];
 		for (int i = 0; i < points.Length; i++)
@@ -321,7 +321,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		for (uint i = 1; i < (uint)verts.Length - 1; i++)
 			add3idxs(baseidx, baseidx + i, baseidx + i + 1);
 	}
-	public void ConvexPoly(ReadOnlySpan<Vector2> points, Color32 color) =>
+	public void ConvexPoly(ReadOnlySpan<Vector2> points, SrgbColor32 color) =>
 		flatcolor(ConvexPoly, points, color);
 
 	public void TriangleList(ReadOnlySpan<Vertex2dColor> verts) {
@@ -336,7 +336,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		for (uint i = 0; i < (uint)verts.Length; i += 3)
 			add3idxs(baseidx + i, baseidx + i + 1, baseidx + i + 2);
 	}
-	public void TriangleList(ReadOnlySpan<Vector2> points, Color32 color) =>
+	public void TriangleList(ReadOnlySpan<Vector2> points, SrgbColor32 color) =>
 		flatcolor(TriangleList, points, color);
 
 	public void TriangleStrip(ReadOnlySpan<Vertex2dColor> verts) {
@@ -353,7 +353,7 @@ public sealed class PrimitiveBatch : IDisposable {
 			else
 				add3idxs(baseidx + i + 1, baseidx + i, baseidx + i + 2);
 	}
-	public void TriangleStrip(ReadOnlySpan<Vector2> points, Color32 color) =>
+	public void TriangleStrip(ReadOnlySpan<Vector2> points, SrgbColor32 color) =>
 		flatcolor(TriangleStrip, points, color);
 
 	public void LineList(ReadOnlySpan<Vertex2dColor> verts, float thickness = 1f) {
@@ -365,7 +365,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		for (int i = 0; i < verts.Length; i += 2)
 			Line(verts[i], verts[i + 1], thickness);
 	}
-	public void LineList(ReadOnlySpan<Vector2> points, Color32 color, float thickness = 1f) =>
+	public void LineList(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f) =>
 		flatcolor(LineList, points, color, thickness);
 
 	public void LineStrip(ReadOnlySpan<Vertex2dColor> verts, float thickness = 1f) {
@@ -375,7 +375,7 @@ public sealed class PrimitiveBatch : IDisposable {
 		for (int i = 0; i < verts.Length - 1; i++)
 			Line(verts[i], verts[i + 1], thickness);
 	}
-	public void LineStrip(ReadOnlySpan<Vector2> points, Color32 color, float thickness = 1f) =>
+	public void LineStrip(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f) =>
 		flatcolor(LineStrip, points, color, thickness);
 
 	public void Submit() {

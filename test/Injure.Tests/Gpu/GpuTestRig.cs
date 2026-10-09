@@ -105,9 +105,9 @@ internal static class GpuRig {
 		return texels;
 	}
 
-	public static Color32 At(byte[] texels, uint width, uint x, uint y) {
+	public static RawColor32 At(byte[] texels, uint width, uint x, uint y) {
 		int i = (int)((y * width + x) * 4);
-		return new Color32(texels[i], texels[i + 1], texels[i + 2], texels[i + 3]);
+		return new RawColor32(texels[i], texels[i + 1], texels[i + 2], texels[i + 3]);
 	}
 
 	public static GpuTextureRegion Whole(GpuTextureHandle tex) =>
@@ -149,15 +149,15 @@ internal static class GpuRig {
 		public readonly uint Stride;
 
 		// uniform slot i holds colors[i], at a dynamic offset of i * Stride
-		public Tinted(GpuDevice dev, params ReadOnlySpan<Color32> colors) {
+		public Tinted(GpuDevice dev, params ReadOnlySpan<RawColor32> colors) {
 			Shader = dev.CreateShaderModuleWgsl(Wgsl);
 			Layout = dev.CreateUniformBufferBindGroupLayout(ShaderStage.Fragment, 16, hasDynamicOffset: true);
 			PipelineLayout = dev.CreatePipelineLayout([Layout]);
 			Stride = Math.Max(dev.Limits.MinUniformBufferOffsetAlignment, 16u);
 			Uniforms = dev.CreateBuffer(Stride * (ulong)colors.Length, BufferUsage.Uniform | BufferUsage.CopyDst);
 			for (int i = 0; i < colors.Length; i++) {
-				Color32 c = colors[i];
-				dev.WriteToBuffer(Uniforms, (ulong)i * Stride, new System.Numerics.Vector4(c.R, c.G, c.B, c.A) / 255f);
+				RawColor32 c = colors[i];
+				dev.WriteToBuffer(Uniforms, (ulong)i * Stride, c.ToRawF128());
 			}
 			Group = dev.CreateUniformBufferBindGroup(Layout, Uniforms, size: 16);
 		}

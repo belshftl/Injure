@@ -50,13 +50,41 @@ public readonly partial struct SurfacePresentModePolicy {
 }
 
 /// <summary>
+/// Policy for selecting a surface format in <see cref="SurfaceRenderOutput"/>.
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+[ClosedEnum(DefaultIsInvalid = true)]
+public readonly partial struct SurfaceFormatPolicy {
+	/// <summary>Raw switch tag for <see cref="SurfaceFormatPolicy"/>.</summary>
+	public enum Case {
+		/// <summary>
+		/// Prefer a non-sRGB format, so values written to it reach the display unchanged.
+		/// </summary>
+		/// <remarks>
+		/// Use this when rendering sRGB-encoded values, e.g. with <see cref="Draw.Canvas"/>.
+		/// </remarks>
+		PreferNonSrgb = 1,
+
+		/// <summary>
+		/// Prefer an sRGB format, so linear values written to it are encoded for the display.
+		/// </summary>
+		/// <remarks>
+		/// Use this when rendering linear values.
+		/// </remarks>
+		PreferSrgb,
+	}
+}
+
+/// <summary>
 /// An <see cref="IRenderOutput"/> that presents to a window (or other surface host) through a
 /// WebGPU surface.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Picks the surface's preferred format and a present mode according to a
-/// <see cref="SurfacePresentModePolicy"/>, reconfigures the surface when it becomes outdated or
+/// Picks a format according to a <see cref="SurfaceFormatPolicy"/> and a present mode according
+/// to a <see cref="SurfacePresentModePolicy"/>, reconfigures the surface when it becomes outdated or
 /// suboptimal, and recreates it when it's lost.
 /// </para>
 /// <para>
@@ -101,7 +129,10 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	private SurfacePresentModePolicy presentPolicy;
 
 	private WGPUSurface surface;
+	private readonly SurfaceFormatPolicy formatPolicy;
 	private WGPUTextureFormat format;
+	// differs from format if the surface only offers the other kind of sRGB-ness
+	private WGPUTextureFormat viewFormat;
 	private WGPUPresentMode presentMode;
 	private WGPUSurfaceConfiguration config;
 	private bool needReconfigure = false;
@@ -127,7 +158,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	public TextureFormat Format {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return format.FromWebgpuType();
+			return viewFormat.FromWebgpuType();
 		}
 	}
 
@@ -139,6 +170,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	/// <param name="surfaceHost">
 	/// Host of the surface; must stay alive until this output is disposed.
 	/// </param>
+	/// <param name="formatPolicy">Policy for picking the format.</param>
 	/// <param name="presentPolicy">Policy for picking the present mode.</param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="device"/> or <paramref name="surfaceHost"/> is
@@ -147,15 +179,16 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	/// <exception cref="WebgpuException">
 	/// Thrown if the surface can't be created or reports no supported formats or present modes.
 	/// </exception>
-	public SurfaceRenderOutput(GpuDevice device, ISurfaceHost surfaceHost, SurfacePresentModePolicy presentPolicy) {
+	public SurfaceRenderOutput(GpuDevice device, ISurfaceHost surfaceHost, SurfaceFormatPolicy formatPolicy, SurfacePresentModePolicy presentPolicy) {
 		ArgumentNullException.ThrowIfNull(device);
 		ArgumentNullException.ThrowIfNull(surfaceHost);
 		this.device = device;
 		this.surfaceHost = surfaceHost;
+		this.formatPolicy = formatPolicy;
 		this.presentPolicy = presentPolicy;
 
 		surface = surfaceHost.GetSurfaceSource().CreateWgpuSurface(device.Instance);
-		format = getSurfaceFormat();
+		(format, viewFormat) = getSurfaceFormat();
 		presentMode = getSurfacePresentMode();
 		reconfigure();
 	}
@@ -170,14 +203,31 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		needReconfigure = true;
 	}
 
-	private WGPUTextureFormat getSurfaceFormat() {
+	private (WGPUTextureFormat Format, WGPUTextureFormat ViewFormat) getSurfaceFormat() {
 		WGPUSurfaceCapabilities caps;
 		wgpuSurfaceGetCapabilities(surface, device.Adapter, &caps);
 		try {
 			if (caps.formatCount == 0)
 				throw new WebgpuException("SurfaceGetCapabilities", "surface doesn't report any supported formats");
-			// wgpu says the first format is the most preferred one
-			return caps.formats[0];
+			ReadOnlySpan<WGPUTextureFormat> formats = new(caps.formats, (int)caps.formatCount);
+			bool wantSrgb = formatPolicy.Tag switch {
+				SurfaceFormatPolicy.Case.PreferNonSrgb => false,
+				SurfaceFormatPolicy.Case.PreferSrgb => true,
+				_ => throw new UnreachableException(),
+			};
+			// wgpu says the formats are in order of preference, so take the first fitting one, then
+			// the first one with a fitting view format, then the most preferred one
+			foreach (WGPUTextureFormat f in formats)
+				if (TextureFormat.Enum.TryFromMirror(f, out TextureFormat tf) && tf.IsSrgb() == wantSrgb)
+					return (f, f);
+			foreach (WGPUTextureFormat f in formats) {
+				if (!TextureFormat.Enum.TryFromMirror(f, out TextureFormat tf))
+					continue;
+				TextureFormat other = wantSrgb ? tf.ToSrgb() : tf.ToNonSrgb();
+				if (other != tf)
+					return (f, other.ToWebgpuType());
+			}
+			return (formats[0], formats[0]);
 		} finally {
 			wgpuSurfaceCapabilitiesFreeMembers(caps);
 		}
@@ -214,9 +264,12 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		}
 	}
 
-	private WGPUSurfaceConfiguration getSurfaceConfig(uint width, uint height, WGPUPresentMode presentMode) => new() {
+	// the caller has to keep *pViewFormat alive across wgpuSurfaceConfigure
+	private WGPUSurfaceConfiguration getSurfaceConfig(uint width, uint height, WGPUPresentMode presentMode, WGPUTextureFormat* pViewFormat) => new() {
 		device = device.Device,
 		format = format,
+		viewFormatCount = viewFormat != format ? 1u : 0u,
+		viewFormats = viewFormat != format ? pViewFormat : null,
 		usage = WGPUTextureUsage.RenderAttachment,
 		width = width,
 		height = height,
@@ -226,9 +279,12 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 
 	private void reconfigure() {
 		(uint w, uint h) = surfaceHost.GetDrawableSize();
-		config = getSurfaceConfig(w, h, presentMode);
+		WGPUTextureFormat vf = viewFormat;
+		config = getSurfaceConfig(w, h, presentMode, &vf);
 		fixed (WGPUSurfaceConfiguration* cfg = &config)
 			wgpuSurfaceConfigure(surface, cfg);
+		// don't keep a dangling pointer around
+		config.viewFormats = null;
 		Width = w;
 		Height = h;
 	}
@@ -266,7 +322,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 			wgpuSurfaceRelease(surface);
 			surface = default;
 			surface = surfaceHost.GetSurfaceSource().CreateWgpuSurface(device.Instance);
-			format = getSurfaceFormat();
+			(format, viewFormat) = getSurfaceFormat();
 			presentMode = getSurfacePresentMode();
 			reconfigure();
 			wgpuSurfaceGetCurrentTexture(surface, &tex);
@@ -317,7 +373,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 			needReconfigure = true;
 
 		WGPUTextureViewDescriptor tvdesc = new() {
-			format = format,
+			format = viewFormat,
 			dimension = WGPUTextureViewDimension._2D,
 			aspect = WGPUTextureAspect.All,
 			baseMipLevel = 0,

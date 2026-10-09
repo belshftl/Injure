@@ -27,7 +27,6 @@ public enum Texture2dSamplerMode {
 public sealed class Texture2dAssetMetadata {
 	public required AssetId Source { get; init; }
 	public RectI? SourceRect { get; init; } = null;
-	public bool SRGB { get; init; } = true;
 	public Texture2dSamplerMode SamplerMode { get; init; } = Texture2dSamplerMode.NearestClamp;
 }
 
@@ -134,7 +133,7 @@ public sealed class Texture2dAssetCreator(GpuDevice gpuDevice) : IAssetStagedCre
 
 	public Texture2d Finalize(AssetFinalizeInfo<Texture2dAssetPreparedData> info) {
 		Texture2dAssetPreparedData p = info.Prepared;
-		Texture2dFormat fmt = p.Metadata.SRGB ? Texture2dFormat.Rgba32_Unorm_Srgb : Texture2dFormat.Rgba32_Unorm;
+		Texture2dFormat fmt = Texture2dFormat.Rgba32_Unorm;
 		GpuSamplerCreateParams smpParams = p.Metadata.SamplerMode switch {
 			Texture2dSamplerMode.NearestClamp => SamplerStates.NearestClamp,
 			Texture2dSamplerMode.LinearClamp => SamplerStates.LinearClamp,

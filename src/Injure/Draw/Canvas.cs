@@ -437,6 +437,11 @@ public sealed class CanvasSharedResources(GpuDevice device, EngineResourceStore 
 /// is automatic; changing the current parameters reopens passes and flushes batches
 /// as needed.
 ///
+/// Colors are sRGB-encoded (<see cref="SrgbColor32"/>), and blending happens on the encoded
+/// values. Targets therefore must have non-sRGB formats, so the values reach them unchanged; see
+/// <see cref="SurfaceFormatPolicy.PreferNonSrgb"/>. Texture texels are likewise taken as stored,
+/// so textures should hold sRGB-encoded colors in non-sRGB formats.
+///
 /// The frame is never submitted; it must be submitted manually after disposal.
 /// </remarks>
 public sealed class Canvas : IDisposable {
@@ -521,8 +526,8 @@ public sealed class Canvas : IDisposable {
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="baseParams"/> is invalid or contains a scissor
-	/// of kind <see cref="CanvasScissorKind.Intersect"/>.
+	/// Thrown if <paramref name="baseParams"/> is invalid, contains a scissor
+	/// of kind <see cref="CanvasScissorKind.Intersect"/>, or targets a texture with an sRGB format.
 	/// </exception>
 	public Canvas(GpuDevice device, ViewGlobals globals, RenderFrame frame, CanvasSharedResources shared, in CanvasParams baseParams) {
 		this.device = device;
@@ -558,7 +563,7 @@ public sealed class Canvas : IDisposable {
 	/// <param name="b">Second vertex of the triangle, in pixel coordinates.</param>
 	/// <param name="c">Third vertex of the triangle, in pixel coordinates.</param>
 	/// <param name="color">Fill color.</param>
-	public void Triangle(Vector2 a, Vector2 b, Vector2 c, Color32 color) {
+	public void Triangle(Vector2 a, Vector2 b, Vector2 c, SrgbColor32 color) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.Triangle(a, b, c, color);
@@ -591,7 +596,7 @@ public sealed class Canvas : IDisposable {
 	/// <remarks>
 	/// Concave or self-intersecting quads are invalid inputs and will produce incorrect visual output.
 	/// </remarks>
-	public void Quad(Vector2 topleft, Vector2 topright, Vector2 bottomleft, Vector2 bottomright, Color32 color) {
+	public void Quad(Vector2 topleft, Vector2 topright, Vector2 bottomleft, Vector2 bottomright, SrgbColor32 color) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.Quad(topleft, topright, bottomleft, bottomright, color);
@@ -605,7 +610,7 @@ public sealed class Canvas : IDisposable {
 	/// <param name="cTopright">Color for the top-right corner.</param>
 	/// <param name="cBottomleft">Color for the bottom-left corner.</param>
 	/// <param name="cBottomright">Color for the bottom-right corner.</param>
-	public void Rect(RectF rect, Color32 cTopleft, Color32 cTopright, Color32 cBottomleft, Color32 cBottomright) {
+	public void Rect(RectF rect, SrgbColor32 cTopleft, SrgbColor32 cTopright, SrgbColor32 cBottomleft, SrgbColor32 cBottomright) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.Rect(rect, cTopleft, cTopright, cBottomleft, cBottomright);
@@ -616,7 +621,7 @@ public sealed class Canvas : IDisposable {
 	/// </summary>
 	/// <param name="rect">The rectangle, in pixel coordinates.</param>
 	/// <param name="color">Fill color.</param>
-	public void Rect(RectF rect, Color32 color) {
+	public void Rect(RectF rect, SrgbColor32 color) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.Rect(rect, color);
@@ -647,7 +652,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is negative or zero.
 	/// </exception>
-	public void Line(Vector2 a, Vector2 b, Color32 color, float thickness = 1f) {
+	public void Line(Vector2 a, Vector2 b, SrgbColor32 color, float thickness = 1f) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.Line(a, b, color, thickness);
@@ -674,7 +679,7 @@ public sealed class Canvas : IDisposable {
 	/// <remarks>
 	/// The polygon must be convex and will otherwise produce incorrect visual input.
 	/// </remarks>
-	public void ConvexPoly(ReadOnlySpan<Vector2> points, Color32 color) {
+	public void ConvexPoly(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.ConvexPoly(points, color);
@@ -701,7 +706,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="ArgumentException">
 	/// Thrown if the amount of points in <paramref name="points"/> is not a multiple of 3.
 	/// </exception>
-	public void TriangleList(ReadOnlySpan<Vector2> points, Color32 color) {
+	public void TriangleList(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.TriangleList(points, color);
@@ -722,7 +727,7 @@ public sealed class Canvas : IDisposable {
 	/// </summary>
 	/// <param name="points">Vertices forming the triangle strip, in pixel coordinates.</param>
 	/// <param name="color">Fill color.</param>
-	public void TriangleStrip(ReadOnlySpan<Vector2> points, Color32 color) {
+	public void TriangleStrip(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.TriangleStrip(points, color);
@@ -757,7 +762,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is negative or zero.
 	/// </exception>
-	public void LineList(ReadOnlySpan<Vector2> points, Color32 color, float thickness = 1f) {
+	public void LineList(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.LineList(points, color, thickness);
@@ -786,7 +791,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is negative or zero.
 	/// </exception>
-	public void LineStrip(ReadOnlySpan<Vector2> points, Color32 color, float thickness = 1f) {
+	public void LineStrip(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ensurePrimBatch();
 		primbatch.LineStrip(points, color, thickness);
@@ -813,7 +818,7 @@ public sealed class Canvas : IDisposable {
 			throw new InvalidOperationException("attempt to draw a render target while it is the active canvas target (i.e draw it into itself)");
 	}
 
-	private void texquad(in ResolvedTextureSource tex, RectF dst, RectF uv, Color32 color) {
+	private void texquad(in ResolvedTextureSource tex, RectF dst, RectF uv, SrgbColor32 color) {
 		checkSelfDraw(tex);
 		ensureTexBatch();
 		texbatch.Quad(tex, dst, uv, color);
@@ -840,7 +845,7 @@ public sealed class Canvas : IDisposable {
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
 	public void Texture(TextureSource tex, Vector2 topleft) {
-		resolve(tex, r => texquad(r, texdst(r, topleft), fullUV, Color32.White));
+		resolve(tex, r => texquad(r, texdst(r, topleft), fullUV, SrgbColor32.White));
 	}
 
 	/// <summary>
@@ -855,7 +860,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
-	public void Texture(TextureSource tex, Vector2 topleft, Color32 color) {
+	public void Texture(TextureSource tex, Vector2 topleft, SrgbColor32 color) {
 		resolve(tex, r => texquad(r, texdst(r, topleft), fullUV, color));
 	}
 
@@ -871,7 +876,7 @@ public sealed class Canvas : IDisposable {
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
 	public void Texture(TextureSource tex, RectF dst) {
-		resolve(tex, r => texquad(r, dst, fullUV, Color32.White));
+		resolve(tex, r => texquad(r, dst, fullUV, SrgbColor32.White));
 	}
 
 	/// <summary>
@@ -886,7 +891,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
-	public void Texture(TextureSource tex, RectF dst, Color32 color) {
+	public void Texture(TextureSource tex, RectF dst, SrgbColor32 color) {
 		resolve(tex, r => texquad(r, dst, fullUV, color));
 	}
 
@@ -906,7 +911,7 @@ public sealed class Canvas : IDisposable {
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
 	public void TexWithSourceRect(TextureSource tex, Vector2 topleft, RectF srcPixels) {
-		resolve(tex, r => texquad(r, texdst(topleft, srcPixels), pxToUV(r, srcPixels), Color32.White));
+		resolve(tex, r => texquad(r, texdst(topleft, srcPixels), pxToUV(r, srcPixels), SrgbColor32.White));
 	}
 
 	/// <summary>
@@ -922,7 +927,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
-	public void TexWithSourceRect(TextureSource tex, Vector2 topleft, RectF srcPixels, Color32 color) {
+	public void TexWithSourceRect(TextureSource tex, Vector2 topleft, RectF srcPixels, SrgbColor32 color) {
 		resolve(tex, r => texquad(r, texdst(topleft, srcPixels), pxToUV(r, srcPixels), color));
 	}
 
@@ -939,7 +944,7 @@ public sealed class Canvas : IDisposable {
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
 	public void TexWithSourceRect(TextureSource tex, RectF dst, RectF srcPixels) {
-		resolve(tex, r => texquad(r, dst, pxToUV(r, srcPixels), Color32.White));
+		resolve(tex, r => texquad(r, dst, pxToUV(r, srcPixels), SrgbColor32.White));
 	}
 
 	/// <summary>
@@ -955,7 +960,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
-	public void TexWithSourceRect(TextureSource tex, RectF dst, RectF srcPixels, Color32 color) {
+	public void TexWithSourceRect(TextureSource tex, RectF dst, RectF srcPixels, SrgbColor32 color) {
 		resolve(tex, r => texquad(r, dst, pxToUV(r, srcPixels), color));
 	}
 
@@ -978,7 +983,7 @@ public sealed class Canvas : IDisposable {
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
 	public void TexWithUVRect(TextureSource tex, RectF dst, RectF uv) {
-		resolve(tex, r => texquad(r, dst, uv, Color32.White));
+		resolve(tex, r => texquad(r, dst, uv, SrgbColor32.White));
 	}
 
 	/// <summary>
@@ -997,7 +1002,7 @@ public sealed class Canvas : IDisposable {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="tex"/> is the currently active render target.
 	/// </exception>
-	public void TexWithUVRect(TextureSource tex, RectF dst, RectF uv, Color32 color) {
+	public void TexWithUVRect(TextureSource tex, RectF dst, RectF uv, SrgbColor32 color) {
 		resolve(tex, r => texquad(r, dst, uv, color));
 	}
 
@@ -1122,7 +1127,10 @@ public sealed class Canvas : IDisposable {
 		}
 	}
 
-	private static void validate(in CanvasParams p) {
+	private void validate(in CanvasParams p) {
+		TextureFormat fmt = p.Target.IsPrimary ? frame.PrimaryView.Format : p.Target.RenderTarget.ColorFormat;
+		if (fmt.IsSrgb())
+			throw new ArgumentException($"Canvas can't draw into a target with sRGB format {fmt}, since its colors are already sRGB-encoded");
 		if (p.Scissor.Kind == CanvasScissorKind.Intersect)
 			throw new ArgumentException("CanvasParams.Scissor cannot be Intersect as there is no existing scissor to intersect with");
 		if ((p.Scissor.Kind == CanvasScissorKind.Set || p.Scissor.Kind == CanvasScissorKind.Intersect) &&

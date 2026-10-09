@@ -72,7 +72,7 @@ public abstract class StandardGame {
 		this.options = options;
 		baseCanvasParams = new CanvasParams(
 			Target: CanvasTarget.Primary,
-			ColorAttachmentOps: ColorAttachmentOps.Clear(options.ClearColor),
+			ColorAttachmentOps: ColorAttachmentOps.Clear(options.ClearColor.ToRawF128()),
 			Scissor: CanvasScissor.None,
 			Transform: Matrix3x2.Identity,
 			OutputState: CanvasOutputStates.Alpha,
@@ -286,7 +286,7 @@ public abstract class StandardGame {
 			sdl = SdlInstance.Init(options.Sdl);
 			window = SdlWindow.Create(sdl, options.Window);
 			gpuDevice = new GpuDevice(options.GpuDevice with { CompatibleHost = window.SurfaceHost });
-			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, options.PresentModePolicy);
+			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, SurfaceFormatPolicy.PreferNonSrgb, options.PresentModePolicy);
 			viewGlobals = new ViewGlobals(gpuDevice, renderOutput.Width, renderOutput.Height);
 
 			EngineResourceStore engineResources = createEngineResources();

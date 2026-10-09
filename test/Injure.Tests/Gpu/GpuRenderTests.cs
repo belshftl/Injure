@@ -11,15 +11,15 @@ namespace Injure.Tests.Gpu;
 public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixture) {
 	private GpuDevice dev => Device;
 
-	private static readonly Color32 green = Color32.Green;
-	private static readonly Color32 blue = Color32.Blue;
+	private static readonly RawColor32 green = RawColor32.Green;
+	private static readonly RawColor32 blue = RawColor32.Blue;
 
 	// draws a fullscreen triangle with the tint at uniform slot `slot` into `target`, after clearing it to blue
 	private void drawFullscreen(GpuTexture target, GpuRig.Tinted tint, GpuRenderPipeline pipeline, uint slot,
 		Action<RenderPass>? setup = null) {
 		using GpuBuffer vb = GpuRig.BufferWith(dev, BufferUsage.Vertex, GpuRig.Fullscreen().AsSpan());
 		GpuRig.Run(dev, enc => {
-			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(blue));
+			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(blue.ToRawF128()));
 			pass.SetPipeline(pipeline);
 			pass.SetBindGroup(0, tint.Group, [slot * tint.Stride]);
 			pass.SetVertexBuffer(0, vb);
@@ -79,8 +79,8 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	[Fact]
 	public void ClearColorReachesTheTarget() {
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
-		GpuRig.Run(dev, enc => enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(new Color32(10, 20, 30, 40))).Dispose());
-		Assert.Equal(new Color32(10, 20, 30, 40), GpuRig.At(GpuRig.Read(dev, target), 4, 2, 3));
+		GpuRig.Run(dev, enc => enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(new RawColor32(10, 20, 30, 40).ToRawF128())).Dispose());
+		Assert.Equal(new RawColor32(10, 20, 30, 40), GpuRig.At(GpuRig.Read(dev, target), 4, 2, 3));
 	}
 
 	// ==========================================================================
@@ -110,7 +110,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 			pl, new VertexState(sm, "vs"), new FragmentState(sm, "fs", [GpuRig.Opaque()])));
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
 		GpuRig.Run(dev, enc => {
-			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(blue));
+			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(blue.ToRawF128()));
 			pass.SetPipeline(p);
 			pass.Draw(3);
 		});
@@ -137,13 +137,13 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	// draws
 	[Fact]
 	public void DynamicOffsetSelectsTheUniform() {
-		using GpuRig.Tinted tint = new(dev, Color32.Red, green);
+		using GpuRig.Tinted tint = new(dev, RawColor32.Red, green);
 		using GpuRenderPipeline p = tint.Pipeline(dev, [GpuRig.Opaque()]);
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
 		drawFullscreen(target, tint, p, 1);
 		Assert.Equal(green, GpuRig.At(GpuRig.Read(dev, target), 4, 1, 1));
 		drawFullscreen(target, tint, p, 0);
-		Assert.Equal(Color32.Red, GpuRig.At(GpuRig.Read(dev, target), 4, 1, 1));
+		Assert.Equal(RawColor32.Red, GpuRig.At(GpuRig.Read(dev, target), 4, 1, 1));
 	}
 
 	[Fact]
@@ -192,25 +192,25 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 
 	[Fact]
 	public void BlendConstantIsUsedByConstantFactors() {
-		using GpuRig.Tinted tint = new(dev, Color32.White);
+		using GpuRig.Tinted tint = new(dev, RawColor32.White);
 		BlendComponent useConstant = new(BlendOperation.Add, BlendFactor.Constant, BlendFactor.Zero);
 		using GpuRenderPipeline p = tint.Pipeline(dev, [new ColorTargetState(GpuRig.Format, new BlendState(useConstant, useConstant), ColorWriteMask.All)]);
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
 		drawFullscreen(target, tint, p, 0, pass => pass.SetBlendConstant(new Vector4(1f, 0f, 1f, 1f)));
-		Assert.Equal(new Color32(255, 0, 255, 255), GpuRig.At(GpuRig.Read(dev, target), 4, 1, 1));
+		Assert.Equal(new RawColor32(255, 0, 255, 255), GpuRig.At(GpuRig.Read(dev, target), 4, 1, 1));
 	}
 
 	[Fact]
 	public void MultisampleResolveAndMultipleTargets() {
-		using GpuRig.Tinted tint = new(dev, new Color32(255, 128, 0, 255));
+		using GpuRig.Tinted tint = new(dev, new RawColor32(255, 128, 0, 255));
 		using GpuRenderPipeline p = tint.Pipeline(dev, [GpuRig.Opaque(), GpuRig.Opaque()], samples: 4, fragment: "fs2");
 		using GpuTexture msA = GpuRig.Target(dev, 4, 4, samples: 4), msB = GpuRig.Target(dev, 4, 4, samples: 4);
 		using GpuTexture outA = GpuRig.Target(dev, 4, 4), outB = GpuRig.Target(dev, 4, 4);
 		using GpuBuffer vb = GpuRig.BufferWith(dev, BufferUsage.Vertex, GpuRig.Fullscreen().AsSpan());
 		GpuRig.Run(dev, enc => {
 			using RenderPass pass = enc.BeginRenderPass([
-				new RenderPassColorAttachment(msA.DefaultView, ColorAttachmentOps.Clear(blue), outA.DefaultView),
-				new RenderPassColorAttachment(msB.DefaultView, ColorAttachmentOps.Clear(blue), outB.DefaultView),
+				new RenderPassColorAttachment(msA.DefaultView, ColorAttachmentOps.Clear(blue.ToRawF128()), outA.DefaultView),
+				new RenderPassColorAttachment(msB.DefaultView, ColorAttachmentOps.Clear(blue.ToRawF128()), outB.DefaultView),
 			]);
 			pass.SetPipeline(p);
 			pass.SetBindGroup(0, tint.Group, [0]);
@@ -218,13 +218,13 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 			pass.Draw(3);
 		});
 		// fs2 writes the tint to target 0 and its BGRA swizzle to target 1
-		Assert.Equal(new Color32(255, 128, 0, 255), GpuRig.At(GpuRig.Read(dev, outA), 4, 2, 2));
-		Assert.Equal(new Color32(0, 128, 255, 255), GpuRig.At(GpuRig.Read(dev, outB), 4, 2, 2));
+		Assert.Equal(new RawColor32(255, 128, 0, 255), GpuRig.At(GpuRig.Read(dev, outA), 4, 2, 2));
+		Assert.Equal(new RawColor32(0, 128, 255, 255), GpuRig.At(GpuRig.Read(dev, outB), 4, 2, 2));
 	}
 
 	[Fact]
 	public void DepthTestKeepsTheNearerTriangle() {
-		using GpuRig.Tinted tint = new(dev, Color32.Red, green);
+		using GpuRig.Tinted tint = new(dev, RawColor32.Red, green);
 		DepthStencilState depth = new(TextureFormat.Depth32Float, true, CompareFunction.Less, default, default);
 		using GpuRenderPipeline p = tint.Pipeline(dev, [GpuRig.Opaque()], depthStencil: depth);
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
@@ -234,7 +234,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		GpuRig.Run(dev, enc => {
 			using RenderPass pass = enc.BeginColorDepthPass(
 				target.DefaultView,
-				ColorAttachmentOps.Clear(blue),
+				ColorAttachmentOps.Clear(blue.ToRawF128()),
 				depthTex.DefaultView,
 				DepthAttachmentOps.Clear(1f)
 			);
@@ -246,7 +246,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 			pass.SetVertexBuffer(0, far);
 			pass.Draw(3);
 		});
-		Assert.Equal(Color32.Red, GpuRig.At(GpuRig.Read(dev, target), 4, 1, 1));
+		Assert.Equal(RawColor32.Red, GpuRig.At(GpuRig.Read(dev, target), 4, 1, 1));
 	}
 
 	[Fact]
@@ -259,11 +259,11 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		using GpuTexture dsTex = GpuRig.Target(dev, 4, 4, format: TextureFormat.Depth24PlusStencil8);
 		using GpuBuffer vb = GpuRig.BufferWith(dev, BufferUsage.Vertex, GpuRig.Fullscreen().AsSpan());
 
-		Color32 drawWith(uint reference) {
+		RawColor32 drawWith(uint reference) {
 			GpuRig.Run(dev, enc => {
 				using RenderPass pass = enc.BeginColorDepthStencilPass(
 					target.DefaultView,
-					ColorAttachmentOps.Clear(blue),
+					ColorAttachmentOps.Clear(blue.ToRawF128()),
 					dsTex.DefaultView,
 					DepthAttachmentOps.Clear(1f),
 					StencilAttachmentOps.Clear(1)
@@ -310,11 +310,11 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		));
 		using GpuTexture target = GpuRig.Target(dev, 2, 2);
 		GpuRig.Run(dev, enc => {
-			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(blue));
+			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(blue.ToRawF128()));
 			pass.SetPipeline(p);
 			pass.SetBindGroup(0, bg);
 			pass.Draw(3);
 		});
-		Assert.Equal(new Color32(12, 34, 56, 255), GpuRig.At(GpuRig.Read(dev, target), 2, 1, 1));
+		Assert.Equal(new RawColor32(12, 34, 56, 255), GpuRig.At(GpuRig.Read(dev, target), 2, 1, 1));
 	}
 }

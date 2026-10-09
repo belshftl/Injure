@@ -50,11 +50,38 @@ public sealed class GpuValueTests {
 	}
 
 	// ==========================================================================
+	// sRGB counterparts
+	[Fact]
+	public static void SrgbCounterpartsPairEverySrgbFormatWithItsUnormFormat() {
+		int srgbCount = 0;
+		foreach (TextureFormat.Case tag in Enum.GetValues<TextureFormat.Case>()) {
+			TextureFormat f = TextureFormat.Enum.FromTag(tag);
+			string name = tag.ToString();
+			if (name.EndsWith("UnormSrgb", StringComparison.Ordinal)) {
+				srgbCount++;
+				TextureFormat plain = f.ToNonSrgb();
+				Assert.True(f.IsSrgb(), name);
+				Assert.Equal(name[..^"Srgb".Length], plain.Tag.ToString());
+				Assert.False(plain.IsSrgb(), name);
+				Assert.Equal(f, plain.ToSrgb());
+				Assert.Equal(f, f.ToSrgb());
+			} else {
+				Assert.False(f.IsSrgb(), name);
+				Assert.Equal(f, f.ToNonSrgb());
+				TextureFormat srgb = f.ToSrgb();
+				if (srgb != f)
+					Assert.Equal(name + "Srgb", srgb.Tag.ToString());
+			}
+		}
+		Assert.Equal(23, srgbCount);
+	}
+
+	// ==========================================================================
 	// presets and convenience constructors
 	[Fact]
 	public static void AttachmentOpsPresets() {
 		Assert.Equal(new ColorAttachmentOps(LoadOp.Load, StoreOp.Store, default), ColorAttachmentOps.Load);
-		Assert.Equal(new ColorAttachmentOps(LoadOp.Clear, StoreOp.Store, Color32.White), ColorAttachmentOps.Clear(Color32.White));
+		Assert.Equal(new ColorAttachmentOps(LoadOp.Clear, StoreOp.Store, RawColorF128.White), ColorAttachmentOps.Clear(RawColorF128.White));
 		Assert.Equal(new DepthAttachmentOps(LoadOp.Clear, StoreOp.Store, 0.25f), DepthAttachmentOps.Clear(0.25f));
 		Assert.Equal(LoadOp.Load, DepthAttachmentOps.Load.LoadOp);
 		Assert.Equal(new StencilAttachmentOps(LoadOp.Clear, StoreOp.Store, 7), StencilAttachmentOps.Clear(7));
