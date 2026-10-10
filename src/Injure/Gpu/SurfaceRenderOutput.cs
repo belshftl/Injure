@@ -85,7 +85,7 @@ public readonly partial struct SurfaceFormatPolicy {
 /// <para>
 /// Picks a format according to a <see cref="SurfaceFormatPolicy"/> and a present mode according
 /// to a <see cref="SurfacePresentModePolicy"/>, reconfigures the surface when it becomes outdated or
-/// suboptimal, and recreates it when it's lost.
+/// suboptimal or the host's drawable size changes, and recreates it when it's lost.
 /// </para>
 /// <para>
 /// Images acquired from it must be presented or disposed before it's disposed; see
@@ -277,8 +277,18 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		alphaMode = WGPUCompositeAlphaMode.Auto,
 	};
 
-	private void reconfigure() {
+	private bool reconfigure() {
 		(uint w, uint h) = surfaceHost.GetDrawableSize();
+		return reconfigure(w, h);
+	}
+
+	// returns false, leaving the surface as it was, for a drawable size of 0, since WebGPU can't
+	// configure a zero-sized surface
+	private bool reconfigure(uint w, uint h) {
+		if (w == 0 || h == 0) {
+			needReconfigure = true;
+			return false;
+		}
 		WGPUTextureFormat vf = viewFormat;
 		config = getSurfaceConfig(w, h, presentMode, &vf);
 		fixed (WGPUSurfaceConfiguration* cfg = &config)
@@ -287,6 +297,8 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		config.viewFormats = null;
 		Width = w;
 		Height = h;
+		needReconfigure = false;
+		return true;
 	}
 
 	private AcquireStatus acquire(out WGPUSurfaceTexture outTex) {
@@ -314,7 +326,10 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 			outTex = default;
 			return AcquireStatus.SkipFrame;
 		case WGPUSurfaceGetCurrentTextureStatus.Outdated:
-			reconfigure();
+			if (!reconfigure()) {
+				outTex = default;
+				return AcquireStatus.SkipFrame;
+			}
 			wgpuSurfaceGetCurrentTexture(surface, &tex);
 			outTex = tex;
 			return from(tex.status);
@@ -324,7 +339,10 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 			surface = surfaceHost.GetSurfaceSource().CreateWgpuSurface(device.Instance);
 			(format, viewFormat) = getSurfaceFormat();
 			presentMode = getSurfacePresentMode();
-			reconfigure();
+			if (!reconfigure()) {
+				outTex = default;
+				return AcquireStatus.SkipFrame;
+			}
 			wgpuSurfaceGetCurrentTexture(surface, &tex);
 			outTex = tex;
 			return from(tex.status);
@@ -339,12 +357,22 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	}
 
 	/// <inheritdoc/>
-	public void Resized() {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		reconfigure();
-	}
-
-	/// <inheritdoc/>
+	/// <remarks>
+	/// <para>
+	/// Recoverable acquire failures (e.g. a swapchain that's being resized) return
+	/// <see langword="false"/>. Fatal failures throw.
+	/// </para>
+	/// <para>
+	/// Reconfigures the surface first if the host's drawable size changed since the last
+	/// configuration. Returns <see langword="false"/> if the drawable size is zero (e.g. while the
+	/// window is minimized).
+	/// </para>
+	/// <para>
+	/// If the surface was lost, it's recreated through <see cref="ISurfaceHost.GetSurfaceSource()"/>,
+	/// and anything that throws propagates from here. That happens e.g. when the host's native
+	/// object was destroyed before this output was disposed.
+	/// </para>
+	/// </remarks>
 	/// <exception cref="DeviceLostException">
 	/// Thrown if the device was lost.
 	/// </exception>
@@ -352,8 +380,9 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		output = null;
 
-		if (needReconfigure)
-			reconfigure();
+		(uint w, uint h) = surfaceHost.GetDrawableSize();
+		if ((needReconfigure || w != Width || h != Height) && !reconfigure(w, h))
+			return false;
 
 		AcquireStatus st = acquire(out WGPUSurfaceTexture currTex);
 		if (!(st is AcquireStatus.Acquired or AcquireStatus.AcquiredNeedsReconfigure)) {

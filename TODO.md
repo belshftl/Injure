@@ -30,13 +30,13 @@ anyhow, to v0.1:
   - [x] add a warning for if a struct doesn't have the "the default value is valid/invalid" doc comments that are on every recently-added struct
   - [x] add `DangerousCreate*` as a sibling to `DangerousGet*`; if `DangerousGet*` suppresses the "exposes external types" check for the return type, `DangerousCreate*` should suppress it for the parameter types but not the return type
   - [x] add a `[WrapperType]` sourcegen attribute that applies to an empty `partial` class / `readonly struct` / `readonly ref struct`; takes in a type T via `typeof` and a `params[]` array of property/method names from that type; and generates a single private field of type T, properties/methods that redirect to the ones on that field (and have `inheritdoc`s), and an `internal` constructor that takes in T
-- [ ] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
+- [x] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
   - [x] remove the current `Runtime.*` namespace wholly
   - [x] touch up `docs/conventions/dangerous-get.md` and rename it
   - [x] split out SDL-related stuff into a new `.Sdl` namespace; it should be part of the API that it is a wrapper for SDL3, and bypassing it to drive SDL3 directly should be supported albeit advanced/unsafe
   - [x] maybe devise a "host-event" system, like a similar but more comprehensive equivalent to the old `Runtime.HostEvent`; i can't think of another way to abstract away sdl events, also see below
   - [x] think about whether supporting not using SDL3 entirely and having a "host-event source" system is worth it; it sounds not too difficult to me
-  - [ ] look at what things need to be made public; it's quite a bit, the input system comes to mind
+  - [x] look at what things need to be made public; it's quite a bit, the input system comes to mind
   - [x] make an `IGame` replacement (likely a `StandardGame` abstract class) explicitly marked as convenience
 - [x] update the input system:
   - [x] add window attribution to events since multi-window is now supported
@@ -44,7 +44,7 @@ anyhow, to v0.1:
   - [x] document everything with doc comments, and revise existing doc comments
   - [x] write tests
 - [x] fix the current base tests failing because of missing `libfribidi`
-- [ ] touch up `Gpu` (formerly `Rendering`), as it's the oldest part of the project and by now it has a decent amount of cruft in it:
+- [x] touch up `Gpu` (formerly `Rendering`), as it's the oldest part of the project and by now it has a decent amount of cruft in it:
   - [x] update the references to what was `Docs/conventions/dangerous-get.md`
   - [x] flatten the `Enums`/`Structs` directories into the main ones for namespace <-> dir layout consistency
   - [x] move the shaders out from `Shaders/` into some other top-level directory (alongside `native/`, `src/`, `test/`, etc.)
@@ -55,14 +55,25 @@ anyhow, to v0.1:
   - [x] fix some of the apis still publicly exposing types from our webgpu bindings
   - [x] generally following the current "less internals magic" redesign, make the api publicly usable directly by the game without needing to rely on `Draw`
   - [x] document everything with doc comments, and revise the existing doc comments
-  - [ ] as a way to test that the redesign works, try to sketch something more complex than rendering into a plain sdl3 window; maybe an avalonia child surface or something like that
+  - [x] as a way to test that the redesign works, try to sketch something more complex than rendering into a plain sdl3 window; maybe an avalonia child surface or something like that
+  - [x] test avalonia + x11 too, check what happens when the view's window is destroyed since xlib's default error handler exits the process on `BadWindow`
+  - [x] do a wayland smoke test; avalonia has no native wayland backend, so use an sdl3 window as the host and make a `wl_subsurface` to present into
   - [x] write tests; more of it seems to be testable than i initially realized
 - [x] split the current color type to encode srgb vs raw, and introduce a float color type
 - [ ] redesign `Draw` while we're at it; it's a bit of a mess right now
   - [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
-  - [ ] look at what else looks out of date and needs to be redesigned; here be dragons (the whole batch/canvas resources system kind of comes to mind but i'm unsure whether it's actually problematic)
+  - [ ] really think about whether `CanvasSharedResources`/`ViewGlobals`/etc should stay or get some kind of rework
+  - [ ] add a public helper for the default `Draw` setup (engine resource store with the builtin shaders registered, `CanvasSharedResources`, `ViewGlobals`, default `CanvasParams`) that `StandardGame` uses too; right now anything not using `StandardGame` has to copy that setup by hand, as the avalonia smoke test does
+  - [ ] look at what else looks out of date and needs to be redesigned; here be dragons (again, the whole batch/canvas resources system kind of comes to mind, but i'm unsure whether it's actually problematic)
   - [ ] doc comments
+- [ ] write dedicated docs for `Gpu`/`Draw`:
+  - [ ] primary docs for `Gpu`, `docs/gpu/`
+  - [ ] primary docs for `Draw`, `docs/draw/`
+  - [ ] `Draw`-less triangle tutorial under `docs/gpu/`, maybe also an example with something like MSAA
+  - [ ] "embed into avalonia" tutorial or explanatory doc under `docs/gpu/`; explicitly mention that windows hasn't been tested yet, maybe provide some advisory direction info regarding it but ultimately leave it to be updated for windows later
+  - [ ] "embed into a wayland subsurface" tutorial or explanatory doc under `docs/gpu/`
 - [ ] fix remaining abbreviations with out-of-date abbreviation style in the codebase
+- [ ] remove remaining `AggressiveInlining` markers for cases where the gain hasn't been actually confirmed
 - [ ] add support for more things to the input system:
   - [ ] support per-gamepad bindings
   - [ ] support text input
@@ -105,7 +116,7 @@ anyhow, to v0.1:
   - [ ] `docs/mods/exports.md`
   - [ ] doc comments
   - [ ] here be dragons
-- [ ] unsilence the previously silenced warning from our own analyzer, clean up a lot of the apis that currently expose foreign types
+- [ ] clean up the apis that currently expose foreign types
 - [ ] get back to the mod loader:
   - [ ] benchmark more e2e cases like the real overhead of applying a patch/detour and calling patched/detoured methods
   - [ ] implement `target-version`/`target-build-mvid`, they're currently sitting there doing nothing
@@ -132,8 +143,6 @@ anyhow, to v0.1:
   - [ ] more `conventions`, maybe one on type naming
   - [ ] probably write a better `exception-recording.md`, provide practical examples of when exceptions cause alc retention
   - [ ] the standard flow for a hello-world game project and where to expand from there
-  - [ ] the `Gpu` system
-  - [ ] the `Draw` system
   - [ ] the collections/primitives/`Common` namespaces (three separate `docs/` directories, not one)
   - [ ] the asset system
   - [ ] the layers system

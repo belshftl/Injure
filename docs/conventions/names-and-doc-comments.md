@@ -62,7 +62,7 @@ Treating abbreviations as regular words removes the first three ambiguities: `Io
 
 A proper noun whose name contains an abbreviation, (OpenSSH, macOS, PostgreSQL, WebGPU, etc.) is a single word, not several words split where the abbreviation starts or ends: `Openssh`, `Macos`, `Postgresql`, `Webgpu`. So it's `WebgpuDevice`, not `WebGpuDevice`; the abbreviation is part of the name, not a word of its own. This clears the last aforementioned ambiguity; if "IOStream" was a proper noun, it'd be `Iostream` in a type/member name.
 
-Names that come from foreign code, such as the WebGPU and SDL bindings, keep their original spelling (`WGPUTextureFormat`, `SDLWindow`); only Injure's own names follow this convention. This also applies to names that match external definitions across an FFI boundary, such as `pub type HRESULT` / `pub struct GUID` in the CLR profiler for the modloader, even though by Rust convention and this project's convention it'd be `Hresult` / `Guid`, since COM uses `HRESULT`/`GUID`.
+Names that come from foreign code, such as the WebGPU and SDL bindings, keep their original spelling (e.g. `WGPUTextureFormat`); only Injure's own names follow this convention. This also applies to names that match external definitions across an FFI boundary, such as `pub type HRESULT` / `pub struct GUID` in the CLR profiler for the modloader, even though by Rust convention and this project's convention it'd be `Hresult` / `Guid`, since COM uses `HRESULT`/`GUID`.
 
 ---
 

@@ -27,7 +27,7 @@ A member gets the prefix if, and only if, it lets the caller break an invariant 
   - `SurfaceSource.DangerousCreateFrom*` trusts that the native handles are valid and stay valid while a surface uses them; only null handles are rejected.
   - `SdlWindow.DangerousCreateFromProperties(SdlInstance context, uint props)` trusts the caller with raw SDL window creation properties, including setting the ones Injure relies on.
 - **Bypassing engine processing.** The member gives access to data before, or instead of, the processing Injure would normally do on it.
-  - `SdlEventSource.DangerousGetNextRaw()` removes an SDL event from the queue before Injure translates it. The caller becomes responsible for passing every such event to `DangerousCreateHostEvent(in SDLEvent ev, out HostEvent result)` exactly once, in order to keep things such as Injure's gamepad tracking up to date.
+  - `SdlEventSource.DangerousGetNextRaw()` removes an SDL event from the queue before Injure translates it. The caller becomes responsible for passing every such event to `DangerousCreateHostEvent(in SDL.Event ev, out HostEvent result)` exactly once, in order to keep things such as Injure's gamepad tracking up to date.
 - **Foreign types.** The member exposes a type from a dependency, such as the WebGPU or SDL bindings, as a return value or parameter. This is never the only reason for the prefix: a foreign type always comes with one of the reasons above, typically an unmanaged lifetime. It does, however, affect stability; see [Stability](#stability).
 
 Members that are merely low-level are not dangerous as long as Injure still enforces invariants. `GpuBuffer.ReadMapped<T>(ulong offset, Span<T> dst)` and `GpuBuffer.WriteMapped<T>(ulong offset, ReadOnlySpan<T> src)` access mapped memory too, but they check the mapping state, mode, and bounds on every call, so they are ordinary members. `DangerousGetMappedPointer()`, on the other hand, has no such checks, and exists for advanced zero-copy usage.
@@ -37,7 +37,7 @@ Members that are merely low-level are not dangerous as long as Injure still enfo
 ## Naming
 
 - `DangerousGet*` for members that hand a value out, e.g. `DangerousGetNative()`, `DangerousGetRaw()`.
-- `DangerousCreate*` for members that build an Injure value from something the caller hands in. Static factories usually take the form `DangerousCreateFromSomeSource`, e.g. `DangerousCreateFromRaw`, `DangerousCreateFromMetalLayer`. Instance members that convert a foreign value into an Injure one use `DangerousCreateSomeResult`, e.g. `SdlEventSource.DangerousCreateHostEvent(in SDLEvent, out HostEvent)`.
+- `DangerousCreate*` for members that build an Injure value from something the caller hands in. Static factories usually take the form `DangerousCreateFromSomeSource`, e.g. `DangerousCreateFromRaw`, `DangerousCreateFromMetalLayer`. Instance members that convert a foreign value into an Injure one use `DangerousCreateSomeResult`, e.g. `SdlEventSource.DangerousCreateHostEvent(in SDL.Event, out HostEvent)`.
 
 ---
 

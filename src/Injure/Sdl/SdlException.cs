@@ -3,7 +3,7 @@
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using Hexa.NET.SDL3;
+using SDL3;
 
 namespace Injure.Sdl;
 
@@ -16,12 +16,12 @@ public sealed class SdlException(string op, string message) : Exception($"{op}: 
 	/// </summary>
 	public readonly string Operation = op;
 
-	internal static SdlException FromLastError(string op) => new(op, SDL.GetErrorS());
+	internal static SdlException FromLastError(string op) => new(op, SDL.GetError());
 
 	[StackTraceHidden]
 	internal static void Check(bool v, [CallerArgumentExpression(nameof(v))] string? expr = null) {
 		if (!v)
-			throw new SdlException(getfnname(expr), SDL.GetErrorS());
+			throw new SdlException(getfnname(expr), SDL.GetError());
 	}
 
 	private static string getfnname(string? expr) {

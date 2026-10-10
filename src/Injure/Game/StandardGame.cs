@@ -390,8 +390,6 @@ public abstract class StandardGame {
 
 	private void handleEvent(Session ses, in HostEvent ev) {
 		ses.Input.TryHandle(in ev);
-		if (ev.Kind == HostEventKind.WindowPixelSizeChanged && ev.Window == ses.Window.Id)
-			ses.RenderOutput.Resized();
 		OnEvent(in ev);
 	}
 

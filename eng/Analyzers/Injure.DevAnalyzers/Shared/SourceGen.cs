@@ -71,6 +71,6 @@ internal static class SourceGen {
 	}
 
 	public static void AppendGeneratedCodeAttribute(StringBuilder sb, string generatorName) =>
-		sb.Append("\t[global::System.CodeDom.Compiler.GeneratedCodeAttribute(\"Injure.DevAnalyzers.")
+		sb.Append("[global::System.CodeDom.Compiler.GeneratedCodeAttribute(\"Injure.DevAnalyzers.")
 			.Append(generatorName).Append("\", \"").Append(Constants.GeneratorVersion).AppendLine("\")]");
 }

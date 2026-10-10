@@ -68,8 +68,8 @@ public readonly struct SdlWindowPosition : IEquatable<SdlWindowPosition> {
 	}
 
 	internal (int X, int Y) ToSdl() => kind switch {
-		Kind.Undefined => (unchecked((int)Hexa.NET.SDL3.SDL.SDL_WINDOWPOS_UNDEFINED_MASK), unchecked((int)Hexa.NET.SDL3.SDL.SDL_WINDOWPOS_UNDEFINED_MASK)),
-		Kind.Centered => (unchecked((int)Hexa.NET.SDL3.SDL.SDL_WINDOWPOS_CENTERED_MASK), unchecked((int)Hexa.NET.SDL3.SDL.SDL_WINDOWPOS_CENTERED_MASK)),
+		Kind.Undefined => (unchecked((int)SDL3.SDL.WindowPosUndefinedMask), unchecked((int)SDL3.SDL.WindowPosUndefinedMask)),
+		Kind.Centered => (unchecked((int)SDL3.SDL.WindowPosCenteredMask), unchecked((int)SDL3.SDL.WindowPosCenteredMask)),
 		Kind.Explicit => (x, y),
 		_ => throw InternalStateException.BadOpenEnum(kind),
 	};

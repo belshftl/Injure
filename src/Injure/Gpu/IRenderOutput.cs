@@ -29,11 +29,6 @@ public interface IRenderOutput : IDisposable {
 	TextureFormat Format { get; }
 
 	/// <summary>
-	/// Re-queries output state after an external size or host-surface change.
-	/// </summary>
-	void Resized();
-
-	/// <summary>
 	/// Attempts to acquire the image to render the next frame into.
 	/// </summary>
 	/// <param name="output">On success, the acquired image, owned by the caller.</param>

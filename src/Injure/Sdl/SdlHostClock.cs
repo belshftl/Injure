@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Hexa.NET.SDL3;
+using SDL3;
 using Injure.Host;
 
 namespace Injure.Sdl;

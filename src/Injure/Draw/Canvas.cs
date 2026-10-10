@@ -337,14 +337,25 @@ public readonly record struct CanvasParamsOverride(
 /// Longer-lived, shared cache of reusable batch state for <see cref="Canvas"/> instances.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Stores reusable batch state such as shaders and pipelines/layouts.
 /// Unlike older versions, this does not own per-submit GPU buffers as they are now
 /// owned by the batches. This makes it safe to share this across multiple canvases/frames.
-///
+/// </para>
+/// <para>
 /// Concurrent use is still unsafe, however, as missing cache entries are lazy-created and
 /// stored in ordinary dictionaries without synchronization.
-///
+/// </para>
+/// <para>
 /// Batch state is stored per format as pipelines are color-target-format-specific.
+/// </para>
+/// <para>
+/// The shaders are loaded from the given <see cref="EngineResourceStore"/> when batch state is
+/// first needed, so it needs the resources listed in <see cref="Assets.Builtin.BuiltinShaders"/>. They're
+/// embedded in the Injure assembly, so registering
+/// <c>new EmbeddedEngineResourceSource(typeof(Canvas).Assembly, [BuiltinShaders.Primitive2d.ResourceId, ...])</c>
+/// with all of them is enough. <see cref="Game.StandardGame"/> does this itself.
+/// </para>
 /// </remarks>
 public sealed class CanvasSharedResources(GpuDevice device, EngineResourceStore engineResources) : IDisposable {
 	public readonly record struct PrimBatchKey(
@@ -427,22 +438,31 @@ public sealed class CanvasSharedResources(GpuDevice device, EngineResourceStore 
 /// Primary 2D rendering interface for game code to draw into a <see cref="RenderFrame"/>.
 /// </summary>
 /// <remarks>
+/// <para>
 /// <see cref="Canvas"/> has a stack of <see cref="CanvasParams"/>. Calling
 /// <see cref="PushParams(in CanvasParamsOverride)"/> pushes a new override that
 /// gets popped once the returned <see cref="IDisposable"/> is disposed, creating a
 /// "scoped parameters" model.
-///
+/// </para>
+/// <para>
 /// It is also responsible for managing the render passes and the primitive/textured batch
 /// instances used to batch together related draw calls. Pass/batch lifetime management
 /// is automatic; changing the current parameters reopens passes and flushes batches
 /// as needed.
-///
+/// </para>
+/// <para>
 /// Colors are sRGB-encoded (<see cref="SrgbColor32"/>), and blending happens on the encoded
 /// values. Targets therefore must have non-sRGB formats, so the values reach them unchanged; see
 /// <see cref="SurfaceFormatPolicy.PreferNonSrgb"/>. Texture texels are likewise taken as stored,
 /// so textures should hold sRGB-encoded colors in non-sRGB formats.
-///
+/// </para>
+/// <para>
 /// The frame is never submitted; it must be submitted manually after disposal.
+/// </para>
+/// <para>
+/// The name clashes with the <c>Canvas</c> controls of Avalonia, WPF, and MAUI. Code that imports
+/// both namespaces can alias this one, e.g. <c>global using IjCanvas = Injure.Draw.Canvas;</c>.
+/// </para>
 /// </remarks>
 public sealed class Canvas : IDisposable {
 	// ==========================================================================

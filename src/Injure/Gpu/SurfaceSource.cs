@@ -74,6 +74,11 @@ public readonly struct SurfaceSource {
 	/// Creates a source for a <c>CAMetalLayer</c>.
 	/// </summary>
 	/// <param name="layer">The <c>CAMetalLayer*</c>.</param>
+	/// <remarks>
+	/// The layer's <c>contentsScale</c> has to match the pixels per point of the view showing it,
+	/// or macOS scales the presented image. To create a layer for an existing <c>NSView</c>, see
+	/// <see cref="MacosMetalLayer"/>.
+	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="layer"/> is null.
 	/// </exception>

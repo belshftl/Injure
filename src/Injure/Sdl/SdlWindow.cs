@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Hexa.NET.SDL3;
+using SDL3;
 using Injure.Host;
 using Injure.Gpu;
 using static Injure.Sdl.SdlException;
@@ -22,10 +22,10 @@ namespace Injure.Sdl;
 /// is disposed, since it refers to the native window. This is currently not enforced.
 /// </para>
 /// </remarks>
-public sealed unsafe class SdlWindow : IDisposable {
-	private SDLWindow* handle;
-	private void* metalView;
-	private void* metalLayer;
+public sealed class SdlWindow : IDisposable {
+	private nint handle; // SDL_Window*
+	private nint metalView; // SDL_MetalView
+	private nint metalLayer; // CAMetalLayer*
 	private readonly uint sdlWindowId;
 	private SdlWindowState state;
 
@@ -47,7 +47,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <summary>
 	/// Whether <see cref="Dispose()"/> has been called.
 	/// </summary>
-	public bool IsDisposed => handle is null;
+	public bool IsDisposed => handle == 0;
 
 	/// <summary>
 	/// The window's state as of the last processed window event or immediate setter call.
@@ -70,7 +70,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 		}
 	}
 
-	private SdlWindow(SdlInstance sdl, SDLWindow* handle, void* metalView, void* metalLayer, uint sdlWindowId) {
+	private SdlWindow(SdlInstance sdl, nint handle, nint metalView, nint metalLayer, uint sdlWindowId) {
 		Sdl = sdl;
 		this.handle = handle;
 		this.metalView = metalView;
@@ -108,21 +108,21 @@ public sealed unsafe class SdlWindow : IDisposable {
 		if (props == 0)
 			throw FromLastError("SDL_CreateProperties");
 		try {
-			Check(SDL.SetStringProperty(props, SDL.SDL_PROP_WINDOW_CREATE_TITLE_STRING, options.Title));
-			Check(SDL.SetNumberProperty(props, SDL.SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, options.Width));
-			Check(SDL.SetNumberProperty(props, SDL.SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, options.Height));
+			Check(SDL.SetStringProperty(props, SDL.Props.WindowCreateTitleString, options.Title));
+			Check(SDL.SetNumberProperty(props, SDL.Props.WindowCreateWidthNumber, options.Width));
+			Check(SDL.SetNumberProperty(props, SDL.Props.WindowCreateHeightNumber, options.Height));
 			(int x, int y) = options.Position.ToSdl();
-			Check(SDL.SetNumberProperty(props, SDL.SDL_PROP_WINDOW_CREATE_X_NUMBER, x));
-			Check(SDL.SetNumberProperty(props, SDL.SDL_PROP_WINDOW_CREATE_Y_NUMBER, y));
-			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, !options.Visible));
-			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, options.Resizable));
-			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_BORDERLESS_BOOLEAN, options.Borderless));
-			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, options.Fullscreen));
-			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, options.HighPixelDensity));
-			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_MINIMIZED_BOOLEAN, options.Mode == SdlWindowMode.Minimized));
-			Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_MAXIMIZED_BOOLEAN, options.Mode == SdlWindowMode.Maximized));
+			Check(SDL.SetNumberProperty(props, SDL.Props.WindowCreateXNumber, x));
+			Check(SDL.SetNumberProperty(props, SDL.Props.WindowCreateYNumber, y));
+			Check(SDL.SetBooleanProperty(props, SDL.Props.WindowCreateHiddenBoolean, !options.Visible));
+			Check(SDL.SetBooleanProperty(props, SDL.Props.WindowCreateResizableBoolean, options.Resizable));
+			Check(SDL.SetBooleanProperty(props, SDL.Props.WindowCreateBorderlessBoolean, options.Borderless));
+			Check(SDL.SetBooleanProperty(props, SDL.Props.WindowCreateFullscreenBoolean, options.Fullscreen));
+			Check(SDL.SetBooleanProperty(props, SDL.Props.WindowCreateHighPixelDensityBoolean, options.HighPixelDensity));
+			Check(SDL.SetBooleanProperty(props, SDL.Props.WindowCreateMinimizedBoolean, options.Mode == SdlWindowMode.Minimized));
+			Check(SDL.SetBooleanProperty(props, SDL.Props.WindowCreateMaximizedBoolean, options.Mode == SdlWindowMode.Maximized));
 			if (OperatingSystem.IsMacOS())
-				Check(SDL.SetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN, true));
+				Check(SDL.SetBooleanProperty(props, SDL.Props.WindowCreateMetalBoolean, true));
 			return createFrom(sdl, props);
 		} finally {
 			SDL.DestroyProperties(props);
@@ -166,33 +166,33 @@ public sealed unsafe class SdlWindow : IDisposable {
 	private static SdlWindow createFrom(SdlInstance sdl, uint props) {
 		if (
 			OperatingSystem.IsMacOS()
-			&& !SDL.GetBooleanProperty(props, SDL.SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN, false)
+			&& !SDL.GetBooleanProperty(props, SDL.Props.WindowCreateMetalBoolean, false)
 		)
 			throw new ArgumentException("on macOS, SDL_PROP_WINDOW_CREATE_METAL_BOOLEAN must be set to true");
 
-		SDLWindow* handle = SDL.CreateWindowWithProperties(props);
-		if (handle is null)
+		nint handle = SDL.CreateWindowWithProperties(props);
+		if (handle == 0)
 			throw FromLastError("SDL_CreateWindowWithProperties");
 
-		void* metalView = null;
-		void* metalLayer = null;
+		nint metalView = 0;
+		nint metalLayer = 0;
 		try {
 			uint sdlWindowId = SDL.GetWindowID(handle);
 			if (sdlWindowId == 0)
 				throw FromLastError("SDL_GetWindowID");
 			if (OperatingSystem.IsMacOS()) {
 				metalView = SDL.MetalCreateView(handle);
-				if (metalView is null)
+				if (metalView == 0)
 					throw FromLastError("SDL_Metal_CreateView");
 				metalLayer = SDL.MetalGetLayer(metalView);
-				if (metalLayer is null)
+				if (metalLayer == 0)
 					throw FromLastError("SDL_Metal_GetLayer");
 			}
 			SdlWindow window = new(sdl, handle, metalView, metalLayer, sdlWindowId);
 			sdl.RegisterWindow(sdlWindowId, window);
 			return window;
 		} catch {
-			if (metalView is not null)
+			if (metalView != 0)
 				SDL.MetalDestroyView(metalView);
 			SDL.DestroyWindow(handle);
 			throw;
@@ -200,7 +200,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	}
 
 	/// <summary>
-	/// Gets the underlying <c>SDL_Window</c>, bypassing ownership/lifetime. Dangles once destroyed by
+	/// Gets the underlying <c>SDL_Window*</c>, bypassing ownership/lifetime. Dangles once destroyed by
 	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
@@ -213,14 +213,14 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <b>The return type is not a stable API and may change without notice.</b> See
 	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
-	public SDLWindow* DangerousGetHandle() {
+	public nint DangerousGetHandle() {
 		CheckAccess();
 		return handle;
 	}
 
 	/// <summary>
 	/// Gets the <c>SDL_MetalView</c> created for this window on macOS, bypassing ownership/lifetime,
-	/// or <see langword="null"/> on other platforms. Dangles once destroyed by
+	/// or 0 on other platforms. Dangles once destroyed by
 	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
@@ -233,14 +233,14 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <b>The return type is not a stable API and may change without notice.</b> See
 	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
-	public void* DangerousGetMetalView() {
+	public nint DangerousGetMetalView() {
 		CheckAccess();
 		return metalView;
 	}
 
 	/// <summary>
-	/// Gets the <c>CAMetalLayer</c> of this window's Metal view on macOS, bypassing
-	/// ownership/lifetime, or <see langword="null"/> on other platforms. Dangles once destroyed by
+	/// Gets the <c>CAMetalLayer*</c> of this window's Metal view on macOS, bypassing
+	/// ownership/lifetime, or 0 on other platforms. Dangles once destroyed by
 	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">
@@ -253,7 +253,7 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// <b>The return type is not a stable API and may change without notice.</b> See
 	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
-	public void* DangerousGetMetalLayer() {
+	public nint DangerousGetMetalLayer() {
 		CheckAccess();
 		return metalLayer;
 	}
@@ -461,31 +461,30 @@ public sealed unsafe class SdlWindow : IDisposable {
 		state = s with { UpdatedAt = ev.Tick };
 	}
 
-	private static SdlWindowState queryState(SDLWindow* handle, HostTick now) {
-		int width, height, pixelWidth, pixelHeight, x, y;
-		Check(SDL.GetWindowSize(handle, &width, &height));
-		Check(SDL.GetWindowSizeInPixels(handle, &pixelWidth, &pixelHeight));
-		Check(SDL.GetWindowPosition(handle, &x, &y));
-		var flags = (SDLWindowFlags)SDL.GetWindowFlags(handle);
+	private static SdlWindowState queryState(nint handle, HostTick now) {
+		Check(SDL.GetWindowSize(handle, out int width, out int height));
+		Check(SDL.GetWindowSizeInPixels(handle, out int pixelWidth, out int pixelHeight));
+		Check(SDL.GetWindowPosition(handle, out int x, out int y));
+		SDL.WindowFlags flags = SDL.GetWindowFlags(handle);
 		return new SdlWindowState {
-			Title = SDL.GetWindowTitleS(handle) ?? "",
+			Title = SDL.GetWindowTitle(handle) ?? "",
 			Width = width,
 			Height = height,
 			PixelWidth = pixelWidth,
 			PixelHeight = pixelHeight,
 			X = x,
 			Y = y,
-			Visible = (flags & SDLWindowFlags.Hidden) == 0,
-			Resizable = (flags & SDLWindowFlags.Resizable) != 0,
-			Borderless = (flags & SDLWindowFlags.Borderless) != 0,
-			Fullscreen = (flags & SDLWindowFlags.Fullscreen) != 0,
+			Visible = (flags & SDL.WindowFlags.Hidden) == 0,
+			Resizable = (flags & SDL.WindowFlags.Resizable) != 0,
+			Borderless = (flags & SDL.WindowFlags.Borderless) != 0,
+			Fullscreen = (flags & SDL.WindowFlags.Fullscreen) != 0,
 			Mode =
-				(flags & SDLWindowFlags.Minimized) != 0 ? SdlWindowMode.Minimized
-				: (flags & SDLWindowFlags.Maximized) != 0 ? SdlWindowMode.Maximized
+				(flags & SDL.WindowFlags.Minimized) != 0 ? SdlWindowMode.Minimized
+				: (flags & SDL.WindowFlags.Maximized) != 0 ? SdlWindowMode.Maximized
 				: SdlWindowMode.Normal,
 			DisplayScale = SDL.GetWindowDisplayScale(handle),
-			HasKeyboardFocus = (flags & SDLWindowFlags.InputFocus) != 0,
-			HasPointer = (flags & SDLWindowFlags.MouseFocus) != 0,
+			HasKeyboardFocus = (flags & SDL.WindowFlags.InputFocus) != 0,
+			HasPointer = (flags & SDL.WindowFlags.MouseFocus) != 0,
 			UpdatedAt = now,
 		};
 	}
@@ -497,21 +496,21 @@ public sealed unsafe class SdlWindow : IDisposable {
 	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
 	/// </exception>
 	public void Dispose() {
-		if (handle is null)
+		if (handle == 0)
 			return;
 		// the instance can't be disposed while this window is alive, so only the thread check can fail
 		Sdl.CheckAccess();
-		if (metalView is not null)
+		if (metalView != 0)
 			SDL.MetalDestroyView(metalView);
 		SDL.DestroyWindow(handle);
 		Sdl.UnregisterWindow(sdlWindowId);
-		handle = null;
-		metalView = null;
-		metalLayer = null;
+		handle = 0;
+		metalView = 0;
+		metalLayer = 0;
 	}
 
 	internal void CheckAccess() {
 		Sdl.CheckAccess();
-		ObjectDisposedException.ThrowIf(handle is null, this);
+		ObjectDisposedException.ThrowIf(handle == 0, this);
 	}
 }

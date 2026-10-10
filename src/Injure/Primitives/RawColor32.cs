@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Injure.DevAnalyzers.Attributes;
 
 namespace Injure.Primitives;
@@ -14,7 +16,26 @@ public readonly partial struct RawColor32 {
 	/// <summary>
 	/// Reinterprets this value as if it is sRGB-encoded, without changing the bytes.
 	/// </summary>
-	public SrgbColor32 AssumeSrgb() => new(R, G, B, A);
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public ref readonly SrgbColor32 AssumeSrgb() =>
+		// tests with Godbolt confirm this is a real optimization:
+		// - on CoreCLR, a byte-by-byte copy via shl/or turns into `mov eax, dword ptr [rdi]; ret`
+		// - on NativeAOT, movzx-ing the four args byte-by-byte into rdi/rsi/rdx/rcx + a
+		//   `call SrgbColor32:.ctor` turns into the same `mov eax, dword ptr [rax]`
+		// it's certainly interesting that CoreCLR manages to elide the call but not the byte-by-byte copy
+		ref Unsafe.As<RawColor32, SrgbColor32>(ref Unsafe.AsRef(in this));
+
+	/// <summary>
+	/// Reinterprets the span as if all of its values are sRGB-encoded, without changing the bytes.
+	/// </summary>
+	public static ReadOnlySpan<SrgbColor32> SpanAssumeSrgb(ReadOnlySpan<RawColor32> span) =>
+		MemoryMarshal.Cast<RawColor32, SrgbColor32>(span);
+
+	/// <summary>
+	/// Reinterprets the span as if all of its values are sRGB-encoded, without changing the bytes.
+	/// </summary>
+	public static Span<SrgbColor32> SpanAssumeSrgb(Span<RawColor32> span) =>
+		MemoryMarshal.Cast<RawColor32, SrgbColor32>(span);
 
 	/// <summary>
 	/// Normalizes this value to a <see cref="RawColorF128"/>, with each channel mapped from [0, 255]

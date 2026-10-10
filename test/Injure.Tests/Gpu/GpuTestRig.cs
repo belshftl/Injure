@@ -204,8 +204,6 @@ internal static class GpuRig {
 		public uint Width => target.Width;
 		public uint Height => target.Height;
 		public TextureFormat Format => target.Format;
-		public void Resized() {
-		}
 		public bool TryAcquire([NotNullWhen(true)] out IAcquiredOutput? output) {
 			output = succeed ? Last = new FakeOutput(target) : null;
 			return succeed;

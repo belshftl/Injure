@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Runtime.InteropServices;
-using Hexa.NET.SDL3;
+using SDL3;
 using Injure.Host;
 using Injure.Input;
 using static Injure.Sdl.SdlInputTranslation;
@@ -22,17 +22,28 @@ namespace Injure.Sdl;
 /// weren't created through <see cref="SdlWindow"/>, are skipped by
 /// <see cref="TryPoll(out HostEvent)"/>. To see them, poll with
 /// <see cref="DangerousGetNextRaw()"/> and translate the rest with
-/// <see cref="DangerousCreateHostEvent(in SDLEvent, out HostEvent)"/>.
+/// <see cref="DangerousCreateHostEvent(in SDL.Event, out HostEvent)"/>.
 /// </para>
 /// <para>
 /// Gamepads are opened when SDL reports them and closed when they are removed, so gamepad events
 /// arrive as long as <see cref="SdlInitOptions.Gamepad"/> was set.
 /// </para>
 /// </remarks>
-public sealed unsafe class SdlEventSource : IHostEventSource {
+public sealed partial class SdlEventSource : IHostEventSource {
+	// SDL3-CS only binds the overloads that take an event, which removes it from the queue
+	private static partial class Native {
+		[LibraryImport("SDL3")]
+		[return: MarshalAs(UnmanagedType.I1)]
+		public static partial bool SDL_WaitEvent(nint ev);
+
+		[LibraryImport("SDL3")]
+		[return: MarshalAs(UnmanagedType.I1)]
+		public static partial bool SDL_WaitEventTimeout(nint ev, int timeoutMs);
+	}
+
 	private readonly SdlInstance sdl;
 	private readonly uint wakeEventType;
-	private readonly Dictionary<int, (GamepadId Id, nint Handle)> gamepads = new(); // by SDL_JoystickID
+	private readonly Dictionary<uint, (GamepadId Id, nint Handle)> gamepads = new(); // by SDL_JoystickID
 	private int wakePending = 0;
 	private int shutDown = 0;
 
@@ -48,7 +59,13 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 
 	/// <inheritdoc/>
 	/// <remarks>
+	/// <para>
+	/// <see cref="WaitUntil(HostTick)"/> may return up to this much before its deadline; a caller that
+	/// needs better precision has to wait out the remainder itself.
+	/// </para>
+	/// <para>
 	/// One millisecond, the resolution of <c>SDL_WaitEventTimeout</c>.
+	/// </para>
 	/// </remarks>
 	public HostDuration WaitGranularity { get; } = HostDuration.FromMs(1);
 
@@ -60,7 +77,7 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// Thrown if the instance has been disposed.
 	/// </exception>
 	public bool TryPoll(out HostEvent ev) {
-		while (DangerousGetNextRaw() is SDLEvent raw)
+		while (DangerousGetNextRaw() is SDL.Event raw)
 			if (DangerousCreateHostEvent(in raw, out ev))
 				return true;
 		ev = default;
@@ -80,7 +97,7 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// <para>
 	/// Returns <see langword="null"/> if no event is pending. Events used internally for
 	/// <see cref="Wake()"/> are filtered out. Every returned event <b>must</b> be passed to
-	/// <see cref="DangerousCreateHostEvent(in SDLEvent, out HostEvent)"/> exactly once, even ones the
+	/// <see cref="DangerousCreateHostEvent(in SDL.Event, out HostEvent)"/> exactly once, even ones the
 	/// caller handles itself, since translation also keeps track of gamepads.
 	/// </para>
 	/// <para>
@@ -88,10 +105,9 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </para>
 	/// </remarks>
-	public SDLEvent? DangerousGetNextRaw() {
+	public SDL.Event? DangerousGetNextRaw() {
 		sdl.CheckAccess();
-		SDLEvent e;
-		while (SDL.PollEvent(&e)) {
+		while (SDL.PollEvent(out SDL.Event e)) {
 			if (e.Type == wakeEventType) {
 				Volatile.Write(ref wakePending, 0);
 				continue;
@@ -123,7 +139,7 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// notice.</b> See <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </para>
 	/// </remarks>
-	public bool DangerousCreateHostEvent(in SDLEvent ev, out HostEvent result) {
+	public bool DangerousCreateHostEvent(in SDL.Event ev, out HostEvent result) {
 		if (!translate(in ev, out result, out SdlWindow? owner))
 			return false;
 		owner?.ApplyEvent(in result);
@@ -131,88 +147,88 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	}
 
 	// owner is set for Window* events, whose window state needs updating
-	private bool translate(in SDLEvent ev, out HostEvent result, out SdlWindow? owner) {
+	private bool translate(in SDL.Event ev, out HostEvent result, out SdlWindow? owner) {
 		sdl.CheckAccess();
 		owner = null;
 		HostTick tick = sdl.Clock.FromSdlTimestamp(ev.Common.Timestamp);
-		switch ((SDLEventType)ev.Type) {
-		case SDLEventType.Quit:
+		switch ((SDL.EventType)ev.Type) {
+		case SDL.EventType.Quit:
 			result = HostEvent.Quit(tick);
 			return true;
 
-		case SDLEventType.WindowCloseRequested: return window(HostEventKind.WindowCloseRequested, in ev, tick, out result, out owner);
-		case SDLEventType.WindowShown: return window(HostEventKind.WindowShown, in ev, tick, out result, out owner);
-		case SDLEventType.WindowHidden: return window(HostEventKind.WindowHidden, in ev, tick, out result, out owner);
-		case SDLEventType.WindowExposed: return window(HostEventKind.WindowExposed, in ev, tick, out result, out owner);
-		case SDLEventType.WindowMinimized: return window(HostEventKind.WindowMinimized, in ev, tick, out result, out owner);
-		case SDLEventType.WindowMaximized: return window(HostEventKind.WindowMaximized, in ev, tick, out result, out owner);
-		case SDLEventType.WindowRestored: return window(HostEventKind.WindowRestored, in ev, tick, out result, out owner);
-		case SDLEventType.WindowEnterFullscreen: return window(HostEventKind.WindowEnteredFullscreen, in ev, tick, out result, out owner);
-		case SDLEventType.WindowLeaveFullscreen: return window(HostEventKind.WindowLeftFullscreen, in ev, tick, out result, out owner);
-		case SDLEventType.WindowFocusGained: return window(HostEventKind.WindowFocusGained, in ev, tick, out result, out owner);
-		case SDLEventType.WindowFocusLost: return window(HostEventKind.WindowFocusLost, in ev, tick, out result, out owner);
-		case SDLEventType.WindowMouseEnter: return window(HostEventKind.WindowPointerEntered, in ev, tick, out result, out owner);
-		case SDLEventType.WindowMouseLeave: return window(HostEventKind.WindowPointerLeft, in ev, tick, out result, out owner);
-		case SDLEventType.WindowMoved:
+		case SDL.EventType.WindowCloseRequested: return window(HostEventKind.WindowCloseRequested, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowShown: return window(HostEventKind.WindowShown, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowHidden: return window(HostEventKind.WindowHidden, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowExposed: return window(HostEventKind.WindowExposed, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowMinimized: return window(HostEventKind.WindowMinimized, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowMaximized: return window(HostEventKind.WindowMaximized, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowRestored: return window(HostEventKind.WindowRestored, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowEnterFullscreen: return window(HostEventKind.WindowEnteredFullscreen, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowLeaveFullscreen: return window(HostEventKind.WindowLeftFullscreen, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowFocusGained: return window(HostEventKind.WindowFocusGained, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowFocusLost: return window(HostEventKind.WindowFocusLost, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowMouseEnter: return window(HostEventKind.WindowPointerEntered, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowMouseLeave: return window(HostEventKind.WindowPointerLeft, in ev, tick, out result, out owner);
+		case SDL.EventType.WindowMoved:
 			if (!sdl.TryGetWindow(ev.Window.WindowID, out SdlWindow? moved))
 				break;
 			owner = moved;
 			result = HostEvent.WindowMoved(tick, moved.Id, ev.Window.Data1, ev.Window.Data2);
 			return true;
-		case SDLEventType.WindowResized:
+		case SDL.EventType.WindowResized:
 			if (!sdl.TryGetWindow(ev.Window.WindowID, out SdlWindow? resized))
 				break;
 			owner = resized;
 			result = HostEvent.WindowResized(tick, resized.Id, ev.Window.Data1, ev.Window.Data2);
 			return true;
-		case SDLEventType.WindowPixelSizeChanged:
+		case SDL.EventType.WindowPixelSizeChanged:
 			if (!sdl.TryGetWindow(ev.Window.WindowID, out SdlWindow? pxResized))
 				break;
 			owner = pxResized;
 			result = HostEvent.WindowPixelSizeChanged(tick, pxResized.Id, ev.Window.Data1, ev.Window.Data2);
 			return true;
-		case SDLEventType.WindowDisplayScaleChanged:
+		case SDL.EventType.WindowDisplayScaleChanged:
 			if (!sdl.TryGetWindow(ev.Window.WindowID, out SdlWindow? rescaled))
 				break;
 			owner = rescaled;
 			result = HostEvent.WindowDisplayScaleChanged(tick, rescaled.Id, SDL.GetWindowDisplayScale(rescaled.DangerousGetHandle()));
 			return true;
 
-		case SDLEventType.KeyDown:
-		case SDLEventType.KeyUp:
+		case SDL.EventType.KeyDown:
+		case SDL.EventType.KeyUp:
 			result = HostEvent.ForKey(
 				tick,
 				windowOrInvalid(ev.Key.WindowID),
-				new HostKeyEvent(TranslateScancode(ev.Key.Scancode), edge(ev.Key.Down), ev.Key.Repeat != 0)
+				new HostKeyEvent(TranslateScancode(ev.Key.Scancode), edge(ev.Key.Down), ev.Key.Repeat)
 			);
 			return true;
-		case SDLEventType.TextInput:
-			string? text = Marshal.PtrToStringUTF8((nint)ev.Text.Text);
+		case SDL.EventType.TextInput:
+			string? text = Marshal.PtrToStringUTF8(ev.Text.Text);
 			if (text is null)
 				break;
 			result = HostEvent.ForText(tick, windowOrInvalid(ev.Text.WindowID), text);
 			return true;
-		case SDLEventType.MouseMotion:
+		case SDL.EventType.MouseMotion:
 			result = HostEvent.ForPointerMove(
 				tick,
 				windowOrInvalid(ev.Motion.WindowID),
-				new HostPointerMoveEvent(ev.Motion.X, ev.Motion.Y, ev.Motion.Xrel, ev.Motion.Yrel)
+				new HostPointerMoveEvent(ev.Motion.X, ev.Motion.Y, ev.Motion.XRel, ev.Motion.YRel)
 			);
 			return true;
-		case SDLEventType.MouseButtonDown:
-		case SDLEventType.MouseButtonUp:
+		case SDL.EventType.MouseButtonDown:
+		case SDL.EventType.MouseButtonUp:
 			result = HostEvent.ForPointerButton(
 				tick,
 				windowOrInvalid(ev.Button.WindowID),
 				new HostPointerButtonEvent(TranslatePointerButton(ev.Button.Button), edge(ev.Button.Down), ev.Button.Clicks, ev.Button.X, ev.Button.Y)
 			);
 			return true;
-		case SDLEventType.MouseWheel: {
+		case SDL.EventType.MouseWheel: {
 			float x = ev.Wheel.X;
 			float y = ev.Wheel.Y;
 			int ix = ev.Wheel.IntegerX;
 			int iy = ev.Wheel.IntegerY;
-			if (ev.Wheel.Direction == SDLMouseWheelDirection.Flipped) {
+			if (ev.Wheel.Direction == SDL.MouseWheelDirection.Flipped) {
 				x = -x;
 				y = -y;
 				ix = -ix;
@@ -226,40 +242,40 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 			return true;
 		}
 
-		case SDLEventType.GamepadAdded: {
-			int instance = ev.Gdevice.Which;
+		case SDL.EventType.GamepadAdded: {
+			uint instance = ev.GDevice.Which;
 			if (gamepads.ContainsKey(instance))
 				break;
-			SDLGamepad* handle = SDL.OpenGamepad(instance);
-			if (handle is null)
+			nint handle = SDL.OpenGamepad(instance); // SDL_Gamepad*
+			if (handle == 0)
 				break; // e.g. unplugged again in the meantime
 			var id = GamepadId.Allocate();
-			gamepads.Add(instance, (id, (nint)handle));
+			gamepads.Add(instance, (id, handle));
 			result = HostEvent.GamepadAdded(tick, id);
 			return true;
 		}
-		case SDLEventType.GamepadRemoved: {
-			if (!gamepads.Remove(ev.Gdevice.Which, out (GamepadId Id, nint Handle) pad))
+		case SDL.EventType.GamepadRemoved: {
+			if (!gamepads.Remove(ev.GDevice.Which, out (GamepadId Id, nint Handle) pad))
 				break;
-			SDL.CloseGamepad((SDLGamepad*)pad.Handle);
+			SDL.CloseGamepad(pad.Handle);
 			result = HostEvent.GamepadRemoved(tick, pad.Id);
 			return true;
 		}
-		case SDLEventType.GamepadAxisMotion: {
-			if (!gamepads.TryGetValue(ev.Gaxis.Which, out (GamepadId Id, nint Handle) pad))
+		case SDL.EventType.GamepadAxisMotion: {
+			if (!gamepads.TryGetValue(ev.GAxis.Which, out (GamepadId Id, nint Handle) pad))
 				break;
-			GamepadAxis axis = TranslateGamepadAxis((SDLGamepadAxis)ev.Gaxis.Axis);
+			GamepadAxis axis = TranslateGamepadAxis((SDL.GamepadAxis)ev.GAxis.Axis);
 			if (axis == GamepadAxis.Unknown)
 				break;
-			result = HostEvent.ForGamepadAxis(tick, new HostGamepadAxisEvent(pad.Id, axis, NormalizeGamepadAxis(axis, ev.Gaxis.Value)));
+			result = HostEvent.ForGamepadAxis(tick, new HostGamepadAxisEvent(pad.Id, axis, NormalizeGamepadAxis(axis, ev.GAxis.Value)));
 			return true;
 		}
-		case SDLEventType.GamepadButtonDown:
-		case SDLEventType.GamepadButtonUp: {
-			if (!gamepads.TryGetValue(ev.Gbutton.Which, out (GamepadId Id, nint Handle) pad))
+		case SDL.EventType.GamepadButtonDown:
+		case SDL.EventType.GamepadButtonUp: {
+			if (!gamepads.TryGetValue(ev.GButton.Which, out (GamepadId Id, nint Handle) pad))
 				break;
-			GamepadButton button = TranslateGamepadButton((SDLGamepadButton)ev.Gbutton.Button);
-			result = HostEvent.ForGamepadButton(tick, new HostGamepadButtonEvent(pad.Id, button, edge(ev.Gbutton.Down)));
+			GamepadButton button = TranslateGamepadButton((SDL.GamepadButton)ev.GButton.Button);
+			result = HostEvent.ForGamepadButton(tick, new HostGamepadButtonEvent(pad.Id, button, edge(ev.GButton.Down)));
 			return true;
 		}
 		}
@@ -281,7 +297,7 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 			if (remaining < WaitGranularity)
 				return false;
 			int ms = (int)Math.Min(remaining.Ns / 1_000_000, int.MaxValue);
-			if (SDL.WaitEventTimeout(null, ms))
+			if (Native.SDL_WaitEventTimeout(0, ms))
 				return true;
 		}
 	}
@@ -295,30 +311,35 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	/// </exception>
 	public void WaitIndefinitely() {
 		sdl.CheckAccess();
-		SdlException.Check(SDL.WaitEvent(null));
+		SdlException.Check(Native.SDL_WaitEvent(0));
 	}
 
 	/// <inheritdoc/>
 	/// <remarks>
+	/// <para>
+	/// Calls made before the waiting thread gets to run again may coalesce into one wakeup.
+	/// </para>
+	/// <para>
 	/// Does nothing if the instance has been disposed.
+	/// </para>
 	/// </remarks>
 	public void Wake() {
 		if (Volatile.Read(ref shutDown) != 0 || Interlocked.Exchange(ref wakePending, 1) != 0)
 			return;
-		SDLEvent ev = default;
+		SDL.Event ev = default;
 		ev.Type = wakeEventType;
-		if (!SDL.PushEvent(&ev))
+		if (!SDL.PushEvent(ref ev))
 			Volatile.Write(ref wakePending, 0); // let a later call retry
 	}
 
 	internal void Shutdown() {
 		Volatile.Write(ref shutDown, 1);
 		foreach ((GamepadId _, nint handle) in gamepads.Values)
-			SDL.CloseGamepad((SDLGamepad*)handle);
+			SDL.CloseGamepad(handle);
 		gamepads.Clear();
 	}
 
-	private bool window(HostEventKind kind, in SDLEvent ev, HostTick tick, out HostEvent result, out SdlWindow? owner) {
+	private bool window(HostEventKind kind, in SDL.Event ev, HostTick tick, out HostEvent result, out SdlWindow? owner) {
 		if (!sdl.TryGetWindow(ev.Window.WindowID, out owner)) {
 			result = default;
 			return false;
@@ -330,5 +351,5 @@ public sealed unsafe class SdlEventSource : IHostEventSource {
 	private HostWindowId windowOrInvalid(uint sdlWindowId) =>
 		sdl.TryGetWindow(sdlWindowId, out SdlWindow? w) ? w.Id : default;
 
-	private static EdgeType edge(byte down) => down != 0 ? EdgeType.Press : EdgeType.Release;
+	private static EdgeType edge(bool down) => down ? EdgeType.Press : EdgeType.Release;
 }

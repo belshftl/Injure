@@ -37,6 +37,11 @@ public readonly struct GpuDeviceOptions {
 	/// this host. A temporary surface is created on it for that purpose and released before the
 	/// <see cref="GpuDevice"/> constructor returns.
 	/// </summary>
+	/// <remarks>
+	/// The host's native object therefore has to exist when the device is created. UI frameworks
+	/// that create native views lazily (e.g. Avalonia's <c>NativeControlHost</c>, which creates its
+	/// view when the control is attached) need the device creation to wait for the view.
+	/// </remarks>
 	public ISurfaceHost? CompatibleHost { get; init; }
 
 	/// <summary>

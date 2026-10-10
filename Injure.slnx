@@ -12,6 +12,9 @@
 	<Project Path="./src/Injure.Mods.Runtime/Injure.Mods.Runtime.csproj" />
 	<Project Path="./src/Injure.Weaver/Injure.Weaver.csproj" />
 
+	<Project Path="./smoke/AvaloniaEmbed/AvaloniaEmbed.csproj" />
+	<Project Path="./smoke/WaylandEmbed/WaylandEmbed.csproj" />
+
 	<Project Path="./test/Injure.Mods.Abstractions.Tests/Injure.Mods.Abstractions.Tests.csproj" />
 	<Project Path="./test/Injure.Mods.Runtime.Tests/Injure.Mods.Runtime.Tests.csproj" />
 	<Project Path="./test/Injure.Mods.Runtime.Tests.Modif.E2e/Injure.Mods.Runtime.Tests.Modif.E2e.csproj" />

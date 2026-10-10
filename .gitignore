@@ -11,9 +11,12 @@
 /native/misc/obj/
 /native/misc/out/
 /native/pack/
+/smoke/**/bin/
+/smoke/**/obj/
 /src/**/bin/
 /src/**/obj/
 /test/**/bin/
 /test/**/obj/
 /test/**/TestResults/
 /TestResults/
+/tmp/

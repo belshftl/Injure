@@ -30,6 +30,18 @@ public sealed class GpuValueTests {
 		Assert.Equal("hinstance", Assert.Throws<ArgumentException>(static () => SurfaceSource.DangerousCreateFromWindowsHwnd(1, 0)).ParamName);
 	}
 
+	// test threads aren't the main thread, so this covers everything that runs before AppKit is touched
+	[Fact]
+	public static void MacosMetalLayerChecksViewAndThreadFirst() {
+		if (!OperatingSystem.IsMacOS())
+			Assert.Skip("macOS only");
+#pragma warning disable CA1416 // this call site is reachable on all platforms (silenced because it's actually not)
+		Assert.Equal("nsView", Assert.Throws<ArgumentException>(static () => MacosMetalLayer.DangerousCreateForView(0)).ParamName);
+		// a bogus view is fine here, since the thread check comes before it's used
+		Assert.Throws<InvalidOperationException>(static () => MacosMetalLayer.DangerousCreateForView(1));
+#pragma warning restore CA1416 // this call site is reachable on all platforms (silenced because it's actually not)
+	}
+
 	[Fact]
 	public static void DefaultSurfaceSourceCantCreateSurface() =>
 		Assert.Throws<InvalidOperationException>(static () => default(SurfaceSource).CreateWgpuSurface(default));

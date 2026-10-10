@@ -4,7 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using Hexa.NET.SDL3;
+using SDL3;
 using static Injure.Sdl.SdlException;
 
 namespace Injure.Sdl;
@@ -100,7 +100,7 @@ public sealed partial class SdlInstance : IDisposable {
 	/// Thrown if setting a hint or initializing SDL fails.
 	/// </exception>
 	public static SdlInstance Init(in SdlInitOptions options = default) {
-		if (options.VideoDriver is not null && options.Hints is not null && options.Hints.ContainsKey(SDL.SDL_HINT_VIDEO_DRIVER))
+		if (options.VideoDriver is not null && options.Hints is not null && options.Hints.ContainsKey(SDL.Hints.VideoDriver))
 			throw new ArgumentException("VideoDriver and a raw SDL_HINT_VIDEO_DRIVER hint are both set", nameof(options));
 		if (OperatingSystem.IsMacOS() && MacNative.pthread_main_np() == 0)
 			throw new InvalidOperationException("on macOS, SDL must be initialized on the process's main thread");
@@ -112,10 +112,10 @@ public sealed partial class SdlInstance : IDisposable {
 				foreach (KeyValuePair<string, string> hint in options.Hints)
 					Check(SDL.SetHint(hint.Key, hint.Value));
 			if (options.VideoDriver is not null)
-				Check(SDL.SetHint(SDL.SDL_HINT_VIDEO_DRIVER, options.VideoDriver));
-			uint flags = SDL.SDL_INIT_VIDEO | SDL.SDL_INIT_EVENTS;
+				Check(SDL.SetHint(SDL.Hints.VideoDriver, options.VideoDriver));
+			SDL.InitFlags flags = SDL.InitFlags.Video | SDL.InitFlags.Events;
 			if (options.Gamepad)
-				flags |= SDL.SDL_INIT_GAMEPAD;
+				flags |= SDL.InitFlags.Gamepad;
 			Check(SDL.Init(flags));
 		} catch {
 			Volatile.Write(ref active, 0);
