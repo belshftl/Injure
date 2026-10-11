@@ -12,14 +12,19 @@ namespace Injure.Draw;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Owns a color texture, an optional depth/stencil texture, the color sampler,
-/// and a lazy-created standard color texture bind group.
+/// Owns a color texture, an optional depth/stencil texture, the color sampler, and a lazily created
+/// color texture bind group.
 /// </para>
 /// <para>
 /// The color texture is always sampleable through <see cref="ColorView"/> and
-/// <see cref="ColorBindGroup"/>. If a depth/stencil texture is present, its
-/// attachment view is exposed through <see cref="DepthAttachmentView"/> and its
-/// sampleable depth view is exposed through <see cref="DepthSampleView"/>.
+/// <see cref="ColorBindGroup"/>. If a depth/stencil texture is present, its attachment view is
+/// exposed through <see cref="DepthAttachmentView"/> and its sampleable depth view through
+/// <see cref="DepthSampleView"/>.
+/// </para>
+/// <para>
+/// <see cref="Canvas"/> can draw into it (see <see cref="CanvasTarget"/>), which requires a
+/// non-sRGB <see cref="ColorFormat"/>, and draw it (see <see cref="TextureSource"/>).
+/// <see cref="Canvas"/> doesn't use the depth/stencil texture.
 /// </para>
 /// </remarks>
 public sealed class RenderTarget2d : IDisposable {
@@ -34,6 +39,9 @@ public sealed class RenderTarget2d : IDisposable {
 	/// <summary>
 	/// The color texture.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this render target has been disposed.
+	/// </exception>
 	public GpuTextureRef ColorTexture {
 		get {
 			chk();
@@ -44,9 +52,12 @@ public sealed class RenderTarget2d : IDisposable {
 	/// <summary>
 	/// View for binding the color texture as a render attachment or sampling it.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this render target has been disposed.
+	/// </exception>
 	/// <remarks>
-	/// This is the color texture's default view. Exists for convenience, and consistency
-	/// with <see cref="DepthAttachmentView"/> / <see cref="DepthSampleView"/>.
+	/// The color texture's default view; exists for convenience, and consistency with
+	/// <see cref="DepthAttachmentView"/> and <see cref="DepthSampleView"/>.
 	/// </remarks>
 	public GpuTextureViewRef ColorView {
 		get {
@@ -56,8 +67,11 @@ public sealed class RenderTarget2d : IDisposable {
 	}
 
 	/// <summary>
-	/// The optional depth/stencil texture.
+	/// The depth/stencil texture, or <see langword="null"/> if there's none.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this render target has been disposed.
+	/// </exception>
 	public GpuTextureRef? DepthStencilTexture {
 		get {
 			chk();
@@ -66,11 +80,14 @@ public sealed class RenderTarget2d : IDisposable {
 	}
 
 	/// <summary>
-	/// View for binding the depth/stencil texture as a render attachment.
+	/// View for binding the depth/stencil texture as a render attachment, or <see langword="null"/> if
+	/// there's none.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this render target has been disposed.
+	/// </exception>
 	/// <remarks>
-	/// For depth-only textures, this is the texture's default view.
-	/// For depth+stencil textures, this is the view with both depth and stencil.
+	/// This is said texture's default view, which covers depth and, if the format has it, stencil.
 	/// </remarks>
 	public GpuTextureViewRef? DepthAttachmentView {
 		get {
@@ -80,11 +97,15 @@ public sealed class RenderTarget2d : IDisposable {
 	}
 
 	/// <summary>
-	/// View for sampling the depth/stencil texture.
+	/// View for sampling the depth of the depth/stencil texture, or <see langword="null"/> if there's
+	/// none.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this render target has been disposed.
+	/// </exception>
 	/// <remarks>
-	/// For depth-only textures, this is the texture's default view.
-	/// For depth+stencil textures, this is a separate depth-only view.
+	/// For depth-only formats, said texture's default view; for formats with stencil, a separate
+	/// depth-only view.
 	/// </remarks>
 	public GpuTextureViewRef? DepthSampleView {
 		get {
@@ -98,6 +119,9 @@ public sealed class RenderTarget2d : IDisposable {
 	/// <summary>
 	/// The color sampler, to be paired with <see cref="ColorView"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this render target has been disposed.
+	/// </exception>
 	public GpuSampler ColorSampler {
 		get {
 			chk();
@@ -106,9 +130,15 @@ public sealed class RenderTarget2d : IDisposable {
 	}
 
 	/// <summary>
-	/// Lazy-created standard color texture bind group for <see cref="ColorView"/>
-	/// and <see cref="ColorSampler"/>.
+	/// Bind group of <see cref="ColorView"/> and <see cref="ColorSampler"/>, created on first use;
+	/// <see cref="Canvas"/> uses it when drawing this render target.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this render target has been disposed.
+	/// </exception>
+	/// <remarks>
+	/// Has a <c>"float"</c>-sampled 2D texture at binding 0 and a filtering sampler at binding 1.
+	/// </remarks>
 	public GpuBindGroupRef ColorBindGroup {
 		get {
 			chk();
@@ -132,7 +162,8 @@ public sealed class RenderTarget2d : IDisposable {
 	public TextureFormat ColorFormat => colorTexture.Format;
 
 	/// <summary>
-	/// Depth/stencil attachment format, if present.
+	/// Depth/stencil attachment format, or <see langword="null"/> if there's no depth/stencil
+	/// attachment.
 	/// </summary>
 	public TextureFormat? DepthStencilFormat => depthStencilTexture?.Format;
 
@@ -150,7 +181,7 @@ public sealed class RenderTarget2d : IDisposable {
 	public bool HasDepth => depthStencilTexture is not null;
 
 	/// <summary>
-	/// Whether the render target has a depth/stencil attachment with stencil.
+	/// Whether the render target has a depth/stencil attachment whose format has stencil.
 	/// </summary>
 	[MemberNotNullWhen(
 		true,
@@ -163,18 +194,39 @@ public sealed class RenderTarget2d : IDisposable {
 	public bool HasStencil => depthStencilTexture is not null && formatHasStencil(depthStencilTexture.Format);
 
 	/// <summary>
-	/// Creates a new <see cref="RenderTarget2d"/> with the given size and <see cref="TextureFormat.Rgba8Unorm"/>.
+	/// Creates a <see cref="RenderTarget2d"/> with the given size,
+	/// <see cref="TextureFormat.Rgba8Unorm"/>, no depth/stencil attachment, and
+	/// <see cref="SamplerStates.NearestClamp"/>.
 	/// </summary>
+	/// <param name="device">Device to create the render target on.</param>
+	/// <param name="width">Width in texels.</param>
+	/// <param name="height">Height in texels.</param>
+	/// <inheritdoc cref="RenderTarget2d(GpuDevice, in RenderTarget2dCreateParams)" path="/exception"/>
 	public RenderTarget2d(GpuDevice device, uint width, uint height) : this(device, new RenderTarget2dCreateParams(width, height, TextureFormat.Rgba8Unorm)) {
 	}
 
 	/// <summary>
-	/// Creates a new <see cref="RenderTarget2d"/>.
+	/// Creates a <see cref="RenderTarget2d"/>.
 	/// </summary>
+	/// <param name="device">Device to create the render target on.</param>
+	/// <param name="params">Size, formats, and color sampler.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="device"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if the width or height is 0.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if the color format is a depth/stencil format, or the depth/stencil format has no depth.
+	/// </exception>
 	public RenderTarget2d(GpuDevice device, in RenderTarget2dCreateParams @params) {
 		this.device = device ?? throw new ArgumentNullException(nameof(device));
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Width);
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Height);
+		if (formatHasDepth(@params.ColorFormat) || formatHasStencil(@params.ColorFormat))
+			throw new ArgumentException($"color format must not be a depth/stencil format, got {@params.ColorFormat}", nameof(@params));
+		if (@params.DepthStencilFormat is TextureFormat dsf && !formatHasDepth(dsf))
+			throw new ArgumentException($"depth/stencil format must have depth, got {dsf}", nameof(@params));
 
 		GpuTexture? color = null;
 		GpuTexture? depthStencil = null;
@@ -232,26 +284,46 @@ public sealed class RenderTarget2d : IDisposable {
 	}
 
 	/// <summary>
-	/// Creates a standard filtering depth texture bind group for <see cref="DepthSampleView"/>.
+	/// Creates a bind group of <see cref="DepthSampleView"/> and a filtering sampler, owned by the
+	/// caller.
 	/// </summary>
-	/// <param name="sampler">Sampler to use.</param>
+	/// <param name="sampler">Filtering sampler to pair with the view.</param>
+	/// <remarks>
+	/// The bind group has a <c>"depth"</c>-sampled 2D texture at binding 0 and the sampler at binding
+	/// 1. Whether <paramref name="sampler"/> is a filtering sampler isn't checked; if it isn't, WebGPU
+	/// reports a validation error.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="sampler"/> is <see langword="null"/>.
+	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if this render target has no depth attachment.
 	/// </exception>
 	public GpuBindGroup CreateFilteringDepthBindGroup(GpuSamplerHandle sampler) {
+		ArgumentNullException.ThrowIfNull(sampler);
 		chk();
 		GpuTextureViewRef view = DepthSampleView ?? throw new InvalidOperationException("render target has no depth attachment");
 		return DrawDeviceResources.For(device).CreateFilteringDepthTexture2dBindGroup(view, sampler);
 	}
 
 	/// <summary>
-	/// Creates a standard comparison depth texture bind group for <see cref="DepthSampleView"/>.
+	/// Creates a bind group of <see cref="DepthSampleView"/> and a comparison sampler, owned by the
+	/// caller.
 	/// </summary>
-	/// <param name="sampler">Sampler to use.</param>
+	/// <param name="sampler">Comparison sampler to pair with the view.</param>
+	/// <remarks>
+	/// The bind group has a <c>"depth"</c>-sampled 2D texture at binding 0 and the sampler at binding
+	/// 1. Whether <paramref name="sampler"/> is a comparison sampler isn't checked; if it isn't,
+	/// WebGPU reports a validation error.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="sampler"/> is <see langword="null"/>.
+	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if this render target has no depth attachment.
 	/// </exception>
 	public GpuBindGroup CreateComparisonDepthBindGroup(GpuSamplerHandle sampler) {
+		ArgumentNullException.ThrowIfNull(sampler);
 		chk();
 		GpuTextureViewRef view = DepthSampleView ?? throw new InvalidOperationException("render target has no depth attachment");
 		return DrawDeviceResources.For(device).CreateComparisonDepthTexture2dBindGroup(view, sampler);
@@ -259,6 +331,10 @@ public sealed class RenderTarget2d : IDisposable {
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void chk() => ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+
+	private static bool formatHasDepth(TextureFormat format) =>
+		format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float
+			or TextureFormat.Case.Depth24PlusStencil8 or TextureFormat.Case.Depth32FloatStencil8;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool formatHasStencil(TextureFormat format) =>
@@ -283,16 +359,23 @@ public sealed class RenderTarget2d : IDisposable {
 /// </summary>
 /// <param name="Width">Render target width in texels.</param>
 /// <param name="Height">Render target height in texels.</param>
-/// <param name="ColorFormat">Color attachment format.</param>
+/// <param name="ColorFormat">
+/// Color attachment format; not a depth/stencil format. Sampling it, e.g. drawing it with
+/// <see cref="Canvas"/>, also needs a filterable <c>"float"</c> sample type, which isn't checked.
+/// </param>
 /// <param name="DepthStencilFormat">
-/// Depth/stencil attachment format, or <see langword="null"/> to
-/// not include a depth/stencil attachment.
+/// Depth/stencil attachment format, which has to have depth (so not
+/// <see cref="TextureFormat.Stencil8"/>), or <see langword="null"/> for no depth/stencil
+/// attachment.
 /// </param>
 /// <param name="ColorSampler">
-/// Sampler parameters used for the standard sampled color view.
-/// If <see langword="null"/>, the default value of
-/// <see cref="SamplerStates.NearestClamp"/> is used.
+/// Parameters of the sampler paired with the color texture, which <see cref="Canvas"/> draws it
+/// with, or <see langword="null"/> for <see cref="SamplerStates.NearestClamp"/>.
 /// </param>
+/// <remarks>
+/// The <see langword="default"/> value is invalid, since its width and height are 0 and its color
+/// format is <see cref="TextureFormat.Undefined"/>.
+/// </remarks>
 public readonly record struct RenderTarget2dCreateParams(
 	uint Width,
 	uint Height,

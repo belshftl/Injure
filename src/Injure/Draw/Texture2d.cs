@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Injure.Assets;
 using Injure.Draw.PixelConv;
 using Injure.DevAnalyzers.Attributes;
@@ -11,20 +10,40 @@ using Injure.Gpu;
 namespace Injure.Draw;
 
 /// <summary>
-/// High-level storage formats supported by <see cref="Texture2d"/>.
+/// Storage formats supported by <see cref="Texture2d"/>. The number is the total bits per texel.
 /// </summary>
 /// <remarks>
+/// <para>
 /// There are no sRGB formats, since <see cref="Canvas"/> takes texels as stored; color textures
 /// hold sRGB-encoded values in plain unorm formats.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct Texture2dFormat {
 	/// <summary>Raw switch tag for <see cref="Texture2dFormat"/>.</summary>
 	public enum Case {
-		R8_Unorm = 1,
-		Rg16_Unorm,
-		Rgba32_Unorm,
-		Bgra32_Unorm,
+		/// <summary>
+		/// One 8-bit unsigned normalized channel (R), e.g. for coverage masks.
+		/// </summary>
+		R8Unorm = 1,
+
+		/// <summary>
+		/// Two 8-bit unsigned normalized channels (RG).
+		/// </summary>
+		Rg16Unorm,
+
+		/// <summary>
+		/// Four 8-bit unsigned normalized channels (RGBA).
+		/// </summary>
+		Rgba32Unorm,
+
+		/// <summary>
+		/// Four 8-bit unsigned normalized channels, stored in BGRA order.
+		/// </summary>
+		Bgra32Unorm,
 	}
 }
 
@@ -34,13 +53,15 @@ public readonly partial struct Texture2dFormat {
 /// <remarks>
 /// <para>
 /// Intentionally narrower than <see cref="GpuTexture"/>; always represents a single-layer,
-/// non-multisampled, sampleable 2D color / mask texture with a default view and paired sampler.
-/// Currently single-mip too, but that decision is not final.
+/// non-multisampled, sampleable 2D color or mask texture with a default view and a sampler, which
+/// <see cref="Canvas"/> uses when drawing it. Currently single-mip too, but that decision is not
+/// final.
 /// </para>
 /// <para>
-/// If this <see cref="Texture2d"/> was obtained by borrowing an <see cref="AssetRef{Texture2d}"/>,
-/// it will be revoked once that lease expires to make misuse more difficult. After revocation,
-/// further usage attempts throw <see cref="AssetLeaseExpiredException"/>.
+/// If this <see cref="Texture2d"/> was obtained by borrowing an <see cref="AssetRef{T}"/>, it's
+/// revoked once that lease expires, to make misuse more difficult. After revocation, members that
+/// use the texture throw <see cref="AssetLeaseExpiredException"/>; after disposal, they throw
+/// <see cref="ObjectDisposedException"/>.
 /// </para>
 /// </remarks>
 public sealed class Texture2d : IRevokable, IDisposable {
@@ -66,32 +87,41 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	internal GpuBindGroupRef BindGroup {
 		get {
 			chk();
-			return (bindGroup ??= DrawDeviceResources.For(device).CreateColorTexture2dBindGroup(Texture, Sampler)).AsRef();
+			return (bindGroup ??= DrawDeviceResources.For(device).CreateColorTexture2dBindGroup(Texture.DefaultView, Sampler)).AsRef();
 		}
 	}
 
 	/// <summary>
-	/// Returns the underlying <see cref="GpuTexture"/>, bypassing ownership/lifetime/revocation contracts.
+	/// Returns the underlying <see cref="GpuTexture"/>, bypassing revocation. Keeps working after this
+	/// texture is revoked, until it's disposed by <see cref="Dispose()"/>.
 	/// </summary>
 	/// <remarks>
-	/// See <c>docs/conventions/dangerous-get-create.md</c> on <c>DangerousGet*</c> methods for more info.
+	/// See <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
-	public GpuTexture DangerousGetGpuTexture() => Texture;
+	public GpuTextureRef DangerousGetGpuTexture() => Texture.AsRef();
 
 	/// <summary>
-	/// Returns the underlying <see cref="GpuSampler"/>, bypassing ownership/lifetime/revocation contracts.
+	/// Returns the underlying <see cref="GpuSampler"/>, bypassing revocation. Keeps working after this
+	/// texture is revoked, until it's disposed by <see cref="Dispose()"/>.
 	/// </summary>
 	/// <remarks>
-	/// See <c>docs/conventions/dangerous-get-create.md</c> on <c>DangerousGet*</c> methods for more info.
+	/// See <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
-	public GpuSampler DangerousGetGpuSampler() => Sampler;
+	public GpuSamplerRef DangerousGetGpuSampler() => Sampler.AsRef();
 
 	/// <summary>
-	/// Returns a standard color texture bind group with the texture's default
-	/// view and sampler, bypassing ownership/lifetime/revocation contracts.
+	/// Returns the bind group of the texture's default view and sampler that <see cref="Canvas"/>
+	/// uses, bypassing revocation. Keeps working after this texture is revoked, until it's disposed by
+	/// <see cref="Dispose()"/>.
 	/// </summary>
 	/// <remarks>
-	/// See <c>docs/conventions/dangerous-get-create.md</c> on <c>DangerousGet*</c> methods for more info.
+	/// <para>
+	/// The bind group has a <c>"float"</c>-sampled 2D texture at binding 0 and a filtering sampler at
+	/// binding 1.
+	/// </para>
+	/// <para>
+	/// See <c>docs/conventions/dangerous-get-create.md</c>.
+	/// </para>
 	/// </remarks>
 	public GpuBindGroupRef DangerousGetBindGroup() => BindGroup;
 
@@ -111,20 +141,33 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	public Texture2dFormat Format { get; }
 
 	/// <summary>
-	/// Pixel-conversion destination format used for uploads to this texture.
+	/// The pixel format that
+	/// <see cref="Upload(ReadOnlySpan{byte}, int, PixelFormat, PixelConvertOptions)"/> converts
+	/// uploaded data to.
 	/// </summary>
 	public PixelFormat UploadPixelFormat { get; }
 
 	/// <summary>
-	/// Creates an empty <see cref="Texture2d"/> with the given size and <see cref="Texture2dFormat.Rgba32_Unorm"/>.
+	/// Creates an empty <see cref="Texture2d"/> with the given size,
+	/// <see cref="Texture2dFormat.Rgba32Unorm"/>, and <see cref="SamplerStates.NearestClamp"/>.
 	/// </summary>
+	/// <param name="device">Device to create the texture on.</param>
+	/// <param name="width">Width in texels.</param>
+	/// <param name="height">Height in texels.</param>
+	/// <inheritdoc cref="Texture2d(GpuDevice, in Texture2dCreateParams)" path="/exception"/>
 	public Texture2d(GpuDevice device, uint width, uint height)
 		: this(device, new Texture2dCreateParams(width, height)) {
 	}
 
 	/// <summary>
-	/// Creates an empty <see cref="Texture2d"/> with the given size and format.
+	/// Creates an empty <see cref="Texture2d"/> with the given size and format, and
+	/// <see cref="SamplerStates.NearestClamp"/>.
 	/// </summary>
+	/// <param name="device">Device to create the texture on.</param>
+	/// <param name="width">Width in texels.</param>
+	/// <param name="height">Height in texels.</param>
+	/// <param name="format">Storage format.</param>
+	/// <inheritdoc cref="Texture2d(GpuDevice, in Texture2dCreateParams)" path="/exception"/>
 	public Texture2d(GpuDevice device, uint width, uint height, Texture2dFormat format)
 		: this(device, new Texture2dCreateParams(width, height, format)) {
 	}
@@ -132,13 +175,21 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	/// <summary>
 	/// Creates an empty <see cref="Texture2d"/>.
 	/// </summary>
+	/// <param name="device">Device to create the texture on.</param>
+	/// <param name="params">Size, format, and sampler.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="device"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if the width or height is 0.
+	/// </exception>
 	public Texture2d(GpuDevice device, in Texture2dCreateParams @params) {
 		ArgumentNullException.ThrowIfNull(device);
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Width);
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Height);
 
 		this.device = device;
-		Texture2dFormat fmt = @params.Format ?? Texture2dFormat.Rgba32_Unorm;
+		Texture2dFormat fmt = @params.Format ?? Texture2dFormat.Rgba32Unorm;
 		Format = fmt;
 		UploadPixelFormat = getUploadPixelFormat(fmt);
 
@@ -175,6 +226,7 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	/// <param name="srcStride">Stride of <paramref name="src"/> in bytes (not pixels).</param>
 	/// <param name="srcFmt">Pixel format of <paramref name="src"/>.</param>
 	/// <param name="opts">Pixel conversion options.</param>
+	/// <inheritdoc cref="Upload(int, int, ReadOnlySpan{byte}, int, PixelFormat, int, int, PixelConvertOptions)" path="/exception"/>
 	public void Upload(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt, PixelConvertOptions opts = default) =>
 		Upload(0, 0, src, srcStride, srcFmt, checked((int)Width), checked((int)Height), opts);
 
@@ -189,6 +241,26 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	/// <param name="width">Width of the upload rectangle in texels.</param>
 	/// <param name="height">Height of the upload rectangle in texels.</param>
 	/// <param name="opts">Pixel conversion options.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="x"/> or <paramref name="y"/> is negative, or
+	/// <paramref name="srcStride"/>, <paramref name="width"/>, or <paramref name="height"/> is
+	/// negative or zero.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if the rectangle extends past the texture, if <paramref name="srcStride"/> is smaller
+	/// than a tightly packed row of <paramref name="width"/> pixels, or if <paramref name="src"/> is
+	/// too small for the rectangle.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if converting from <paramref name="srcFmt"/> would narrow, drop alpha, or drop color
+	/// channels without the corresponding <see cref="ConversionFlags"/> in <paramref name="opts"/>.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this texture has been disposed.
+	/// </exception>
+	/// <exception cref="AssetLeaseExpiredException">
+	/// Thrown if this texture has been revoked.
+	/// </exception>
 	public void Upload(int x, int y, ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt, int width, int height, PixelConvertOptions opts = default) {
 		chk();
 		ArgumentOutOfRangeException.ThrowIfNegative(x);
@@ -225,13 +297,11 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	/// Revokes this texture, invalidating further use.
 	/// </summary>
 	/// <remarks>
-	/// This is used by the asset system when a leased <see cref="Texture2d"/> obtained by
-	/// borrowing a <see cref="AssetRef{Texture2d}"/> expires. Revocation is logical
-	/// invalidation only; the underlying GPU resources remain alive until <see cref="Dispose()"/>.
+	/// Used by the asset system when the lease of a <see cref="Texture2d"/> borrowed from an
+	/// <see cref="AssetRef{T}"/> expires. Revocation is logical invalidation only; the GPU resources
+	/// stay alive until <see cref="Dispose()"/>.
 	/// </remarks>
-	public void Revoke() {
-		Volatile.Write(ref revoked, 1);
-	}
+	public void Revoke() => Volatile.Write(ref revoked, 1);
 
 	/// <summary>
 	/// Releases the owned GPU resources.
@@ -246,22 +316,21 @@ public sealed class Texture2d : IRevokable, IDisposable {
 	}
 
 	private static TextureFormat getTextureFormat(Texture2dFormat fmt) => fmt.Tag switch {
-		Texture2dFormat.Case.R8_Unorm => TextureFormat.R8Unorm,
-		Texture2dFormat.Case.Rg16_Unorm => TextureFormat.Rg8Unorm,
-		Texture2dFormat.Case.Rgba32_Unorm => TextureFormat.Rgba8Unorm,
-		Texture2dFormat.Case.Bgra32_Unorm => TextureFormat.Bgra8Unorm,
+		Texture2dFormat.Case.R8Unorm => TextureFormat.R8Unorm,
+		Texture2dFormat.Case.Rg16Unorm => TextureFormat.Rg8Unorm,
+		Texture2dFormat.Case.Rgba32Unorm => TextureFormat.Rgba8Unorm,
+		Texture2dFormat.Case.Bgra32Unorm => TextureFormat.Bgra8Unorm,
 		_ => throw new UnreachableException(),
 	};
 
 	private static PixelFormat getUploadPixelFormat(Texture2dFormat fmt) => fmt.Tag switch {
-		Texture2dFormat.Case.R8_Unorm => PixelFormat.R8_Unorm,
-		Texture2dFormat.Case.Rg16_Unorm => PixelFormat.Rg16_Unorm,
-		Texture2dFormat.Case.Rgba32_Unorm => PixelFormat.Rgba32_Unorm,
-		Texture2dFormat.Case.Bgra32_Unorm => PixelFormat.Bgra32_Unorm,
+		Texture2dFormat.Case.R8Unorm => PixelFormat.R8_Unorm,
+		Texture2dFormat.Case.Rg16Unorm => PixelFormat.Rg16_Unorm,
+		Texture2dFormat.Case.Rgba32Unorm => PixelFormat.Rgba32_Unorm,
+		Texture2dFormat.Case.Bgra32Unorm => PixelFormat.Bgra32_Unorm,
 		_ => throw new UnreachableException(),
 	};
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void chk() {
 		// check revoked first for more helpful use-after-lease-expiry exceptions
 		if (Volatile.Read(ref revoked) != 0)
@@ -276,13 +345,16 @@ public sealed class Texture2d : IRevokable, IDisposable {
 /// <param name="Width">Texture width in texels.</param>
 /// <param name="Height">Texture height in texels.</param>
 /// <param name="Format">
-/// GPU storage format of the texture.
-/// If <see langword="null"/>, some sane default (currently <see cref="Texture2dFormat.Rgba32_Unorm"/>) will be chosen.
+/// Storage format, or <see langword="null"/> for <see cref="Texture2dFormat.Rgba32Unorm"/>.
 /// </param>
 /// <param name="SamplerParams">
-/// Sampler creation parameters for the sampler created alongside the texture.
-/// If <see langword="null"/>, <see cref="SamplerStates.NearestClamp"/> will be used.
+/// Parameters of the sampler created alongside the texture, which <see cref="Canvas"/> draws it
+/// with, or <see langword="null"/> for <see cref="SamplerStates.NearestClamp"/>.
 /// </param>
+/// <remarks>
+/// The <see langword="default"/> value is invalid, since its width and height are 0 and its
+/// <see cref="Format"/> is invalid.
+/// </remarks>
 public readonly record struct Texture2dCreateParams(
 	uint Width,
 	uint Height,

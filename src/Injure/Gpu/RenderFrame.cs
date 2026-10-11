@@ -84,6 +84,11 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 	}
 
 	/// <summary>
+	/// The device this frame records and submits its commands on.
+	/// </summary>
+	public GpuDevice Device => device;
+
+	/// <summary>
 	/// The encoder that records this frame's commands.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">

@@ -43,8 +43,6 @@ public abstract class StandardGame {
 		public required SdlWindow Window;
 		public required GpuDevice GpuDevice;
 		public required SurfaceRenderOutput RenderOutput;
-		public required ViewGlobals ViewGlobals;
-		public required CanvasSharedResources CanvasResources;
 		public required TickerScheduler Tickers;
 		public required InputSystem Input;
 		public required ActionRegistry Actions;
@@ -183,7 +181,7 @@ public abstract class StandardGame {
 	/// <remarks>
 	/// Record rendering into <paramref name="frame"/>'s <see cref="RenderFrame.Encoder"/>, or use
 	/// <see cref="CreateCanvas(RenderFrame)"/> for 2D drawing; both can be mixed, as long as each
-	/// <see cref="Canvas"/> is disposed before passes are recorded directly.
+	/// <see cref="OwnedCanvas"/> is disposed before passes are recorded directly.
 	/// </remarks>
 	protected abstract void OnRender(RenderFrame frame);
 
@@ -243,23 +241,21 @@ public abstract class StandardGame {
 	// running
 
 	/// <summary>
-	/// Creates a <see cref="Canvas"/> drawing into <paramref name="frame"/>, set up for the
-	/// window's size.
+	/// Creates an <see cref="OwnedCanvas"/> drawing into <paramref name="frame"/>, which it clears to
+	/// <see cref="StandardGameOptions.ClearColor"/>.
 	/// </summary>
 	/// <param name="frame">The frame passed to <see cref="OnRender(RenderFrame)"/>.</param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
 	/// </exception>
 	/// <remarks>
-	/// The canvas records its passes lazily, so it must be disposed (which flushes it) before
-	/// recording passes into <paramref name="frame"/> directly, and before
-	/// <see cref="OnRender(RenderFrame)"/> returns.
+	/// The canvas keeps its render pass open, so it must be disposed before recording passes into
+	/// <paramref name="frame"/> directly, and before <see cref="OnRender(RenderFrame)"/> returns.
+	/// Draw through its <see cref="OwnedCanvas.Canvas"/>.
 	/// </remarks>
-	protected Canvas CreateCanvas(RenderFrame frame) {
+	protected OwnedCanvas CreateCanvas(RenderFrame frame) {
 		ArgumentNullException.ThrowIfNull(frame);
-		Session ses = current;
-		ses.ViewGlobals.Update(frame.PrimaryView.Width, frame.PrimaryView.Height);
-		return new Canvas(ses.GpuDevice, ses.ViewGlobals, frame, ses.CanvasResources, in baseCanvasParams);
+		return new OwnedCanvas(frame, in baseCanvasParams);
 	}
 
 	/// <summary>
@@ -278,8 +274,6 @@ public abstract class StandardGame {
 		SdlWindow? window = null;
 		GpuDevice? gpuDevice = null;
 		SurfaceRenderOutput? renderOutput = null;
-		ViewGlobals? viewGlobals = null;
-		CanvasSharedResources? canvasResources = null;
 		AssetThreadAttachment? assetAttachment = null;
 		TextSystem? text = null;
 		try {
@@ -287,10 +281,7 @@ public abstract class StandardGame {
 			window = SdlWindow.Create(sdl, options.Window);
 			gpuDevice = new GpuDevice(options.GpuDevice with { CompatibleHost = window.SurfaceHost });
 			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, SurfaceFormatPolicy.PreferNonSrgb, options.PresentModePolicy);
-			viewGlobals = new ViewGlobals(gpuDevice, renderOutput.Width, renderOutput.Height);
-
-			EngineResourceStore engineResources = createEngineResources();
-			canvasResources = new CanvasSharedResources(gpuDevice, engineResources);
+			EngineResourceStore engineResources = new();
 
 			AssetStore? assets = null;
 			if (options.Assets) {
@@ -311,8 +302,6 @@ public abstract class StandardGame {
 				Window = window,
 				GpuDevice = gpuDevice,
 				RenderOutput = renderOutput,
-				ViewGlobals = viewGlobals,
-				CanvasResources = canvasResources,
 				Tickers = new TickerScheduler(
 					sdl.Clock,
 					new TickerSchedulerOptions(MaxBatchDuration: budgetPeriod, Budget: TickerBudgetOptions.CreateDefault(budgetPeriod))
@@ -334,10 +323,8 @@ public abstract class StandardGame {
 			}
 		} finally {
 			session = null;
-			canvasResources?.Dispose();
 			text?.Dispose();
 			assetAttachment?.Dispose();
-			viewGlobals?.Dispose();
 			renderOutput?.Dispose();
 			gpuDevice?.Dispose();
 			window?.Dispose();
@@ -404,22 +391,4 @@ public abstract class StandardGame {
 
 	private static FixedRatePacer? makeRenderPacer(double? fps, HostTick now) =>
 		fps is double f ? FixedRatePacer.Skipping(HostDuration.PeriodFromHz(f), now) : null;
-
-	private static EngineResourceStore createEngineResources() {
-		EngineResourceStore store = new();
-		store.RegisterSource(
-			new EmbeddedEngineResourceSource(
-				typeof(StandardGame).Assembly,
-				new HashSet<EngineResourceId>(
-					[
-						BuiltinShaders.Primitive2d.ResourceId,
-						BuiltinShaders.Textured2dColor.ResourceId,
-						BuiltinShaders.Textured2dRmask.ResourceId,
-						BuiltinShaders.Textured2dSdf.ResourceId,
-					]
-				)
-			)
-		);
-		return store;
-	}
 }

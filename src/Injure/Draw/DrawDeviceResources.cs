@@ -5,35 +5,33 @@ using Injure.Gpu;
 
 namespace Injure.Draw;
 
+/// <summary>
+/// Bind group layouts shared by <see cref="Texture2d"/>, <see cref="RenderTarget2d"/>, and
+/// <see cref="Canvas"/>, and helpers creating their bind groups. Attached to the device, so there's
+/// one per <see cref="GpuDevice"/>; obtained with <see cref="For(GpuDevice)"/>.
+/// </summary>
 internal sealed class DrawDeviceResources : IDisposable {
 	private readonly GpuDevice device;
 
-	// vertex-visible uniform buffer at binding 0 holding a GlobalsUniform
-	public readonly GpuBindGroupLayout GlobalsUniformLayout;
-	// "float"-sampled 2D color texture view at binding 0 + filtering sampler at binding 1
+	/// <summary>
+	/// Binding 0: a <c>"float"</c>-sampled 2D color texture view; binding 1: a filtering sampler.
+	/// </summary>
 	public readonly GpuBindGroupLayout ColorTexture2dLayout;
-	// "depth"-sampled 2D depth texture view at binding 0 + filtering sampler at binding 1
+
+	/// <summary>
+	/// Binding 0: a <c>"depth"</c>-sampled 2D depth texture view; binding 1: a filtering sampler.
+	/// </summary>
 	public readonly GpuBindGroupLayout FilteringDepthTexture2dLayout;
-	// "depth"-sampled 2D depth texture view at binding 0 + comparison sampler at binding 1
+
+	/// <summary>
+	/// Binding 0: a <c>"depth"</c>-sampled 2D depth texture view; binding 1: a comparison sampler.
+	/// </summary>
 	public readonly GpuBindGroupLayout ComparisonDepthTexture2dLayout;
 
 	public static DrawDeviceResources For(GpuDevice device) => device.GetOrAttach(static d => new DrawDeviceResources(d));
 
 	private DrawDeviceResources(GpuDevice device) {
 		this.device = device;
-		GlobalsUniformLayout = device.CreateBindGroupLayout(
-			[
-				new GpuBindGroupLayoutEntry(
-					Binding: 0,
-					Visibility: ShaderStage.Vertex,
-					Layout: new GpuBufferBindingLayout(
-						Type: BufferBindingType.Uniform,
-						MinBindingSize: (ulong)GlobalsUniform.Size
-					)
-				),
-			]
-		);
-
 		ColorTexture2dLayout = device.CreateBindGroupLayout(
 			[
 				new GpuBindGroupLayoutEntry(
@@ -99,161 +97,62 @@ internal sealed class DrawDeviceResources : IDisposable {
 	}
 
 	/// <summary>
-	/// Creates a texture+sampler bind group for a 2D color texture view and a filtering sampler,
-	/// returning an owning object.
+	/// Creates a bind group of <paramref name="view"/> and <paramref name="sampler"/> for
+	/// <see cref="ColorTexture2dLayout"/>, owned by the caller.
 	/// </summary>
-	/// <param name="view">2D non-multisampled color view to sample.</param>
-	/// <param name="sampler">Filtering sampler to pair with the view.</param>
-	/// <remarks>
-	/// <para>
-	/// Convenience wrapper over <see cref="GpuDevice.CreateBindGroup(GpuBindGroupLayoutHandle, ReadOnlySpan{GpuBindGroupEntry})"/>.
-	/// The returned bind group matches <see cref="ColorTexture2dLayout"/>.
-	/// </para>
-	/// <para>
-	/// No attempt to check if the view's color format's sample type is <c>"float"</c> or to check if
-	/// the sampler is a filtering sampler is made, so if it isn't, a WebGPU validation error will most
-	/// likely occur.
-	/// </para>
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="view"/> or <paramref name="sampler"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="view"/> is not a <see cref="TextureUsage.TextureBinding"/>-enabled,
-	/// 2D, non-multisampled, color view.
-	/// </exception>
+	/// <param name="view">
+	/// Must be a <see cref="TextureUsage.TextureBinding"/>-usable, 2D, single-sampled color view.
+	/// </param>
+	/// <param name="sampler">Must be a filtering sampler.</param>
 	public GpuBindGroup CreateColorTexture2dBindGroup(GpuTextureViewHandle view, GpuSamplerHandle sampler) {
-		ArgumentNullException.ThrowIfNull(view);
-		ArgumentNullException.ThrowIfNull(sampler);
-		if (view.Usage.HasNone(TextureUsage.TextureBinding))
-			throw new ArgumentException("view must have TextureBinding set in its usages", nameof(view));
-		if (view.Dimension != TextureViewDimension.Dimension2d)
-			throw new ArgumentException("view must be 2D", nameof(view));
-		if (view.SampleCount != 1)
-			throw new ArgumentException("view must not be multisampled", nameof(view));
-		if (view.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float
-			or TextureFormat.Case.Depth24PlusStencil8 or TextureFormat.Case.Depth32FloatStencil8 or TextureFormat.Case.Stencil8)
-			throw new ArgumentException("view must be a color format", nameof(view));
-		return device.CreateBindGroup(
-			ColorTexture2dLayout,
-			[
-				new GpuBindGroupEntry(Binding: 0, new GpuTextureViewBindingResource(view)),
-				new GpuBindGroupEntry(Binding: 1, new GpuSamplerBindingResource(sampler)),
-			]
-		);
+		if (isDepthOrStencil(view.Format))
+			throw new InternalStateException($"color bind group requested for depth/stencil view format {view.Format}");
+		return createTextureBindGroup(ColorTexture2dLayout, view, sampler);
 	}
 
 	/// <summary>
-	/// Creates a texture+sampler bind group for a texture's default view, assuming it is a 2D color
-	/// view, and a filtering sampler, returning an owning object.
+	/// Creates a bind group of <paramref name="view"/> and <paramref name="sampler"/> for
+	/// <see cref="FilteringDepthTexture2dLayout"/>, owned by the caller.
 	/// </summary>
-	/// <param name="texture">Texture whose default view will be used.</param>
-	/// <param name="sampler">Filtering sampler to pair with the view.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="texture"/> or <paramref name="sampler"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="texture"/>'s <see cref="GpuTextureHandle.DefaultView"/> is
-	/// not a <see cref="TextureUsage.TextureBinding"/>-enabled, 2D, non-multisampled, color view.
-	/// </exception>
-	/// <inheritdoc cref="CreateColorTexture2dBindGroup(GpuTextureViewHandle, GpuSamplerHandle)"/>
-	public GpuBindGroup CreateColorTexture2dBindGroup(GpuTextureHandle texture, GpuSamplerHandle sampler) {
-		ArgumentNullException.ThrowIfNull(texture);
-		return CreateColorTexture2dBindGroup(texture.DefaultView, sampler);
-	}
-
-	/// <summary>
-	/// Creates a texture+sampler bind group for a 2D depth-only texture view and a filtering sampler,
-	/// returning an owning object.
-	/// </summary>
-	/// <param name="view">2D non-multisampled depth-only view to sample.</param>
-	/// <param name="sampler">Filtering sampler to pair with the view.</param>
-	/// <remarks>
-	/// <para>
-	/// Convenience wrapper over <see cref="GpuDevice.CreateBindGroup(GpuBindGroupLayoutHandle, ReadOnlySpan{GpuBindGroupEntry})"/>.
-	/// The returned bind group matches <see cref="FilteringDepthTexture2dLayout"/>.
-	/// </para>
-	/// <para>
-	/// No attempt to check if the view's color format's sample type is <c>"depth"</c> or to check if
-	/// the sampler is a filtering sampler is made, so if it isn't, a WebGPU validation error will most
-	/// likely occur.
-	/// </para>
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="view"/> or <paramref name="sampler"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="view"/> is not a <see cref="TextureUsage.TextureBinding"/>-enabled,
-	/// 2D, non-multisampled, depth-only view.
-	/// </exception>
+	/// <param name="view">Must be a <see cref="RenderTarget2d.DepthSampleView"/>.</param>
+	/// <param name="sampler">Must be a filtering sampler.</param>
 	public GpuBindGroup CreateFilteringDepthTexture2dBindGroup(GpuTextureViewHandle view, GpuSamplerHandle sampler) {
-		ArgumentNullException.ThrowIfNull(view);
-		ArgumentNullException.ThrowIfNull(sampler);
-		if (view.Usage.HasNone(TextureUsage.TextureBinding))
-			throw new ArgumentException("view must have TextureBinding set in its usages", nameof(view));
-		if (view.Dimension != TextureViewDimension.Dimension2d)
-			throw new ArgumentException("view must be 2D", nameof(view));
-		if (view.SampleCount != 1)
-			throw new ArgumentException("view must not be multisampled", nameof(view));
-		if (!(view.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float))
-			throw new ArgumentException("view must be a depth-only format", nameof(view));
-		return device.CreateBindGroup(
-			FilteringDepthTexture2dLayout,
-			[
-				new GpuBindGroupEntry(Binding: 0, new GpuTextureViewBindingResource(view)),
-				new GpuBindGroupEntry(Binding: 1, new GpuSamplerBindingResource(sampler)),
-			]
-		);
+		chkDepthSampleView(view);
+		return createTextureBindGroup(FilteringDepthTexture2dLayout, view, sampler);
 	}
 
 	/// <summary>
-	/// Creates a texture+sampler bind group for a 2D depth-only texture view and a comparison sampler,
-	/// returning an owning object.
+	/// Creates a bind group of <paramref name="view"/> and <paramref name="sampler"/> for
+	/// <see cref="ComparisonDepthTexture2dLayout"/>, owned by the caller.
 	/// </summary>
-	/// <param name="view">2D non-multisampled depth-only view to sample.</param>
-	/// <param name="sampler">Comparison sampler to pair with the view.</param>
-	/// <remarks>
-	/// <para>
-	/// Convenience wrapper over <see cref="GpuDevice.CreateBindGroup(GpuBindGroupLayoutHandle, ReadOnlySpan{GpuBindGroupEntry})"/>.
-	/// The returned bind group matches <see cref="ComparisonDepthTexture2dLayout"/>.
-	/// </para>
-	/// <para>
-	/// No attempt to check if the view's color format's sample type is <c>"depth"</c> or to check if
-	/// the sampler is a comparison sampler is made, so if it isn't, a WebGPU validation error will
-	/// most likely occur.
-	/// </para>
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="view"/> or <paramref name="sampler"/> is null.
-	/// </exception>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="view"/> is not a <see cref="TextureUsage.TextureBinding"/>-enabled,
-	/// 2D, non-multisampled, depth-only view.
-	/// </exception>
+	/// <param name="view">Must be a <see cref="RenderTarget2d.DepthSampleView"/>.</param>
+	/// <param name="sampler">Must be a comparison sampler.</param>
 	public GpuBindGroup CreateComparisonDepthTexture2dBindGroup(GpuTextureViewHandle view, GpuSamplerHandle sampler) {
-		ArgumentNullException.ThrowIfNull(view);
-		ArgumentNullException.ThrowIfNull(sampler);
-		if (view.Usage.HasNone(TextureUsage.TextureBinding))
-			throw new ArgumentException("view must have TextureBinding set in its usages", nameof(view));
-		if (view.Dimension != TextureViewDimension.Dimension2d)
-			throw new ArgumentException("view must be 2D", nameof(view));
-		if (view.SampleCount != 1)
-			throw new ArgumentException("view must not be multisampled", nameof(view));
-		if (!(view.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float))
-			throw new ArgumentException("view must be a depth-only format", nameof(view));
-		return device.CreateBindGroup(
-			ComparisonDepthTexture2dLayout,
+		chkDepthSampleView(view);
+		return createTextureBindGroup(ComparisonDepthTexture2dLayout, view, sampler);
+	}
+
+	private GpuBindGroup createTextureBindGroup(GpuBindGroupLayout layout, GpuTextureViewHandle view, GpuSamplerHandle sampler) =>
+		device.CreateBindGroup(
+			layout,
 			[
 				new GpuBindGroupEntry(Binding: 0, new GpuTextureViewBindingResource(view)),
 				new GpuBindGroupEntry(Binding: 1, new GpuSamplerBindingResource(sampler)),
 			]
 		);
+
+	private static void chkDepthSampleView(GpuTextureViewHandle view) {
+		if (!(view.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float))
+			throw new InternalStateException($"depth bind group requested for non-depth-only view format {view.Format}");
 	}
+
+	private static bool isDepthOrStencil(TextureFormat format) =>
+		format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float
+			or TextureFormat.Case.Depth24PlusStencil8 or TextureFormat.Case.Depth32FloatStencil8 or TextureFormat.Case.Stencil8;
 
 	public void Dispose() {
 		ComparisonDepthTexture2dLayout.Dispose();
 		FilteringDepthTexture2dLayout.Dispose();
 		ColorTexture2dLayout.Dispose();
-		GlobalsUniformLayout.Dispose();
 	}
 }

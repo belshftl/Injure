@@ -507,11 +507,11 @@ public sealed class TextLayout : IDisposable {
 
 	public void Render(Canvas cv, Vector2 at = default) {
 		ObjectDisposedException.ThrowIf(disposed, this);
+		using CanvasParamsScope scope = cv.PushParams(material: CanvasMaterials.Rmask);
 		foreach (TextGlyph glyph in Glyphs) {
 			RectF dst = new(glyph.DstPixels.X + at.X, glyph.DstPixels.Y + at.Y, glyph.DstPixels.Width, glyph.DstPixels.Height);
 			RectF src = new(glyph.SrcPixels.X, glyph.SrcPixels.Y, glyph.SrcPixels.Width, glyph.SrcPixels.Height);
-			using (cv.PushParams(Material: CanvasMaterials.Rmask))
-				cv.TexWithSourceRect(glyph.Page.Texture, dst, src, glyph.Color);
+			cv.Texture(glyph.Page.Texture, new TexDraw(dst) { Source = TexRegion.Pixels(src), Tint = glyph.Color });
 		}
 	}
 

@@ -5,9 +5,9 @@ indent_style = tab
 indent_size = tab
 tab_width = 8
 
-# i'm sorry i don't wanna make them long it just turns out like that
-max_line_length = 190
-resharper_max_line_length = 190
+# soft limit of 100, keep a little bit of slack
+max_line_length = 120
+resharper_max_line_length = 120
 
 # indent/newline/ws
 csharp_indent_braces = false
@@ -42,7 +42,7 @@ dotnet_naming_symbols.private_members.required_modifiers =
 dotnet_naming_style.camel_case.capitalization = camel_case
 
 # modifier order
-csharp_preferred_modifier_order = public, internal, private, protected, file, new, required, static, sealed, readonly, abstract, override, extern, virtual, volatile, unsafe, async:suggestion
+csharp_preferred_modifier_order = public, internal, private, protected, file, new, required, static, sealed, override, readonly, abstract, extern, virtual, volatile, unsafe, async:suggestion
 
 # var/new() style
 csharp_style_var_for_built_in_types = false:suggestion

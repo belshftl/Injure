@@ -133,7 +133,7 @@ public sealed class Texture2dAssetCreator(GpuDevice gpuDevice) : IAssetStagedCre
 
 	public Texture2d Finalize(AssetFinalizeInfo<Texture2dAssetPreparedData> info) {
 		Texture2dAssetPreparedData p = info.Prepared;
-		Texture2dFormat fmt = Texture2dFormat.Rgba32_Unorm;
+		Texture2dFormat fmt = Texture2dFormat.Rgba32Unorm;
 		GpuSamplerCreateParams smpParams = p.Metadata.SamplerMode switch {
 			Texture2dSamplerMode.NearestClamp => SamplerStates.NearestClamp,
 			Texture2dSamplerMode.LinearClamp => SamplerStates.LinearClamp,

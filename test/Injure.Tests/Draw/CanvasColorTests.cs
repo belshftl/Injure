@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Numerics;
-using Injure.Assets;
-using Injure.Assets.Builtin;
 using Injure.Draw;
 using Injure.Gpu;
 using Injure.Primitives;
@@ -15,17 +13,6 @@ namespace Injure.Tests.Draw;
 public sealed class CanvasColorTests(GpuDeviceFixture fixture) : GpuTestBase(fixture) {
 	private static readonly SrgbColor32 clear = new(30, 30, 40);
 	private static readonly SrgbColor32 fill = new(80, 200, 120);
-
-	private CanvasSharedResources createResources() {
-		EngineResourceStore engineResources = new();
-		engineResources.RegisterSource(new EmbeddedEngineResourceSource(typeof(Canvas).Assembly, [
-			BuiltinShaders.Primitive2d.ResourceId,
-			BuiltinShaders.Textured2dColor.ResourceId,
-			BuiltinShaders.Textured2dRmask.ResourceId,
-			BuiltinShaders.Textured2dSdf.ResourceId,
-		]));
-		return new CanvasSharedResources(Device, engineResources);
-	}
 
 	private static CanvasParams baseParams() => new(
 		Target: CanvasTarget.Primary,
@@ -39,11 +26,9 @@ public sealed class CanvasColorTests(GpuDeviceFixture fixture) : GpuTestBase(fix
 	[Fact]
 	public void CanvasWritesSrgbValuesUnchanged() {
 		using GpuTexture target = GpuRig.Target(Device, 4, 4);
-		using CanvasSharedResources resources = createResources();
-		using ViewGlobals globals = new(Device, 4, 4);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
-			using (Canvas cv = new(Device, globals, frame, resources, baseParams()))
-				cv.Rect(new RectF(0, 0, 2, 4), fill);
+			using (OwnedCanvas canvas = new(frame, baseParams()))
+				canvas.Canvas.Rect(new RectF(0, 0, 2, 4), fill);
 			frame.Submit();
 		}
 		byte[] texels = GpuRig.Read(Device, target);
@@ -54,10 +39,8 @@ public sealed class CanvasColorTests(GpuDeviceFixture fixture) : GpuTestBase(fix
 	[Fact]
 	public void CanvasRejectsSrgbTargets() {
 		using GpuTexture target = GpuRig.Target(Device, 4, 4, format: TextureFormat.Rgba8UnormSrgb);
-		using CanvasSharedResources resources = createResources();
-		using ViewGlobals globals = new(Device, 4, 4);
 		using RenderFrame frame = new(Device, new GpuRig.FakeOutput(target));
-		Assert.Throws<ArgumentException>(() => new Canvas(Device, globals, frame, resources, baseParams()));
+		Assert.Throws<ArgumentException>(() => new OwnedCanvas(frame, baseParams()));
 	}
 
 	// documents the ColorAttachmentOps.ClearValue contract: sRGB targets encode the value

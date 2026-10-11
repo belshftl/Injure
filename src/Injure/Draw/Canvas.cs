@@ -1,1383 +1,636 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+using System.Buffers;
 using System.Numerics;
-using Injure.Assets;
-using Injure.DevAnalyzers.Attributes;
-using Injure.Primitives;
 using Injure.Gpu;
+using Injure.Primitives;
 
 namespace Injure.Draw;
 
 /// <summary>
-/// Identifies the current draw target for a <see cref="Canvas"/>.
-/// </summary>
-/// <remarks>
-/// A target is either the sentinel <see cref="Primary"/> or an
-/// offscreen <see cref="RenderTarget2d"/>. <see cref="RenderTarget2d"/> has an
-/// implicit cast to <see cref="CanvasTarget"/> for convenience.
-/// </remarks>
-public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
-	/// <summary>
-	/// Sentinel value representing the primary target.
-	/// </summary>
-	public static readonly CanvasTarget Primary = default;
-
-	/// <summary>
-	/// Whether this target represents the primary target.
-	/// </summary>
-	[MemberNotNullWhen(false, nameof(rtBacking))]
-	public bool IsPrimary => rtBacking is null;
-
-	/// <summary>
-	/// Gets the <see cref="RenderTarget2d"/> wrapped by this canvas target.
-	/// </summary>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if this target represents the primary target.
-	/// </exception>
-	public readonly RenderTarget2d RenderTarget => rtBacking ?? throw new InvalidOperationException("primary target has no RenderTarget2d");
-	private readonly RenderTarget2d? rtBacking;
-
-	/// <summary>
-	/// Creates a canvas target from an offscreen render target.
-	/// </summary>
-	/// <param name="renderTarget">Target to draw into.</param>
-	public CanvasTarget(RenderTarget2d renderTarget) {
-		ArgumentNullException.ThrowIfNull(renderTarget);
-		rtBacking = renderTarget;
-	}
-
-	public bool Equals(CanvasTarget other) => ReferenceEquals(rtBacking, other.rtBacking);
-	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasTarget other && Equals(other);
-	public override int GetHashCode() => rtBacking?.GetHashCode() ?? 0;
-	public static bool operator ==(CanvasTarget left, CanvasTarget right) => left.Equals(right);
-	public static bool operator !=(CanvasTarget left, CanvasTarget right) => !left.Equals(right);
-
-	public static implicit operator CanvasTarget(RenderTarget2d target) => new(target);
-}
-
-/// <summary>
-/// Describes how a <see cref="CanvasScissor"/> should be interpreted.
-/// </summary>
-[ClosedEnum]
-public readonly partial struct CanvasScissorKind {
-	/// <summary>Raw switch tag for <see cref="CanvasScissorKind"/>.</summary>
-	public enum Case {
-		/// <summary>
-		/// Disable clipping (use the full active target as the scissor).
-		/// </summary>
-		None,
-
-		/// <summary>
-		/// Set the current scissor to the given rectangle.
-		/// </summary>
-		Set,
-
-		/// <summary>
-		/// Intersect the current scissor with the given rectangle. Only valid on
-		/// overrides, not base params.
-		/// </summary>
-		Intersect,
-	}
-}
-
-/// <summary>
-/// Describes a scissor rect for use in <see cref="Canvas"/>.
-/// </summary>
-/// <remarks>
-/// Scissor rects are not affected by <see cref="CanvasParams.Transform"/>, as
-/// they are pass state, not geometry.
-/// </remarks>
-public readonly struct CanvasScissor : IEquatable<CanvasScissor> {
-	/// <summary>
-	/// How this <see cref="CanvasScissor"/>'s value should be interpreted.
-	/// </summary>
-	public readonly CanvasScissorKind Kind;
-
-	/// <summary>
-	/// Scissor rectangle.
-	/// </summary>
-	/// <remarks>
-	/// Ignored for <see cref="CanvasScissorKind.None"/>.
-	/// </remarks>
-	public readonly RectI Rect;
-
-	private CanvasScissor(CanvasScissorKind kind, RectI rect) {
-		Kind = kind;
-		Rect = rect;
-	}
-
-	/// <summary>
-	/// Disable clipping (use the full active target as the scissor).
-	/// </summary>
-	public static readonly CanvasScissor None = new(CanvasScissorKind.None, default);
-
-	/// <summary>
-	/// Creates a scissor to set the current one to <paramref name="rect"/>.
-	/// </summary>
-	/// <param name="rect">Scissor rect, in pixel coordinates.</param>
-	public static CanvasScissor Set(RectI rect) => new(CanvasScissorKind.Set, rect);
-
-	/// <summary>
-	/// Creates a scissor to intersect the current one with <paramref name="rect"/>.
-	/// </summary>
-	/// <param name="rect">Scissor rect to intersect the current one with, in pixel coordinates.</param>
-	/// <remarks>
-	/// This is only valid for use in parameter overrides.
-	/// </remarks>
-	public static CanvasScissor Intersect(RectI rect) => new(CanvasScissorKind.Intersect, rect);
-
-	public bool Equals(CanvasScissor other) => Kind == other.Kind && Rect.Equals(other.Rect);
-	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasScissor other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine((int)Kind.Tag, Rect);
-	public static bool operator ==(CanvasScissor left, CanvasScissor right) => left.Equals(right);
-	public static bool operator !=(CanvasScissor left, CanvasScissor right) => !left.Equals(right);
-}
-
-public readonly struct CanvasOutputState : IEquatable<CanvasOutputState> {
-	public required BlendState? Blend { get; init; }
-	public required ColorWriteMask WriteMask { get; init; }
-
-	private static bool eq(BlendState? left, BlendState? right) {
-		if (left is BlendState a && right is BlendState b)
-			return a.Alpha.Operation == b.Alpha.Operation &&
-				a.Alpha.SrcFactor == b.Alpha.SrcFactor &&
-				a.Alpha.DstFactor == b.Alpha.DstFactor &&
-				a.Color.Operation == b.Color.Operation &&
-				a.Color.SrcFactor == b.Color.SrcFactor &&
-				a.Color.DstFactor == b.Color.DstFactor;
-		else
-			return left is null == right is null;
-	}
-	private static int hash(BlendState? blendState) {
-		if (blendState is not BlendState s)
-			return 0;
-		return HashCode.Combine(
-			(int)s.Alpha.Operation.Tag,
-			(int)s.Alpha.SrcFactor.Tag,
-			(int)s.Alpha.DstFactor.Tag,
-			(int)s.Color.Operation.Tag,
-			(int)s.Color.SrcFactor.Tag,
-			(int)s.Color.DstFactor.Tag
-		);
-	}
-
-	public bool Equals(CanvasOutputState other) => eq(Blend, other.Blend) && WriteMask == other.WriteMask;
-	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasOutputState other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine(hash(Blend), (int)WriteMask.Mask);
-	public static bool operator ==(CanvasOutputState left, CanvasOutputState right) => left.Equals(right);
-	public static bool operator !=(CanvasOutputState left, CanvasOutputState right) => !left.Equals(right);
-}
-
-public static class CanvasOutputStates {
-	public static readonly CanvasOutputState Opaque = new() {
-		Blend = null,
-		WriteMask = ColorWriteMask.All,
-	};
-
-	public static readonly CanvasOutputState Alpha = new() {
-		Blend = BlendStates.Alpha,
-		WriteMask = ColorWriteMask.All,
-	};
-
-	public static readonly CanvasOutputState PremultipliedAlpha = new() {
-		Blend = BlendStates.PremulAlpha,
-		WriteMask = ColorWriteMask.All,
-	};
-}
-
-/// <summary>
-/// Describes how <see cref="Canvas"/> should render textures.
-/// </summary>
-public readonly struct CanvasMaterial : IEquatable<CanvasMaterial> {
-	/// <summary>
-	/// How sampled texture data should be interpreted.
-	/// </summary>
-	public required TextureInterpretation TextureInterpretation { get; init; }
-
-	/// <summary>
-	/// Parameters used when <see cref="TextureInterpretation"/> is
-	/// <see cref="TextureInterpretation.Sdf"/>.
-	/// </summary>
-	public SdfParams? SdfParams { get; init; }
-
-	public bool Equals(CanvasMaterial other) => TextureInterpretation == other.TextureInterpretation && SdfParams == other.SdfParams;
-	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasMaterial other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine((int)TextureInterpretation.Tag, SdfParams);
-	public static bool operator ==(CanvasMaterial left, CanvasMaterial right) => left.Equals(right);
-	public static bool operator !=(CanvasMaterial left, CanvasMaterial right) => !left.Equals(right);
-}
-
-/// <summary>
-/// Provides <see cref="CanvasMaterial"/> instances for common cases.
-/// </summary>
-public static class CanvasMaterials {
-	/// <summary>
-	/// A material that interprets textures as ordinary color data.
-	/// </summary>
-	public static readonly CanvasMaterial Color = new() {
-		TextureInterpretation = TextureInterpretation.Color,
-	};
-
-	/// <summary>
-	/// A material that interprets textures' red channels as coverage masks and
-	/// ignores the other channels.
-	/// </summary>
-	public static readonly CanvasMaterial Rmask = new() {
-		TextureInterpretation = TextureInterpretation.Rmask,
-	};
-
-	/// <summary>
-	/// Creates a material that interprets textures as signed distance fields
-	/// using the specified <see cref="SdfParams"/>.
-	/// </summary>
-	public static CanvasMaterial Sdf(SdfParams @params) => new() {
-		TextureInterpretation = TextureInterpretation.Sdf,
-		SdfParams = @params,
-	};
-}
-
-/// <summary>
-/// Controls how primitive and textured draws are ordered and flushed in <see cref="Canvas"/>.
-/// </summary>
-/// <remarks>
-/// This changes rendering order; it is not merely a batching/performance hint.
-/// <see cref="FlushAndSwap"/> preserves draw-call order across primitive/textured
-/// transitions by flushing when the active batch type changes. The other modes
-/// group work together and flush only on canvas flush, reordering visible results.
-/// </remarks>
-[ClosedEnum(CheckZeroName = false)]
-public readonly partial struct CanvasSubmitMode {
-	public enum Case {
-		/// <summary>
-		/// Preserve draw-call order by flushing whenever the active batch type changes.
-		/// </summary>
-		FlushAndSwap,
-
-		/// <summary>
-		/// Accumulate primitive and textured draws separately, then submit primitives first
-		/// and textured draws second when flushed.
-		/// </summary>
-		PrimitivesThenTextures,
-
-		/// <summary>
-		/// Accumulate primitive and textured draws separately, then submit textured draws
-		/// first and primitives second when flushed.
-		/// </summary>
-		TexturesThenPrimitives,
-	}
-}
-
-/// <summary>
-/// Parameters for <see cref="Canvas"/>.
-/// </summary>
-/// <param name="Target">Target to be drawn into.</param>
-/// <param name="ColorAttachmentOps">
-/// Color attachment load/store behavior used when opening/reopening the pass
-/// for <paramref name="Target"/>.
-/// </param>
-/// <param name="Scissor">Scissor rect.</param>
-/// <param name="OutputState">Output state (blend state, color mask, etc.)</param>
-/// <param name="Material">Material to use for textured draws.</param>
-/// <param name="Transform">Transform matrix to be applied to draws.</param>
-/// <param name="SubmitMode">Submit policy for mixed primitive/textured draws.</param>
-/// <remarks>
-/// <para>
-/// Passing a scissor of kind <see cref="CanvasScissorKind.Intersect"/> is invalid for
-/// the base params.
-/// </para>
-/// <para>
-/// Changing <paramref name="Target"/> or <paramref name="ColorAttachmentOps"/> is
-/// pass-affecting and causes the current pass to flush and reopen. Changing
-/// <paramref name="Transform"/>, <paramref name="Material"/>, or <paramref name="SubmitMode"/>
-/// is batch-affecting and causes current batches to flush. Changing <paramref name="Scissor"/>,
-/// while not inherently batch-affecting, causes current batches to flush before applying
-/// the scissor to avoid draw calls "leaking" into the new scissor state.
-/// </para>
-/// </remarks>
-public readonly record struct CanvasParams(
-	// pass-affecting
-	CanvasTarget Target,
-	ColorAttachmentOps ColorAttachmentOps,
-
-	// scissor (doesn't fall into either of these categories)
-	CanvasScissor Scissor,
-
-	// batch-affecting
-	Matrix3x2 Transform,
-	CanvasOutputState OutputState,
-	CanvasMaterial Material,
-	CanvasSubmitMode SubmitMode = default
-);
-
-/// <summary>
-/// Partial override applied on top of the current <see cref="CanvasParams"/>.
-/// </summary>
-/// <remarks>
-/// A <see langword="null"/> field means "inherit the current value".
-/// </remarks>
-public readonly record struct CanvasParamsOverride(
-	// pass-affecting
-	CanvasTarget? Target = null,
-	ColorAttachmentOps? ColorAttachmentOps = null,
-
-	// scissor (doesn't fall into either of these categories)
-	CanvasScissor? Scissor = null,
-
-	// batch-affecting
-	Matrix3x2? Transform = null,
-	CanvasOutputState? OutputState = null,
-	CanvasMaterial? Material = null,
-	CanvasSubmitMode? SubmitMode = null
-);
-
-/// <summary>
-/// Longer-lived, shared cache of reusable batch state for <see cref="Canvas"/> instances.
+/// Draws 2D shapes and textures. Obtained from an <see cref="OwnedCanvas"/>, and intended to then
+/// be propagated down into code that needs to draw things. Not thread-safe.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Stores reusable batch state such as shaders and pipelines/layouts.
-/// Unlike older versions, this does not own per-submit GPU buffers as they are now
-/// owned by the batches. This makes it safe to share this across multiple canvases/frames.
+/// Has a stack of <see cref="CanvasParams"/> ("the params stack").
+/// <see cref="PushParams(in CanvasParamsOverride)"/> pushes an override that gets popped once the
+/// returned <see cref="CanvasParamsScope"/> is disposed, creating a "scoped parameters" model.
+/// The base of the stack cannot be popped off.
 /// </para>
 /// <para>
-/// Concurrent use is still unsafe, however, as missing cache entries are lazy-created and
-/// stored in ordinary dictionaries without synchronization.
+/// Positions and sizes are in pixels of the current target, with the origin at the top left and +Y
+/// pointing down, before <see cref="CanvasParams.Transform"/> is applied.
 /// </para>
 /// <para>
-/// Batch state is stored per format as pipelines are color-target-format-specific.
+/// Draws may be batched; the exact batching behavior is unspecified. Draws are never reordered.
 /// </para>
 /// <para>
-/// The shaders are loaded from the given <see cref="EngineResourceStore"/> when batch state is
-/// first needed, so it needs the resources listed in <see cref="Assets.Builtin.BuiltinShaders"/>. They're
-/// embedded in the Injure assembly, so registering
-/// <c>new EmbeddedEngineResourceSource(typeof(Canvas).Assembly, [BuiltinShaders.Primitive2d.ResourceId, ...])</c>
-/// with all of them is enough. <see cref="Game.StandardGame"/> does this itself.
+/// Only triangles are ever drawn. Geometry for lines, line lists, line strips, triangle strips, and
+/// polygons is generated as triangles, rather than using the corresponding GPU primitives. There's
+/// no face culling, so winding order doesn't affect visual output.
+/// </para>
+/// <para>
+/// Colors are sRGB-encoded, and blending happens on the encoded values. Targets must therefore have
+/// non-sRGB formats, so the values reach them unchanged; see
+/// <see cref="SurfaceFormatPolicy.PreferNonSrgb"/>. Texture texels are likewise taken as stored, so
+/// textures should hold sRGB-encoded colors in non-sRGB formats.
+/// </para>
+/// <para>
+/// The name clashes with the <c>Canvas</c> controls of Avalonia and WPF, and is similar to MAUI's
+/// <c>ICanvas</c>. Code that runs into such a conflict can alias this type, e.g. <c>global using
+/// IjCanvas = Injure.Draw.Canvas;</c>.
+/// </para>
+/// <para>
+/// Infomative: untextured draws actually use a 1x1 <see cref="TextureInterpretation.Color"/> white
+/// texture, and <see cref="CanvasParams.Transform"/> is applied on the CPU rather than in a vertex
+/// shader. Both of these allow for particular internal optimizations. The functional behavior is
+/// unchanged, and the optimizations heavily outweigh the miniscule added overhead.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public sealed class CanvasSharedResources(GpuDevice device, EngineResourceStore engineResources) : IDisposable {
-	public readonly record struct PrimBatchKey(
-		BlendState? BlendState,
-		ColorWriteMask ColorWriteMask,
-		TextureFormat ColorTargetFormat
-	);
+public readonly ref struct Canvas {
+	private const int maxStackIndices = 512; // 2048 bytes
 
-	public readonly record struct TexBatchKey(
-		BlendState? BlendState,
-		ColorWriteMask ColorWriteMask,
-		TextureInterpretation TextureInterpretation,
-		TextureFormat ColorTargetFormat
-	);
+	private readonly OwnedCanvas? ownedCanvas;
 
-	private readonly GpuDevice device = device;
-	private readonly EngineResourceStore engineResources = engineResources;
-	private readonly Dictionary<PrimBatchKey, PrimitiveBatchSharedState> primState = new();
-	private readonly Dictionary<TexBatchKey, TexturedBatchSharedState> texState = new();
-	private bool disposed = false;
+	internal Canvas(OwnedCanvas ownedCanvas) {
+		this.ownedCanvas = ownedCanvas;
+	}
+
+	private OwnedCanvas o => ownedCanvas ?? throw new InvalidOperationException("this Canvas value is invalid/uninitialized");
+
+	private static ReadOnlySpan<uint> triangleIndices => [0, 1, 2];
+	// for corners in topLeft, topRight, bottomLeft, bottomRight order; ccw
+	private static ReadOnlySpan<uint> quadIndices => [0, 2, 1, 3, 1, 2];
 
 	/// <summary>
-	/// Gets or lazy-creates primitive batch state for the given key.
+	/// The currently active canvas parameters, i.e. the top of the params stack.
 	/// </summary>
-	public PrimitiveBatchSharedState GetPrimitiveBatchSharedState(PrimBatchKey key) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-
-		if (!primState.TryGetValue(key, out PrimitiveBatchSharedState? r)) {
-			r = new PrimitiveBatchSharedState(
-				device,
-				engineResources,
-				key.BlendState,
-				key.ColorWriteMask,
-				key.ColorTargetFormat
-			);
-			primState.Add(key, r);
-		}
-		return r;
-	}
+	public CanvasParams CurrentParams => o.CurrentParams;
 
 	/// <summary>
-	/// Gets or lazy-creates textured batch state for the given key.
+	/// The drawable width in pixels of the active target.
 	/// </summary>
-	public TexturedBatchSharedState GetTexturedBatchSharedState(TexBatchKey key) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-
-		if (!texState.TryGetValue(key, out TexturedBatchSharedState? r)) {
-			r = new TexturedBatchSharedState(
-				device,
-				engineResources,
-				key.BlendState,
-				key.ColorWriteMask,
-				key.TextureInterpretation,
-				key.ColorTargetFormat
-			);
-			texState.Add(key, r);
-		}
-		return r;
-	}
+	public uint TargetWidth => o.TargetWidth;
 
 	/// <summary>
-	/// Disposes all stored batch state.
+	/// The drawable height in pixels of the active target.
 	/// </summary>
-	public void Dispose() {
-		if (disposed)
-			return;
-		disposed = true;
-
-		foreach (TexturedBatchSharedState r in texState.Values)
-			r.Dispose();
-		texState.Clear();
-
-		foreach (PrimitiveBatchSharedState r in primState.Values)
-			r.Dispose();
-		primState.Clear();
-	}
-}
-
-/// <summary>
-/// Primary 2D rendering interface for game code to draw into a <see cref="RenderFrame"/>.
-/// </summary>
-/// <remarks>
-/// <para>
-/// <see cref="Canvas"/> has a stack of <see cref="CanvasParams"/>. Calling
-/// <see cref="PushParams(in CanvasParamsOverride)"/> pushes a new override that
-/// gets popped once the returned <see cref="IDisposable"/> is disposed, creating a
-/// "scoped parameters" model.
-/// </para>
-/// <para>
-/// It is also responsible for managing the render passes and the primitive/textured batch
-/// instances used to batch together related draw calls. Pass/batch lifetime management
-/// is automatic; changing the current parameters reopens passes and flushes batches
-/// as needed.
-/// </para>
-/// <para>
-/// Colors are sRGB-encoded (<see cref="SrgbColor32"/>), and blending happens on the encoded
-/// values. Targets therefore must have non-sRGB formats, so the values reach them unchanged; see
-/// <see cref="SurfaceFormatPolicy.PreferNonSrgb"/>. Texture texels are likewise taken as stored,
-/// so textures should hold sRGB-encoded colors in non-sRGB formats.
-/// </para>
-/// <para>
-/// The frame is never submitted; it must be submitted manually after disposal.
-/// </para>
-/// <para>
-/// The name clashes with the <c>Canvas</c> controls of Avalonia, WPF, and MAUI. Code that imports
-/// both namespaces can alias this one, e.g. <c>global using IjCanvas = Injure.Draw.Canvas;</c>.
-/// </para>
-/// </remarks>
-public sealed class Canvas : IDisposable {
-	// ==========================================================================
-	// internal types
-	private enum ActiveBatchType {
-		None,
-		Primitive,
-		Textured,
-	}
-
-	private sealed class ParamsScope(Canvas canvas) : IDisposable {
-		private readonly Canvas canvas = canvas;
-		private bool disposed = false;
-
-		public void Dispose() {
-			if (disposed)
-				return;
-			disposed = true;
-			canvas.popParams();
-		}
-	}
-
-	private sealed class Dummy : IDisposable {
-		public void Dispose() {}
-	}
+	public uint TargetHeight => o.TargetHeight;
 
 	// ==========================================================================
-	// internal objects / properties
-	private readonly GpuDevice device;
-	private readonly ViewGlobals globals;
-	private readonly RenderFrame frame;
-	private readonly CanvasSharedResources shared;
-	private readonly Stack<CanvasParams> @params;
-
-	private RenderPass? pass;
-	private PrimitiveBatch? primbatch;
-	private TexturedBatch? texbatch;
-	private ActiveBatchType active;
-
-	private bool disposed = false;
-
-	private TextureFormat currentColorFormat {
-		get {
-			CanvasTarget t = CurrentParams.Target;
-			return t.IsPrimary ? frame.PrimaryView.Format : t.RenderTarget.ColorFormat;
-		}
-	}
-
-	// ==========================================================================
-	// public properties and ctor
-
-	/// <summary>
-	/// Gets the currently active canvas parameters (the top of the params stack).
-	/// </summary>
-	public CanvasParams CurrentParams => @params.Peek();
-
-	/// <summary>
-	/// Gets the drawable width in pixels of the active target.
-	/// </summary>
-	public uint CurrentDrawableWidth => CurrentParams.Target.IsPrimary ? frame.PrimaryView.Width : CurrentParams.Target.RenderTarget.Width;
-
-	/// <summary>
-	/// Gets the drawable height in pixels of the active target.
-	/// </summary>
-	public uint CurrentDrawableHeight => CurrentParams.Target.IsPrimary ? frame.PrimaryView.Height : CurrentParams.Target.RenderTarget.Height;
-
-	/// <summary>
-	/// Creates a canvas bound to the given frame and base parameters.
-	/// </summary>
-	/// <param name="device">Device used to create rendering objects.</param>
-	/// <param name="globals">View globals to use.</param>
-	/// <param name="frame">Frame that receives all encoded work.</param>
-	/// <param name="shared">Shared batch state cache to use.</param>
-	/// <param name="baseParams">The base of the parameters stack.</param>
-	/// <remarks>
-	/// <para>
-	/// Immediately opens a render pass as dictated by <paramref name="baseParams"/>.
-	/// </para>
-	/// <para>
-	/// The base parameters cannot be popped off the stack.
-	/// </para>
-	/// </remarks>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="baseParams"/> is invalid, contains a scissor
-	/// of kind <see cref="CanvasScissorKind.Intersect"/>, or targets a texture with an sRGB format.
-	/// </exception>
-	public Canvas(GpuDevice device, ViewGlobals globals, RenderFrame frame, CanvasSharedResources shared, in CanvasParams baseParams) {
-		this.device = device;
-		this.globals = globals;
-		this.frame = frame;
-		this.shared = shared;
-		validate(baseParams);
-		@params = new Stack<CanvasParams>();
-		@params.Push(baseParams);
-		active = ActiveBatchType.None;
-		openPass(in baseParams);
-	}
-
-	// ==========================================================================
-	// primitive drawing
+	// primitives
 
 	/// <summary>
 	/// Draws a filled triangle with interpolated per-vertex colors.
 	/// </summary>
-	/// <param name="a">First vertex of the triangle, in pixel coordinates.</param>
-	/// <param name="b">Second vertex of the triangle, in pixel coordinates.</param>
-	/// <param name="c">Third vertex of the triangle, in pixel coordinates.</param>
-	public void Triangle(Vertex2dColor a, Vertex2dColor b, Vertex2dColor c) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.Triangle(a, b, c);
-	}
+	/// <param name="a">First vertex of the triangle.</param>
+	/// <param name="b">Second vertex of the triangle.</param>
+	/// <param name="c">Third vertex of the triangle.</param>
+	public void Triangle(Vertex2dColor a, Vertex2dColor b, Vertex2dColor c) =>
+		o.AddPrimitive([a, b, c], triangleIndices);
 
 	/// <summary>
 	/// Draws a filled flat-color triangle.
 	/// </summary>
-	/// <param name="a">First vertex of the triangle, in pixel coordinates.</param>
-	/// <param name="b">Second vertex of the triangle, in pixel coordinates.</param>
-	/// <param name="c">Third vertex of the triangle, in pixel coordinates.</param>
+	/// <param name="a">First vertex of the triangle.</param>
+	/// <param name="b">Second vertex of the triangle.</param>
+	/// <param name="c">Third vertex of the triangle.</param>
 	/// <param name="color">Fill color.</param>
-	public void Triangle(Vector2 a, Vector2 b, Vector2 c, SrgbColor32 color) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.Triangle(a, b, c, color);
-	}
+	public void Triangle(Vector2 a, Vector2 b, Vector2 c, SrgbColor32 color) =>
+		o.AddPrimitive([a, b, c], color, triangleIndices);
 
 	/// <summary>
-	/// Draws a filled axis-aligned quadrilateral with interpolated per-corner colors.
+	/// Draws a filled convex quadrilateral with interpolated per-corner colors.
 	/// </summary>
-	/// <param name="topleft">Intended top-left corner of the quad, in pixel coordinates.</param>
-	/// <param name="topright">Intended top-right corner of the quad, in pixel coordinates.</param>
-	/// <param name="bottomleft">Intended bottom-left corner of the quad, in pixel coordinates.</param>
-	/// <param name="bottomright">Intended bottom-right corner of the quad, in pixel coordinates.</param>
+	/// <param name="topLeft">Intended top-left corner of the quad.</param>
+	/// <param name="topRight">Intended top-right corner of the quad.</param>
+	/// <param name="bottomLeft">Intended bottom-left corner of the quad.</param>
+	/// <param name="bottomRight">Intended bottom-right corner of the quad.</param>
 	/// <remarks>
-	/// Concave or self-intersecting quads are invalid inputs and will produce incorrect visual output.
+	/// Non-convex (concave or self-intersecting) quads produce incorrect visual output rather than
+	/// being rejected. The quad is split into two triangles along the diagonal from
+	/// <paramref name="topRight"/> to <paramref name="bottomLeft"/>.
 	/// </remarks>
-	public void Quad(Vertex2dColor topleft, Vertex2dColor topright, Vertex2dColor bottomleft, Vertex2dColor bottomright) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.Quad(topleft, topright, bottomleft, bottomright);
-	}
+	public void ConvexQuad(Vertex2dColor topLeft, Vertex2dColor topRight, Vertex2dColor bottomLeft, Vertex2dColor bottomRight) =>
+		o.AddPrimitive([topLeft, topRight, bottomLeft, bottomRight], quadIndices);
 
 	/// <summary>
-	/// Draws a filled flat-color axis-aligned quadrilateral.
+	/// Draws a filled flat-color convex quadrilateral.
 	/// </summary>
-	/// <param name="topleft">Intended top-left corner of the quad, in pixel coordinates.</param>
-	/// <param name="topright">Intended top-right corner of the quad, in pixel coordinates.</param>
-	/// <param name="bottomleft">Intended bottom-left corner of the quad, in pixel coordinates.</param>
-	/// <param name="bottomright">Intended bottom-right corner of the quad, in pixel coordinates.</param>
+	/// <param name="topLeft">Intended top-left corner of the quad.</param>
+	/// <param name="topRight">Intended top-right corner of the quad.</param>
+	/// <param name="bottomLeft">Intended bottom-left corner of the quad.</param>
+	/// <param name="bottomRight">Intended bottom-right corner of the quad.</param>
 	/// <param name="color">Fill color.</param>
 	/// <remarks>
-	/// Concave or self-intersecting quads are invalid inputs and will produce incorrect visual output.
+	/// Non-convex (concave or self-intersecting) quads produce incorrect visual output rather than
+	/// being rejected. The quad is split into two triangles along the diagonal from
+	/// <paramref name="topRight"/> to <paramref name="bottomLeft"/>.
 	/// </remarks>
-	public void Quad(Vector2 topleft, Vector2 topright, Vector2 bottomleft, Vector2 bottomright, SrgbColor32 color) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.Quad(topleft, topright, bottomleft, bottomright, color);
-	}
+	public void ConvexQuad(Vector2 topLeft, Vector2 topRight, Vector2 bottomLeft, Vector2 bottomRight, SrgbColor32 color) =>
+		o.AddPrimitive([topLeft, topRight, bottomLeft, bottomRight], color, quadIndices);
 
 	/// <summary>
 	/// Draws a filled rectangle with interpolated per-corner colors.
 	/// </summary>
-	/// <param name="rect">The rectangle, in pixel coordinates.</param>
-	/// <param name="cTopleft">Color for the top-left corner.</param>
-	/// <param name="cTopright">Color for the top-right corner.</param>
-	/// <param name="cBottomleft">Color for the bottom-left corner.</param>
-	/// <param name="cBottomright">Color for the bottom-right corner.</param>
-	public void Rect(RectF rect, SrgbColor32 cTopleft, SrgbColor32 cTopright, SrgbColor32 cBottomleft, SrgbColor32 cBottomright) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.Rect(rect, cTopleft, cTopright, cBottomleft, cBottomright);
-	}
+	/// <param name="rect">The rectangle.</param>
+	/// <param name="colorTopLeft">Color for the top-left corner.</param>
+	/// <param name="colorTopRight">Color for the top-right corner.</param>
+	/// <param name="colorBottomLeft">Color for the bottom-left corner.</param>
+	/// <param name="colorBottomRight">Color for the bottom-right corner.</param>
+	public void Rect(RectF rect, SrgbColor32 colorTopLeft, SrgbColor32 colorTopRight, SrgbColor32 colorBottomLeft, SrgbColor32 colorBottomRight) =>
+		o.AddPrimitive(
+			[
+				new Vertex2dColor(rect.X, rect.Y, colorTopLeft),
+				new Vertex2dColor(rect.X + rect.Width, rect.Y, colorTopRight),
+				new Vertex2dColor(rect.X, rect.Y + rect.Height, colorBottomLeft),
+				new Vertex2dColor(rect.X + rect.Width, rect.Y + rect.Height, colorBottomRight),
+			],
+			quadIndices
+		);
 
 	/// <summary>
 	/// Draws a filled flat-color rectangle.
 	/// </summary>
-	/// <param name="rect">The rectangle, in pixel coordinates.</param>
+	/// <param name="rect">The rectangle.</param>
 	/// <param name="color">Fill color.</param>
-	public void Rect(RectF rect, SrgbColor32 color) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.Rect(rect, color);
-	}
+	public void Rect(RectF rect, SrgbColor32 color) =>
+		Rect(rect, color, color, color, color);
 
 	/// <summary>
 	/// Draws a line segment with interpolated per-endpoint colors.
 	/// </summary>
-	/// <param name="a">Line start point, in pixel coordinates.</param>
-	/// <param name="b">Line end point, in pixel coordinates.</param>
+	/// <param name="a">Line start point.</param>
+	/// <param name="b">Line end point.</param>
 	/// <param name="thickness">Line thickness in pixels.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="thickness"/> is negative or zero.
+	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// Generates a thin quad rather than using a line primitive.
+	/// </para>
+	/// <para>
+	/// If the endpoints coincide, or almost coincide (currently, distance &lt;= 1e-4), nothing is
+	/// drawn.
+	/// </para>
+	/// </remarks>
 	public void Line(Vertex2dColor a, Vertex2dColor b, float thickness = 1f) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.Line(a, b, thickness);
+		chkThickness(thickness);
+		OwnedCanvas oc = o;
+
+		const float epsilon = 1e-4f;
+		Vector2 direction = (Vector2)b - (Vector2)a;
+		float len = direction.Length();
+		if (len < epsilon)
+			return;
+		direction /= len;
+		Vector2 normal = new Vector2(-direction.Y, direction.X) * thickness * 0.5f;
+		Vector2 p0 = (Vector2)a + normal;
+		Vector2 p1 = (Vector2)b + normal;
+		Vector2 p2 = (Vector2)b - normal;
+		Vector2 p3 = (Vector2)a - normal;
+		ReadOnlySpan<Vertex2dColor> verts = [
+			new Vertex2dColor(p0, a.Color),
+			new Vertex2dColor(p1, b.Color),
+			new Vertex2dColor(p2, b.Color),
+			new Vertex2dColor(p3, a.Color),
+		];
+		// keep the generated triangles ccw
+		if (winding(p0, p1, p2) > 0f)
+			oc.AddPrimitive(verts, [0, 2, 1, 0, 3, 2]);
+		else
+			oc.AddPrimitive(verts, [0, 1, 2, 0, 2, 3]);
 	}
 
 	/// <summary>
 	/// Draws a flat-color line segment.
 	/// </summary>
-	/// <param name="a">Line start point, in pixel coordinates.</param>
-	/// <param name="b">Line end point, in pixel coordinates.</param>
+	/// <param name="a">Line start point.</param>
+	/// <param name="b">Line end point.</param>
 	/// <param name="color">Line color.</param>
 	/// <param name="thickness">Line thickness in pixels.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="thickness"/> is negative or zero.
+	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
-	public void Line(Vector2 a, Vector2 b, SrgbColor32 color, float thickness = 1f) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.Line(a, b, color, thickness);
-	}
+	/// <remarks>
+	/// <para>
+	/// Generates a thin quad rather than using a line primitive.
+	/// </para>
+	/// <para>
+	/// If the endpoints coincide, or almost coincide (currently, distance &lt;= 1e-4), nothing is
+	/// drawn.
+	/// </para>
+	/// </remarks>
+	public void Line(Vector2 a, Vector2 b, SrgbColor32 color, float thickness = 1f) =>
+		Line(new Vertex2dColor(a, color), new Vertex2dColor(b, color), thickness);
 
 	/// <summary>
 	/// Draws a filled convex polygon with interpolated per-vertex colors.
 	/// </summary>
-	/// <param name="verts">Vertices of the polygon in draw order, in pixel coordinates.</param>
+	/// <param name="verts">Vertices of the polygon in order around its edge.</param>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="verts"/> has fewer than 3 vertices.
+	/// </exception>
 	/// <remarks>
-	/// The polygon must be convex and will otherwise produce incorrect visual input.
+	/// Non-convex polygons produce incorrect visual output rather than being rejected. The polygon is
+	/// triangulated as a fan from the first vertex.
 	/// </remarks>
 	public void ConvexPoly(ReadOnlySpan<Vertex2dColor> verts) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.ConvexPoly(verts);
+		OwnedCanvas oc = o;
+		if (verts.Length < 3)
+			throw new ArgumentException("a polygon needs at least 3 vertices", nameof(verts));
+		withIndices((verts.Length - 2) * 3, fanIndices, verts, static (oc, v, idx, _) => oc.AddPrimitive(v, idx), 0, oc);
 	}
 
 	/// <summary>
 	/// Draws a filled flat-color convex polygon.
 	/// </summary>
-	/// <param name="points">Vertices of the polygon in draw order, in pixel coordinates.</param>
+	/// <param name="points">Vertices of the polygon in order around its edge.</param>
 	/// <param name="color">Fill color.</param>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="points"/> has fewer than 3 points.
+	/// </exception>
 	/// <remarks>
-	/// The polygon must be convex and will otherwise produce incorrect visual input.
+	/// Non-convex polygons produce incorrect visual output rather than being rejected. The polygon is
+	/// triangulated as a fan from the first point.
 	/// </remarks>
 	public void ConvexPoly(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.ConvexPoly(points, color);
+		OwnedCanvas oc = o;
+		if (points.Length < 3)
+			throw new ArgumentException("a polygon needs at least 3 points", nameof(points));
+		withIndices((points.Length - 2) * 3, fanIndices, points, static (oc, p, idx, c) => oc.AddPrimitive(p, c, idx), color, oc);
 	}
 
 	/// <summary>
 	/// Draws a filled triangle list with interpolated per-vertex colors.
 	/// </summary>
-	/// <param name="verts">Vertices forming the triangles, in pixel coordinates.</param>
+	/// <param name="verts">Vertices forming the triangles.</param>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the amount of vertices in <paramref name="verts"/> is not a multiple of 3.
+	/// Thrown if <paramref name="verts"/> is empty or its length is not a multiple of 3.
 	/// </exception>
 	public void TriangleList(ReadOnlySpan<Vertex2dColor> verts) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.TriangleList(verts);
+		OwnedCanvas oc = o;
+		if (verts.Length == 0 || verts.Length % 3 != 0)
+			throw new ArgumentException("triangle list vertex count must be a positive multiple of 3", nameof(verts));
+		withIndices(verts.Length, listIndices, verts, static (oc, v, idx, _) => oc.AddPrimitive(v, idx), 0, oc);
 	}
 
 	/// <summary>
 	/// Draws a filled flat-color triangle list.
 	/// </summary>
-	/// <param name="points">Vertices forming the triangles, in pixel coordinates.</param>
+	/// <param name="points">Vertices forming the triangles.</param>
 	/// <param name="color">Fill color.</param>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the amount of points in <paramref name="points"/> is not a multiple of 3.
+	/// Thrown if <paramref name="points"/> is empty or its length is not a multiple of 3.
 	/// </exception>
 	public void TriangleList(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.TriangleList(points, color);
+		OwnedCanvas oc = o;
+		if (points.Length == 0 || points.Length % 3 != 0)
+			throw new ArgumentException("triangle list vertex count must be a positive multiple of 3", nameof(points));
+		withIndices(points.Length, listIndices, points, static (oc, p, idx, c) => oc.AddPrimitive(p, c, idx), color, oc);
 	}
 
 	/// <summary>
 	/// Draws a filled triangle strip with interpolated per-vertex colors.
 	/// </summary>
-	/// <param name="verts">Vertices forming the triangle strip, in pixel coordinates.</param>
+	/// <param name="verts">Vertices forming the triangle strip.</param>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="verts"/> has fewer than 3 vertices.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// Generates the geometry rather than using a triangle strip primitive.
+	/// </para>
+	/// <para>
+	/// Triangle <c>k</c> (counting from 0) is vertices <c>k</c>, <c>k + 1</c>, <c>k + 2</c> in that
+	/// order for even <c>k</c>, and <c>k + 1</c>, <c>k</c>, <c>k + 2</c> for odd <c>k</c>, so that all
+	/// the triangles have the same winding as the first one. Degenerate triangles are allowed and, as
+	/// one would expect, cover no pixels.
+	/// </para>
+	/// </remarks>
 	public void TriangleStrip(ReadOnlySpan<Vertex2dColor> verts) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.TriangleStrip(verts);
+		OwnedCanvas oc = o;
+		if (verts.Length < 3)
+			throw new ArgumentException("a triangle strip needs at least 3 vertices", nameof(verts));
+		withIndices((verts.Length - 2) * 3, stripIndices, verts, static (oc, v, idx, _) => oc.AddPrimitive(v, idx), 0, oc);
 	}
 
 	/// <summary>
 	/// Draws a filled flat-color triangle strip.
 	/// </summary>
-	/// <param name="points">Vertices forming the triangle strip, in pixel coordinates.</param>
+	/// <param name="points">Vertices forming the triangle strip.</param>
 	/// <param name="color">Fill color.</param>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="points"/> has fewer than 3 points.
+	/// </exception>
+	/// <inheritdoc cref="TriangleStrip(ReadOnlySpan{Vertex2dColor})" path="/remarks"/>
 	public void TriangleStrip(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.TriangleStrip(points, color);
+		OwnedCanvas oc = o;
+		if (points.Length < 3)
+			throw new ArgumentException("a triangle strip needs at least 3 points", nameof(points));
+		withIndices((points.Length - 2) * 3, stripIndices, points, static (oc, p, idx, c) => oc.AddPrimitive(p, c, idx), color, oc);
 	}
 
 	/// <summary>
-	/// Draws a filled line list with interpolated per-endpoint colors.
+	/// Draws a line list with interpolated per-endpoint colors.
 	/// </summary>
-	/// <param name="verts">Points forming the lines, in pixel coordinates.</param>
+	/// <param name="verts">Points forming the lines, two per line.</param>
 	/// <param name="thickness">Line thickness in pixels.</param>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the amount of vertices in <paramref name="verts"/> is not a multiple of 2.
+	/// Thrown if <paramref name="verts"/> is empty or its length is not a multiple of 2.
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="thickness"/> is negative or zero.
+	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
+	/// <remarks>
+	/// Generates the geometry rather than using a line list primitive; each line is drawn as by
+	/// <see cref="Line(Vertex2dColor, Vertex2dColor, float)"/>.
+	/// </remarks>
 	public void LineList(ReadOnlySpan<Vertex2dColor> verts, float thickness = 1f) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.LineList(verts, thickness);
+		chkThickness(thickness);
+		if (verts.Length == 0 || verts.Length % 2 != 0)
+			throw new ArgumentException("line list vertex count must be a positive multiple of 2", nameof(verts));
+		for (int i = 0; i < verts.Length; i += 2)
+			Line(verts[i], verts[i + 1], thickness);
 	}
 
 	/// <summary>
-	/// Draws a filled flat-color line list.
+	/// Draws a flat-color line list.
 	/// </summary>
-	/// <param name="points">Points forming the lines, in pixel coordinates.</param>
-	/// <param name="color">Fill color.</param>
+	/// <param name="points">Points forming the lines, two per line.</param>
+	/// <param name="color">Line color.</param>
 	/// <param name="thickness">Line thickness in pixels.</param>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the amount of points in <paramref name="points"/> is not a multiple of 2.
+	/// Thrown if <paramref name="points"/> is empty or its length is not a multiple of 2.
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="thickness"/> is negative or zero.
+	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
+	/// <remarks>
+	/// Generates the geometry rather than using a line list primitive; each line is drawn as by
+	/// <see cref="Line(Vector2, Vector2, SrgbColor32, float)"/>.
+	/// </remarks>
 	public void LineList(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.LineList(points, color, thickness);
+		chkThickness(thickness);
+		if (points.Length == 0 || points.Length % 2 != 0)
+			throw new ArgumentException("line list vertex count must be a positive multiple of 2", nameof(points));
+		for (int i = 0; i < points.Length; i += 2)
+			Line(points[i], points[i + 1], color, thickness);
 	}
 
 	/// <summary>
-	/// Draws a filled line strip with interpolated per-endpoint colors.
+	/// Draws a line strip with interpolated per-endpoint colors.
 	/// </summary>
-	/// <param name="verts">Points forming the line strip, in pixel coordinates.</param>
+	/// <param name="verts">Points forming the line strip.</param>
 	/// <param name="thickness">Line thickness in pixels.</param>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="thickness"/> is negative or zero.
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="verts"/> has fewer than 2 vertices.
 	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="thickness"/> is not finite and positive.
+	/// </exception>
+	/// <remarks>
+	/// Generates the geometry rather than using a line strip primitive. Each segment is drawn as a
+	/// separate line, as by <see cref="Line(Vertex2dColor, Vertex2dColor, float)"/>, so joints have no
+	/// join geometry, and the segments overlap there.
+	/// </remarks>
 	public void LineStrip(ReadOnlySpan<Vertex2dColor> verts, float thickness = 1f) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.LineStrip(verts, thickness);
+		chkThickness(thickness);
+		if (verts.Length < 2)
+			throw new ArgumentException("a line strip needs at least 2 vertices", nameof(verts));
+		for (int i = 0; i + 1 < verts.Length; i++)
+			Line(verts[i], verts[i + 1], thickness);
 	}
 
 	/// <summary>
-	/// Draws a filled flat-color line strip.
+	/// Draws a flat-color line strip.
 	/// </summary>
-	/// <param name="points">Points forming the line strip, in pixel coordinates.</param>
-	/// <param name="color">Fill color.</param>
+	/// <param name="points">Points forming the line strip.</param>
+	/// <param name="color">Line color.</param>
 	/// <param name="thickness">Line thickness in pixels.</param>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="thickness"/> is negative or zero.
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="points"/> has fewer than 2 points.
 	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="thickness"/> is not finite and positive.
+	/// </exception>
+	/// <remarks>
+	/// Generates the geometry rather than using a line strip primitive. Each segment is drawn as a
+	/// separate line, as by <see cref="Line(Vector2, Vector2, SrgbColor32, float)"/>, so joints have
+	/// no join geometry, and the segments overlap there.
+	/// </remarks>
 	public void LineStrip(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ensurePrimBatch();
-		primbatch.LineStrip(points, color, thickness);
+		chkThickness(thickness);
+		if (points.Length < 2)
+			throw new ArgumentException("a line strip needs at least 2 points", nameof(points));
+		for (int i = 0; i + 1 < points.Length; i++)
+			Line(points[i], points[i + 1], color, thickness);
 	}
 
 	// ==========================================================================
-	// textured drawing
-	private static readonly RectF fullUV = new(0f, 0f, 1f, 1f);
+	// textures
 
-	private static RectF pxToUV(in ResolvedTextureSource tex, RectF srcPixels) {
-		float invW = 1f / (float)tex.Width;
-		float invH = 1f / (float)tex.Height;
-		return new RectF(srcPixels.X * invW, srcPixels.Y * invH, srcPixels.Width * invW, srcPixels.Height * invH);
-	}
-
-	private static RectF texdst(in ResolvedTextureSource tex, Vector2 topLeft) => new(topLeft.X, topLeft.Y, (float)tex.Width, (float)tex.Height);
-
-	private static RectF texdst(Vector2 topLeft, RectF srcPixels) => new(topLeft.X, topLeft.Y, srcPixels.Width, srcPixels.Height);
-
-	private void checkSelfDraw(in ResolvedTextureSource tex) {
-		if (CurrentParams.Target.IsPrimary)
-			return;
-		if (tex.SameRenderTargetAs(CurrentParams.Target.RenderTarget))
-			throw new InvalidOperationException("attempt to draw a render target while it is the active canvas target (i.e draw it into itself)");
-	}
-
-	private void texquad(in ResolvedTextureSource tex, RectF dst, RectF uv, SrgbColor32 color) {
-		checkSelfDraw(tex);
-		ensureTexBatch();
-		texbatch.Quad(tex, dst, uv, color);
-	}
-
-	private void resolve(TextureSource tex, Action<ResolvedTextureSource> act) {
-		ObjectDisposedException.ThrowIf(disposed, this);
+	/// <summary>
+	/// Draws a texture, or a region of it, optionally transformed and tinted.
+	/// </summary>
+	/// <param name="tex">Texture to draw.</param>
+	/// <param name="draw">
+	/// Where to draw it, which part of it, how it's transformed, and with what tint. A
+	/// <see cref="Vector2"/> (top-left position, natural size) or <see cref="RectF"/> (destination
+	/// rect) converts to this implicitly.
+	/// </param>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="tex"/> or <paramref name="draw"/>'s <see cref="TexDraw.Destination"/>
+	/// is the <see langword="default"/> value, or if <paramref name="draw"/>'s
+	/// <see cref="TexDraw.Origin"/>, <see cref="TexDraw.Scale"/>, or <see cref="TexDraw.Rotation"/>
+	/// isn't finite.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if <paramref name="tex"/> is the currently active render target.
+	/// </exception>
+	public void Texture(TextureSource tex, in TexDraw draw) {
+		OwnedCanvas oc = o;
+		if (tex.IsDefault)
+			throw new ArgumentException("texture source is the default value", nameof(tex));
+		if (draw.Destination.IsDefault)
+			throw new ArgumentException("texture draw destination is the default value", nameof(draw));
+		if (!float.IsFinite(draw.Origin.X) || !float.IsFinite(draw.Origin.Y) || !float.IsFinite(draw.Scale.X) || !float.IsFinite(draw.Scale.Y) || !float.IsFinite(draw.Rotation))
+			throw new ArgumentException("texture draw origin, scale, and rotation must be finite", nameof(draw));
 		ResolvedTextureSource r = tex.Resolve();
-		act(r);
-	}
+		(RectF uv, float w, float h) = draw.Source.Resolve(r.Width, r.Height);
+		(Vector2 pivot, Vector2 size) = draw.Destination.Resolve(w, h, draw.Origin);
 
-	// =========================
-	// full texture draw
+		Vector2 tl = -draw.Origin * size * draw.Scale;
+		Vector2 br = (Vector2.One - draw.Origin) * size * draw.Scale;
+		Vector2 rotTl = tl, rotTr = new(br.X, tl.Y), rotBl = new(tl.X, br.Y), rotBr = br;
+		if (draw.Rotation != 0f) {
+			(float sin, float cos) = MathF.SinCos(draw.Rotation);
+			rotTl = rot(rotTl, sin, cos);
+			rotTr = rot(rotTr, sin, cos);
+			rotBl = rot(rotBl, sin, cos);
+			rotBr = rot(rotBr, sin, cos);
+		}
+		rotTl += pivot;
+		rotTr += pivot;
+		rotBl += pivot;
+		rotBr += pivot;
 
-	/// <summary>
-	/// Draws an entire texture at the specified position.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="topleft">Destination top-left corner, in pixel coordinates.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void Texture(TextureSource tex, Vector2 topleft) {
-		resolve(tex, r => texquad(r, texdst(r, topleft), fullUV, SrgbColor32.White));
-	}
-
-	/// <summary>
-	/// Draws an entire texture at the specified position, with a tint.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="topleft">Destination top-left corner, in pixel coordinates.</param>
-	/// <param name="color">Multiplicative tint applied after sampling.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void Texture(TextureSource tex, Vector2 topleft, SrgbColor32 color) {
-		resolve(tex, r => texquad(r, texdst(r, topleft), fullUV, color));
-	}
-
-	/// <summary>
-	/// Draws an entire texture into the given destination rectangle.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="dst">Destination rectangle, in pixel coordinates.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void Texture(TextureSource tex, RectF dst) {
-		resolve(tex, r => texquad(r, dst, fullUV, SrgbColor32.White));
+		float u0 = uv.X, u1 = uv.X + uv.Width, v0 = uv.Y, v1 = uv.Y + uv.Height;
+		if (draw.FlipX)
+			(u0, u1) = (u1, u0);
+		if (draw.FlipY)
+			(v0, v1) = (v1, v0);
+		SrgbColor32 c = draw.Tint;
+		oc.AddTextured(
+			r,
+			[
+				new Vertex2dTextureColor(rotTl.X, rotTl.Y, u0, v0, c),
+				new Vertex2dTextureColor(rotTr.X, rotTr.Y, u1, v0, c),
+				new Vertex2dTextureColor(rotBl.X, rotBl.Y, u0, v1, c),
+				new Vertex2dTextureColor(rotBr.X, rotBr.Y, u1, v1, c),
+			],
+			quadIndices
+		);
 	}
 
 	/// <summary>
-	/// Draws an entire texture into the given destination rectangle, with a tint.
+	/// Positive angles turn +X towards +Y, i.e. clockwise since +Y = down.
 	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="dst">Destination rectangle, in pixel coordinates.</param>
-	/// <param name="color">Multiplicative tint applied after sampling.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void Texture(TextureSource tex, RectF dst, SrgbColor32 color) {
-		resolve(tex, r => texquad(r, dst, fullUV, color));
-	}
-
-	// =========================
-	// draw with source rect
-
-	/// <summary>
-	/// Draws a source rectangle from a texture at the specified position.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="topleft">Destination top-left corner, in pixel coordinates.</param>
-	/// <param name="srcPixels">Source rectangle, in pixel coordinates.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void TexWithSourceRect(TextureSource tex, Vector2 topleft, RectF srcPixels) {
-		resolve(tex, r => texquad(r, texdst(topleft, srcPixels), pxToUV(r, srcPixels), SrgbColor32.White));
-	}
-
-	/// <summary>
-	/// Draws a source rectangle from a texture at the specified position, with a tint.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="topleft">Destination top-left corner, in pixel coordinates.</param>
-	/// <param name="srcPixels">Source rectangle, in pixel coordinates.</param>
-	/// <param name="color">Multiplicative tint applied after sampling.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void TexWithSourceRect(TextureSource tex, Vector2 topleft, RectF srcPixels, SrgbColor32 color) {
-		resolve(tex, r => texquad(r, texdst(topleft, srcPixels), pxToUV(r, srcPixels), color));
-	}
-
-	/// <summary>
-	/// Draws a source rectangle from a texture into the given destination rectangle.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="dst">Destination rectangle, in pixel coordinates.</param>
-	/// <param name="srcPixels">Source rectangle, in pixel coordinates.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void TexWithSourceRect(TextureSource tex, RectF dst, RectF srcPixels) {
-		resolve(tex, r => texquad(r, dst, pxToUV(r, srcPixels), SrgbColor32.White));
-	}
-
-	/// <summary>
-	/// Draws a source rectangle from a texture into the given destination rectangle, with a tint.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="dst">Destination rectangle, in pixel coordinates.</param>
-	/// <param name="srcPixels">Source rectangle, in pixel coordinates.</param>
-	/// <param name="color">Multiplicative tint applied after sampling.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void TexWithSourceRect(TextureSource tex, RectF dst, RectF srcPixels, SrgbColor32 color) {
-		resolve(tex, r => texquad(r, dst, pxToUV(r, srcPixels), color));
-	}
-
-	// =========================
-	// draw with user-passed uv
-
-	/// <summary>
-	/// Draws a source UV rectangle from a texture into the given destination rectangle.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="dst">Destination rectangle, in pixel coordinates.</param>
-	/// <param name="uv">Source rectangle, in normalized UV coordinates.</param>
-	/// <remarks>
-	/// This is the lowest-level method for texture drawing in <see cref="Canvas"/>.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void TexWithUVRect(TextureSource tex, RectF dst, RectF uv) {
-		resolve(tex, r => texquad(r, dst, uv, SrgbColor32.White));
-	}
-
-	/// <summary>
-	/// Draws a source UV rectangle from a texture into the given destination rectangle, with a tint.
-	/// </summary>
-	/// <param name="tex">Texture to draw.</param>
-	/// <param name="dst">Destination rectangle, in pixel coordinates.</param>
-	/// <param name="uv">Source rectangle, in normalized UV coordinates.</param>
-	/// <param name="color">Multiplicative tint applied after sampling.</param>
-	/// <remarks>
-	/// This is the lowest-level method for texture drawing in <see cref="Canvas"/>.
-	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
-	/// </exception>
-	public void TexWithUVRect(TextureSource tex, RectF dst, RectF uv, SrgbColor32 color) {
-		resolve(tex, r => texquad(r, dst, uv, color));
-	}
+	private static Vector2 rot(Vector2 v, float sin, float cos) =>
+		new(v.X * cos - v.Y * sin, v.X * sin + v.Y * cos);
 
 	// ==========================================================================
 	// params
 
 	/// <summary>
-	/// Pushes a temporary parameter override onto the canvas parameter stack.
+	/// Pushes a temporary parameter override onto the parameter stack.
 	/// </summary>
 	/// <param name="ov">Partial override applied on top of <see cref="CurrentParams"/>.</param>
 	/// <returns>
-	/// An <see cref="IDisposable"/> that restores the previous parameter state
-	/// when disposed.
+	/// A scope that restores the previous parameters when disposed. Disposing it while a later
+	/// override is still pushed throws <see cref="InvalidOperationException"/>.
 	/// </returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown if the resulting parameters are invalid: they target a texture with an sRGB format, have
+	/// a scissor with a negative size, or use <see cref="TextureInterpretation.Sdf"/> without
+	/// <see cref="CanvasMaterial.SdfParams"/>.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if the resulting parameters target the primary output and the frame has none.
+	/// </exception>
 	/// <remarks>
-	/// This is the standard way to temporarily change the transform, render target,
-	/// etc. This may reopen the pass / flush batches if necessary.
+	/// This is the standard way to temporarily change the transform, target, etc. Changing the target
+	/// or color attachment ops ends the current render pass; see <see cref="CanvasParams"/>.
 	/// </remarks>
-	public IDisposable PushParams(in CanvasParamsOverride ov) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		CanvasParams old = CurrentParams;
-		CanvasParams @new = merge(in old, in ov);
-		validate(@new);
-		transition(in old, in @new, returning: false);
-		@params.Push(@new);
-		return new ParamsScope(this);
-	}
+	public CanvasParamsScope PushParams(scoped in CanvasParamsOverride ov) => o.PushParams(in ov);
 
 	/// <summary>
-	/// Pushes a temporary parameter override onto the canvas parameter stack.
+	/// Pushes a temporary parameter override onto the parameter stack.
 	/// </summary>
-	/// <returns>
-	/// An <see cref="IDisposable"/> that restores the previous parameter state
-	/// when disposed.
-	/// </returns>
+	/// <inheritdoc cref="PushParams(in CanvasParamsOverride)" path="/returns"/>
 	/// <remarks>
-	/// This is the standard way to temporarily change the transform, render target,
-	/// etc. This may reopen the pass / flush batches if necessary.
-	///
-	/// This is a convenience overload so that you don't have to type
-	/// <c>new CanvasParamsOverride(</c> every time. The parameters mirror the
-	/// values in <see cref="CanvasParamsOverride"/>, this overload creates
-	/// one from them and passes it to the plain overload.
+	/// <para>
+	/// This is the standard way to temporarily change the transform, target, etc. Changing the target
+	/// or color attachment ops ends the current render pass; see <see cref="CanvasParams"/>.
+	/// </para>
+	/// <para>
+	/// Convenience overload that builds a <see cref="CanvasParamsOverride"/> from its parameters,
+	/// which mirror that type's fields.
+	/// </para>
 	/// </remarks>
-	public IDisposable PushParams(
-		CanvasTarget? Target = null,
-		ColorAttachmentOps? ColorAttachmentOps = null,
-		CanvasScissor? Scissor = null,
-		Matrix3x2? Transform = null,
-		CanvasOutputState? OutputState = null,
-		CanvasMaterial? Material = null,
-		CanvasSubmitMode? SubmitMode = null
-	) => PushParams(new CanvasParamsOverride(Target, ColorAttachmentOps, Scissor, Transform, OutputState, Material, SubmitMode));
+	/// <inheritdoc cref="PushParams(in CanvasParamsOverride)" path="/exception"/>
+	public CanvasParamsScope PushParams(
+		CanvasTarget? target = null,
+		ColorAttachmentOps? colorAttachmentOps = null,
+		CanvasScissor? scissor = null,
+		Matrix3x2? transform = null,
+		CanvasOutputState? outputState = null,
+		CanvasMaterial? material = null
+	) => o.PushParams(new CanvasParamsOverride(target, colorAttachmentOps, scissor, transform, outputState, material));
 
 	/// <summary>
-	/// Pushes a temporary parameter override onto the canvas parameter stack, or
-	/// no-ops if the parameter override is <see langword="null"/>.
+	/// Pushes a temporary parameter override onto the parameter stack, or does nothing and returns a
+	/// no-op scope if <paramref name="ov"/> is <see langword="null"/>.
 	/// </summary>
 	/// <param name="ov">
-	/// Partial override applied on top of <see cref="CurrentParams"/>, or
-	/// <see langword="null"/> for a no-op.
+	/// Partial override applied on top of <see cref="CurrentParams"/>, or <see langword="null"/>.
 	/// </param>
 	/// <returns>
-	/// An <see cref="IDisposable"/> that restores the previous parameter state
-	/// when disposed. If <paramref name="ov"/> is <see langword="null"/>, returns
-	/// a dummy that does nothing when disposed instead.
+	/// A scope that restores the previous parameters when disposed, or the <see langword="default"/>
+	/// <see cref="CanvasParamsScope"/>, which does nothing, if <paramref name="ov"/> is
+	/// <see langword="null"/>.
 	/// </returns>
 	/// <remarks>
-	/// This is a convenience method to allow APIs to return <c>CanvasParamsOverride?</c>,
-	/// for example <c>using (cv.PushParamsIfNonnull(foo.GetCanvasParams(bar, baz))) { ... }</c>.
+	/// Lets APIs return <c>CanvasParamsOverride?</c>, e.g. <c>using
+	/// (cv.PushParamsIfNonnull(foo.GetCanvasParams(bar, baz))) { ... }</c>.
 	/// </remarks>
-	public IDisposable PushParamsIfNonnull(in CanvasParamsOverride? ov) {
-		if (ov is CanvasParamsOverride nonnull)
-			return PushParams(in nonnull);
-		return new Dummy();
+	/// <inheritdoc cref="PushParams(in CanvasParamsOverride)" path="/exception"/>
+	public CanvasParamsScope PushParamsIfNonnull(scoped in CanvasParamsOverride? ov) {
+		OwnedCanvas oc = o;
+		return ov is CanvasParamsOverride nonnull ? oc.PushParams(in nonnull) : default;
 	}
 
-	private void popParams() {
-		// this gets called from ParamsScope.Dispose, which is public, so
-		// treat this as a public method
-		ObjectDisposedException.ThrowIf(disposed, this);
-		if (@params.Count <= 1)
-			throw new InternalStateException("ParamsScope dispose tried to pop base canvas params off the stack");
-		CanvasParams old = @params.Pop();
-		CanvasParams @new = CurrentParams;
-		transition(in old, in @new, returning: true);
+	// ==========================================================================
+	// helpers
+	private static void chkThickness(float thickness) {
+		// written so that NaN fails too
+		if (!(thickness > 0f) || !float.IsFinite(thickness))
+			throw new ArgumentOutOfRangeException(nameof(thickness), thickness, "line thickness must be finite and positive");
 	}
 
-	private static CanvasParams merge(in CanvasParams curr, in CanvasParamsOverride ov) => new(
-		Transform: ov.Transform ?? curr.Transform,
-		Target: ov.Target ?? curr.Target,
-		ColorAttachmentOps: ov.ColorAttachmentOps ?? curr.ColorAttachmentOps,
-		Scissor: mergeScissor(curr.Scissor, ov.Scissor),
-		OutputState: ov.OutputState ?? curr.OutputState,
-		Material: ov.Material ?? curr.Material,
-		SubmitMode: ov.SubmitMode ?? curr.SubmitMode
-	);
+	private static float winding(Vector2 a, Vector2 b, Vector2 c) =>
+		// in cartesian coordinates (+Y = up), >0 = ccw and <0 = cw
+		// in screen space coords, +Y is down, but i'm pretty sure that's just the ortho projection and
+		// +Y in clip space coords points up so >0 = ccw / <0 = cw
+		(b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
 
-	private void transition(in CanvasParams from, in CanvasParams to, bool returning) {
-		bool newtarget = from.Target != to.Target;
-		bool newattops = from.ColorAttachmentOps != to.ColorAttachmentOps;
-		bool affectspass = newtarget || newattops;
+	private delegate void IndexGen(Span<uint> dst, int vertexCount);
+	private delegate void AddWithIndices<T, TState>(OwnedCanvas oc, ReadOnlySpan<T> verts, ReadOnlySpan<uint> indices, TState state);
 
-		bool newscissor = from.Scissor != to.Scissor;
-
-		bool newtransform = from.Transform != to.Transform;
-		bool newoutstate = from.OutputState != to.OutputState;
-		bool newmaterial = from.Material != to.Material;
-		bool newsubmit = from.SubmitMode != to.SubmitMode;
-		bool affectsbatch = newtransform || newoutstate || newmaterial || newsubmit;
-
-		if (pass is null)
-			throw new InternalStateException("was expecting an open render pass to be there for params transition");
-		if (affectspass) {
-			flush(from.SubmitMode);
-			closePass();
-			openPass(newtarget && returning ? to with { ColorAttachmentOps = ColorAttachmentOps.Load } : to);
-		} else if (affectsbatch || newscissor) {
-			flush(from.SubmitMode);
-			if (newscissor)
-				applyScissor(pass, in to);
+	private static void fanIndices(Span<uint> dst, int n) {
+		for (int i = 1, j = 0; i < n - 1; i++) {
+			dst[j++] = 0;
+			dst[j++] = (uint)i;
+			dst[j++] = (uint)i + 1;
 		}
 	}
 
-	private void validate(in CanvasParams p) {
-		TextureFormat fmt = p.Target.IsPrimary ? frame.PrimaryView.Format : p.Target.RenderTarget.ColorFormat;
-		if (fmt.IsSrgb())
-			throw new ArgumentException($"Canvas can't draw into a target with sRGB format {fmt}, since its colors are already sRGB-encoded");
-		if (p.Scissor.Kind == CanvasScissorKind.Intersect)
-			throw new ArgumentException("CanvasParams.Scissor cannot be Intersect as there is no existing scissor to intersect with");
-		if ((p.Scissor.Kind == CanvasScissorKind.Set || p.Scissor.Kind == CanvasScissorKind.Intersect) &&
-			(p.Scissor.Rect.Width < 0 || p.Scissor.Rect.Height < 0))
-			throw new ArgumentException("scissor rect cannot have negative width/height");
-		if (p.Material.TextureInterpretation == TextureInterpretation.Sdf && p.Material.SdfParams is null)
-			throw new ArgumentException("CanvasParams.Material.SdfParams must be set if the texture interpretation of the material is SDF");
+	private static void listIndices(Span<uint> dst, int n) {
+		for (int i = 0; i < n; i++)
+			dst[i] = (uint)i;
 	}
 
-	// ==========================================================================
-	// scissor
-	private static RectI intersect(RectI a, RectI b) {
-		int x1 = Math.Max(a.X, b.X);
-		int y1 = Math.Max(a.Y, b.Y);
-		int x2 = Math.Min(a.X + a.Width, b.X + b.Width);
-		int y2 = Math.Min(a.Y + a.Height, b.Y + b.Height);
-		x2 = Math.Max(x1, x2);
-		y2 = Math.Max(y1, y2);
-		return new RectI(x1, y1, x2 - x1, y2 - y1);
-	}
-
-	private static CanvasScissor mergeScissor(CanvasScissor curr, CanvasScissor? ov) {
-		if (ov is not CanvasScissor s)
-			return curr;
-		if (curr.Kind == CanvasScissorKind.Intersect)
-			throw new InternalStateException("Intersect scissor made it to mergeScissor");
-		return s.Kind.Tag switch {
-			CanvasScissorKind.Case.None => CanvasScissor.None,
-			CanvasScissorKind.Case.Set => CanvasScissor.Set(s.Rect),
-			CanvasScissorKind.Case.Intersect => curr.Kind.Tag switch {
-				CanvasScissorKind.Case.None => CanvasScissor.Set(s.Rect),
-				CanvasScissorKind.Case.Set => CanvasScissor.Set(intersect(curr.Rect, s.Rect)),
-				_ => throw new UnreachableException(),
-			},
-			_ => throw new UnreachableException(),
-		};
-	}
-
-	private void applyScissor(RenderPass pass, in CanvasParams p) {
-		// XXX: yucky casts back and forth from int/uint
-		int w = (int)(p.Target.IsPrimary ? frame.PrimaryView.Width : p.Target.RenderTarget.Width);
-		int h = (int)(p.Target.IsPrimary ? frame.PrimaryView.Height : p.Target.RenderTarget.Height);
-		RectI full = new(0, 0, w, h);
-		RectI effective = p.Scissor.Kind.Tag switch {
-			CanvasScissorKind.Case.None => full,
-			CanvasScissorKind.Case.Set => intersect(full, p.Scissor.Rect),
-			CanvasScissorKind.Case.Intersect =>
-				throw new InternalStateException("Intersect scissor made it to applyScissor"),
-			_ => throw new UnreachableException(),
-		};
-		pass.SetScissorRect((uint)effective.X, (uint)effective.Y, (uint)effective.Width, (uint)effective.Height);
-	}
-
-	// ==========================================================================
-	// pass management
-	private void openPass(in CanvasParams p) {
-		if (pass is not null)
-			throw new InternalStateException("tried to open a render pass but there's already an active one");
-
-		// see above on indirection
-		pass = p.Target.IsPrimary ? frame.BeginPrimaryPass(p.ColorAttachmentOps) : frame.Encoder.BeginColorPass(p.Target.RenderTarget.ColorView, p.ColorAttachmentOps);
-		applyScissor(pass, in p);
-	}
-
-	private void closePass() {
-		if (pass is null)
-			throw new InternalStateException("tried to close the active render pass but there isn't one");
-
-		pass.Dispose();
-		pass = null;
-	}
-
-	// ==========================================================================
-	// batch management
-	private PrimitiveBatch createPrimBatch() {
-		if (pass is null)
-			throw new InternalStateException("tried to create a PrimitiveBatch but there's no active render pass");
-		return new PrimitiveBatch(
-			device,
-			globals,
-			frame,
-			pass,
-			shared.GetPrimitiveBatchSharedState(
-				new CanvasSharedResources.PrimBatchKey(
-					CurrentParams.OutputState.Blend,
-					CurrentParams.OutputState.WriteMask,
-					currentColorFormat
-				)
-			),
-			new PrimitiveBatchParams(Transform: CurrentParams.Transform)
-		);
-	}
-
-	[MemberNotNull(nameof(primbatch))]
-	private void ensurePrimBatch() {
-		switch (CurrentParams.SubmitMode.Tag) {
-		case CanvasSubmitMode.Case.FlushAndSwap:
-			if (active != ActiveBatchType.Primitive) {
-				flushActiveBatch();
-				active = ActiveBatchType.Primitive;
+	private static void stripIndices(Span<uint> dst, int n) {
+		for (int i = 0, j = 0; i < n - 2; i++) {
+			if ((i & 1) == 0) {
+				dst[j++] = (uint)i;
+				dst[j++] = (uint)i + 1;
+			} else {
+				dst[j++] = (uint)i + 1;
+				dst[j++] = (uint)i;
 			}
-			primbatch ??= createPrimBatch();
-			break;
-		case CanvasSubmitMode.Case.PrimitivesThenTextures:
-		case CanvasSubmitMode.Case.TexturesThenPrimitives:
-			primbatch ??= createPrimBatch();
-			break;
-		default:
-			throw new UnreachableException();
+			dst[j++] = (uint)i + 2;
 		}
 	}
 
-	private TexturedBatch createTexBatch() {
-		if (pass is null)
-			throw new InternalStateException("tried to create a TexturedBatch but there's no active render pass");
-		return new TexturedBatch(
-			device,
-			globals,
-			frame,
-			pass,
-			shared.GetTexturedBatchSharedState(
-				new CanvasSharedResources.TexBatchKey(
-					CurrentParams.OutputState.Blend,
-					CurrentParams.OutputState.WriteMask,
-					CurrentParams.Material.TextureInterpretation,
-					currentColorFormat
-				)
-			),
-			new TexturedBatchParams(Transform: CurrentParams.Transform, SdfParams: CurrentParams.Material.SdfParams)
-		);
-	}
-
-	[MemberNotNull(nameof(texbatch))]
-	private void ensureTexBatch() {
-		switch (CurrentParams.SubmitMode.Tag) {
-		case CanvasSubmitMode.Case.FlushAndSwap:
-			if (active != ActiveBatchType.Textured) {
-				flushActiveBatch();
-				active = ActiveBatchType.Textured;
-			}
-			texbatch ??= createTexBatch();
-			break;
-		case CanvasSubmitMode.Case.PrimitivesThenTextures:
-		case CanvasSubmitMode.Case.TexturesThenPrimitives:
-			texbatch ??= createTexBatch();
-			break;
-		default:
-			throw new UnreachableException();
+	private static void withIndices<T, TState>(int indexCount, IndexGen gen, ReadOnlySpan<T> verts, AddWithIndices<T, TState> add, TState state, OwnedCanvas oc)
+		where T : struct where TState : struct {
+		uint[]? rented = null;
+		Span<uint> idx = indexCount <= maxStackIndices
+			? stackalloc uint[indexCount]
+			: (rented = ArrayPool<uint>.Shared.Rent(indexCount)).AsSpan(0, indexCount);
+		try {
+			gen(idx, verts.Length);
+			add(oc, verts, idx, state);
+		} finally {
+			if (rented is not null)
+				ArrayPool<uint>.Shared.Return(rented);
 		}
-	}
-
-	// ==========================================================================
-	// flush / dispose
-	private void flushPrimBatch() {
-		if (primbatch is null)
-			return;
-		primbatch.Submit();
-		primbatch.Dispose();
-		primbatch = null;
-		if (active == ActiveBatchType.Primitive)
-			active = ActiveBatchType.None;
-	}
-
-	private void flushTexBatch() {
-		if (texbatch is null)
-			return;
-		texbatch.Submit();
-		texbatch.Dispose();
-		texbatch = null;
-		if (active == ActiveBatchType.Textured)
-			active = ActiveBatchType.None;
-	}
-
-	private void flushActiveBatch() {
-		switch (active) {
-		case ActiveBatchType.None:
-			break;
-		case ActiveBatchType.Primitive:
-			flushPrimBatch();
-			break;
-		case ActiveBatchType.Textured:
-			flushTexBatch();
-			break;
-		}
-	}
-
-	private void flush(CanvasSubmitMode mode) {
-		switch (mode.Tag) {
-		case CanvasSubmitMode.Case.FlushAndSwap:
-			flushActiveBatch();
-			break;
-		case CanvasSubmitMode.Case.PrimitivesThenTextures:
-			flushPrimBatch();
-			flushTexBatch();
-			break;
-		case CanvasSubmitMode.Case.TexturesThenPrimitives:
-			flushTexBatch();
-			flushPrimBatch();
-			break;
-		}
-		if (primbatch is not null || texbatch is not null)
-			throw new InternalStateException("batch survived flush");
-	}
-
-	/// <summary>
-	/// Flushes all currently accumulated draws according to the active submit mode.
-	/// </summary>
-	/// <remarks>
-	/// This does not end the active pass or submit the frame.
-	/// </remarks>
-	public void Flush() {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		flush(CurrentParams.SubmitMode);
-	}
-
-	/// <summary>
-	/// Flushes all currently accumulated draws, ends the active pass, and finalizes,
-	/// not allowing further draws/etc.
-	/// </summary>
-	/// <remarks>
-	/// This does not submit the frame.
-	/// </remarks>
-	public void Dispose() {
-		if (disposed)
-			return;
-		disposed = true;
-		flush(CurrentParams.SubmitMode);
-		closePass();
 	}
 }

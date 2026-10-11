@@ -15,9 +15,28 @@ internal enum TextureSourceKind {
 	Texture2dAssetRef,
 }
 
+/// <summary>
+/// A texture that <see cref="Canvas"/> can draw: a <see cref="Texture2d"/>, a
+/// <see cref="RenderTarget2d"/>'s color texture, or the current value of an
+/// <see cref="AssetRef{T}"/> of <see cref="Texture2d"/>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// All three convert to <see cref="TextureSource"/> implicitly. An asset reference is borrowed each
+/// time the texture is drawn, so a draw always uses the asset's current version.
+/// </para>
+/// <para>
+/// Equality compares the referenced object.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid; drawing it throws
+/// <see cref="ArgumentException"/>.
+/// </para>
+/// </remarks>
 public readonly struct TextureSource : IEquatable<TextureSource> {
 	private readonly object val;
 	internal TextureSourceKind Kind { get; }
+	internal bool IsDefault => val is null;
 
 	private TextureSource(object val, TextureSourceKind kind) {
 		ArgumentNullException.ThrowIfNull(val);
@@ -25,10 +44,28 @@ public readonly struct TextureSource : IEquatable<TextureSource> {
 		Kind = kind;
 	}
 
+	/// <summary>
+	/// Creates a source referring to <paramref name="tex"/>.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
+	/// </exception>
 	public static implicit operator TextureSource(Texture2d tex) =>
 		new(tex, TextureSourceKind.Texture2d);
+	/// <summary>
+	/// Creates a source referring to <paramref name="rt"/>'s color texture.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="rt"/> is <see langword="null"/>.
+	/// </exception>
 	public static implicit operator TextureSource(RenderTarget2d rt) =>
 		new(rt, TextureSourceKind.RenderTarget2d);
+	/// <summary>
+	/// Creates a source referring to <paramref name="asset"/>, borrowed each time it's drawn.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="asset"/> is <see langword="null"/>.
+	/// </exception>
 	public static implicit operator TextureSource(AssetRef<Texture2d> asset) =>
 		new(asset, TextureSourceKind.Texture2dAssetRef);
 
@@ -52,6 +89,13 @@ internal enum ResolvedTextureSourceKind {
 	LeasedTexture2d,
 }
 
+/// <summary>
+/// A <see cref="TextureSource"/> resolved to something drawable, holding the lease if it came from
+/// an asset reference.
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly ref struct ResolvedTextureSource {
 	private readonly Texture2d? texture = null;
 	private readonly RenderTarget2d? renderTarget = null;

@@ -4,8 +4,6 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Injure.Assets;
-using Injure.Assets.Builtin;
 using Injure.Draw;
 using Injure.Gpu;
 using Injure.Host;
@@ -115,16 +113,6 @@ public static class Program {
 			CompatibleHost = window.SurfaceHost,
 			ErrorHandler = GpuErrorHandlers.Log(Console.Error),
 		});
-		EngineResourceStore engineResources = new();
-		engineResources.RegisterSource(new EmbeddedEngineResourceSource(typeof(Canvas).Assembly, [
-			BuiltinShaders.Primitive2d.ResourceId,
-			BuiltinShaders.Textured2dColor.ResourceId,
-			BuiltinShaders.Textured2dRmask.ResourceId,
-			BuiltinShaders.Textured2dSdf.ResourceId,
-		]));
-		using CanvasSharedResources canvasResources = new(device, engineResources);
-		using ViewGlobals parentGlobals = new(device, 1, 1);
-		using ViewGlobals childGlobals = new(device, 1, 1);
 		using SurfaceRenderOutput parentOutput = new(device, window.SurfaceHost, SurfaceFormatPolicy.PreferNonSrgb, SurfacePresentModePolicy.AutoMailbox);
 
 		ChildView? child = null;
@@ -141,12 +129,11 @@ public static class Program {
 		}
 
 		var sw = Stopwatch.StartNew();
-		bool render(IRenderOutput output, ViewGlobals globals, SrgbColor32 clear, bool leftHalfOnly) {
+		bool render(IRenderOutput output, SrgbColor32 clear, bool leftHalfOnly) {
 			if (!RenderFrame.TryBegin(device, output, out RenderFrame? frame))
 				return false;
 			using (frame) {
 				uint w = frame.PrimaryView.Width, h = frame.PrimaryView.Height;
-				globals.Update(w, h);
 				CanvasParams baseParams = new(
 					Target: CanvasTarget.Primary,
 					ColorAttachmentOps: ColorAttachmentOps.Clear(clear.ToRawF128()),
@@ -155,7 +142,8 @@ public static class Program {
 					OutputState: CanvasOutputStates.Alpha,
 					Material: CanvasMaterials.Color
 				);
-				using (Canvas cv = new(device, globals, frame, canvasResources, in baseParams)) {
+				using (OwnedCanvas oc = new(frame, in baseParams)) {
+					Canvas cv = oc.Canvas;
 					float t = (float)sw.Elapsed.TotalSeconds;
 					float regionW = leftHalfOnly ? w / 2f : w;
 					Vector2 c = new(regionW / 2f, h / 2f);
@@ -206,11 +194,11 @@ public static class Program {
 				if (child is not null && childOutput is not null) {
 					child.Dispatch();
 					child.Layout();
-					if (render(childOutput, childGlobals, SrgbColor32.Black, leftHalfOnly: false))
+					if (render(childOutput, SrgbColor32.Black, leftHalfOnly: false))
 						childFrames++;
 				}
 				// presenting the parent also commits the subsurface's position
-				if (render(parentOutput, parentGlobals, new SrgbColor32(0x1e, 0x1e, 0x28), leftHalfOnly: true))
+				if (render(parentOutput, new SrgbColor32(0x1e, 0x1e, 0x28), leftHalfOnly: true))
 					parentFrames++;
 			}
 		} finally {

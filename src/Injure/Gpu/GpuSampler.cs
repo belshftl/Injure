@@ -37,6 +37,11 @@ public sealed class GpuSampler : GpuSamplerHandle, IDisposable {
 	internal override WGPUSampler WgpuSampler => sampler;
 
 	/// <summary>
+	/// Creates a non-owning view of this sampler.
+	/// </summary>
+	public GpuSamplerRef AsRef() => new(this);
+
+	/// <summary>
 	/// Releases the underlying WebGPU sampler object.
 	/// </summary>
 	public void Dispose() {

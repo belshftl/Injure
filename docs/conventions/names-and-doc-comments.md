@@ -103,6 +103,19 @@ Multi-paragraph contents use one `<para>` per paragraph.
 
 Tags appear in this order: `<summary>`, `<typeparam>`, `<param>`, `<returns>`, `<exception>`, `<remarks>`.
 
+### Properties
+
+A property's `<summary>` describes what the property is, not what accessing it does, so it isn't phrased as "Gets ..." or "Sets ...":
+
+```csharp
+/// <summary>
+/// The number of elements currently stored in the ring.
+/// </summary>
+public int Count { get; }
+```
+
+rather than "Gets the number of elements currently stored in the ring." Methods and operators can still be phrased in terms of "Gets ..." or "Sets ...".
+
 ### Exceptions
 
 Each `<exception>` describes the condition under which it is thrown, phrased as "Thrown if ...":

@@ -177,7 +177,7 @@ internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, in
 				new Texture2dCreateParams(
 					Width: (uint)pageWidth,
 					Height: (uint)pageHeight,
-					Format: Texture2dFormat.R8_Unorm,
+					Format: Texture2dFormat.R8Unorm,
 					SamplerParams: SamplerStates.LinearClamp
 				)
 			),

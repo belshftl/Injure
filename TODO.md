@@ -61,14 +61,34 @@ anyhow, to v0.1:
   - [x] write tests; more of it seems to be testable than i initially realized
 - [x] split the current color type to encode srgb vs raw, and introduce a float color type
 - [ ] redesign `Draw` while we're at it; it's a bit of a mess right now
-  - [ ] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
-  - [ ] really think about whether `CanvasSharedResources`/`ViewGlobals`/etc should stay or get some kind of rework
-  - [ ] add a public helper for the default `Draw` setup (engine resource store with the builtin shaders registered, `CanvasSharedResources`, `ViewGlobals`, default `CanvasParams`) that `StandardGame` uses too; right now anything not using `StandardGame` has to copy that setup by hand, as the avalonia smoke test does
-  - [ ] look at what else looks out of date and needs to be redesigned; here be dragons (again, the whole batch/canvas resources system kind of comes to mind, but i'm unsure whether it's actually problematic)
-  - [ ] doc comments
+  - [x] split `Draw.Canvas` into `public sealed class OwnedCanvas` (the current `Canvas` class) and `public readonly ref struct Canvas` (a ref struct that holds a private `Canvas` field and exposes methods to draw into it); `OwnedCanvas` should be just for whatever creates it and submits it, and what game code should be passing around is `Canvas` rather than `OwnedCanvas`
+  - [x] really think about whether `CanvasSharedResources`/`ViewGlobals`/etc should stay or get some kind of rework
+  - [x] write doc comments, revise existing ones
+  - [x] use a ref struct for canvas scopes
+  - [x] better optimized draws; reuse the pipeline for untextured draws by using a 1x1 white texture, apply the transform on the cpu to allow reusing the uniform and not splitting the batch when the transform changes, use dynamic offset to allow a large blob of uniforms, etc etc
+  - [x] fold the 10 `Texture`/`TexWithSourceRect`/`TexWithUvRect` overloads (each with and without tint) into one call taking a small sprite-options struct; ties into the sprite transform and sampler items below
+  - [x] per-draw sprite transforms for the `Texture*` calls: rotation, origin/pivot, scale, flip
+  - [ ] make the memory layout of the vertex types public api
+  - [ ] per-draw sampler choice (nearest vs linear); it's currently fixed per `Texture2d`/`RenderTarget2d` at creation
+  - [ ] shapes: rect outline, circle/ellipse fill + outline, rounded rect, arc/pie, polylines with proper joins (`LineStrip` is currently separate quads, so joints gap/overlap and overlaps double-blend)
+  - [ ] a factory for the common `CanvasParams` (primary target, no scissor, identity transform, alpha blending, color material, clearing to a given `SrgbColor32`), since the same six-line construction is repeated in `StandardGame`, both smoke projects, and the tests
+  - [ ] a mid-canvas `Clear(SrgbColor32)`
+  - [ ] resolution independence: drawing in logical units on hidpi, and a fixed virtual resolution with letterboxing / integer scaling
+  - [ ] textured geometry beyond quads: textured triangles/meshes, arbitrary-corner textured quads (`Vertex2dTextureColor` has no draw call taking it yet)
+  - [ ] more blend presets in `CanvasOutputStates`, e.g. additive and multiply
+  - [ ] antialiasing; there's no msaa for render targets or the primary target yet, so shape edges alias and sub-pixel lines flicker
+  - [ ] masking/clipping beyond rects, e.g. stencil-based clip to shape (`RenderTarget2d` already supports a depth/stencil format but `Canvas` never attaches it)
+  - [ ] custom shaders/materials
+  - [ ] layering/sorting by depth or explicit layer instead of strict call order
+  - [ ] retained geometry: static meshes, tilemaps, instancing for many identical sprites
+  - [ ] linear-space blending (`LinearColorF128`)
+  - [ ] revisit the pixel converter, pt 1: revisit the api (though i'm not sure if it actually needs a redesign or if it's fine as is)
+  - [ ] revisit the pixel converter, pt 2: write benchmarks, it's probably the part of the whole library that benefits the most from having benchmarks
+  - [ ] revisit the pixel converter, pt 3: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`
   - [ ] primary docs for `Draw`, `docs/draw/`
+  - [ ] pixel converter docs; a single doc would probably be enough since it's pretty small API-wise
   - [ ] `Draw`-less triangle tutorial under `docs/gpu/`, maybe also an example with something like MSAA
   - [ ] "embed into avalonia" tutorial or explanatory doc under `docs/gpu/`; explicitly mention that windows hasn't been tested yet, maybe provide some advisory direction info regarding it but ultimately leave it to be updated for windows later
   - [ ] "embed into a wayland subsurface" tutorial or explanatory doc under `docs/gpu/`
@@ -84,6 +104,7 @@ anyhow, to v0.1:
   - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
+- [ ] rethink the asset hot reload / revocation system; proper integration with asset hot reload requires a bunch of extra machinery (see `Draw.Text`) and `IRevokable` may or may not be redundant given out of date asset versions get disposed too and also every `IRevokable, IDisposable` has to have both logical invalidation and genuine resource release
 - [ ] expose WebGPU error scopes in `Gpu` (push/pop around specific operations, popping asynchronously through `GpuDevice.Poll()` like buffer mapping), for code that wants to detect and recover from a specific failure instead of only having the device-wide `GpuErrorHandler`
 - [ ] support compute pipelines, compute passes, etc. in `Gpu`
 - [ ] redesign `TGameApi` and `IReloadTeardown` from the mod infrastructure
@@ -98,7 +119,6 @@ anyhow, to v0.1:
 - [ ] pause for a bit to write a *lot* of tests and doc comments for the rest of the project; not writing them as development goes in the past was a mistake that needs to be patched up before it's too late:
   - [ ] tests for the collections
   - [ ] doc comments for the layers system
-  - [ ] doc comments for the input system
   - [ ] doc comments for `Io.*`, currently just `FileHotReloadMonitor`
   - [ ] doc comments for `Sched.*` (both coroutines and tickers)
   - [ ] miscellaneous doc comments: `Primitives.Vector2Int` and `Common.OneOf`
@@ -162,7 +182,6 @@ anyhow, to v0.1:
   - [ ] wasapi backend
   - [ ] eventually asio backend, i haven't looked much into whether it'd be viable but i really hope so, i'd imagine it'd have to be a separate `.Audio.Asio` package due to the gplv3 licensing
   - [ ] here be dragons
-- [ ] add quite a bit more to `Draw`; support custom shaders, maybe allow for some more optional low-level control
 - [ ] maybe make `AssetRef<T>` hold an owner-ordered list of slots rather than one slot, and devise some api to allow mods to cleanly override assets; i'm really not sure though
 - [ ] sourcegen conveniences for the asset system, it's not very nice to use right now for the overwhelmingly common usecase of just having a bunch of assets known ahead of time
 - [ ] a bunch of stuff for `[ClosedEnum]`/`[ClosedEnumMirror]`/`[ClosedFlags]` needs to be defined, like serialization behavior and ffi semantics and such

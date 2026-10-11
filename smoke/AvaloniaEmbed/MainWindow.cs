@@ -5,8 +5,6 @@ using System.Diagnostics;
 using System.Numerics;
 using Avalonia.Controls;
 using Avalonia.Layout;
-using Injure.Assets;
-using Injure.Assets.Builtin;
 using Injure.Draw;
 using Injure.Gpu;
 using Injure.Primitives;
@@ -23,8 +21,6 @@ public sealed class MainWindow : Window {
 	private GpuDevice? device;
 	private SurfaceRenderOutput? surface;
 	private OffscreenBitmapOutput? offscreen;
-	private CanvasSharedResources? canvasResources;
-	private ViewGlobals? surfaceGlobals, offscreenGlobals;
 	private int surfaceFrames, offscreenFrames, offscreenSkipped;
 	private bool loopRunning;
 
@@ -75,6 +71,11 @@ public sealed class MainWindow : Window {
 					Console.WriteLine($"reattached at surface frame {surfaceFrames}");
 				}, TimeSpan.FromSeconds(seconds / 8));
 			}, TimeSpan.FromSeconds(seconds * 0.6));
+
+			Avalonia.Threading.DispatcherTimer.RunOnce(() => {
+				Console.WriteLine(status.Text);
+				Close();
+			}, TimeSpan.FromSeconds(seconds));
 		}
 	}
 
@@ -103,16 +104,6 @@ public sealed class MainWindow : Window {
 			CompatibleHost = view,
 			ErrorHandler = GpuErrorHandlers.Log(Console.Error),
 		});
-		EngineResourceStore engineResources = new();
-		engineResources.RegisterSource(new EmbeddedEngineResourceSource(typeof(Canvas).Assembly, [
-			BuiltinShaders.Primitive2d.ResourceId,
-			BuiltinShaders.Textured2dColor.ResourceId,
-			BuiltinShaders.Textured2dRmask.ResourceId,
-			BuiltinShaders.Textured2dSdf.ResourceId,
-		]));
-		canvasResources = new CanvasSharedResources(dev, engineResources);
-		surfaceGlobals = new ViewGlobals(dev, 1, 1);
-		offscreenGlobals = new ViewGlobals(dev, 1, 1);
 		offscreen = new OffscreenBitmapOutput(dev, 1, 1);
 		offscreen.FramePresented += () => {
 			offscreenFrames++;
@@ -127,24 +118,23 @@ public sealed class MainWindow : Window {
 		device.Poll();
 
 		if (surface is not null)
-			if (render(surface, surfaceGlobals!, SrgbColor32.Black))
+			if (render(surface, SrgbColor32.Black))
 				surfaceFrames++;
 
 		double scale = RenderScaling;
 		offscreen!.ResizeTo((uint)Math.Max(1, image.Bounds.Width * scale), (uint)Math.Max(1, image.Bounds.Height * scale));
 		image.Source = offscreen.Bitmap;
-		if (!render(offscreen, offscreenGlobals!, new SrgbColor32(0x1e, 0x1e, 0x28)))
+		if (!render(offscreen, new SrgbColor32(0x1e, 0x1e, 0x28)))
 			offscreenSkipped++;
 
 		status.Text = $"surface {surface?.Format} {surface?.Width}x{surface?.Height} presented {surfaceFrames}, offscreen {offscreen.Width}x{offscreen.Height} presented {offscreenFrames} skipped {offscreenSkipped}";
 		RequestAnimationFrame(onFrame);
 	}
 
-	private bool render(IRenderOutput output, ViewGlobals globals, SrgbColor32 clear) {
+	private bool render(IRenderOutput output, SrgbColor32 clear) {
 		if (!RenderFrame.TryBegin(device!, output, out RenderFrame? frame))
 			return false;
 		using (frame) {
-			globals.Update(frame.PrimaryView.Width, frame.PrimaryView.Height);
 			CanvasParams baseParams = new(
 				Target: CanvasTarget.Primary,
 				ColorAttachmentOps: ColorAttachmentOps.Clear(clear.ToRawF128()),
@@ -153,7 +143,8 @@ public sealed class MainWindow : Window {
 				OutputState: CanvasOutputStates.Alpha,
 				Material: CanvasMaterials.Color
 			);
-			using (Canvas cv = new(device!, globals, frame, canvasResources!, in baseParams)) {
+			using (OwnedCanvas oc = new(frame, in baseParams)) {
+				Canvas cv = oc.Canvas;
 				float t = (float)sw.Elapsed.TotalSeconds;
 				Vector2 c = new(frame.PrimaryView.Width / 2f, frame.PrimaryView.Height / 2f);
 				float r = Math.Min(c.X, c.Y) * 0.8f;
@@ -173,9 +164,6 @@ public sealed class MainWindow : Window {
 	private void shutdown() {
 		surface?.Dispose();
 		offscreen?.Dispose();
-		canvasResources?.Dispose();
-		surfaceGlobals?.Dispose();
-		offscreenGlobals?.Dispose();
 		device?.Dispose();
 		device = null;
 	}
