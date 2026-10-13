@@ -9,7 +9,7 @@ using Injure.Primitives;
 namespace Injure.Draw;
 
 /// <summary>
-/// Where a texture drawn with <see cref="Canvas.Texture(TextureSource, in TexDraw)"/> goes:
+/// Where a texture drawn with <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> goes:
 /// anchored at a position at its natural size, or stretched into a rectangle.
 /// </summary>
 /// <remarks>
@@ -78,7 +78,7 @@ public readonly struct TexDst : IEquatable<TexDst> {
 }
 
 /// <summary>
-/// Which part of a texture <see cref="Canvas.Texture(TextureSource, in TexDraw)"/> draws: all of
+/// Which part of a texture <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> draws: all of
 /// it, a rectangle in texture pixels, or a rectangle in UV coordinates.
 /// </summary>
 /// <remarks>
@@ -133,6 +133,17 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 		}
 	}
 
+	// whether the region stays within a texture (or slice) of the given size
+	internal bool FitsIn(float width, float height) => kind switch {
+		Kind.Whole => true,
+		Kind.Pixels => within(rect, width, height),
+		Kind.Uv => within(rect, 1f, 1f),
+		_ => throw new UnreachableException(),
+	};
+
+	private static bool within(RectF r, float width, float height) =>
+		r.X >= 0f && r.Y >= 0f && r.X + r.Width <= width && r.Y + r.Height <= height;
+
 	public bool Equals(TexRegion other) => kind == other.kind && rect.Equals(other.rect);
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is TexRegion other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(kind, rect);
@@ -141,8 +152,8 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 }
 
 /// <summary>
-/// How <see cref="Canvas.Texture(TextureSource, in TexDraw)"/> draws a texture: where, which part
-/// of it, how it's transformed, and with what tint.
+/// How <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> draws a texture: where, which part
+/// of it, how it's transformed and sampled, and with what tint.
 /// </summary>
 /// <param name="Destination">Where the texture goes.</param>
 /// <remarks>
@@ -196,6 +207,12 @@ public readonly record struct TexDraw(TexDst Destination) {
 	/// Positive values rotate clockwise on the target, since +Y points down.
 	/// </remarks>
 	public float Rotation { get; init; } = 0f;
+
+	/// <summary>
+	/// How to sample the texture, or <see langword="null"/> (unless set) for the canvas's
+	/// <see cref="CanvasParams.Sampling"/>; see <see cref="TexSampling"/> for when to use which.
+	/// </summary>
+	public TexSampling? Sampling { get; init; }
 
 	/// <summary>
 	/// Whether to mirror the texture horizontally within the quad.

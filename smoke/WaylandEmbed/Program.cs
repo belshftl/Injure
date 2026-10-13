@@ -134,15 +134,7 @@ public static class Program {
 				return false;
 			using (frame) {
 				uint w = frame.PrimaryView.Width, h = frame.PrimaryView.Height;
-				CanvasParams baseParams = new(
-					Target: CanvasTarget.Primary,
-					ColorAttachmentOps: ColorAttachmentOps.Clear(clear.ToRawF128()),
-					Scissor: CanvasScissor.None,
-					Transform: Matrix3x2.Identity,
-					OutputState: CanvasOutputStates.Alpha,
-					Material: CanvasMaterials.Color
-				);
-				using (OwnedCanvas oc = new(frame, in baseParams)) {
+				using (OwnedCanvas oc = new(frame, CanvasParams.Primary(clear))) {
 					Canvas cv = oc.Canvas;
 					float t = (float)sw.Elapsed.TotalSeconds;
 					float regionW = leftHalfOnly ? w / 2f : w;

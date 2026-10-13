@@ -89,7 +89,7 @@ internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, in
 		}
 		if (tryRasterize(font, glyphId, out entry)) {
 			entry.Page.Keys.Add(key);
-			entry.Page.LastUseStamp = +nextUseStamp;
+			entry.Page.LastUseStamp = ++nextUseStamp;
 			entries.Add(key, entry);
 			text.OnCacheActivity();
 			Trim();
@@ -177,8 +177,7 @@ internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, in
 				new Texture2dCreateParams(
 					Width: (uint)pageWidth,
 					Height: (uint)pageHeight,
-					Format: Texture2dFormat.R8Unorm,
-					SamplerParams: SamplerStates.LinearClamp
+					Format: Texture2dFormat.R8Unorm
 				)
 			),
 			Width = pageWidth,
@@ -207,6 +206,15 @@ internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, in
 		page.WriteX += width;
 		page.RowHeight = Math.Max(page.RowHeight, height);
 		return true;
+	}
+
+	// the glyphs stay on their pages until a page is freed, since layouts may still reference them
+	public void Forget(FontCacheToken token) {
+		ObjectDisposedException.ThrowIf(disposed, this);
+		foreach (GlyphAtlasKey key in entries.Keys.Where(k => k.FontCacheToken == token).ToArray()) {
+			entries[key].Page.Keys.Remove(key);
+			entries.Remove(key);
+		}
 	}
 
 	public void Trim() {

@@ -32,7 +32,8 @@ public abstract class GpuTextureHandle {
 	/// <remarks>
 	/// Not strict equality: if both this object and <paramref name="other"/> have been disposed and,
 	/// as such, had the pointers to their underlying resources nulled, always returns false even
-	/// though <c>null == null</c>.
+	/// though <c>null == null</c>. It follows that a <see cref="GpuTextureHandle"/> would be deemed
+	/// not the same texture as itself if it's a disposed handle, violating strict reflexivity.
 	/// </remarks>
 	public bool SameTexture(GpuTextureHandle other) =>
 		other.WgpuTexture.IsNotNull && WgpuTexture.Handle == other.WgpuTexture.Handle;

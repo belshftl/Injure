@@ -136,11 +136,15 @@ public sealed class OwnedCanvas : IDisposable {
 	private RenderPass? pass;
 	private bool disposed = false;
 
+	// for tests checking what batches together
+	internal int DrawCallCount { get; private set; }
+
 	// the draw range being accumulated; recorded into the pass once something about it changes
 	private bool hasRange;
 	private CanvasDeviceResources.PipelineKey rangeKey;
 	private object? rangeTexture; // identity of the texture
 	private GpuBindGroupRef? rangeTextureBindGroup;
+	private TexSampling rangeSampling;
 	private CanvasArena.GeometryChunk? rangeChunk;
 	private CanvasUniform rangeUniform;
 	private CanvasArena.UniformChunk? rangeUniformChunk;
@@ -159,6 +163,7 @@ public sealed class OwnedCanvas : IDisposable {
 	private CanvasArena.UniformChunk? setUniformChunk;
 	private uint setUniformOffset;
 	private object? setTexture;
+	private TexSampling? setSampling;
 	private CanvasArena.GeometryChunk? setChunk;
 
 	/// <summary>
@@ -294,7 +299,7 @@ public sealed class OwnedCanvas : IDisposable {
 	internal void AddPrimitive(ReadOnlySpan<Vertex2dColor> verts, ReadOnlySpan<uint> indices) {
 		chk();
 		Matrix3x2 m = @params.Peek().Transform;
-		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, textured: false, verts.Length, indices);
+		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, untexturedSampling(), textured: false, verts.Length, indices, replace: false);
 		for (int i = 0; i < verts.Length; i++) {
 			var p = Vector2.Transform(new Vector2(verts[i].X, verts[i].Y), m);
 			dst[i] = new Vertex2dTextureColor(p.X, p.Y, 0f, 0f, verts[i].Color);
@@ -304,41 +309,69 @@ public sealed class OwnedCanvas : IDisposable {
 	internal void AddPrimitive(ReadOnlySpan<Vector2> points, SrgbColor32 color, ReadOnlySpan<uint> indices) {
 		chk();
 		Matrix3x2 m = @params.Peek().Transform;
-		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, textured: false, points.Length, indices);
+		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, untexturedSampling(), textured: false, points.Length, indices, replace: false);
 		for (int i = 0; i < points.Length; i++) {
 			var p = Vector2.Transform(points[i], m);
 			dst[i] = new Vertex2dTextureColor(p.X, p.Y, 0f, 0f, color);
 		}
 	}
 
-	internal void AddTextured(in ResolvedTextureSource tex, ReadOnlySpan<Vertex2dTextureColor> verts, ReadOnlySpan<uint> indices) {
+	internal void AddTextured(in ResolvedDrawableTexture tex, TexSampling sampling, ReadOnlySpan<Vertex2dTextureColor> verts, ReadOnlySpan<uint> indices) {
 		chk();
 		CanvasTarget target = @params.Peek().Target;
 		if (!target.IsPrimary && tex.SameRenderTargetAs(target.RenderTarget))
 			throw new InvalidOperationException("cannot draw a render target while it is the active canvas target (i.e. draw it into itself)");
 		Matrix3x2 m = @params.Peek().Transform;
-		Span<Vertex2dTextureColor> dst = reserve(tex.Identity, tex.BindGroup, textured: true, verts.Length, indices);
+		Span<Vertex2dTextureColor> dst = reserve(tex.Identity, tex.BindGroup, sampling, textured: true, verts.Length, indices, replace: false);
 		for (int i = 0; i < verts.Length; i++) {
 			var p = Vector2.Transform(new Vector2(verts[i].X, verts[i].Y), m);
 			dst[i] = new Vertex2dTextureColor(p.X, p.Y, verts[i].U, verts[i].V, verts[i].Color);
 		}
 	}
 
+	/// <summary>
+	/// Draws a whole-target-sized quad ignoring the transform, output state, and write mask.
+	/// <see cref="CanvasOutputStates.Opaque"/> is used. The scissor still applies.
+	/// </summary>
+	internal void Clear(SrgbColor32 color) {
+		chk();
+		(uint w, uint h) = targetSize(@params.Peek());
+		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, untexturedSampling(), textured: false, 4, [0, 2, 1, 3, 1, 2], replace: true);
+		dst[0] = new Vertex2dTextureColor(0f, 0f, 0f, 0f, color);
+		dst[1] = new Vertex2dTextureColor(w, 0f, 0f, 0f, color);
+		dst[2] = new Vertex2dTextureColor(0f, h, 0f, 0f, color);
+		dst[3] = new Vertex2dTextureColor(w, h, 0f, 0f, color);
+	}
+
 	// ==========================================================================
 	// draw ranges
+
+	// the white texture looks the same under any sampler, so untextured draws keep the open range's
+	// sampling rather than starting a new range over it
+	private TexSampling untexturedSampling() => hasRange ? rangeSampling : @params.Peek().Sampling;
 
 	// starts a new range if this draw's state differs from the current one's, makes room for the
 	// vertices, and appends the indices offset to them; returns the reserved vertices, which the
 	// caller must fill completely
-	private Span<Vertex2dTextureColor> reserve(object texture, GpuBindGroupRef textureBindGroup, bool textured, int vertexCount, ReadOnlySpan<uint> indices) {
+	// `replace` toggles writing with CanvasOutputStates.Opaque instead of the current output state
+	private Span<Vertex2dTextureColor> reserve(
+		object texture,
+		GpuBindGroupRef textureBindGroup,
+		TexSampling sampling,
+		bool textured,
+		int vertexCount,
+		ReadOnlySpan<uint> indices,
+		bool replace
+	) {
 		CanvasParams p = @params.Peek();
 		TextureInterpretation interp = textured ? p.Material.TextureInterpretation : TextureInterpretation.Color;
-		CanvasDeviceResources.PipelineKey key = new(interp, p.OutputState.Blend, p.OutputState.WriteMask, targetFormat(in p));
+		CanvasOutputState output = replace ? CanvasOutputStates.Opaque : p.OutputState;
+		CanvasDeviceResources.PipelineKey key = new(interp, output.Blend, output.WriteMask, targetFormat(in p));
 		CanvasUniform uniform = uniformFor(in p, interp);
 		CanvasArena.GeometryChunk chunk = arena.ReserveGeometry(vertexCount, indices.Length);
-		if (!hasRange || key != rangeKey || !ReferenceEquals(texture, rangeTexture) || chunk != rangeChunk || !uniform.Equals(rangeUniform)) {
+		if (!hasRange || key != rangeKey || !ReferenceEquals(texture, rangeTexture) || sampling != rangeSampling || chunk != rangeChunk || !uniform.Equals(rangeUniform)) {
 			closeRange();
-			startRange(in key, texture, textureBindGroup, chunk, in uniform);
+			startRange(in key, texture, textureBindGroup, sampling, chunk, in uniform);
 		}
 		int v0 = chunk.VertexCount;
 		Span<uint> dstIndices = chunk.Indices.AsSpan(chunk.IndexCount, indices.Length);
@@ -350,7 +383,7 @@ public sealed class OwnedCanvas : IDisposable {
 		return chunk.Vertices.AsSpan(v0, vertexCount);
 	}
 
-	private void startRange(in CanvasDeviceResources.PipelineKey key, object texture, GpuBindGroupRef textureBindGroup, CanvasArena.GeometryChunk chunk, in CanvasUniform uniform) {
+	private void startRange(in CanvasDeviceResources.PipelineKey key, object texture, GpuBindGroupRef textureBindGroup, TexSampling sampling, CanvasArena.GeometryChunk chunk, in CanvasUniform uniform) {
 		if (!hasLastUniform || !uniform.Equals(lastUniform)) {
 			(lastUniformChunk, lastUniformOffset) = arena.AddUniform(in uniform);
 			lastUniform = uniform;
@@ -360,6 +393,7 @@ public sealed class OwnedCanvas : IDisposable {
 		rangeKey = key;
 		rangeTexture = texture;
 		rangeTextureBindGroup = textureBindGroup;
+		rangeSampling = sampling;
 		rangeChunk = chunk;
 		rangeUniform = uniform;
 		rangeUniformChunk = lastUniformChunk;
@@ -389,12 +423,17 @@ public sealed class OwnedCanvas : IDisposable {
 			ps.SetBindGroup(1, rangeTextureBindGroup!);
 			setTexture = rangeTexture;
 		}
+		if (rangeSampling != setSampling) {
+			ps.SetBindGroup(2, res.GetSamplerBindGroup(rangeSampling));
+			setSampling = rangeSampling;
+		}
 		if (rangeChunk != setChunk) {
 			ps.SetVertexBuffer(0, rangeChunk!.VertexBuffer);
 			ps.SetIndexBuffer(rangeChunk.IndexBuffer, IndexFormat.Uint32);
 			setChunk = rangeChunk;
 		}
 		ps.DrawIndexed(rangeIndexCount, firstIndex: rangeFirstIndex);
+		DrawCallCount++;
 	}
 
 	private CanvasUniform uniformFor(in CanvasParams p, TextureInterpretation interp) {
@@ -440,10 +479,11 @@ public sealed class OwnedCanvas : IDisposable {
 		Scissor: mergeScissor(curr.Scissor, ov.Scissor),
 		Transform: ov.Transform ?? curr.Transform,
 		OutputState: ov.OutputState ?? curr.OutputState,
-		Material: ov.Material ?? curr.Material
+		Material: ov.Material ?? curr.Material,
+		Sampling: ov.Sampling ?? curr.Sampling
 	);
 
-	// output state, material, and transform changes need no action here, as the next draw starts a
+	// output state, material, sampling, and transform changes need no action here, as the next draw starts a
 	// new range if its pipeline or uniform differs, and transforms are applied per vertex
 	private void transition(in CanvasParams from, in CanvasParams to, bool returning) {
 		if (pass is null)
@@ -524,6 +564,7 @@ public sealed class OwnedCanvas : IDisposable {
 		setPipeline = null;
 		setUniformChunk = null;
 		setTexture = null;
+		setSampling = null;
 		setChunk = null;
 		applyScissor(pass, in p);
 	}

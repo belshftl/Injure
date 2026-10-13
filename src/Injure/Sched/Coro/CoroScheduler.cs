@@ -850,7 +850,7 @@ public sealed class CoroScheduler : IDisposable {
 					return true;
 				},
 				() => {
-					instFault(inst, new InvalidOperationException("coroutine yielded an uninitialized/invalid CoroYield value"));
+					instFault(inst, new InvalidOperationException("coroutine yielded a default CoroYield value, which is invalid"));
 					return true;
 				}
 			))

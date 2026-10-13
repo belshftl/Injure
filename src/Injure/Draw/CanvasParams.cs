@@ -3,6 +3,7 @@
 
 using System.Numerics;
 using Injure.Gpu;
+using Injure.Primitives;
 
 namespace Injure.Draw;
 
@@ -19,6 +20,10 @@ namespace Injure.Draw;
 /// How draws are written to the target: blending and color write mask.
 /// </param>
 /// <param name="Material">How textured draws interpret their textures.</param>
+/// <param name="Sampling">
+/// How textured draws sample their textures, unless overridden by <see cref="TexDraw.Sampling"/>;
+/// see <see cref="TexSampling"/> for when to use which.
+/// </param>
 /// <remarks>
 /// <para>
 /// A scissor of kind <see cref="CanvasScissorKind.Intersect"/> is invalid in the base parameters,
@@ -29,9 +34,9 @@ namespace Injure.Draw;
 /// render pass and begins a new one. Returning to an earlier state by disposing an override keeps
 /// the target's contents (the pass is begun with <see cref="LoadOp.Load"/>), rather than applying
 /// that state's <paramref name="ColorAttachmentOps"/> again. Changing
-/// <paramref name="OutputState"/>, <paramref name="Material"/>, or <paramref name="Scissor"/>
-/// starts a new draw call; changing <paramref name="Transform"/> doesn't, since it's applied to
-/// vertices on the CPU.
+/// <paramref name="OutputState"/>, <paramref name="Material"/>, <paramref name="Sampling"/>, or
+/// <paramref name="Scissor"/> starts a new draw call; changing <paramref name="Transform"/>
+/// doesn't, since it's applied to vertices on the CPU.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid, since its <paramref name="ColorAttachmentOps"/>
@@ -44,8 +49,42 @@ public readonly record struct CanvasParams(
 	CanvasScissor Scissor,
 	Matrix3x2 Transform,
 	CanvasOutputState OutputState,
-	CanvasMaterial Material
-);
+	CanvasMaterial Material,
+	TexSampling Sampling
+) {
+	/// <summary>
+	/// Creates parameters for drawing into the primary target, clearing it to
+	/// <paramref name="clearColor"/> first.
+	/// </summary>
+	/// <param name="clearColor">Color the target is cleared to.</param>
+	/// <inheritdoc cref="Primary(ColorAttachmentOps)" path="/remarks"/>
+	public static CanvasParams Primary(SrgbColor32 clearColor) =>
+		Primary(ColorAttachmentOps.Clear(clearColor.ToRawF128()));
+
+	/// <summary>
+	/// Creates parameters for drawing into the primary target, with the given
+	/// <see cref="ColorAttachmentOps"/>.
+	/// </summary>
+	/// <param name="colorAttachmentOps">
+	/// What to do with the target's contents when its render pass begins, e.g.
+	/// <see cref="ColorAttachmentOps.Load"/> to draw over them.
+	/// </param>
+	/// <remarks>
+	/// The other parameters are: no scissor, the identity transform,
+	/// <see cref="CanvasOutputStates.Alpha"/>, <see cref="CanvasMaterials.Color"/>, and
+	/// <see cref="TexSampling.Nearest"/>. Use a <see langword="with"/> expression to change some of
+	/// them.
+	/// </remarks>
+	public static CanvasParams Primary(ColorAttachmentOps colorAttachmentOps) => new(
+		Target: CanvasTarget.Primary,
+		ColorAttachmentOps: colorAttachmentOps,
+		Scissor: CanvasScissor.None,
+		Transform: Matrix3x2.Identity,
+		OutputState: CanvasOutputStates.Alpha,
+		Material: CanvasMaterials.Color,
+		Sampling: TexSampling.Nearest
+	);
+}
 
 /// <summary>
 /// A partial override applied on top of the current <see cref="CanvasParams"/>.
@@ -64,6 +103,7 @@ public readonly record struct CanvasParams(
 /// </param>
 /// <param name="OutputState">Overrides <see cref="CanvasParams.OutputState"/>.</param>
 /// <param name="Material">Overrides <see cref="CanvasParams.Material"/>.</param>
+/// <param name="Sampling">Overrides <see cref="CanvasParams.Sampling"/>.</param>
 /// <remarks>
 /// <para>
 /// A <see langword="null"/> field keeps the current value.
@@ -78,7 +118,8 @@ public readonly record struct CanvasParamsOverride(
 	CanvasScissor? Scissor = null,
 	Matrix3x2? Transform = null,
 	CanvasOutputState? OutputState = null,
-	CanvasMaterial? Material = null
+	CanvasMaterial? Material = null,
+	TexSampling? Sampling = null
 );
 
 /// <summary>

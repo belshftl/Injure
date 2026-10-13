@@ -12,18 +12,18 @@ namespace Injure.Draw;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Owns a color texture, an optional depth/stencil texture, the color sampler, and a lazily created
-/// color texture bind group.
+/// Owns a color texture and an optional depth/stencil texture, but no sampler; how
+/// <see cref="Canvas"/> samples it is draw state (<see cref="TexSampling"/>).
 /// </para>
 /// <para>
-/// The color texture is always sampleable through <see cref="ColorView"/> and
-/// <see cref="ColorBindGroup"/>. If a depth/stencil texture is present, its attachment view is
-/// exposed through <see cref="DepthAttachmentView"/> and its sampleable depth view through
-/// <see cref="DepthSampleView"/>.
+/// The color texture is always sampleable through <see cref="ColorView"/>, or a bind group from
+/// <see cref="CreateColorBindGroup(GpuSamplerHandle)"/>. If a depth/stencil texture is present, its
+/// attachment view is exposed through <see cref="DepthAttachmentView"/> and its sampleable depth
+/// view through <see cref="DepthSampleView"/>.
 /// </para>
 /// <para>
 /// <see cref="Canvas"/> can draw into it (see <see cref="CanvasTarget"/>), which requires a
-/// non-sRGB <see cref="ColorFormat"/>, and draw it (see <see cref="TextureSource"/>).
+/// non-sRGB <see cref="ColorFormat"/>, and draw it (see <see cref="DrawableTexture"/>).
 /// <see cref="Canvas"/> doesn't use the depth/stencil texture.
 /// </para>
 /// </remarks>
@@ -32,8 +32,7 @@ public sealed class RenderTarget2d : IDisposable {
 	private readonly GpuTexture colorTexture;
 	private readonly GpuTexture? depthStencilTexture;
 	private readonly GpuTextureView? depthSampleView; // only for depth+stencil formats
-	private readonly GpuSampler colorSampler;
-	private GpuBindGroup? colorBindGroup;
+	private GpuBindGroup? colorViewBindGroup;
 	private int disposed = 0;
 
 	/// <summary>
@@ -116,33 +115,11 @@ public sealed class RenderTarget2d : IDisposable {
 		}
 	}
 
-	/// <summary>
-	/// The color sampler, to be paired with <see cref="ColorView"/>.
-	/// </summary>
-	/// <exception cref="ObjectDisposedException">
-	/// Thrown if this render target has been disposed.
-	/// </exception>
-	public GpuSampler ColorSampler {
+	// view-only, for Canvas, which binds the sampler separately
+	internal GpuBindGroupRef ColorViewBindGroup {
 		get {
 			chk();
-			return colorSampler;
-		}
-	}
-
-	/// <summary>
-	/// Bind group of <see cref="ColorView"/> and <see cref="ColorSampler"/>, created on first use;
-	/// <see cref="Canvas"/> uses it when drawing this render target.
-	/// </summary>
-	/// <exception cref="ObjectDisposedException">
-	/// Thrown if this render target has been disposed.
-	/// </exception>
-	/// <remarks>
-	/// Has a <c>"float"</c>-sampled 2D texture at binding 0 and a filtering sampler at binding 1.
-	/// </remarks>
-	public GpuBindGroupRef ColorBindGroup {
-		get {
-			chk();
-			return (colorBindGroup ??= DrawDeviceResources.For(device).CreateColorTexture2dBindGroup(ColorView, ColorSampler)).AsRef();
+			return (colorViewBindGroup ??= DrawDeviceResources.For(device).CreateColorTexture2dViewBindGroup(ColorView)).AsRef();
 		}
 	}
 
@@ -195,8 +172,7 @@ public sealed class RenderTarget2d : IDisposable {
 
 	/// <summary>
 	/// Creates a <see cref="RenderTarget2d"/> with the given size,
-	/// <see cref="TextureFormat.Rgba8Unorm"/>, no depth/stencil attachment, and
-	/// <see cref="SamplerStates.NearestClamp"/>.
+	/// <see cref="TextureFormat.Rgba8Unorm"/>, and no depth/stencil attachment.
 	/// </summary>
 	/// <param name="device">Device to create the render target on.</param>
 	/// <param name="width">Width in texels.</param>
@@ -209,7 +185,7 @@ public sealed class RenderTarget2d : IDisposable {
 	/// Creates a <see cref="RenderTarget2d"/>.
 	/// </summary>
 	/// <param name="device">Device to create the render target on.</param>
-	/// <param name="params">Size, formats, and color sampler.</param>
+	/// <param name="params">Size and formats.</param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="device"/> is <see langword="null"/>.
 	/// </exception>
@@ -231,7 +207,6 @@ public sealed class RenderTarget2d : IDisposable {
 		GpuTexture? color = null;
 		GpuTexture? depthStencil = null;
 		GpuTextureView? depthSample = null;
-		GpuSampler? sampler = null;
 		try {
 			color = device.CreateTexture(
 				new GpuTextureCreateParams(
@@ -269,18 +244,33 @@ public sealed class RenderTarget2d : IDisposable {
 					)
 					: null;
 			}
-			sampler = device.CreateSampler(@params.ColorSampler ?? SamplerStates.NearestClamp);
 			colorTexture = color;
 			depthStencilTexture = depthStencil;
 			depthSampleView = depthSample;
-			colorSampler = sampler;
 		} catch {
-			sampler?.Dispose();
 			depthSample?.Dispose();
 			depthStencil?.Dispose();
 			color?.Dispose();
 			throw;
 		}
+	}
+
+	/// <summary>
+	/// Creates a bind group of <see cref="ColorView"/> and a filtering sampler, owned by the caller.
+	/// </summary>
+	/// <param name="sampler">Filtering sampler to pair with the view.</param>
+	/// <remarks>
+	/// The bind group has a <c>"float"</c>-sampled 2D texture at binding 0 and the sampler at binding
+	/// 1. Whether <paramref name="sampler"/> is a filtering sampler isn't checked; if it isn't, WebGPU
+	/// reports a validation error.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="sampler"/> is <see langword="null"/>.
+	/// </exception>
+	public GpuBindGroup CreateColorBindGroup(GpuSamplerHandle sampler) {
+		ArgumentNullException.ThrowIfNull(sampler);
+		chk();
+		return DrawDeviceResources.For(device).CreateColorTexture2dBindGroup(ColorView, sampler);
 	}
 
 	/// <summary>
@@ -346,8 +336,7 @@ public sealed class RenderTarget2d : IDisposable {
 	public void Dispose() {
 		if (Interlocked.Exchange(ref disposed, 1) != 0)
 			return;
-		colorBindGroup?.Dispose();
-		colorSampler.Dispose();
+		colorViewBindGroup?.Dispose();
 		depthSampleView?.Dispose();
 		depthStencilTexture?.Dispose();
 		colorTexture.Dispose();
@@ -368,10 +357,6 @@ public sealed class RenderTarget2d : IDisposable {
 /// <see cref="TextureFormat.Stencil8"/>), or <see langword="null"/> for no depth/stencil
 /// attachment.
 /// </param>
-/// <param name="ColorSampler">
-/// Parameters of the sampler paired with the color texture, which <see cref="Canvas"/> draws it
-/// with, or <see langword="null"/> for <see cref="SamplerStates.NearestClamp"/>.
-/// </param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its width and height are 0 and its color
 /// format is <see cref="TextureFormat.Undefined"/>.
@@ -380,6 +365,5 @@ public readonly record struct RenderTarget2dCreateParams(
 	uint Width,
 	uint Height,
 	TextureFormat ColorFormat,
-	TextureFormat? DepthStencilFormat = null,
-	GpuSamplerCreateParams? ColorSampler = null
+	TextureFormat? DepthStencilFormat = null
 );

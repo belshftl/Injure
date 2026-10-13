@@ -84,7 +84,17 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 	private ulong nextUseStamp = 0; // first will be 1 since this gets incremented upfront
 	private int totalEstimatedCost = 0;
 
-	public void Clear() => cache.Clear();
+	public void Clear() {
+		cache.Clear();
+		totalEstimatedCost = 0;
+	}
+
+	public void Forget(FontCacheToken token) {
+		foreach (Key key in cache.Keys.Where(k => k.FontCacheToken == token).ToArray()) {
+			totalEstimatedCost -= cache[key].EstimatedCost;
+			cache.Remove(key);
+		}
+	}
 
 	public ShapedRun GetOrCreate(IResolvedFont font, in TextItem item) {
 		Key key = new(

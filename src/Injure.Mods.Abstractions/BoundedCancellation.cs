@@ -52,7 +52,7 @@ public readonly struct BoundedCt<L> : IUntypedBoundedCt where L : struct, IModLi
 	public CancellationToken Token {
 		get {
 			if (!token.CanBeCanceled)
-				throw new InvalidOperationException("this BoundedCt<L> value is uninitialized/invalid");
+				throw InvalidDefaultException.For<BoundedCt<L>>();
 			return token;
 		}
 	}

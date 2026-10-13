@@ -3,6 +3,7 @@
 
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Injure.Primitives;
 
 namespace Injure.Tests.Primitives;
@@ -33,11 +34,59 @@ public sealed class ColorTypeTests {
 	}
 
 	[Fact]
-	public static void LayoutsAreFixed() {
+	public static void RawColor32HasDocumentedLayout() {
+		Assert.Equal(4, RawColor32.Size);
 		Assert.Equal(RawColor32.Size, Unsafe.SizeOf<RawColor32>());
+		RawColor32 c = new(0x11, 0x22, 0x33, 0x44);
+		Assert.Equal([0x11, 0x22, 0x33, 0x44], MemoryMarshal.AsBytes(new ReadOnlySpan<RawColor32>(in c)).ToArray());
+		// little-endian platform observation, not a documented guarantee
+		Assert.Equal(0x44332211u, c.ReinterpretToU32());
+	}
+
+	[Fact]
+	public static void SrgbColor32HasDocumentedLayout() {
+		Assert.Equal(4, SrgbColor32.Size);
 		Assert.Equal(SrgbColor32.Size, Unsafe.SizeOf<SrgbColor32>());
+		SrgbColor32 c = new(0x11, 0x22, 0x33, 0x44);
+		Assert.Equal([0x11, 0x22, 0x33, 0x44], MemoryMarshal.AsBytes(new ReadOnlySpan<SrgbColor32>(in c)).ToArray());
+		// little-endian platform observation, not a documented guarantee
+		Assert.Equal(0x44332211u, c.ReinterpretToU32());
+	}
+
+	[Fact]
+	public static void RawColorF128HasDocumentedLayout() {
+		Assert.Equal(16, RawColorF128.Size);
 		Assert.Equal(RawColorF128.Size, Unsafe.SizeOf<RawColorF128>());
-		Assert.Equal(0x44332211u, new SrgbColor32(0x11, 0x22, 0x33, 0x44).ReinterpretToU32());
+		RawColorF128 c = new(1f, 2f, 3f, 4f);
+		Assert.Equal([1f, 2f, 3f, 4f], MemoryMarshal.Cast<RawColorF128, float>(new ReadOnlySpan<RawColorF128>(in c)).ToArray());
+		Assert.Equal(new Vector4(1f, 2f, 3f, 4f), Unsafe.BitCast<RawColorF128, Vector4>(c));
+	}
+
+	[Fact]
+	public static void SpanReinterpretsAliasAndKeepTheBytes() {
+		RawColor32[] raw = [new(0x11, 0x22, 0x33, 0x44), new(0x55, 0x66, 0x77, 0x88)];
+
+		ReadOnlySpan<SrgbColor32> srgbRo = RawColor32.SpanAssumeSrgb((ReadOnlySpan<RawColor32>)raw);
+		Assert.Equal(raw.Length, srgbRo.Length);
+		ref byte srgbStart = ref Unsafe.As<SrgbColor32, byte>(ref MemoryMarshal.GetReference(srgbRo));
+		Assert.True(Unsafe.AreSame(ref Unsafe.As<RawColor32, byte>(ref raw[0]), ref srgbStart));
+		Assert.Equal((0x55, 0x66, 0x77, 0x88), (srgbRo[1].R, srgbRo[1].G, srgbRo[1].B, srgbRo[1].A));
+
+		// writes through either view land in the same memory
+		Span<SrgbColor32> srgb = RawColor32.SpanAssumeSrgb(raw.AsSpan());
+		srgb[0] = new SrgbColor32(0xaa, 0xbb, 0xcc, 0xdd);
+		Assert.Equal(new RawColor32(0xaa, 0xbb, 0xcc, 0xdd), raw[0]);
+		Span<RawColor32> back = SrgbColor32.SpanToRaw(srgb);
+		Assert.Equal(raw.Length, back.Length);
+		back[1] = new RawColor32(0x01, 0x02, 0x03, 0x04);
+		Assert.Equal(new SrgbColor32(0x01, 0x02, 0x03, 0x04), srgb[1]);
+
+		ReadOnlySpan<RawColor32> backRo = SrgbColor32.SpanToRaw((ReadOnlySpan<SrgbColor32>)srgb);
+		Assert.True(Unsafe.AreSame(ref raw[0], ref MemoryMarshal.GetReference(backRo)));
+		Assert.Equal(raw, backRo.ToArray());
+
+		Assert.True(RawColor32.SpanAssumeSrgb(Span<RawColor32>.Empty).IsEmpty);
+		Assert.True(SrgbColor32.SpanToRaw(ReadOnlySpan<SrgbColor32>.Empty).IsEmpty);
 	}
 
 	[Fact]

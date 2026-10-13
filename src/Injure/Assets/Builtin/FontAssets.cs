@@ -5,38 +5,24 @@ using Injure.Draw.Text;
 
 namespace Injure.Assets.Builtin;
 
-public sealed class FontAssetData(
-	Stream stream,
-	string debugName,
-	string? suggestedExtension = null,
-	object? origin = null
-) : AssetData(debugName, suggestedExtension, origin) {
-	public readonly Stream Stream = stream;
-}
+public sealed class FontAssetCreator(TextSystem text) : IAssetCreator<Font> {
+	private readonly TextSystem text = text;
 
-public sealed class FontAssetResolver : IAssetResolver {
-	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
+	public async ValueTask<AssetCreateResult<Font>> TryCreateAsync(AssetCreateInfo info, IAssetDepCollector coll, CancellationToken ct = default) {
 		ct.ThrowIfCancellationRequested();
-		Stream stream = await info.FetchAsync(info.AssetId, ct).ConfigureAwait(false);
-		if (!looksLikeAFont(stream)) {
-			await stream.DisposeAsync().ConfigureAwait(false);
-			return AssetResolveResult.NotHandled();
-		}
-		return AssetResolveResult.Success(
-			new FontAssetData(
-				stream,
-				info.AssetId.ToString(),
-				Path.GetExtension(info.AssetId.Path),
-				info.AssetId
-			)
-		);
+		await using Stream stream = await info.OpenAsync(ct).ConfigureAwait(false);
+		if (!looksLikeAFont(stream))
+			return AssetCreateResult<Font>.NotHandled();
+		using MemoryStream ms = new();
+		await stream.CopyToAsync(ms, ct).ConfigureAwait(false);
+		return AssetCreateResult<Font>.Success(text.LoadFont(ms.ToArray(), info.AssetId.ToString()));
 	}
 
 	private static bool looksLikeAFont(Stream stream) {
 		long saved = stream.Position;
 		try {
 			Span<byte> hdr = stackalloc byte[4];
-			if (stream.Read(hdr) != 4)
+			if (stream.ReadAtLeast(hdr, 4, throwOnEndOfStream: false) != 4)
 				return false;
 			return ((uint)hdr[0] << 24 | (uint)hdr[1] << 16 | (uint)hdr[2] << 8 | hdr[3]) is
 				0x00010000 or // truetype / opentype with truetype outlines
@@ -48,26 +34,5 @@ public sealed class FontAssetResolver : IAssetResolver {
 		} finally {
 			stream.Position = saved;
 		}
-	}
-}
-
-public sealed class FontAssetCreator(TextSystem text) : IAssetCreator<Font> {
-	private readonly TextSystem text = text;
-
-	public async ValueTask<AssetCreateResult<Font>> TryCreateAsync(AssetCreateInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
-		ct.ThrowIfCancellationRequested();
-		if (info.Data is not FontAssetData data)
-			return AssetCreateResult<Font>.NotHandled();
-		await using Stream stream = data.Stream;
-		byte[] bytes = await readAllBytesAsync(stream, ct).ConfigureAwait(false);
-		if (bytes.Length < 4)
-			throw new AssetLoadException(info.AssetId, typeof(Font), "font file is too small");
-		return AssetCreateResult<Font>.Success(text.LoadFont(bytes, data.DebugName)); // XXX: pretty sure LoadFont isn't thread safe yet
-	}
-
-	private static async Task<byte[]> readAllBytesAsync(Stream stream, CancellationToken ct) {
-		using MemoryStream ms = new();
-		await stream.CopyToAsync(ms, ct).ConfigureAwait(false);
-		return ms.ToArray();
 	}
 }

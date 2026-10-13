@@ -74,8 +74,9 @@ public sealed class LiveText : IDisposable {
 		rebuild();
 	}
 
+	// a reloaded asset font has new states, and with them a new chain hash
 	private void refreshIfNeeded() {
-		ulong h = req.Fonts.Hash();
+		ulong h = chainHashNow();
 		if (h == chainHash)
 			return;
 		layout?.Dispose();
@@ -87,8 +88,10 @@ public sealed class LiveText : IDisposable {
 	private void rebuild() {
 		layout?.Dispose();
 		layout = owner.Layout(req.Fonts, req.Text, req.Style);
-		chainHash = req.Fonts.Hash();
+		chainHash = chainHashNow();
 	}
+
+	private ulong chainHashNow() => owner.ResolveFallbackChain(req.Fonts, req.Style.FontOptions).Hash();
 
 	public void Dispose() {
 		if (disposed)

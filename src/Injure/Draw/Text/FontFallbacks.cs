@@ -26,39 +26,6 @@ public sealed class FontFallbackChain {
 		for (int i = 0; i < Fallbacks.Count; i++)
 			allFonts[i + 1] = Fallbacks[i];
 	}
-
-	internal ulong Hash() {
-		XxHash3 h = new();
-		const int estimated = 4 + 4 + 8 + 8; // worst-case
-		Span<byte> buf = stackalloc byte[estimated];
-		foreach (FontSpec fnt in allFonts) {
-			int i = 0;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)fnt.SourceKind);
-			i += 4;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)fnt.FaceIndex));
-			i += 4;
-			switch (fnt.SourceKind) {
-			case FontSourceKind.Direct:
-				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Direct.Id);
-				i += 8;
-				break;
-			case FontSourceKind.Asset:
-				ulong ver = 0;
-				if (fnt.Asset.TryPassiveBorrow(out AssetLease<Font> lease))
-					ver = lease.Version;
-				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], fnt.Asset.SlotId);
-				i += 8;
-				BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], ver);
-				i += 8;
-				break;
-			default:
-				throw new UnreachableException();
-			}
-			h.Append(buf);
-		}
-		return h.GetCurrentHashAsUInt64();
-	}
-
 }
 
 internal sealed class ResolvedFontFallbackChain {
@@ -79,7 +46,10 @@ internal sealed class ResolvedFontFallbackChain {
 			allFonts[i + 1] = Fallbacks[i];
 	}
 
-	public ulong Hash() {
+	private ulong? hash;
+	public ulong Hash() => hash ??= computeHash();
+
+	private ulong computeHash() {
 		XxHash3 h = new();
 		const int estimated = 4 + 8 + 4 + 4 + 4 + 4 + 1 + 8;
 		Span<byte> buf = stackalloc byte[estimated];
@@ -99,7 +69,7 @@ internal sealed class ResolvedFontFallbackChain {
 			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.Options.Hinting.Tag);
 			i += 4;
 			buf[i++] = t.Key.Options.UseEmbeddedBitmaps ? (byte)1 : (byte)0;
-			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.Version);
+			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.StateId);
 			i += 8;
 			h.Append(buf);
 		}

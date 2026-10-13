@@ -21,7 +21,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// </para>
 /// </remarks>
 public readonly ref struct IlEmitter {
-	private IlFragmentBuilder builder => field ?? throw new InvalidOperationException("this IlEmitter value is uninitialized/invalid");
+	private IlFragmentBuilder builder => field ?? throw InvalidDefaultException.For<IlEmitter>();
 	private readonly IlOwnerInfo ownerInfo;
 	private readonly IIlCallDispatch? callDispatch;
 

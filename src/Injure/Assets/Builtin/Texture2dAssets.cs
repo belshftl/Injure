@@ -11,62 +11,70 @@ using StbImageSharp;
 
 namespace Injure.Assets.Builtin;
 
-public sealed class Texture2dSamplerModeJsonConverter : JsonStringEnumConverter<Texture2dSamplerMode> {
-	public Texture2dSamplerModeJsonConverter() : base(namingPolicy: null, allowIntegerValues: false) {}
+public sealed class Texture2dAssetMipsJsonConverter : JsonStringEnumConverter<Texture2dAssetMips> {
+	public Texture2dAssetMipsJsonConverter() : base(namingPolicy: null, allowIntegerValues: false) {}
 }
 
-[JsonConverter(typeof(Texture2dSamplerModeJsonConverter))]
-public enum Texture2dSamplerMode {
-	NearestClamp,
-	LinearClamp,
-	NearestRepeat,
-	LinearRepeat,
+// mirrors Texture2dCreateParams.Mips, as a plain enum for JSON
+[JsonConverter(typeof(Texture2dAssetMipsJsonConverter))]
+public enum Texture2dAssetMips {
+	None,
+	Color,
+	Raw,
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class Texture2dAssetMetadata {
 	public required AssetId Source { get; init; }
 	public RectI? SourceRect { get; init; } = null;
-	public Texture2dSamplerMode SamplerMode { get; init; } = Texture2dSamplerMode.NearestClamp;
+	public Texture2dAssetMips Mips { get; init; } = Texture2dAssetMips.None;
 }
 
-public sealed class Texture2dAssetData(
-	Stream stream,
-	Texture2dAssetMetadata metadata,
-	string debugName,
-	string? suggestedExtension = null,
-	object? origin = null
-) : AssetData(debugName, suggestedExtension, origin) {
-	public readonly Stream Stream = stream;
+public sealed class Texture2dAssetPreparedData(uint width, uint height, byte[] rgba, Texture2dAssetMetadata metadata) : AssetPreparedData {
+	public readonly uint Width = width;
+	public readonly uint Height = height;
+	public readonly byte[] Rgba = rgba;
 	public readonly Texture2dAssetMetadata Metadata = metadata;
 }
 
-public sealed class Texture2dJsonAssetResolver : IAssetResolver {
-	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
+public sealed class Texture2dAssetCreator(GpuDevice gpuDevice) : IAssetStagedCreator<Texture2d, Texture2dAssetPreparedData> {
+	private readonly GpuDevice gpuDevice = gpuDevice;
+
+	// handles both raw images and .tex.json metadata files pointing at one
+	public async ValueTask<AssetPrepareResult<Texture2dAssetPreparedData>> TryPrepareAsync(AssetCreateInfo info, IAssetDepCollector coll, CancellationToken ct = default) {
 		ct.ThrowIfCancellationRequested();
-		if (!info.AssetId.Path.EndsWith(".tex.json", StringComparison.Ordinal))
-			return AssetResolveResult.NotHandled();
-		await using Stream jsonStream = await info.FetchAsync(info.AssetId, ct).ConfigureAwait(false);
 		Texture2dAssetMetadata meta;
-		if (!mightBeJson(jsonStream))
-			return AssetResolveResult.NotHandled();
-		try {
-			meta = await JsonSerializer.DeserializeAsync(jsonStream, InjureJsonContext.Default.Texture2dAssetMetadata, cancellationToken: ct).ConfigureAwait(false) ??
-				throw new JsonException("expected nonnull json");
-		} catch (JsonException) {
-			return AssetResolveResult.NotHandled();
+		Stream image;
+		if (info.AssetId.Path.EndsWith(".tex.json", StringComparison.Ordinal)) {
+			await using Stream json = await info.OpenAsync(ct).ConfigureAwait(false);
+			if (!mightBeJson(json))
+				return AssetPrepareResult<Texture2dAssetPreparedData>.NotHandled();
+			meta = await JsonSerializer.DeserializeAsync(json, InjureJsonContext.Default.Texture2dAssetMetadata, cancellationToken: ct).ConfigureAwait(false) ??
+				throw new InvalidDataException("texture metadata must not be null");
+			image = await info.FetchAsync(meta.Source, ct).ConfigureAwait(false);
+		} else {
+			image = await info.OpenAsync(ct).ConfigureAwait(false);
+			if (ImageInfo.FromStream(image) is null) {
+				await image.DisposeAsync().ConfigureAwait(false);
+				return AssetPrepareResult<Texture2dAssetPreparedData>.NotHandled();
+			}
+			image.Position = 0;
+			meta = new Texture2dAssetMetadata { Source = info.AssetId };
+		}
+
+		ImageResult decoded;
+		await using (image)
+			decoded = ImageResult.FromStream(image, ColorComponents.RedGreenBlueAlpha);
+		if (decoded.Width <= 0 || decoded.Height <= 0)
+			throw new InvalidDataException("image decode returned bogus dimensions");
+		if (meta.SourceRect is RectI r) {
+			if (r.Width <= 0 || r.Height <= 0)
+				throw new InvalidDataException("texture source rect cannot have negative/zero dimensions");
+			if (r.X < 0 || r.Y < 0 || (long)r.X + r.Width > decoded.Width || (long)r.Y + r.Height > decoded.Height)
+				throw new InvalidDataException($"texture source rect {r} goes out of bounds of the {decoded.Width}x{decoded.Height} image");
 		}
 		ct.ThrowIfCancellationRequested();
-		Stream imgStream = await info.FetchAsync(meta.Source, ct).ConfigureAwait(false);
-		return AssetResolveResult.Success(
-			new Texture2dAssetData(
-				imgStream,
-				meta,
-				meta.Source.ToString(),
-				Path.GetExtension(meta.Source.Path),
-				meta.Source
-			)
-		);
+		return AssetPrepareResult<Texture2dAssetPreparedData>.Success(new Texture2dAssetPreparedData((uint)decoded.Width, (uint)decoded.Height, decoded.Data, meta));
 	}
 
 	private static bool mightBeJson(Stream stream) {
@@ -84,84 +92,32 @@ public sealed class Texture2dJsonAssetResolver : IAssetResolver {
 			stream.Position = saved;
 		}
 	}
-}
-
-public sealed class Texture2dImageAssetResolver : IAssetResolver {
-	public async ValueTask<AssetResolveResult> TryResolveAsync(AssetResolveInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
-		ct.ThrowIfCancellationRequested();
-		Stream imgStream = await info.FetchAsync(info.AssetId, ct).ConfigureAwait(false);
-		Texture2dAssetMetadata meta = new() { Source = info.AssetId };
-		ImageInfo? imageInfo = ImageInfo.FromStream(imgStream);
-		if (imageInfo is null) {
-			await imgStream.DisposeAsync();
-			return AssetResolveResult.NotHandled();
-		}
-		imgStream.Position = 0;
-		return AssetResolveResult.Success(
-			new Texture2dAssetData(
-				imgStream,
-				meta,
-				info.AssetId.ToString(),
-				Path.GetExtension(info.AssetId.Path),
-				info.AssetId
-			)
-		);
-	}
-}
-
-public sealed class Texture2dAssetPreparedData(uint width, uint height, byte[] rgba, Texture2dAssetMetadata metadata) : AssetPreparedData {
-	public readonly uint Width = width;
-	public readonly uint Height = height;
-	public readonly byte[] RGBA = rgba;
-	public readonly Texture2dAssetMetadata Metadata = metadata;
-}
-
-public sealed class Texture2dAssetCreator(GpuDevice gpuDevice) : IAssetStagedCreator<Texture2d, Texture2dAssetPreparedData> {
-	private readonly GpuDevice gpuDevice = gpuDevice;
-
-	public async ValueTask<AssetPrepareResult<Texture2dAssetPreparedData>> TryPrepareAsync(AssetCreateInfo info, IAssetDependencyCollector coll, CancellationToken ct = default) {
-		ct.ThrowIfCancellationRequested();
-		if (info.Data is not Texture2dAssetData data)
-			return AssetPrepareResult<Texture2dAssetPreparedData>.NotHandled();
-		await using Stream stream = data.Stream;
-		var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
-		if (image.Width <= 0 || image.Height <= 0)
-			throw new AssetLoadException(info.AssetId, typeof(Texture2d), "image decode returned bogus dimensions");
-		ct.ThrowIfCancellationRequested();
-		return AssetPrepareResult<Texture2dAssetPreparedData>.Success(new Texture2dAssetPreparedData((uint)image.Width, (uint)image.Height, image.Data, data.Metadata));
-	}
 
 	public Texture2d Finalize(AssetFinalizeInfo<Texture2dAssetPreparedData> info) {
 		Texture2dAssetPreparedData p = info.Prepared;
 		Texture2dFormat fmt = Texture2dFormat.Rgba32Unorm;
-		GpuSamplerCreateParams smpParams = p.Metadata.SamplerMode switch {
-			Texture2dSamplerMode.NearestClamp => SamplerStates.NearestClamp,
-			Texture2dSamplerMode.LinearClamp => SamplerStates.LinearClamp,
-			Texture2dSamplerMode.NearestRepeat => SamplerStates.NearestRepeat,
-			Texture2dSamplerMode.LinearRepeat => SamplerStates.LinearRepeat,
-			_ => throw new InvalidDataException($"invalid {nameof(Texture2dSamplerMode)} value '{p.Metadata.SamplerMode}'"),
-		};
 		ReadOnlySpan<byte> src;
 		uint srcStride, w, h;
+		// the source rect was validated in TryPrepareAsync
 		if (p.Metadata.SourceRect is RectI r) {
-			if (r.Width <= 0 || r.Height <= 0) throw new ArgumentException("texture source rect cannot have negative/zero dimensions");
-			if (r.X < 0) throw new ArgumentException("texture source rect goes out of bounds (negative X)");
-			if (r.Y < 0) throw new ArgumentException("texture source rect goes out of bounds (negative Y)");
-			if (r.X + r.Width > p.Width) throw new ArgumentException("texture source rect goes out of bounds (X + width > texture width)");
-			if (r.Y + r.Height > p.Height) throw new ArgumentException("texture source rect goes out of bounds (Y + height > texture height)");
-
 			w = (uint)r.Width;
 			h = (uint)r.Height;
 			srcStride = p.Width * 4;
-			src = p.RGBA.AsSpan(checked((int)(r.Y * (p.Width * 4) + r.X * 4)));
+			src = p.Rgba.AsSpan(checked((int)(r.Y * (p.Width * 4) + r.X * 4)));
 		} else {
 			w = p.Width;
 			h = p.Height;
 			srcStride = p.Width * 4;
-			src = p.RGBA;
+			src = p.Rgba;
 		}
 
-		Texture2d tex = new(gpuDevice, w, h, fmt);
+		Texture2dMipFilter? mips = p.Metadata.Mips switch {
+			Texture2dAssetMips.None => null,
+			Texture2dAssetMips.Color => Texture2dMipFilter.Color,
+			Texture2dAssetMips.Raw => Texture2dMipFilter.Raw,
+			_ => throw new InvalidDataException($"invalid {nameof(Texture2dAssetMips)} value '{p.Metadata.Mips}'"),
+		};
+		Texture2d tex = new(gpuDevice, new Texture2dCreateParams(w, h, fmt, mips));
 		tex.Upload(src, checked((int)srcStride), PixelFormat.Rgba32_Unorm);
 		return tex;
 	}

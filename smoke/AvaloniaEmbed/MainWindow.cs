@@ -135,15 +135,7 @@ public sealed class MainWindow : Window {
 		if (!RenderFrame.TryBegin(device!, output, out RenderFrame? frame))
 			return false;
 		using (frame) {
-			CanvasParams baseParams = new(
-				Target: CanvasTarget.Primary,
-				ColorAttachmentOps: ColorAttachmentOps.Clear(clear.ToRawF128()),
-				Scissor: CanvasScissor.None,
-				Transform: Matrix3x2.Identity,
-				OutputState: CanvasOutputStates.Alpha,
-				Material: CanvasMaterials.Color
-			);
-			using (OwnedCanvas oc = new(frame, in baseParams)) {
+			using (OwnedCanvas oc = new(frame, CanvasParams.Primary(clear))) {
 				Canvas cv = oc.Canvas;
 				float t = (float)sw.Elapsed.TotalSeconds;
 				Vector2 c = new(frame.PrimaryView.Width / 2f, frame.PrimaryView.Height / 2f);

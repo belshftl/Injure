@@ -48,12 +48,41 @@ public sealed class TextCacheOptions {
 	public int TrimEveryNOperations { get; init; } = 128;
 }
 
-public sealed unsafe class TextSystem : IDisposable {
-	private readonly record struct LoadedFaceKey(FontSourceKind SourceKind, ulong SourceId, ulong Version, int FaceIndex);
+// FreeType's library handle; font states hold a reference, since the asset store may reclaim them
+// after the TextSystem is disposed
+internal sealed unsafe class FtLibrary {
+	private int refs = 1;
 
-	private readonly FT_LibraryRec_* ftLibrary;
+	public FT_LibraryRec_* Ptr { get; }
+
+	public FtLibrary() {
+		FT_LibraryRec_* l;
+		FTException.Check(FT_Init_FreeType(&l));
+		Ptr = l;
+	}
+
+	public void AddRef() {
+		if (Interlocked.Increment(ref refs) <= 1)
+			throw new InternalStateException("FreeType library referenced after it was freed");
+	}
+
+	public void Release() {
+		int n = Interlocked.Decrement(ref refs);
+		if (n < 0)
+			throw new InternalStateException("FreeType library reference count went negative");
+		if (n == 0)
+			FT_Done_FreeType(Ptr);
+	}
+}
+
+public sealed unsafe class TextSystem : IDisposable {
+	private readonly FtLibrary library = new();
+	// FreeType libraries aren't thread-safe, and LoadFont runs on asset loading threads
+	private readonly Lock probeLock = new();
+	private readonly FtLibrary probeLibrary = new();
 	private readonly Dictionary<ResolvedFontKey, IResolvedFont> fonts = new();
-	private readonly Dictionary<LoadedFaceKey, LoadedFontFace> loadedFaces = new();
+	private readonly Dictionary<(ulong FontId, int FaceIndex), LoadedFontFace> directFaces = new();
+	private readonly Dictionary<(ulong SlotId, int FaceIndex), DerivedAsset<LoadedFontFace>> assetFaces = new();
 
 	private readonly ITextItemizer itemizer;
 	private readonly TextCacheOptions cacheOptions;
@@ -64,16 +93,14 @@ public sealed unsafe class TextSystem : IDisposable {
 	private int opCounter = 0;
 	private bool disposed = false;
 
-	internal FT_LibraryRec_* FtLibrary {
+	internal FtLibrary Library {
 		get {
 			ObjectDisposedException.ThrowIf(disposed, this);
-			return ftLibrary;
+			return library;
 		}
 	}
 
 	internal TextSystem(GpuDevice gpuDevice, ITextItemizer? itemizer = null, TextCacheOptions? cacheOptions = null) {
-		fixed (FT_LibraryRec_** l = &ftLibrary)
-			FTException.Check(FT_Init_FreeType(l));
 		this.itemizer = itemizer ?? new DefaultTextItemizer();
 		this.cacheOptions = cacheOptions ?? new TextCacheOptions();
 		shapeCache = new ShapeCache(this, this.cacheOptions.MaxShapeEntries, this.cacheOptions.MaxShapeEstimatedCost);
@@ -101,13 +128,17 @@ public sealed unsafe class TextSystem : IDisposable {
 		return fnt;
 	}
 
-	internal IResolvedFont ResolveFont(AssetRef<Font> font, int faceIndex, FontOptions opts) {
+	internal IResolvedFont ResolveFont(Asset<Font> font, int faceIndex, FontOptions opts) {
 		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
 		if (opts.PixelSize <= 0)
 			throw new ArgumentOutOfRangeException(nameof(opts), "PixelSize must be > 0");
 		ResolvedFontKey key = new(FontSourceKind.Asset, font.SlotId, faceIndex, opts);
 		if (!fonts.TryGetValue(key, out IResolvedFont? fnt)) {
-			fnt = new ResolvedAssetSourcedFont(this, font, faceIndex, opts);
+			if (!assetFaces.TryGetValue((font.SlotId, faceIndex), out DerivedAsset<LoadedFontFace>? face)) {
+				face = DerivedAsset.Create(font, f => new LoadedFontFace(f, faceIndex), $"font face {faceIndex} of {font.AssetId}");
+				assetFaces.Add((font.SlotId, faceIndex), face);
+			}
+			fnt = new ResolvedAssetSourcedFont(this, font, face, faceIndex, opts);
 			fonts.Add(key, fnt);
 		}
 		return fnt;
@@ -131,26 +162,19 @@ public sealed unsafe class TextSystem : IDisposable {
 
 	internal LoadedFontFace GetOrCreateLoadedFace(Font font, int faceIndex) {
 		ObjectDisposedException.ThrowIf(disposed, this);
-		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
-		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(faceIndex, font.FaceCount);
-		LoadedFaceKey key = new(FontSourceKind.Direct, font.Id, ResolvedDirectFont.Version, faceIndex);
-		if (!loadedFaces.TryGetValue(key, out LoadedFontFace? face)) {
+		if (!directFaces.TryGetValue((font.Id, faceIndex), out LoadedFontFace? face)) {
 			face = new LoadedFontFace(font, faceIndex);
-			loadedFaces.Add(key, face);
+			directFaces.Add((font.Id, faceIndex), face);
 		}
 		return face;
 	}
 
-	internal LoadedFontFace GetOrCreateLoadedFace(AssetRef<Font> font, AssetLease<Font> lease, int faceIndex) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
-		ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(faceIndex, lease.Value.FaceCount);
-		LoadedFaceKey key = new(FontSourceKind.Asset, font.SlotId, lease.Version, faceIndex);
-		if (!loadedFaces.TryGetValue(key, out LoadedFontFace? face)) {
-			face = new LoadedFontFace(lease.Value, faceIndex);
-			loadedFaces.Add(key, face);
-		}
-		return face;
+	// called when a font state is disposed, so the caches don't keep entries nothing can hit anymore
+	internal void ForgetFontState(FontCacheToken token) {
+		if (disposed)
+			return;
+		shapeCache.Forget(token);
+		atlas.Forget(token);
 	}
 
 	internal TextMeasurement Measure(ResolvedFontFallbackChain fonts, ReadOnlySpan<char> text, in TextStyle style) {
@@ -207,17 +231,25 @@ public sealed unsafe class TextSystem : IDisposable {
 		);
 	}
 
+	// thread-safe, since font asset creators call it from loading threads
 	public Font LoadFont(byte[] data, string? debugName = null) {
-		fixed (byte* p = data) {
-			FT_FaceRec_* probe = null;
-			FTException.Check(FT_New_Memory_Face(FtLibrary, p, data.Length, -1, &probe));
-			try {
-				return new Font(data, debugName, checked((int)probe->num_faces));
-			} finally {
-				if (probe is not null)
-					FT_Done_Face(probe);
+		ArgumentNullException.ThrowIfNull(data);
+		int faceCount;
+		lock (probeLock) {
+			// checked under the lock, which Dispose takes to free the probe library
+			ObjectDisposedException.ThrowIf(disposed, this);
+			fixed (byte* p = data) {
+				FT_FaceRec_* probe = null;
+				FTException.Check(FT_New_Memory_Face(probeLibrary.Ptr, p, data.Length, -1, &probe));
+				try {
+					faceCount = checked((int)probe->num_faces);
+				} finally {
+					if (probe is not null)
+						FT_Done_Face(probe);
+				}
 			}
 		}
+		return new Font(data, debugName, faceCount);
 	}
 
 	public LiveText Make(FontSpec font, ReadOnlySpan<char> text, TextStyle style) =>
@@ -266,11 +298,25 @@ public sealed unsafe class TextSystem : IDisposable {
 		atlas.Trim();
 	}
 
+	// states of asset fonts are retired to the asset store and reclaimed by it, possibly after this;
+	// they keep the FreeType library alive until then
 	public void Dispose() {
 		if (disposed)
 			return;
 		disposed = true;
+		foreach (IResolvedFont f in fonts.Values)
+			f.Dispose();
+		fonts.Clear();
+		foreach (DerivedAsset<LoadedFontFace> f in assetFaces.Values)
+			f.Dispose();
+		assetFaces.Clear();
+		foreach (LoadedFontFace f in directFaces.Values)
+			f.Dispose();
+		directFaces.Clear();
 		shapeCache.Dispose();
 		atlas.Dispose();
+		lock (probeLock)
+			probeLibrary.Release();
+		library.Release();
 	}
 }

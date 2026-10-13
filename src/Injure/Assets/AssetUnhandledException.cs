@@ -4,13 +4,9 @@
 namespace Injure.Assets;
 
 /// <summary>
-/// Exception thrown when the entire asset pipeline has been tried but no suitable
-/// source/resolver/creator has been found.
+/// Thrown when no registered source provides an asset's data, or no registered creator accepts it.
 /// </summary>
 public sealed class AssetUnhandledException : AssetLoadException {
-	public AssetUnhandledException(AssetId id, Type type, string message) : base(id, type, message) {
-	}
-
-	public AssetUnhandledException(AssetId id, Type type, string message, Exception ex) : base(id, type, message, ex) {
+	internal AssetUnhandledException(AssetId id, Type type, string message) : base(id, type, message) {
 	}
 }

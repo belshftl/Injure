@@ -16,7 +16,7 @@ var<uniform> u: CanvasUniform;
 
 @group(1) @binding(0)
 var tex: texture_2d<f32>;
-@group(1) @binding(1)
+@group(2) @binding(0)
 var smp: sampler;
 
 struct VsIn {

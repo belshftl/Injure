@@ -3,6 +3,7 @@
 
 using System.Buffers;
 using System.Numerics;
+using Injure.Assets;
 using Injure.Gpu;
 using Injure.Primitives;
 
@@ -16,8 +17,8 @@ namespace Injure.Draw;
 /// <para>
 /// Has a stack of <see cref="CanvasParams"/> ("the params stack").
 /// <see cref="PushParams(in CanvasParamsOverride)"/> pushes an override that gets popped once the
-/// returned <see cref="CanvasParamsScope"/> is disposed, creating a "scoped parameters" model.
-/// The base of the stack cannot be popped off.
+/// returned <see cref="CanvasParamsScope"/> is disposed, creating a "scoped parameters" model. The
+/// base of the stack cannot be popped off.
 /// </para>
 /// <para>
 /// Positions and sizes are in pixels of the current target, with the origin at the top left and +Y
@@ -61,7 +62,7 @@ public readonly ref struct Canvas {
 		this.ownedCanvas = ownedCanvas;
 	}
 
-	private OwnedCanvas o => ownedCanvas ?? throw new InvalidOperationException("this Canvas value is invalid/uninitialized");
+	private OwnedCanvas o => ownedCanvas ?? throw InvalidDefaultException.For<Canvas>();
 
 	private static ReadOnlySpan<uint> triangleIndices => [0, 1, 2];
 	// for corners in topLeft, topRight, bottomLeft, bottomRight order; ccw
@@ -81,6 +82,19 @@ public readonly ref struct Canvas {
 	/// The drawable height in pixels of the active target.
 	/// </summary>
 	public uint TargetHeight => o.TargetHeight;
+
+	/// <summary>
+	/// Replaces the active target's contents with <paramref name="color"/>, subject to the current
+	/// scissor.
+	/// </summary>
+	/// <param name="color">Color to fill with.</param>
+	/// <remarks>
+	/// With a scissor set, this only affects the scissor rectangle. The current transform, output
+	/// state, and write mask don't apply; the color replaces the target's contents on all channels,
+	/// including alpha. Unlike clearing through <see cref="ColorAttachmentOps"/>, this doesn't end the
+	/// current render pass.
+	/// </remarks>
+	public void Clear(SrgbColor32 color) => o.Clear(color);
 
 	// ==========================================================================
 	// primitives
@@ -445,25 +459,50 @@ public readonly ref struct Canvas {
 	/// <see cref="Vector2"/> (top-left position, natural size) or <see cref="RectF"/> (destination
 	/// rect) converts to this implicitly.
 	/// </param>
-	/// <exception cref="ArgumentException">
+	/// <exception cref="ArgumentInvalidDefaultException">
 	/// Thrown if <paramref name="tex"/> or <paramref name="draw"/>'s <see cref="TexDraw.Destination"/>
-	/// is the <see langword="default"/> value, or if <paramref name="draw"/>'s
-	/// <see cref="TexDraw.Origin"/>, <see cref="TexDraw.Scale"/>, or <see cref="TexDraw.Rotation"/>
-	/// isn't finite.
+	/// is the <see langword="default"/> value.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="draw"/>'s <see cref="TexDraw.Origin"/>, <see cref="TexDraw.Scale"/>,
+	/// or <see cref="TexDraw.Rotation"/> isn't finite, or if <paramref name="tex"/> is a
+	/// <see cref="Texture2dSlice"/> that doesn't fit in its texture or <paramref name="draw"/>'s
+	/// <see cref="TexDraw.Source"/> reaches outside it.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target.
+	/// Thrown if <paramref name="tex"/> is the currently active render target, or if it's a
+	/// <see cref="Versioned{T}"/> (or a slice of one) and the calling thread isn't attached to its
+	/// asset store; see <see cref="DrawableTexture"/>.
 	/// </exception>
-	public void Texture(TextureSource tex, in TexDraw draw) {
+	public void Texture(DrawableTexture tex, in TexDraw draw) {
 		OwnedCanvas oc = o;
 		if (tex.IsDefault)
-			throw new ArgumentException("texture source is the default value", nameof(tex));
+			throw ArgumentInvalidDefaultException.For<DrawableTexture>(nameof(tex));
 		if (draw.Destination.IsDefault)
-			throw new ArgumentException("texture draw destination is the default value", nameof(draw));
+			throw ArgumentInvalidDefaultException.For<TexDst>(nameof(draw));
 		if (!float.IsFinite(draw.Origin.X) || !float.IsFinite(draw.Origin.Y) || !float.IsFinite(draw.Scale.X) || !float.IsFinite(draw.Scale.Y) || !float.IsFinite(draw.Rotation))
 			throw new ArgumentException("texture draw origin, scale, and rotation must be finite", nameof(draw));
-		ResolvedTextureSource r = tex.Resolve();
-		(RectF uv, float w, float h) = draw.Source.Resolve(r.Width, r.Height);
+		ResolvedDrawableTexture r = tex.Resolve();
+		RectF uv;
+		float w, h;
+		if (tex.SliceRect is RectI s) {
+			// can only fail for assets, whose size isn't known until borrowed
+			if ((long)s.X + s.Width > r.Width || (long)s.Y + s.Height > r.Height)
+				throw new ArgumentException($"texture slice {s} doesn't fit in its {r.Width}x{r.Height} texture", nameof(tex));
+			if (!draw.Source.FitsIn(s.Width, s.Height))
+				throw new ArgumentException("texture draw source region extends outside the texture slice", nameof(draw));
+			// resolve relative to the slice, then map into the whole texture
+			(RectF local, w, h) = draw.Source.Resolve((uint)s.Width, (uint)s.Height);
+			float invW = 1f / r.Width, invH = 1f / r.Height;
+			uv = new RectF(
+				(s.X + local.X * s.Width) * invW,
+				(s.Y + local.Y * s.Height) * invH,
+				local.Width * s.Width * invW,
+				local.Height * s.Height * invH
+			);
+		} else {
+			(uv, w, h) = draw.Source.Resolve(r.Width, r.Height);
+		}
 		(Vector2 pivot, Vector2 size) = draw.Destination.Resolve(w, h, draw.Origin);
 
 		Vector2 tl = -draw.Origin * size * draw.Scale;
@@ -489,6 +528,7 @@ public readonly ref struct Canvas {
 		SrgbColor32 c = draw.Tint;
 		oc.AddTextured(
 			r,
+			draw.Sampling ?? oc.CurrentParams.Sampling,
 			[
 				new Vertex2dTextureColor(rotTl.X, rotTl.Y, u0, v0, c),
 				new Vertex2dTextureColor(rotTr.X, rotTr.Y, u1, v0, c),
@@ -551,8 +591,9 @@ public readonly ref struct Canvas {
 		CanvasScissor? scissor = null,
 		Matrix3x2? transform = null,
 		CanvasOutputState? outputState = null,
-		CanvasMaterial? material = null
-	) => o.PushParams(new CanvasParamsOverride(target, colorAttachmentOps, scissor, transform, outputState, material));
+		CanvasMaterial? material = null,
+		TexSampling? sampling = null
+	) => o.PushParams(new CanvasParamsOverride(target, colorAttachmentOps, scissor, transform, outputState, material, sampling));
 
 	/// <summary>
 	/// Pushes a temporary parameter override onto the parameter stack, or does nothing and returns a
@@ -621,16 +662,19 @@ public readonly ref struct Canvas {
 
 	private static void withIndices<T, TState>(int indexCount, IndexGen gen, ReadOnlySpan<T> verts, AddWithIndices<T, TState> add, TState state, OwnedCanvas oc)
 		where T : struct where TState : struct {
-		uint[]? rented = null;
-		Span<uint> idx = indexCount <= maxStackIndices
-			? stackalloc uint[indexCount]
-			: (rented = ArrayPool<uint>.Shared.Rent(indexCount)).AsSpan(0, indexCount);
-		try {
-			gen(idx, verts.Length);
-			add(oc, verts, idx, state);
-		} finally {
-			if (rented is not null)
+		if (indexCount <= maxStackIndices) {
+			Span<uint> idxs = stackalloc uint[indexCount];
+			gen(idxs, verts.Length);
+			add(oc, verts, idxs, state);
+		} else {
+			uint[] rented = ArrayPool<uint>.Shared.Rent(indexCount);
+			try {
+				Span<uint> idxs = rented.AsSpan(0, indexCount);
+				gen(idxs, verts.Length);
+				add(oc, verts, idxs, state);
+			} finally {
 				ArrayPool<uint>.Shared.Return(rented);
+			}
 		}
 	}
 }

@@ -469,11 +469,11 @@ internal sealed class IlTransactionCore {
 			throw new ArgumentException("pattern must not be empty", paramName);
 		for (int i = 0; i < pattern.Length; i++)
 			if (!pattern[i].IsValid)
-				throw new ArgumentException($"pattern element {i} is invalid/uninitialized", paramName);
+				throw new ArgumentInvalidDefaultException($"pattern element {i} is the invalid default value", paramName);
 	}
 
 	private static void validateProvenanceConstraint(IlProvenanceConstr constraint, string paramName) {
 		if (constraint.Kind == IlProvenanceConstr.ConstraintKind.UninitializedValue)
-			throw new ArgumentException("provenance constraint is invalid/uninitialized", paramName);
+			throw ArgumentInvalidDefaultException.For<IlProvenanceConstr>(paramName);
 	}
 }

@@ -1,50 +1,26 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Runtime.CompilerServices;
 using Injure.Assets;
 
 namespace Injure.Draw.Text;
 
-public sealed class Font : IRevokable {
+public sealed class Font {
 	private static ulong nextId = 0;
-	private int revoked = 0;
 
 	internal ulong Id { get; }
-	internal byte[] Data {
-		get {
-			chk();
-			return field;
-		}
-	}
-	public string? DebugName {
-		get {
-			chk();
-			return field;
-		}
-	}
-	public int FaceCount {
-		get {
-			chk();
-			return field;
-		}
-	}
+	internal byte[] Data { get; }
+	public string? DebugName { get; }
+	public int FaceCount { get; }
 
+	// copies the data, since loaded faces reference it directly
 	public Font(byte[] data, string? debugName, int faceCount) {
 		ArgumentNullException.ThrowIfNull(data);
 		Id = Interlocked.Increment(ref nextId);
-		Data = data;
+		Data = data.ToArray();
 		DebugName = debugName;
 		FaceCount = faceCount;
 	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private void chk() {
-		if (Volatile.Read(ref revoked) != 0)
-			throw new AssetLeaseExpiredException("borrowed font was used after its lease expired");
-	}
-
-	public void Revoke() => Volatile.Write(ref revoked, 1);
 }
 
 internal enum FontSourceKind {
@@ -54,13 +30,17 @@ internal enum FontSourceKind {
 
 public readonly struct FontSpec {
 	private readonly Font? direct;
-	private readonly AssetRef<Font>? asset;
+	private readonly Asset<Font>? asset;
 
 	public int FaceIndex { get; }
 
 	internal FontSourceKind SourceKind { get; }
-	internal Font Direct => SourceKind == FontSourceKind.Direct ? direct! : throw new InvalidOperationException("this FontSpec is not sourced from a Font");
-	internal AssetRef<Font> Asset => SourceKind == FontSourceKind.Asset ? asset! : throw new InvalidOperationException("this FontSpec is not sourced from an AssetRef<Font>");
+	internal Font Direct => SourceKind == FontSourceKind.Direct
+		? direct!
+		: throw new InvalidOperationException("this FontSpec is not sourced from a Font");
+	internal Asset<Font> Asset => SourceKind == FontSourceKind.Asset
+		? asset!
+		: throw new InvalidOperationException("this FontSpec is not sourced from an Asset<Font>");
 
 	public FontSpec(Font font, int faceIndex = 0) {
 		ArgumentNullException.ThrowIfNull(font);
@@ -70,7 +50,7 @@ public readonly struct FontSpec {
 		FaceIndex = faceIndex;
 	}
 
-	public FontSpec(AssetRef<Font> font, int faceIndex = 0) {
+	public FontSpec(Asset<Font> font, int faceIndex = 0) {
 		ArgumentNullException.ThrowIfNull(font);
 		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
 		asset = font;
@@ -79,10 +59,10 @@ public readonly struct FontSpec {
 	}
 
 	public static implicit operator FontSpec(Font font) => new(font);
-	public static implicit operator FontSpec(AssetRef<Font> font) => new(font);
+	public static implicit operator FontSpec(Asset<Font> font) => new(font);
 }
 
 public static class FontSpecExtensions {
 	public static FontSpec Face(this Font font, int faceIndex) => new(font, faceIndex);
-	public static FontSpec Face(this AssetRef<Font> font, int faceIndex) => new(font, faceIndex);
+	public static FontSpec Face(this Asset<Font> font, int faceIndex) => new(font, faceIndex);
 }

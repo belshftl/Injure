@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Numerics;
 using Injure.Assets;
 using Injure.Assets.Builtin;
 using Injure.Draw;
@@ -46,7 +45,6 @@ public abstract class StandardGame {
 		public required TickerScheduler Tickers;
 		public required InputSystem Input;
 		public required ActionRegistry Actions;
-		public required EngineResourceStore EngineResources;
 		public required AssetStore? Assets;
 		public required AssetThreadAttachment? AssetAttachment;
 		public required TextSystem? Text;
@@ -68,14 +66,7 @@ public abstract class StandardGame {
 	protected StandardGame(in StandardGameOptions options) {
 		options.Validate(nameof(options));
 		this.options = options;
-		baseCanvasParams = new CanvasParams(
-			Target: CanvasTarget.Primary,
-			ColorAttachmentOps: ColorAttachmentOps.Clear(options.ClearColor.ToRawF128()),
-			Scissor: CanvasScissor.None,
-			Transform: Matrix3x2.Identity,
-			OutputState: CanvasOutputStates.Alpha,
-			Material: CanvasMaterials.Color
-		);
+		baseCanvasParams = CanvasParams.Primary(options.ClearColor);
 	}
 
 	// ==========================================================================
@@ -132,12 +123,6 @@ public abstract class StandardGame {
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
 	protected ActionRegistry Actions => current.Actions;
-
-	/// <summary>
-	/// The engine resource store, with the built-in shaders registered.
-	/// </summary>
-	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected EngineResourceStore EngineResources => current.EngineResources;
 
 	/// <summary>
 	/// The asset store, with the built-in asset types registered.
@@ -274,6 +259,7 @@ public abstract class StandardGame {
 		SdlWindow? window = null;
 		GpuDevice? gpuDevice = null;
 		SurfaceRenderOutput? renderOutput = null;
+		AssetStore? assets = null;
 		AssetThreadAttachment? assetAttachment = null;
 		TextSystem? text = null;
 		try {
@@ -281,9 +267,6 @@ public abstract class StandardGame {
 			window = SdlWindow.Create(sdl, options.Window);
 			gpuDevice = new GpuDevice(options.GpuDevice with { CompatibleHost = window.SurfaceHost });
 			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, SurfaceFormatPolicy.PreferNonSrgb, options.PresentModePolicy);
-			EngineResourceStore engineResources = new();
-
-			AssetStore? assets = null;
 			if (options.Assets) {
 				assets = new AssetStore();
 				BuiltinAssetRegistrations.RegisterBaseInto(assets);
@@ -308,7 +291,6 @@ public abstract class StandardGame {
 				),
 				Input = new InputSystem(options.MaxBufferedInputEvents),
 				Actions = new ActionRegistry(),
-				EngineResources = engineResources,
 				Assets = assets,
 				AssetAttachment = assetAttachment,
 				Text = text,
@@ -323,8 +305,10 @@ public abstract class StandardGame {
 			}
 		} finally {
 			session = null;
-			text?.Dispose();
 			assetAttachment?.Dispose();
+			// asset versions can hold GPU resources and fonts, so the store goes before those
+			assets?.Dispose();
+			text?.Dispose();
 			renderOutput?.Dispose();
 			gpuDevice?.Dispose();
 			window?.Dispose();
@@ -342,8 +326,8 @@ public abstract class StandardGame {
 					return;
 			}
 
-			// TODO: the mod safe boundary needs its own design, for now it's asset reloads only
-			ses.AssetAttachment?.AtSafeBoundary();
+			// TODO: the mod safe boundary needs its own design
+			ses.AssetAttachment?.AtReloadBoundary();
 			ses.Assets?.ApplyQueuedReloads();
 
 			ses.Tickers.ApplyPending();

@@ -19,6 +19,7 @@
 
 	<ItemGroup>
 		<EmbeddedResource Include="Gpu/Shaders/*.spv" LogicalName="spirv/%(Filename)%(Extension)" />
+		<EmbeddedResource Include="Draw/Text/Fonts/*.ttf" LogicalName="fonts/%(Filename)%(Extension)" />
 	</ItemGroup>
 
 	<ItemGroup>

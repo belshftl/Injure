@@ -19,6 +19,12 @@ internal sealed class DrawDeviceResources : IDisposable {
 	public readonly GpuBindGroupLayout ColorTexture2dLayout;
 
 	/// <summary>
+	/// Binding 0: a <c>"float"</c>-sampled 2D color texture view. <see cref="Canvas"/> binds the
+	/// sampler separately.
+	/// </summary>
+	public readonly GpuBindGroupLayout ColorTexture2dViewLayout;
+
+	/// <summary>
 	/// Binding 0: a <c>"depth"</c>-sampled 2D depth texture view; binding 1: a filtering sampler.
 	/// </summary>
 	public readonly GpuBindGroupLayout FilteringDepthTexture2dLayout;
@@ -48,6 +54,20 @@ internal sealed class DrawDeviceResources : IDisposable {
 					Visibility: ShaderStage.Fragment,
 					Layout: new GpuSamplerBindingLayout(
 						Type: SamplerBindingType.Filtering
+					)
+				),
+			]
+		);
+
+		ColorTexture2dViewLayout = device.CreateBindGroupLayout(
+			[
+				new GpuBindGroupLayoutEntry(
+					Binding: 0,
+					Visibility: ShaderStage.Fragment,
+					Layout: new GpuTextureBindingLayout(
+						SampleType: TextureSampleType.Float,
+						ViewDimension: TextureViewDimension.Dimension2d,
+						Multisampled: false
 					)
 				),
 			]
@@ -105,9 +125,20 @@ internal sealed class DrawDeviceResources : IDisposable {
 	/// </param>
 	/// <param name="sampler">Must be a filtering sampler.</param>
 	public GpuBindGroup CreateColorTexture2dBindGroup(GpuTextureViewHandle view, GpuSamplerHandle sampler) {
-		if (isDepthOrStencil(view.Format))
-			throw new InternalStateException($"color bind group requested for depth/stencil view format {view.Format}");
+		chkColorView(view);
 		return createTextureBindGroup(ColorTexture2dLayout, view, sampler);
+	}
+
+	/// <summary>
+	/// Creates a bind group of <paramref name="view"/> for <see cref="ColorTexture2dViewLayout"/>,
+	/// owned by the caller.
+	/// </summary>
+	/// <param name="view">
+	/// Must be a <see cref="TextureUsage.TextureBinding"/>-usable, 2D, single-sampled color view.
+	/// </param>
+	public GpuBindGroup CreateColorTexture2dViewBindGroup(GpuTextureViewHandle view) {
+		chkColorView(view);
+		return device.CreateBindGroup(ColorTexture2dViewLayout, [new GpuBindGroupEntry(Binding: 0, new GpuTextureViewBindingResource(view))]);
 	}
 
 	/// <summary>
@@ -141,6 +172,11 @@ internal sealed class DrawDeviceResources : IDisposable {
 			]
 		);
 
+	private static void chkColorView(GpuTextureViewHandle view) {
+		if (isDepthOrStencil(view.Format))
+			throw new InternalStateException($"color bind group requested for depth/stencil view format {view.Format}");
+	}
+
 	private static void chkDepthSampleView(GpuTextureViewHandle view) {
 		if (!(view.Format.Tag is TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus or TextureFormat.Case.Depth32Float))
 			throw new InternalStateException($"depth bind group requested for non-depth-only view format {view.Format}");
@@ -153,6 +189,7 @@ internal sealed class DrawDeviceResources : IDisposable {
 	public void Dispose() {
 		ComparisonDepthTexture2dLayout.Dispose();
 		FilteringDepthTexture2dLayout.Dispose();
+		ColorTexture2dViewLayout.Dispose();
 		ColorTexture2dLayout.Dispose();
 	}
 }

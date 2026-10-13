@@ -4,9 +4,9 @@
 namespace Injure.CodeAnalysis.Internal;
 
 /// <summary>
-/// Marks an interface that exists specifically for the purpose of being exposed as an API
-/// surface and must not be implemented outside of the engine (or is outright impossible to
-/// correctly implement outside of the engine).
+/// Marks an interface that exists specifically for the purpose of being exposed as an API surface
+/// and must not be implemented outside of Injure, or is outright impossible to correctly implement
+/// outside of it.
 /// </summary>
 [AttributeUsage(AttributeTargets.Interface, AllowMultiple = false, Inherited = false)]
 internal sealed class DontImplementAttribute : Attribute;

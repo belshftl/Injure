@@ -10,31 +10,17 @@ namespace Injure.Assets.Builtin;
 public static class BuiltinAssetRegistrations {
 	public static void RegisterBaseInto(AssetStore store) {
 		ArgumentNullException.ThrowIfNull(store);
-		store.RegisterDependencyWatcher(
-			new OwnerOrderedEntry<IAssetDependencyWatcher<FileAssetDependency>>(
-				new FileAssetDependencyWatcher(),
+		store.RegisterDepWatcher(
+			new OwnerOrderedEntry<IAssetDepWatcher<FileAssetDep>>(
+				new FileAssetDepWatcher(),
 				EngineInfo.OwnerId,
-				"FileAssetDependencyWatcher"
+				"FileAssetDepWatcher"
 			)
 		);
 	}
 
 	public static void RegisterTexture2dInto(AssetStore store, GpuDevice gpuDevice) {
 		ArgumentNullException.ThrowIfNull(store);
-		store.RegisterResolver(
-			new OwnerOrderedEntry<IAssetResolver>(
-				new Texture2dJsonAssetResolver(),
-				EngineInfo.OwnerId,
-				"Texture2dJsonAssetResolver"
-			)
-		);
-		store.RegisterResolver(
-			new OwnerOrderedEntry<IAssetResolver>(
-				new Texture2dImageAssetResolver(),
-				EngineInfo.OwnerId,
-				"Texture2dImageAssetResolver"
-			)
-		);
 		store.RegisterStagedCreator(
 			new OwnerOrderedEntry<IAssetStagedCreator<Draw.Texture2d, Texture2dAssetPreparedData>>(
 				new Texture2dAssetCreator(gpuDevice),
@@ -46,18 +32,11 @@ public static class BuiltinAssetRegistrations {
 
 	public static void RegisterFontInto(AssetStore store, TextSystem text) {
 		ArgumentNullException.ThrowIfNull(store);
-		store.RegisterResolver(
-			new OwnerOrderedEntry<IAssetResolver>(
-				new FontAssetResolver(),
-				EngineInfo.OwnerId,
-				"FontSourceAssetResolver"
-			)
-		);
 		store.RegisterCreator(
 			new OwnerOrderedEntry<IAssetCreator<Font>>(
 				new FontAssetCreator(text),
 				EngineInfo.OwnerId,
-				"FontSourceAssetCreator"
+				"FontAssetCreator"
 			)
 		);
 	}

@@ -40,7 +40,8 @@ internal struct CanvasUniform : IEquatable<CanvasUniform> {
 
 /// <summary>
 /// Everything <see cref="Canvas"/> needs that only depends on the device: shaders, pipelines,
-/// layouts, the white texture that untextured draws use, and the pool of per-canvas arenas.
+/// layouts, samplers, the white texture that untextured draws use, and the pool of per-canvas
+/// arenas.
 /// </summary>
 /// <remarks>
 /// Attached to the device, so there's one per <see cref="GpuDevice"/>; obtained with
@@ -66,6 +67,7 @@ internal sealed class CanvasDeviceResources : IDisposable {
 	private readonly Dictionary<PipelineKey, GpuRenderPipeline> pipelines = new();
 
 	public readonly GpuBindGroupLayout UniformLayout;
+	public readonly GpuBindGroupLayout SamplerLayout;
 	public readonly GpuPipelineLayout PipelineLayout;
 	/// <summary>
 	/// Distance between uniforms in a uniform buffer, as required for dynamic offsets.
@@ -73,6 +75,8 @@ internal sealed class CanvasDeviceResources : IDisposable {
 	public readonly uint UniformStride;
 	public readonly Texture2d White;
 	public readonly CanvasArenaPool ArenaPool;
+	private readonly GpuSampler[] samplers = new GpuSampler[TexSampling.IndexCount];
+	private readonly GpuBindGroup[] samplerBindGroups = new GpuBindGroup[TexSampling.IndexCount];
 
 	public static CanvasDeviceResources For(GpuDevice device) => device.GetOrAttach(static d => new CanvasDeviceResources(d));
 
@@ -83,7 +87,21 @@ internal sealed class CanvasDeviceResources : IDisposable {
 			(ulong)CanvasUniform.Size,
 			hasDynamicOffset: true
 		);
-		PipelineLayout = device.CreatePipelineLayout([UniformLayout, DrawDeviceResources.For(device).ColorTexture2dLayout]);
+		SamplerLayout = device.CreateBindGroupLayout([
+			new GpuBindGroupLayoutEntry(
+				Binding: 0,
+				Visibility: ShaderStage.Fragment,
+				Layout: new GpuSamplerBindingLayout(Type: SamplerBindingType.Filtering)
+			),
+		]);
+		PipelineLayout = device.CreatePipelineLayout([UniformLayout, DrawDeviceResources.For(device).ColorTexture2dViewLayout, SamplerLayout]);
+		foreach (TexFilter filter in TexFilter.Enum.Values) {
+			foreach (TexWrap wrap in TexWrap.Enum.Values) {
+				int i = new TexSampling(filter, wrap).Index;
+				samplers[i] = device.CreateSampler(samplerParams(filter, wrap));
+				samplerBindGroups[i] = device.CreateBindGroup(SamplerLayout, [new GpuBindGroupEntry(Binding: 0, new GpuSamplerBindingResource(samplers[i]))]);
+			}
+		}
 		uint align = device.Limits.MinUniformBufferOffsetAlignment;
 		UniformStride = ((uint)CanvasUniform.Size + align - 1) / align * align;
 		White = new Texture2d(device, 1, 1);
@@ -92,6 +110,31 @@ internal sealed class CanvasDeviceResources : IDisposable {
 	}
 
 	public GpuDevice Device => device;
+
+	public GpuBindGroup GetSamplerBindGroup(TexSampling sampling) => samplerBindGroups[sampling.Index];
+
+	private static GpuSamplerCreateParams samplerParams(TexFilter filter, TexWrap wrap) {
+		AddressMode address = wrap.Tag switch {
+			TexWrap.Case.Clamp => AddressMode.ClampToEdge,
+			TexWrap.Case.Repeat => AddressMode.Repeat,
+			TexWrap.Case.MirrorRepeat => AddressMode.MirrorRepeat,
+			_ => throw new UnreachableException(),
+		};
+		// textures are single-mip for now, so the mipmap filter only matters once they aren't
+		(FilterMode f, MipmapFilterMode mip) = filter.Tag switch {
+			TexFilter.Case.Nearest => (FilterMode.Nearest, MipmapFilterMode.Nearest),
+			TexFilter.Case.Linear => (FilterMode.Linear, MipmapFilterMode.Linear),
+			_ => throw new UnreachableException(),
+		};
+		return new GpuSamplerCreateParams(
+			AddressModeU: address,
+			AddressModeV: address,
+			AddressModeW: address,
+			MagFilter: f,
+			MinFilter: f,
+			MipmapFilter: mip
+		);
+	}
 
 	public GpuRenderPipeline GetPipeline(in PipelineKey key) {
 		lock (pipelinesLock) {
@@ -134,18 +177,12 @@ internal sealed class CanvasDeviceResources : IDisposable {
 		));
 	}
 
-	private static string loadShader(TextureInterpretation interp) {
-		string name = interp.Tag switch {
-			TextureInterpretation.Case.Color => "shaders/textured2dColor.wgsl",
-			TextureInterpretation.Case.Rmask => "shaders/textured2dRmask.wgsl",
-			TextureInterpretation.Case.Sdf => "shaders/textured2dSdf.wgsl",
-			_ => throw new UnreachableException(),
-		};
-		using Stream stream = typeof(CanvasDeviceResources).Assembly.GetManifestResourceStream(name) ??
-			throw new InternalStateException($"built-in shader '{name}' is missing from the assembly");
-		using StreamReader sr = new(stream);
-		return sr.ReadToEnd();
-	}
+	private static string loadShader(TextureInterpretation interp) => BuiltinShaderSource.Load(interp.Tag switch {
+		TextureInterpretation.Case.Color => "textured2dColor.wgsl",
+		TextureInterpretation.Case.Rmask => "textured2dRmask.wgsl",
+		TextureInterpretation.Case.Sdf => "textured2dSdf.wgsl",
+		_ => throw new UnreachableException(),
+	});
 
 	public void Dispose() {
 		ArenaPool.Dispose();
@@ -158,7 +195,12 @@ internal sealed class CanvasDeviceResources : IDisposable {
 				s.Dispose();
 			shaders.Clear();
 		}
+		foreach (GpuBindGroup g in samplerBindGroups)
+			g.Dispose();
+		foreach (GpuSampler s in samplers)
+			s.Dispose();
 		PipelineLayout.Dispose();
+		SamplerLayout.Dispose();
 		UniformLayout.Dispose();
 	}
 }

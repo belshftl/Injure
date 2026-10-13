@@ -52,14 +52,17 @@ internal readonly record struct ResolvedFontKey(
 	FontOptions Options
 );
 
+// identifies one ResolvedFontState, so caches keyed by it never mix up font versions; the state
+// purges its cache entries when it's disposed
 internal readonly record struct FontCacheToken(
 	ResolvedFontKey Key,
-	ulong Version
+	ulong StateId
 );
 
 internal interface IResolvedFont : IDisposable {
+	// the returned state is only valid until the current thread's next asset reload boundary
 	ResolvedFontState GetState();
-	FontCacheToken GetCacheToken();
+	FontCacheToken GetCacheToken() => GetState().CacheToken;
 }
 
 internal sealed class ResolvedDirectFont(TextSystem owner, Font source, int faceIndex, FontOptions opts) : IResolvedFont {
@@ -69,60 +72,34 @@ internal sealed class ResolvedDirectFont(TextSystem owner, Font source, int face
 	private readonly FontOptions opts = opts;
 
 	private ResolvedFontState? state;
-	public const ulong Version = 1;
 
-	public ResolvedFontState GetState() {
-		if (state is null) {
-			LoadedFontFace loadedFace = owner.GetOrCreateLoadedFace(source, faceIndex);
-			state = new ResolvedFontState(owner, loadedFace, opts);
-		}
-		return state;
-	}
-
-	public FontCacheToken GetCacheToken() => new(new ResolvedFontKey(FontSourceKind.Direct, source.Id, faceIndex, opts), Version);
+	public ResolvedFontState GetState() =>
+		state ??= new ResolvedFontState(owner, owner.GetOrCreateLoadedFace(source, faceIndex), new ResolvedFontKey(FontSourceKind.Direct, source.Id, faceIndex, opts));
 
 	public void Dispose() => state?.Dispose();
 }
 
-internal sealed class ResolvedAssetSourcedFont(TextSystem owner, AssetRef<Font> source, int faceIndex, FontOptions opts) : IResolvedFont {
-	private readonly TextSystem owner = owner;
-	private readonly AssetRef<Font> source = source;
-	private readonly int faceIndex = faceIndex;
-	private readonly FontOptions opts = opts;
+// the face and state are derived values, so a reloaded font is picked up on the next GetState(), and
+// replaced states are reclaimed at asset reload boundaries rather than right away
+internal sealed class ResolvedAssetSourcedFont : IResolvedFont {
+	private readonly DerivedAsset<ResolvedFontState> state;
 
-	private ResolvedFontState? state;
-	private ulong loadedVersion;
-
-	private void ensureCurrent() {
-		AssetLease<Font> lease = source.Borrow();
-		if (state is not null && loadedVersion == lease.Version)
-			return;
-		LoadedFontFace loadedFace = owner.GetOrCreateLoadedFace(source, lease, faceIndex);
-		ResolvedFontState @new = new(owner, loadedFace, opts);
-		ResolvedFontState? old = state;
-		state = @new;
-		loadedVersion = lease.Version;
-		old?.Dispose();
+	public ResolvedAssetSourcedFont(TextSystem owner, Asset<Font> source, DerivedAsset<LoadedFontFace> face, int faceIndex, FontOptions opts) {
+		ResolvedFontKey key = new(FontSourceKind.Asset, source.SlotId, faceIndex, opts);
+		state = DerivedAsset.Create(face, f => new ResolvedFontState(owner, f, key), $"font state of {source.AssetId} (face {faceIndex}, {opts.PixelSize}px)");
 	}
 
-	public ResolvedFontState GetState() {
-		ensureCurrent();
-		if (state is null)
-			throw new InternalStateException("wasn't expecting state to be null after EnsureCurrent()");
-		return state;
-	}
+	public ResolvedFontState GetState() => state.Borrow().Value;
 
-	public FontCacheToken GetCacheToken() {
-		ensureCurrent();
-		return new FontCacheToken(new ResolvedFontKey(FontSourceKind.Asset, source.SlotId, faceIndex, opts), loadedVersion);
-	}
-
-	public void Dispose() => state?.Dispose();
+	public void Dispose() => state.Dispose();
 }
 
-internal sealed unsafe class LoadedFontFace : IDisposable {
+// references the Font's data rather than copying it: a derived face version pins the Font version
+// it was computed from, and a directly loaded face references the Font
+internal sealed unsafe class LoadedFontFace : IAssetStoreDisposable {
 	private readonly byte[] data;
 	private readonly GCHandle pinned;
+	private AssetStoreCustody? custody;
 	private bool disposed = false;
 
 	public readonly int FaceIndex;
@@ -137,7 +114,7 @@ internal sealed unsafe class LoadedFontFace : IDisposable {
 	public LoadedFontFace(Font source, int faceIndex) {
 		ArgumentOutOfRangeException.ThrowIfNegative(faceIndex);
 
-		byte[] data = source.Data.ToArray(); // copy out the data
+		byte[] data = source.Data;
 		GCHandle pinned = default;
 		Blob? hbBlob = null;
 		Face? hbFace = null;
@@ -146,7 +123,7 @@ internal sealed unsafe class LoadedFontFace : IDisposable {
 			if (faceIndex >= source.FaceCount)
 				throw new ArgumentOutOfRangeException(
 					nameof(faceIndex),
-					$"face index {faceIndex} is out of range for {DebugName ?? "this font"}; file contains {source.FaceCount} face(s)"
+					$"face index {faceIndex} is out of range for {source.DebugName ?? "this font"}; file contains {source.FaceCount} face(s)"
 				);
 			hbBlob = new Blob(pinned.AddrOfPinnedObject(), data.Length, MemoryMode.ReadOnly);
 			hbFace = new Face(hbBlob, faceIndex);
@@ -167,7 +144,11 @@ internal sealed unsafe class LoadedFontFace : IDisposable {
 		}
 	}
 
+	public bool IsAssetStoreOwned => custody is { IsReleased: false };
+	void IAssetStoreValue.AttachCustody(AssetStoreCustody custody) => this.custody = custody;
+
 	public void Dispose() {
+		custody?.ThrowIfHeld(this);
 		if (disposed)
 			return;
 		disposed = true;
@@ -233,10 +214,16 @@ internal readonly record struct FontBackendOptions(
 	}
 }
 
-internal sealed unsafe class ResolvedFontState : IDisposable {
+internal sealed unsafe class ResolvedFontState : IAssetStoreDisposable {
+	private static ulong nextStateId = 0;
+	private readonly TextSystem owner;
+	private readonly FtLibrary library;
 	private readonly LoadedFontFace loadedFace;
 	private readonly FontFunctions hbFontFuncs;
+	private AssetStoreCustody? custody;
 	private bool disposed = false;
+
+	public readonly FontCacheToken CacheToken;
 
 	public readonly FT_FaceRec_* FtFace;
 	public readonly HarfBuzzSharp.Font HbParentFont;
@@ -245,13 +232,18 @@ internal sealed unsafe class ResolvedFontState : IDisposable {
 	internal readonly FontBackendOptions Options;
 	public readonly FontLineMetrics LineMetrics;
 
-	public ResolvedFontState(TextSystem owner, LoadedFontFace loadedFace, in FontOptions opts) {
+	public ResolvedFontState(TextSystem owner, LoadedFontFace loadedFace, ResolvedFontKey key) {
+		FontOptions opts = key.Options;
 		Options = FontBackendOptions.FromOptions(in opts);
+		CacheToken = new FontCacheToken(key, Interlocked.Increment(ref nextStateId));
+		this.owner = owner;
 		this.loadedFace = loadedFace;
+		library = owner.Library;
 
 		FT_FaceRec_* ftFace = null;
+		library.AddRef();
 		try {
-			FTException.Check(FT_New_Memory_Face(owner.FtLibrary, loadedFace.DataPtr, loadedFace.ByteLength, loadedFace.FaceIndex, &ftFace));
+			FTException.Check(FT_New_Memory_Face(library.Ptr, loadedFace.DataPtr, loadedFace.ByteLength, loadedFace.FaceIndex, &ftFace));
 			FTException.Check(FT_Set_Pixel_Sizes(ftFace, 0, (uint)opts.PixelSize));
 
 			HbParentFont = new HarfBuzzSharp.Font(loadedFace.HbFace);
@@ -281,6 +273,9 @@ internal sealed unsafe class ResolvedFontState : IDisposable {
 			);
 			FtFace = ftFace;
 			ftFace = null;
+		} catch {
+			library.Release();
+			throw;
 		} finally {
 			if (ftFace is not null)
 				FT_Done_Face(ftFace);
@@ -328,13 +323,19 @@ internal sealed unsafe class ResolvedFontState : IDisposable {
 		return true;
 	}
 
+	public bool IsAssetStoreOwned => custody is { IsReleased: false };
+	void IAssetStoreValue.AttachCustody(AssetStoreCustody custody) => this.custody = custody;
+
 	public void Dispose() {
+		custody?.ThrowIfHeld(this);
 		if (disposed)
 			return;
 		disposed = true;
+		owner.ForgetFontState(CacheToken);
 		hbFontFuncs.Dispose();
 		HbFont.Dispose();
 		HbParentFont.Dispose();
 		FT_Done_Face(FtFace);
+		library.Release();
 	}
 }

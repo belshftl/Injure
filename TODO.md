@@ -33,7 +33,7 @@ anyhow, to v0.1:
 - [x] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
   - [x] remove the current `Runtime.*` namespace wholly
   - [x] touch up `docs/conventions/dangerous-get.md` and rename it
-  - [x] split out SDL-related stuff into a new `.Sdl` namespace; it should be part of the API that it is a wrapper for SDL3, and bypassing it to drive SDL3 directly should be supported albeit advanced/unsafe
+  - [x] split out SDL-related stuff into a new `.Sdl` namespace; it should be part of the api that it is a wrapper for SDL3, and bypassing it to drive SDL3 directly should be supported albeit advanced/unsafe
   - [x] maybe devise a "host-event" system, like a similar but more comprehensive equivalent to the old `Runtime.HostEvent`; i can't think of another way to abstract away sdl events, also see below
   - [x] think about whether supporting not using SDL3 entirely and having a "host-event source" system is worth it; it sounds not too difficult to me
   - [x] look at what things need to be made public; it's quite a bit, the input system comes to mind
@@ -68,17 +68,19 @@ anyhow, to v0.1:
   - [x] better optimized draws; reuse the pipeline for untextured draws by using a 1x1 white texture, apply the transform on the cpu to allow reusing the uniform and not splitting the batch when the transform changes, use dynamic offset to allow a large blob of uniforms, etc etc
   - [x] fold the 10 `Texture`/`TexWithSourceRect`/`TexWithUvRect` overloads (each with and without tint) into one call taking a small sprite-options struct; ties into the sprite transform and sampler items below
   - [x] per-draw sprite transforms for the `Texture*` calls: rotation, origin/pivot, scale, flip
-  - [ ] make the memory layout of the vertex types public api
-  - [ ] per-draw sampler choice (nearest vs linear); it's currently fixed per `Texture2d`/`RenderTarget2d` at creation
+  - [x] make the memory layout of the vertex types public api
+  - [x] per-draw sampler choice (nearest vs linear); it's currently fixed per `Texture2d`/`RenderTarget2d` at creation
+  - [x] a factory for the common `CanvasParams` (primary target, no scissor, identity transform, alpha blending, color material, clearing to a given `SrgbColor32`), since the same six-line construction is repeated in `StandardGame`, both smoke projects, and the tests
+  - [x] a mid-canvas `Clear(SrgbColor32)`
+  - [x] support multi-mip `Texture2d`s; render target mips can wait
+  - [x] texture slices
   - [ ] shapes: rect outline, circle/ellipse fill + outline, rounded rect, arc/pie, polylines with proper joins (`LineStrip` is currently separate quads, so joints gap/overlap and overlaps double-blend)
-  - [ ] a factory for the common `CanvasParams` (primary target, no scissor, identity transform, alpha blending, color material, clearing to a given `SrgbColor32`), since the same six-line construction is repeated in `StandardGame`, both smoke projects, and the tests
-  - [ ] a mid-canvas `Clear(SrgbColor32)`
   - [ ] resolution independence: drawing in logical units on hidpi, and a fixed virtual resolution with letterboxing / integer scaling
   - [ ] textured geometry beyond quads: textured triangles/meshes, arbitrary-corner textured quads (`Vertex2dTextureColor` has no draw call taking it yet)
   - [ ] more blend presets in `CanvasOutputStates`, e.g. additive and multiply
   - [ ] antialiasing; there's no msaa for render targets or the primary target yet, so shape edges alias and sub-pixel lines flicker
   - [ ] masking/clipping beyond rects, e.g. stencil-based clip to shape (`RenderTarget2d` already supports a depth/stencil format but `Canvas` never attaches it)
-  - [ ] custom shaders/materials
+  - [ ] custom shaders/materials, shader assets
   - [ ] layering/sorting by depth or explicit layer instead of strict call order
   - [ ] retained geometry: static meshes, tilemaps, instancing for many identical sprites
   - [ ] linear-space blending (`LinearColorF128`)
@@ -88,23 +90,52 @@ anyhow, to v0.1:
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`
   - [ ] primary docs for `Draw`, `docs/draw/`
-  - [ ] pixel converter docs; a single doc would probably be enough since it's pretty small API-wise
-  - [ ] `Draw`-less triangle tutorial under `docs/gpu/`, maybe also an example with something like MSAA
+  - [ ] pixel converter docs; a single doc would probably be enough since it's pretty small api-wise
+  - [ ] `Draw`-less triangle tutorial under `docs/gpu/`, maybe also an example with something like msaa
   - [ ] "embed into avalonia" tutorial or explanatory doc under `docs/gpu/`; explicitly mention that windows hasn't been tested yet, maybe provide some advisory direction info regarding it but ultimately leave it to be updated for windows later
   - [ ] "embed into a wayland subsurface" tutorial or explanatory doc under `docs/gpu/`
+- [ ] revisit the asset system:
+  - [x] drop `EngineResource*`
+  - [x] rename `AssetRef<T>` to `Asset<T>`, `AssetLease<T>` to `AssetBorrow<T>`, "safe boundary" to "asset reload boundary" (so that "safe boundary" remains mod loader terminology), `*Dependency*` to `*Dep*`
+  - [x] for asset IDs, a namespace should be valid iff it's a valid owner ID; paths stay more permissive than local IDs, but should reject `::`
+  - [x] redesign the hot reload / revocation system; proper integration with asset hot reload requires a bunch of extra machinery (see `Draw.Text`) and `IRevokable` may or may not be redundant given out of date asset versions get disposed too and also every `IRevokable, IDisposable` has to have both logical invalidation and genuine resource release. also probably rename `AssetRef<T>` to `Asset<T>`
+    - [x] borrows are only valid until the borrowing thread's next reload boundary; borrowing requires an attached thread
+    - [x] pins (`AssetPin<T>`) as a sibling of borrows, keeping one version alive across boundaries; `borrow.Pin()`, `asset.Pin()`, usable from unattached threads
+    - [x] reclaim old versions only in `ApplyQueuedReloads()` (i.e. on the thread driving reloads), once every attached thread passed a boundary and no pins remain
+    - [x] replace `IRevokable` with `IAssetStoreValue` (custody) / `IAssetStoreDisposable` (dispose throws while store-owned); disposal stays optional for assets without resources, and `IDisposable` without `IAssetStoreDisposable` is rejected
+    - [x] make `AssetStore` disposable, and dispose it in `StandardGame`
+    - [x] derived values: a computation paired with the asset versions it read, recomputed lazily, old results retired through the same epochs, with the same borrow/pin pair and disposal contract
+  - [x] rewrite the asset tests from scratch
+  - [x] rewrite `Draw.Text`'s asset integration to use derived values (drop the version polling and version-keyed caches; the `GlyphAtlasPage` refcounting stays, since it protects pages from atlas trimming rather than from reloads)
+  - [x] honestly, maybe collapse asset resolvers and asset creators into one
+  - [x] make `DirectoryAssetSource` reject paths that only match a file case-insensitively, so case-insensitive filesystems (windows, macos by default) behave like linux
+  - [ ] an analyzer flagging `AssetBorrow<T>.Value` being stored into fields, statics, captured closures, or collections, reusing the `[DontCache]` machinery
+  - [ ] add some kind of "asset pool" convenience, probably sourcegen-backed, as the asset system is a bit of a pain to use right now for the overwhelmingly common case of just having a bunch of assets known ahead of time used in the game/scene/entity/whatever. it also needs careful management between "load all the textures ahead of time and use a lot of vram idle" vs "load them too lazily and have micro-stutters during gameplay"
+  - [ ] add some proper system to allow mods to override assets, probably both for a whole asset id and for a particular `Asset<T>` but i'm uncertain right now
+  - [ ] dedicated docs
+- [ ] switch over the codebase to the new `InvalidDefaultException`
 - [ ] fix remaining abbreviations with out-of-date abbreviation style in the codebase
 - [ ] remove remaining `AggressiveInlining` markers for cases where the gain hasn't been actually confirmed
+- [ ] switch over the codebase to use collection expressions where applicable
 - [ ] add support for more things to the input system:
   - [ ] support per-gamepad bindings
   - [ ] support text input
   - [ ] support custom input sources
+  - [ ] maybe look into supporting more input devices like steering wheels, flight sticks, guitar/drum controllers, dance pads, etc
+  - [ ] consider supporting a case like "write a custom 'driver' for an input device that sends input data over ipc (say, a socket) to the game"; we don't need to include any ipc/socket/etc machinery, just some way for such a hypothetical game/mod to turn the decoded input events into a real custom input device
   - [ ] support built-in serialization/deserialization for bindings (probably to json); this is something every game will be forced to reinvent if it's not built-in
-- [ ] fix the regular analyzer for once
+- [ ] add more to the regular analyzer:
   - [ ] a decent amount of code is duplicated, merge it together into shared helpers
   - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
-- [ ] rethink the asset hot reload / revocation system; proper integration with asset hot reload requires a bunch of extra machinery (see `Draw.Text`) and `IRevokable` may or may not be redundant given out of date asset versions get disposed too and also every `IRevokable, IDisposable` has to have both logical invalidation and genuine resource release
+- [ ] look at the `Layers` system and make sure it's up to date and holds up well in real usage, write tests
+- [ ] `Layers.Ecs` system for entities and components:
+  - [ ] a notable design point i'm thinking of is that entities/components should be generic over the particular type of parent they expect, so the base classes are abstract `Entity<TParent> : IUntypedEntity where TParent : Layer` and `Component<TParent> : IUntypedComponent where TParent : IUntypedEntity`, and a particular entity is either `MyEntity : Entity<Level>` if it needs a particular type of layer or `MyEntity<TParent> : Entity<TParent> where TParent : Layer` if it's layer-agnostic
+  - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad
+  - [ ] standardize on a bunch of things (maybe by using more derived abstract types? or interfaces? unsure) like entities with a notion of position, entities with a notion of collision, entities that can serialize/deserialize, perhaps entities that "bind" in some way to a reloadable mod generation and need `<L>`, etc. the important thing isn't really that adding `public Vector2 Position` to your entity is hard, but that having everyone on the same page on how it's done is very valuable
+  - [ ] here be dragons
+- [ ] revisit the text renderer; the apis don't feel very nice to me, and it's missing most non-basic features, for instance regarding layout
 - [ ] expose WebGPU error scopes in `Gpu` (push/pop around specific operations, popping asynchronously through `GpuDevice.Poll()` like buffer mapping), for code that wants to detect and recover from a specific failure instead of only having the device-wide `GpuErrorHandler`
 - [ ] support compute pipelines, compute passes, etc. in `Gpu`
 - [ ] redesign `TGameApi` and `IReloadTeardown` from the mod infrastructure
@@ -116,14 +147,6 @@ anyhow, to v0.1:
   - [ ] add more new diagnostics, think about what is useful
   - [ ] maybe look into whether the mod can be forced to embed a manifest.json in metadata in some way that the analyzer can read; it'd simplify a lot of things and allow for e.g. better dependency-related diagnostics
   - [ ] add basic interprocedural obligation tracking
-- [ ] pause for a bit to write a *lot* of tests and doc comments for the rest of the project; not writing them as development goes in the past was a mistake that needs to be patched up before it's too late:
-  - [ ] tests for the collections
-  - [ ] doc comments for the layers system
-  - [ ] doc comments for `Io.*`, currently just `FileHotReloadMonitor`
-  - [ ] doc comments for `Sched.*` (both coroutines and tickers)
-  - [ ] miscellaneous doc comments: `Primitives.Vector2Int` and `Common.OneOf`
-  - [ ] tests for the coroutine system
-  - [ ] look into what else is testable
 - [ ] document the mod loader properly:
   - [ ] `docs/mods/basic-definitions.md`
   - [ ] `docs/mods/dependencies.md`
@@ -152,22 +175,6 @@ anyhow, to v0.1:
   - [ ] do some practical testing and think about the intended model for mods to have nuget dependencies, including nuget dependencies that package native runtimes
   - [ ] load-from-zip
   - [ ] detouring open generics
-- [ ] `Layers.Ecs` system for entities and components:
-  - [ ] a notable design point i'm thinking of is that entities/components should be generic over the particular type of parent they expect, so the base classes are abstract `Entity<TParent> : IUntypedEntity where TParent : Layer` and `Component<TParent> : IUntypedComponent where TParent : IUntypedEntity`, and a particular entity is either `MyEntity : Entity<Level>` if it needs a particular type of layer or `MyEntity<TParent> : Entity<TParent> where TParent : Layer` if it's layer-agnostic
-  - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad
-  - [ ] standardize on a bunch of things (maybe by using more derived abstract types? or interfaces? unsure) like entities with a notion of position, entities with a notion of collision, entities that can serialize/deserialize, perhaps entities that "bind" in some way to a reloadable mod generation and need `<L>`, etc. the important thing isn't really that adding `public Vector2 Position` to your entity is hard, but that having everyone on the same page on how it's done is very valuable
-  - [ ] here be dragons
-- [ ] write more kernels/etc for the pixel converter
-- [ ] touch up the text renderer
-- [ ] write dedicated docs for:
-  - [ ] more `conventions`, maybe one on type naming
-  - [ ] probably write a better `exception-recording.md`, provide practical examples of when exceptions cause alc retention
-  - [ ] the standard flow for a hello-world game project and where to expand from there
-  - [ ] the collections/primitives/`Common` namespaces (three separate `docs/` directories, not one)
-  - [ ] the asset system
-  - [ ] the layers system
-  - [ ] the input system
-  - [ ] whatever else still doesn't have doc comments
 - [ ] get to the audio engine:
   - [x] figure out how audio is even gonna work considering c# is garbage collected
   - [x] set up the native packaging churn
@@ -182,8 +189,6 @@ anyhow, to v0.1:
   - [ ] wasapi backend
   - [ ] eventually asio backend, i haven't looked much into whether it'd be viable but i really hope so, i'd imagine it'd have to be a separate `.Audio.Asio` package due to the gplv3 licensing
   - [ ] here be dragons
-- [ ] maybe make `AssetRef<T>` hold an owner-ordered list of slots rather than one slot, and devise some api to allow mods to cleanly override assets; i'm really not sure though
-- [ ] sourcegen conveniences for the asset system, it's not very nice to use right now for the overwhelmingly common usecase of just having a bunch of assets known ahead of time
 - [ ] a bunch of stuff for `[ClosedEnum]`/`[ClosedEnumMirror]`/`[ClosedFlags]` needs to be defined, like serialization behavior and ffi semantics and such
   - [ ] also consider making them public
 - [ ] support windows

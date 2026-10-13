@@ -11,7 +11,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
-	internal IlTransactionCore Core => field ?? throw new InvalidOperationException("this IlCtx<L> value is uninitialized/invalid");
+	internal IlTransactionCore Core => field ?? throw InvalidDefaultException.For<IlCtx<L>>();
 
 	internal IlCtx(IlTransactionCore core) {
 		InternalStateException.ThrowIfNull(core);

@@ -4,8 +4,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Text;
+using System.Diagnostics.CodeAnalysis;
 using Injure.Collections;
 using Injure.Mods;
 using Injure.Mods.CodeAnalysis;
@@ -14,9 +13,8 @@ namespace Injure.Assets;
 
 internal enum AssetRegistrationKind {
 	Source,
-	Resolver,
 	Creator,
-	DependencyWatcher,
+	DepWatcher,
 }
 
 /// <summary>
@@ -57,42 +55,43 @@ public sealed class AssetStoreRegistration : IReloadTeardown {
 }
 
 /// <summary>
-/// Central manager of assets, as well as their sources, resolvers, and creators,
-/// live versions, and queued reload publication.
+/// Central manager of assets: their sources, creators, and dependency watchers, their current
+/// versions, and the publication and reclamation of reloaded versions.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Each <see cref="AssetRef{T}"/> refers to a stable slot in this store. A slot
-/// may have a current live version, a prepared replacement version queued for
-/// publication, or neither.
+/// Each <see cref="Asset{T}"/> refers to a slot in this store, which may have a current version, a
+/// prepared replacement waiting to be published, both, or neither.
 /// </para>
 /// <para>
-/// Reload publication is explicit: <see cref="AssetRef{T}.QueueReloadAsync(CancellationToken)"/>
-/// prepares a replacement version, and <see cref="ApplyQueuedReloads()"/> publishes
-/// all queued replacements. Borrowing an asset never applies a queued reload.
+/// Publication is explicit: <see cref="Asset{T}.QueueReloadAsync(CancellationToken)"/> (or a
+/// dependency watcher) prepares a replacement version, and <see cref="ApplyQueuedReloads()"/>
+/// publishes every prepared replacement. Borrowing or pinning never publishes anything.
 /// </para>
 /// <para>
-/// Threads may attach to the store with <see cref="AttachCurrentThread()"/> and
-/// report quiescent points with <see cref="AssetThreadAttachment.AtSafeBoundary()"/> (or the convenience
-/// method <see cref="AtSafeBoundary()"/>). When reloads are published, previously live versions are
-/// not reclaimed immediately; instead, the reclamation is deferred until every attached thread
-/// has passed a safe boundary after that publication. In other words, call <see cref="AtSafeBoundary()"/>
-/// when you're okay with the <see cref="AssetRef{T}"/>s you're using getting updated and old leases
-/// getting invalidated. This does NOT mean that you must report a safe boundary just to
-/// observe newly published reloads.
+/// Replaced versions aren't reclaimed right away. Threads that borrow assets attach to the store
+/// with <see cref="AttachCurrentThread()"/>, and report asset reload boundaries, points at which
+/// borrows may be invalidated, with <see cref="AssetThreadAttachment.AtReloadBoundary()"/>. A
+/// replaced version is reclaimed by the first <see cref="ApplyQueuedReloads()"/> call after every
+/// attached thread passed a boundary since the replacement, and after every pin of it was disposed.
+/// Reclamation releases the version's custody (see <see cref="IAssetStoreValue"/>), and disposes it
+/// if it's an <see cref="IAssetStoreDisposable"/>; all of that happens on the thread calling
+/// <see cref="ApplyQueuedReloads()"/>.
 /// </para>
 /// <para>
-/// Threads that are not attached to the store are outside that guarantee; they may
-/// still borrow/warm/etc. assets, but a <see cref="ApplyQueuedReloads()"/> call may
-/// invalidate currently borrowed leases.
+/// Using an old version is always explicit: a borrow throws once the borrowing thread passed a
+/// boundary, and the only way to keep a version is an <see cref="AssetPin{T}"/>. Reporting
+/// boundaries isn't necessary to observe reloads, since borrows always get the current version.
 /// </para>
 /// <para>
-/// Published asset versions also carry a dependency list collected during the
-/// creation of the asset. Registered dependency watchers can observe those dependencies
-/// and automatically queue reloads when the underlying external resources change.
+/// Published versions carry the dependencies collected while creating them. Dependency watchers
+/// (see <see cref="IAssetDepWatcher{T}"/>) observe them, and queue reloads when they change.
+/// </para>
+/// <para>
+/// Disposing the store reclaims every version it holds, <b>including pinned ones</b>.
 /// </para>
 /// </remarks>
-public sealed class AssetStore {
+public sealed class AssetStore : IDisposable {
 	// ==========================================================================
 	// versions/slots
 	private interface IPendingAssetValue : IDisposable {
@@ -101,22 +100,27 @@ public sealed class AssetStore {
 
 	private sealed class PendingPrepared(
 		IPendingAssetValue prepared,
-		ImmutableArray<IAssetDependency> deps,
+		ImmutableArray<IAssetDep> deps,
 		ulong version,
 		AssetReloadRequestOrigin origin,
-		AssetDependencySnapshot? trigger
+		AssetDepSnapshot? trigger
 	) : IDisposable {
 		public readonly IPendingAssetValue Prepared = prepared;
-		public readonly ImmutableArray<IAssetDependency> Dependencies = deps;
+		public readonly ImmutableArray<IAssetDep> Deps = deps;
 		public readonly ulong Version = version;
 		public readonly AssetReloadRequestOrigin Origin = origin;
-		public readonly AssetDependencySnapshot? Trigger = trigger;
+		public readonly AssetDepSnapshot? Trigger = trigger;
 		public void Dispose() => Prepared.Dispose();
 	}
 
-	private sealed class PendingRetired(object val, ulong epoch) {
-		public readonly object Val = val;
-		public readonly ulong RetireEpoch = epoch;
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct Retired(AssetVersion Version, ulong Epoch);
+
+	internal interface IDerivedSlot {
+		// marks the slot disposed and takes its current version out, for store disposal
+		AssetVersion? DetachForStoreDispose();
 	}
 
 	internal interface IAssetSlot {
@@ -130,27 +134,78 @@ public sealed class AssetStore {
 
 		Task WarmAsync(CancellationToken ct);
 		Task QueueReloadAsync(CancellationToken ct);
-		void QueueReloadFromDependency(IAssetDependency dep);
+		void QueueReloadFromDep(IAssetDep dep);
 		bool Evict();
+		// takes the current version and any prepared reload out of the slot, for store disposal
+		AssetVersion? DetachForStoreDispose();
 
 		// returns true if something actually got published
 		bool ApplyQueuedReload(ulong epoch, ImmutableArray<AssetReloadFailure>.Builder failures);
 	}
 
-	internal sealed class AssetVersion<T>(T value, ulong version, ImmutableArray<IAssetDependency> deps) where T : class {
-		public readonly T Value = value;
+	// a published version of an asset or derived value; derived versions also pin the versions of
+	// their dependencies they were computed from (`inputs`), and release them when reclaimed
+	internal abstract class AssetVersion(AssetId? assetId, string description, ulong version, ImmutableArray<IAssetDep> deps, AssetVersion[]? inputs) {
+		private int pins = 0;
+		private AssetStoreCustody? custody;
+
+		public readonly AssetId? AssetId = assetId;
 		public readonly ulong Version = version;
-		public readonly ImmutableArray<IAssetDependency> Dependencies = deps;
+		public readonly ImmutableArray<IAssetDep> Deps = deps;
+		public readonly AssetVersion[]? Inputs = inputs;
+		// 0 for asset versions, otherwise one more than the deepest input
+		public readonly int Depth = inputs is null || inputs.Length == 0 ? 0 : inputs.Max(static i => i.Depth) + 1;
+		public abstract object UntypedValue { get; }
+
+		public int PinCount => Volatile.Read(ref pins);
+		public void AddPin() => Interlocked.Increment(ref pins);
+		public void ReleasePin() {
+			if (Interlocked.Decrement(ref pins) < 0)
+				throw new InternalStateException("asset version pin count went negative");
+		}
+
+		// called with the slot lock held, right before publication
+		public void Adopt() {
+			if (UntypedValue is IAssetStoreValue v) {
+				custody = new AssetStoreCustody(AssetId, description, Version);
+				v.AttachCustody(custody);
+			}
+		}
+
+		public void Reclaim() {
+			custody?.Release();
+			try {
+				(UntypedValue as IAssetStoreDisposable)?.Dispose();
+			} finally {
+				if (Inputs is not null)
+					foreach (AssetVersion input in Inputs)
+						input.ReleasePin();
+			}
+		}
+
+		public string Describe() => description;
 	}
 
-	internal sealed class AssetSlot<T>(ulong slotId, AssetStore store, AssetId id) : IAssetSlot where T : class {
+	internal sealed class AssetVersion<T>(AssetId? assetId, string description, T value, ulong version, ImmutableArray<IAssetDep> deps, AssetVersion[]? inputs)
+		: AssetVersion(assetId, description, version, deps, inputs) where T : class {
+		public readonly T Value = value;
+		public override object UntypedValue => Value;
+
+		public static AssetVersion<T> OfAsset(AssetId id, T value, ulong version, ImmutableArray<IAssetDep> deps) =>
+			new(id, $"version {version} of asset '{id}'", value, version, deps, null);
+	}
+
+	internal sealed class AssetSlot<T>(ulong slotId, AssetStore store, AssetId id) : VersionSlot<T>, IAssetSlot where T : class {
 		private readonly Lock @lock = new();
+		private Asset<T>? handle;
 
 		private AssetVersion<T>? curr;
 		private PendingPrepared? pending;
 
 		private bool reloadPrepareTaskActive;
-		private TaskCompletionSource<object?> reloadStateChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		// completed with the outcome of the newest explicit reload request; the live exception it may
+		// carry is only referenced by the waiters, unlike the snapshot in lastReloadFailure
+		private TaskCompletionSource? reloadOutcome;
 		private Task? materializeTask;
 
 		private ExceptionSnapshot? lastLoadException;
@@ -159,10 +214,10 @@ public sealed class AssetStore {
 
 		private ulong newestRequestedVersion = 1;
 		private AssetReloadRequestOrigin newestReloadOrigin;
-		private AssetDependencySnapshot? newestReloadTrigger;
+		private AssetDepSnapshot? newestReloadTrigger;
 
 		public readonly ulong SlotId = slotId;
-		public AssetStore Store { get; } = store;
+		public override AssetStore Store { get; } = store;
 		public Type AssetType => typeof(T);
 		public AssetId AssetId { get; } = id;
 
@@ -177,27 +232,62 @@ public sealed class AssetStore {
 		public ExceptionSnapshot? LastLoadException => Volatile.Read(ref lastLoadException);
 		public AssetReloadFailure? LastReloadFailure => Volatile.Read(ref lastReloadFailure);
 
-		public AssetLease<T> Borrow() {
-			// if `curr` exists, return it immediately
-			// if `curr` doesn't exist, this method is allowed to synchronously materialize the first version
-			AssetVersion<T>? ver = Volatile.Read(ref curr);
-			if (ver is not null)
-				return new AssetLease<T>(ver.Value, ver.Version, ver.Dependencies.AsSpan());
+		// one handle per slot, so handles compare equal by reference
+		public Asset<T> Handle => Volatile.Read(ref handle) ?? Interlocked.CompareExchange(ref handle, new Asset<T>(this), null) ?? handle;
 
-			// block until it exists
-			Task waitTask = getOrStartMaterialize();
-			waitTask.GetAwaiter().GetResult();
-			ver = Volatile.Read(ref curr) ?? throw new InternalStateException("asset materialize finished without making the curr version");
-			return new AssetLease<T>(ver.Value, ver.Version, ver.Dependencies.AsSpan());
+		public override bool IsCurrent(AssetVersion<T> version) => ReferenceEquals(Volatile.Read(ref curr), version);
+
+		// a version read from `curr` stays alive until this thread's next boundary, since replacing it
+		// retires it at an epoch this thread hasn't passed yet
+		public AssetBorrow<T> Borrow() {
+			AssetThreadAttachment attachment = Store.CurrentAttachment();
+			AssetVersion<T>? ver = Volatile.Read(ref curr);
+			if (ver is null) {
+				getOrStartMaterialize().GetAwaiter().GetResult();
+				ver = Volatile.Read(ref curr) ?? throw new InternalStateException("asset materialize finished without making the curr version");
+			}
+			return new AssetBorrow<T>(this, ver, attachment);
 		}
 
-		public bool TryPassiveBorrow(out AssetLease<T> lease) {
+		public bool TryPassiveBorrow(out AssetBorrow<T> borrow) {
+			AssetThreadAttachment attachment = Store.CurrentAttachment();
 			AssetVersion<T>? ver = Volatile.Read(ref curr);
-			lease = ver is not null ? new AssetLease<T>(ver.Value, ver.Version, ver.Dependencies.AsSpan()) : default;
+			borrow = ver is not null ? new AssetBorrow<T>(this, ver, attachment) : default;
 			return ver is not null;
 		}
 
+		// pinning under the lock that replacing `curr` takes means a version is never pinned after it
+		// got retired, so this works from unattached threads too
+		public AssetPin<T> Pin() => new(this, PinCurrent());
+
+		public override AssetVersion<T> PinCurrent() {
+			for (;;) {
+				Store.CheckDisposed();
+				lock (@lock) {
+					if (curr is not null) {
+						curr.AddPin();
+						return curr;
+					}
+				}
+				getOrStartMaterialize().GetAwaiter().GetResult();
+			}
+		}
+
+		public bool TryPassivePin([NotNullWhen(true)] out AssetPin<T>? pin) {
+			Store.CheckDisposed();
+			lock (@lock) {
+				if (curr is null) {
+					pin = null;
+					return false;
+				}
+				curr.AddPin();
+				pin = new AssetPin<T>(this, curr);
+				return true;
+			}
+		}
+
 		public async Task WarmAsync(CancellationToken ct) {
+			Store.CheckDisposed();
 			ct.ThrowIfCancellationRequested();
 			if (Volatile.Read(ref curr) is not null)
 				return;
@@ -208,55 +298,57 @@ public sealed class AssetStore {
 
 		public async Task QueueReloadAsync(CancellationToken ct) {
 			// this is public
+			Store.CheckDisposed();
 			ct.ThrowIfCancellationRequested();
 
-			ulong targetVersion = 1;
-			bool startTask = false;
+			Task outcome;
+			bool startTask;
 			lock (@lock) {
-				if (curr is not null)
-					startTask = requestReloadLocked(AssetReloadRequestOrigin.Explicit, null, out targetVersion);
+				if (curr is null)
+					throw new InvalidOperationException($"asset '{AssetId}' has no current version to reload; load it first");
+				startTask = requestReloadLocked(AssetReloadRequestOrigin.Explicit, null, out _);
+				outcome = (reloadOutcome ??= newReloadOutcome()).Task;
 			}
-
-			if (targetVersion == 1 && Volatile.Read(ref curr) is null) {
-				await WarmAsync(ct).ConfigureAwait(false);
-				return;
-			}
-
 			if (startTask)
 				_ = runReloadPrepareLoopAsync();
-
-			for (;;) {
-				Task waitTask;
-
-				lock (@lock) {
-					if (reloadPrepareTaskEx is not null)
-						throw new InternalStateException(
-							"asset reload worker faulted unexpectedly; this asset slot is now marked as poisoned",
-							reloadPrepareTaskEx.ToException()
-						);
-					if (pending is not null && pending.Version >= targetVersion)
-						return;
-					if (curr is not null && curr.Version >= targetVersion)
-						return;
-					if (lastReloadFailure is not null && lastReloadFailure.TargetVersion >= targetVersion)
-						throw lastReloadFailure.ExceptionSnapshot.ToException();
-					waitTask = reloadStateChanged.Task;
-				}
-
-				await waitTask.WaitAsync(ct).ConfigureAwait(false);
-			}
+			await outcome.WaitAsync(ct).ConfigureAwait(false);
 		}
 
-		public void QueueReloadFromDependency(IAssetDependency dep) {
+		private static TaskCompletionSource newReloadOutcome() {
+			TaskCompletionSource tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+			// waiters may have given up (cancellation), so an unobserved failure isn't worth reporting
+			tcs.Task.ContinueWith(
+				static t => _ = t.Exception,
+				CancellationToken.None,
+				TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+				TaskScheduler.Default
+			);
+			return tcs;
+		}
+
+		// continuations run asynchronously, so this is fine to call with the lock held
+		private void completeReloadLocked(Exception? ex) {
+			TaskCompletionSource? o = reloadOutcome;
+			reloadOutcome = null;
+			if (o is null)
+				return;
+			if (ex is null)
+				o.TrySetResult();
+			else
+				o.TrySetException(ex);
+		}
+
+		public void QueueReloadFromDep(IAssetDep dep) {
 			// this is internal
 			bool startTask;
 			lock (@lock)
-				startTask = requestReloadLocked(AssetReloadRequestOrigin.Dependency, dep, out _);
+				startTask = requestReloadLocked(AssetReloadRequestOrigin.Dep, dep, out _);
 			if (startTask)
 				_ = runReloadPrepareLoopAsync();
 		}
 
 		public bool Evict() {
+			Store.CheckDisposed();
 			AssetVersion<T>? oldver;
 			PendingPrepared? oldPending;
 			lock (@lock) {
@@ -277,14 +369,25 @@ public sealed class AssetStore {
 				pending = null;
 				lastLoadException = null;
 				lastReloadFailure = null;
-				pulseReloadStateChangedLocked();
 			}
 			oldPending?.Dispose();
-#pragma warning disable IDE0001 // name can be simplified
 			if (oldver is not null)
-				Store.QueueRetire<T>(oldver.Value, Store.ReserveRetireEpoch());
-#pragma warning restore IDE0001 // name can be simplified
+				Store.QueueRetire(oldver, Store.ReserveRetireEpoch());
 			return true;
+		}
+
+		public AssetVersion? DetachForStoreDispose() {
+			AssetVersion<T>? oldver;
+			PendingPrepared? oldPending;
+			lock (@lock) {
+				oldver = curr;
+				oldPending = pending;
+				curr = null;
+				pending = null;
+				completeReloadLocked(new ObjectDisposedException(nameof(AssetStore)));
+			}
+			oldPending?.Dispose();
+			return oldver;
 		}
 
 		public bool ApplyQueuedReload(ulong epoch, ImmutableArray<AssetReloadFailure>.Builder failures) {
@@ -301,7 +404,7 @@ public sealed class AssetStore {
 			AssetVersion<T> newver;
 			try {
 				T newval = finalizePrepared<T>(AssetId, pprep.Prepared);
-				newver = new AssetVersion<T>(newval, pprep.Version, pprep.Dependencies);
+				newver = AssetVersion<T>.OfAsset(AssetId, newval, pprep.Version, pprep.Deps);
 			} catch (Exception caught) {
 				pprep.Dispose();
 				AssetReloadFailure f = new(
@@ -312,10 +415,8 @@ public sealed class AssetStore {
 					pprep.Trigger,
 					ExceptionSnapshot.FromException(caught)
 				);
-				lock (@lock) {
+				lock (@lock)
 					lastReloadFailure = f;
-					pulseReloadStateChangedLocked();
-				}
 				failures.Add(f);
 				Store.RecordFailedReload(f);
 				return false;
@@ -324,26 +425,19 @@ public sealed class AssetStore {
 			AssetVersion<T>? oldver;
 			lock (@lock) {
 				oldver = curr;
+				newver.Adopt();
 				curr = newver;
 				lastReloadFailure = null;
-				Store.onSlotPublished(this, oldver?.Dependencies ?? ImmutableArray<IAssetDependency>.Empty, newver.Dependencies);
+				Store.onSlotPublished(this, oldver?.Deps ?? ImmutableArray<IAssetDep>.Empty, newver.Deps);
 			}
 
 			pprep.Dispose();
-#pragma warning disable IDE0001 // name can be simplified
 			if (oldver is not null)
-				Store.QueueRetire<T>(oldver.Value, epoch);
-#pragma warning restore IDE0001 // name can be simplified
+				Store.QueueRetire(oldver, epoch);
 			return true;
 		}
 
-		private void pulseReloadStateChangedLocked() {
-			TaskCompletionSource<object?> old = reloadStateChanged;
-			reloadStateChanged = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-			old.TrySetResult(null);
-		}
-
-		private bool requestReloadLocked(AssetReloadRequestOrigin origin, IAssetDependency? trigger, out ulong targetVersion) {
+		private bool requestReloadLocked(AssetReloadRequestOrigin origin, IAssetDep? trigger, out ulong targetVersion) {
 			if (curr is null) {
 				targetVersion = 1;
 				return false;
@@ -351,7 +445,7 @@ public sealed class AssetStore {
 
 			targetVersion = ++newestRequestedVersion;
 			newestReloadOrigin = origin;
-			newestReloadTrigger = trigger is not null ? AssetDependencySnapshot.FromDependency(trigger) : null;
+			newestReloadTrigger = trigger is not null ? AssetDepSnapshot.FromDep(trigger) : null;
 			pending?.Dispose();
 			pending = null;
 
@@ -364,7 +458,6 @@ public sealed class AssetStore {
 					);
 				reloadPrepareTaskActive = true;
 			}
-			pulseReloadStateChangedLocked();
 			return startTask;
 		}
 
@@ -373,11 +466,15 @@ public sealed class AssetStore {
 				for (;;) {
 					ulong targetVersion;
 					AssetReloadRequestOrigin targetOrigin;
-					AssetDependencySnapshot? targetTrigger;
+					AssetDepSnapshot? targetTrigger;
 
 					lock (@lock) {
-						if (curr is null)
+						// only store disposal empties the slot while a reload is being prepared
+						if (curr is null) {
+							reloadPrepareTaskActive = false;
+							completeReloadLocked(new ObjectDisposedException(nameof(AssetStore)));
 							return;
+						}
 						targetVersion = newestRequestedVersion;
 						targetOrigin = newestReloadOrigin;
 						targetTrigger = newestReloadTrigger;
@@ -385,7 +482,7 @@ public sealed class AssetStore {
 
 					PendingPrepared prepared;
 					try {
-						(IPendingAssetValue pendingAssetValue, ImmutableArray<IAssetDependency> deps) =
+						(IPendingAssetValue pendingAssetValue, ImmutableArray<IAssetDep> deps) =
 							await Store.tryPrepareValueAsync<T>(AssetId).ConfigureAwait(false);
 						prepared = new PendingPrepared(pendingAssetValue, deps, targetVersion, targetOrigin, targetTrigger);
 					} catch (Exception caught) when (!ExceptionPolicy.IsInternalState(caught)) {
@@ -402,7 +499,7 @@ public sealed class AssetStore {
 								lastReloadFailure = f;
 								reloadPrepareTaskActive = false;
 								Store.RecordFailedReload(f);
-								pulseReloadStateChangedLocked();
+								completeReloadLocked(caught);
 								return;
 							}
 						}
@@ -415,7 +512,7 @@ public sealed class AssetStore {
 							pending = prepared;
 							lastReloadFailure = null;
 							reloadPrepareTaskActive = false;
-							pulseReloadStateChangedLocked();
+							completeReloadLocked(null);
 							return;
 						}
 					}
@@ -425,7 +522,7 @@ public sealed class AssetStore {
 				lock (@lock) {
 					reloadPrepareTaskEx = ExceptionSnapshot.FromException(caught);
 					reloadPrepareTaskActive = false;
-					pulseReloadStateChangedLocked();
+					completeReloadLocked(new InternalStateException("asset reload worker faulted unexpectedly; this asset slot is now marked as poisoned", caught));
 				}
 			}
 		}
@@ -438,22 +535,26 @@ public sealed class AssetStore {
 				lock (@lock)
 					version = newestRequestedVersion;
 
-				(pendingValue, ImmutableArray<IAssetDependency> deps) =
+				(pendingValue, ImmutableArray<IAssetDep> deps) =
 					await Store.tryPrepareValueAsync<T>(AssetId).ConfigureAwait(false);
 				newval = finalizePrepared<T>(AssetId, pendingValue);
-				AssetVersion<T> newver = new(newval, version, deps);
+				var newver = AssetVersion<T>.OfAsset(AssetId, newval, version, deps);
 
 				lock (@lock) {
+					materializeTask = null;
+					// a store disposed meanwhile doesn't get the value; the finally below disposes it
+					if (Store.IsDisposed) {
+						tcs.SetException(new ObjectDisposedException(nameof(AssetStore)));
+						return;
+					}
 					if (curr is null) {
 						if (version != newestRequestedVersion)
 							throw new InternalStateException("materialized asset version became stale before publication");
+						newver.Adopt();
 						curr = newver;
 						lastLoadException = null;
-						materializeTask = null;
 						newval = null;
-						Store.onSlotPublished(this, ImmutableArray<IAssetDependency>.Empty, newver.Dependencies);
-					} else {
-						materializeTask = null;
+						Store.onSlotPublished(this, ImmutableArray<IAssetDep>.Empty, newver.Deps);
 					}
 					tcs.SetResult(null);
 				}
@@ -483,11 +584,8 @@ public sealed class AssetStore {
 
 			if (curr is not null)
 				return Task.CompletedTask;
-			if (materializeTask is not null) {
-				// if we waited here from inside the same load chain it'd deadlock
-				checkCycle(new AssetKey(AssetId, typeof(T)));
+			if (materializeTask is not null)
 				return materializeTask;
-			}
 			startMaterialize = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 			materializeTask = startMaterialize.Task;
 			return materializeTask;
@@ -532,6 +630,10 @@ public sealed class AssetStore {
 		}
 	}
 
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and is a
+	/// <see cref="AssetCreateResultKind.NotHandled"/> result.
+	/// </remarks>
 	private readonly record struct UntypedCreateResult(
 		AssetCreateResultKind Kind,
 		IPendingAssetValue? Value = null
@@ -542,13 +644,13 @@ public sealed class AssetStore {
 
 	private interface IUntypedAssetCreator {
 		Type AssetType { get; }
-		ValueTask<UntypedCreateResult> TryCreateAsync(AssetCreateInfo info, IAssetDependencyCollector coll, CancellationToken ct);
+		ValueTask<UntypedCreateResult> TryCreateAsync(AssetCreateInfo info, IAssetDepCollector coll, CancellationToken ct);
 	}
 
 	private sealed class UntypedDirectAssetCreator<T>(IAssetCreator<T> creator) : IUntypedAssetCreator where T : class {
 		private readonly IAssetCreator<T> creator = creator;
 		public Type AssetType => typeof(T);
-		public async ValueTask<UntypedCreateResult> TryCreateAsync(AssetCreateInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
+		public async ValueTask<UntypedCreateResult> TryCreateAsync(AssetCreateInfo info, IAssetDepCollector coll, CancellationToken ct) {
 			AssetCreateResult<T> result = await creator.TryCreateAsync(info, coll, ct).ConfigureAwait(false);
 			return result.Kind.Tag switch {
 				AssetCreateResultKind.Case.NotHandled => UntypedCreateResult.NotHandled(),
@@ -566,7 +668,7 @@ public sealed class AssetStore {
 		: IUntypedAssetCreator where T : class where TPrepared : AssetPreparedData {
 		private readonly IAssetStagedCreator<T, TPrepared> creator = creator;
 		public Type AssetType => typeof(T);
-		public async ValueTask<UntypedCreateResult> TryCreateAsync(AssetCreateInfo info, IAssetDependencyCollector coll, CancellationToken ct) {
+		public async ValueTask<UntypedCreateResult> TryCreateAsync(AssetCreateInfo info, IAssetDepCollector coll, CancellationToken ct) {
 			AssetPrepareResult<TPrepared> result = await creator.TryPrepareAsync(info, coll, ct).ConfigureAwait(false);
 			return result.Kind.Tag switch {
 				AssetCreateResultKind.Case.NotHandled => UntypedCreateResult.NotHandled(),
@@ -583,40 +685,40 @@ public sealed class AssetStore {
 
 	// ==========================================================================
 	// dependency tracking (incl. boilerplate wrappers)
-	private sealed class DependencyCollector : IAssetDependencyCollector {
-		private readonly HashSet<IAssetDependency> deps = new();
-		public void Add(IAssetDependency dependency) {
-			ArgumentNullException.ThrowIfNull(dependency);
-			deps.Add(dependency);
+	private sealed class DepCollector : IAssetDepCollector {
+		private readonly HashSet<IAssetDep> deps = new();
+		public void Add(IAssetDep dep) {
+			ArgumentNullException.ThrowIfNull(dep);
+			deps.Add(dep);
 		}
-		public ImmutableArray<IAssetDependency> Snapshot() => [.. deps];
-		public void MergeFrom(DependencyCollector child) {
-			foreach (IAssetDependency dep in child.deps)
+		public ImmutableArray<IAssetDep> Snapshot() => [.. deps];
+		public void MergeFrom(DepCollector child) {
+			foreach (IAssetDep dep in child.deps)
 				deps.Add(dep);
 		}
 	}
 
-	private interface IUntypedAssetDependencyWatcher : IDisposable {
-		Type DependencyType { get; }
-		void Watch(IAssetDependency dependency);
-		void Unwatch(IAssetDependency dependency);
-		event Action<IAssetDependency> Changed;
+	private interface IUntypedAssetDepWatcher : IDisposable {
+		Type DepType { get; }
+		void Watch(IAssetDep dep);
+		void Unwatch(IAssetDep dep);
+		event Action<IAssetDep> Changed;
 	}
 
-	private sealed class UntypedAssetDependencyWatcher<T> : IUntypedAssetDependencyWatcher where T : IAssetDependency {
-		private readonly IAssetDependencyWatcher<T> inner;
+	private sealed class UntypedAssetDepWatcher<T> : IUntypedAssetDepWatcher where T : IAssetDep {
+		private readonly IAssetDepWatcher<T> inner;
 
-		public Type DependencyType => typeof(T);
-		public event Action<IAssetDependency>? Changed;
+		public Type DepType => typeof(T);
+		public event Action<IAssetDep>? Changed;
 
-		public UntypedAssetDependencyWatcher(IAssetDependencyWatcher<T> inner) {
+		public UntypedAssetDepWatcher(IAssetDepWatcher<T> inner) {
 			this.inner = inner;
 			this.inner.Changed += onChanged;
 		}
-		private void onChanged(T dependency) => Changed?.Invoke(dependency);
+		private void onChanged(T dep) => Changed?.Invoke(dep);
 
-		public void Watch(IAssetDependency dependency) => inner.Watch((T)dependency);
-		public void Unwatch(IAssetDependency dependency) => inner.Unwatch((T)dependency);
+		public void Watch(IAssetDep dep) => inner.Watch((T)dep);
+		public void Unwatch(IAssetDep dep) => inner.Unwatch((T)dep);
 		public void Dispose() {
 			inner.Changed -= onChanged;
 			inner.Dispose();
@@ -629,15 +731,6 @@ public sealed class AssetStore {
 	internal readonly ulong StoreId = Interlocked.Increment(ref nextStoreId);
 
 	// ==========================================================================
-	// load cycle tracking
-	private sealed class AssetLoadStackFrame(AssetKey key, AssetLoadStackFrame? prev) {
-		public readonly AssetKey Key = key;
-		public readonly AssetLoadStackFrame? Prev = prev;
-	}
-
-	private static readonly AsyncLocal<AssetLoadStackFrame?> loadStackTop = new();
-
-	// ==========================================================================
 	// general bookkeeping
 	private readonly ConcurrentDictionary<AssetKey, IAssetSlot> slots = new();
 	private ulong nextSlotId = 0; // first ID will be 1 since this gets incremented upfront
@@ -646,23 +739,32 @@ public sealed class AssetStore {
 	// creation pipeline bookkeeping
 	private readonly Lock registryLock = new();
 	private readonly UnsafeOwnerOrderedRegistry<IAssetSource> sources = new();
-	private readonly UnsafeOwnerOrderedRegistry<IAssetResolver> resolvers = new();
 	private ImmutableDictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>> creators = ImmutableDictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>>.Empty;
 
 	// ==========================================================================
 	// publication / reclamation / thread attachment bookkeeping
-	private readonly ConcurrentQueue<PendingRetired> retired = new();
+	private readonly Lock retiredLock = new();
+	private readonly List<Retired> retired = new();
 	private ulong publishedEpoch = 0;
 	internal ulong GetPublishedEpoch() => Volatile.Read(ref publishedEpoch);
 
 	[ThreadStatic] private static Dictionary<ulong, AssetThreadAttachment>? tlsAttachmentsByStoreId;
+	// fast path for borrows, which look up the current thread's attachment every time
+	[ThreadStatic] private static AssetThreadAttachment? tlsLastAttachment;
 	private readonly ConcurrentDictionary<ulong, AssetThreadAttachment> attachedThreadsById = new();
+
+	private int disposed = 0;
+	internal bool IsDisposed => Volatile.Read(ref disposed) != 0;
+
+	private readonly ConcurrentDictionary<IDerivedSlot, byte> derivedSlots = new();
+	internal void RegisterDerived(IDerivedSlot slot) => derivedSlots.TryAdd(slot, 0);
+	internal void UnregisterDerived(IDerivedSlot slot) => derivedSlots.TryRemove(slot, out _);
 
 	// ==========================================================================
 	// dependency bookkeeping
-	private readonly Lock dependencyLock = new();
-	private Dictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>> watchers = new();
-	private readonly Dictionary<IAssetDependency, HashSet<IAssetSlot>> slotsByDependency = new();
+	private readonly Lock depLock = new();
+	private Dictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>> watchers = new();
+	private readonly Dictionary<IAssetDep, HashSet<IAssetSlot>> slotsByDep = new();
 
 	// ==========================================================================
 	// log/report/failure bookkeeping
@@ -673,9 +775,9 @@ public sealed class AssetStore {
 	/// The maximum number of reload failure records retained by this store's reload-failure buffer.
 	/// </summary>
 	/// <remarks>
-	/// Once the buffer is full, recording another reload failure discards the oldest retained
-	/// failure. This buffer is diagnostic state only; per-asset failure state is exposed through
-	/// <see cref="AssetRef{T}.LastReloadFailure"/>.
+	/// Once the buffer is full, recording another reload failure discards the oldest retained failure.
+	/// This buffer is diagnostic state only; per-asset failure state is exposed through
+	/// <see cref="Asset{T}.LastReloadFailure"/>.
 	/// </remarks>
 	public const int MaxBufferedReloadFailures = 1024;
 
@@ -683,102 +785,106 @@ public sealed class AssetStore {
 	// public api
 
 	/// <summary>
-	/// Gets a stable handle for the specified asset.
+	/// Gets the handle for an asset.
 	/// </summary>
-	/// <typeparam name="T">Expected asset type. Determines what creators are tried.</typeparam>
+	/// <typeparam name="T">Asset type, which decides what creators are tried.</typeparam>
 	/// <param name="id">Asset ID.</param>
-	/// <returns>An <see cref="AssetRef{T}"/> handle for the specified asset.</returns>
-	public AssetRef<T> GetAsset<T>(AssetId id) where T : class {
+	/// <returns>
+	/// The handle; every call with the same ID and type returns the same <see cref="Asset{T}"/>.
+	/// </returns>
+	/// <remarks>
+	/// Nothing is loaded until the asset is borrowed, pinned, or warmed.
+	/// </remarks>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this store has been disposed.
+	/// </exception>
+	public Asset<T> GetAsset<T>(AssetId id) where T : class {
+		CheckDisposed();
 		AssetKey key = new(id, typeof(T));
 		if (!slots.TryGetValue(key, out IAssetSlot? s)) {
 			IAssetSlot @new = new AssetSlot<T>(Interlocked.Increment(ref nextSlotId), this, id);
 			s = slots.GetOrAdd(key, @new);
 		}
-		return new AssetRef<T>((AssetSlot<T>)s);
+		return ((AssetSlot<T>)s).Handle;
 	}
 
 	/// <summary>
-	/// Creates a convenience <see cref="AssetNamespace"/> object for more ergonomic namespace-scoped
-	/// use of this store, using the provided namespace.
-	/// </summary>
-	public AssetNamespace WithNamespace(string ns) => new(this, ns);
-
-	/// <summary>
-	/// Attaches the current thread to this <see cref="AssetStore"/> for deferred
-	/// asset version reclamation tracking.
+	/// Attaches the current thread to this store, so it can borrow assets.
 	/// </summary>
 	/// <returns>
-	/// An <see cref="AssetThreadAttachment"/> object representing this thread's participation
-	/// in this store's safe-boundary / deferred-reclaim model.
+	/// The attachment, owned by the caller and usable only from the current thread. Disposing it
+	/// detaches the thread.
 	/// </returns>
 	/// <remarks>
-	/// Attachment is per-thread and per-store. A single thread may be attached to
-	/// multiple <see cref="AssetStore"/> instances at the same time.
+	/// A thread can be attached to several stores at once. An attached thread holds back reclamation
+	/// of replaced versions until it reports an asset reload boundary, so threads that don't borrow
+	/// shouldn't attach; they can use pins instead.
 	/// </remarks>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the current thread is already attached to this store.
 	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this store has been disposed.
+	/// </exception>
 	public AssetThreadAttachment AttachCurrentThread() {
-		AssetThreadAttachment attachment = new(this);
+		CheckDisposed();
 		tlsAttachmentsByStoreId ??= new Dictionary<ulong, AssetThreadAttachment>();
 		if (tlsAttachmentsByStoreId.ContainsKey(StoreId))
 			throw new InvalidOperationException("current thread is already attached to this AssetStore");
+		AssetThreadAttachment attachment = new(this);
+		Volatile.Write(ref attachment.QuiescentEpoch, Volatile.Read(ref publishedEpoch));
 		if (!attachedThreadsById.TryAdd(attachment.Id, attachment))
 			throw new InternalStateException("duplicate asset thread attachment id");
 		tlsAttachmentsByStoreId.Add(StoreId, attachment);
-		Volatile.Write(ref attachment.QuiescentEpoch, Volatile.Read(ref publishedEpoch));
 		return attachment;
 	}
 
 	/// <summary>
-	/// Reports a safe boundary for the current thread's attachment to this store.
+	/// Reports an asset reload boundary for the current thread; shorthand for
+	/// <see cref="AssetThreadAttachment.AtReloadBoundary()"/> on its attachment.
 	/// </summary>
-	/// <remarks>
-	/// This method is a convenience wrapper over <see cref="AssetThreadAttachment.AtSafeBoundary()"/>
-	/// for the current thread's attachment to this store.
-	/// </remarks>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if the current thread is not attached to this store.
+	/// Thrown if the current thread isn't attached to this store.
 	/// </exception>
-	public void AtSafeBoundary() {
-		if (tlsAttachmentsByStoreId is null || !tlsAttachmentsByStoreId.TryGetValue(StoreId, out AssetThreadAttachment? attachment))
-			throw new InvalidOperationException(
-				"the current thread is not attached to this AssetStore. if you're using Task/etc., crossing an await is not guaranteed to resume on the same physical thread, use a real Thread"
-			);
-		attachment.AtSafeBoundary();
-	}
+	public void AtReloadBoundary() => CurrentAttachment().AtReloadBoundary();
 
 	/// <summary>
-	/// Finalizes and applies all currently prepared reloads.
+	/// Publishes every prepared reload, then reclaims replaced versions that nothing can use anymore.
 	/// </summary>
-	/// <returns>
-	/// An <see cref="AssetReloadReport"/> with the number of published reloads and any
-	/// finalize failures that occurred.
-	/// </returns>
+	/// <returns>The number of published reloads, and the reloads that failed to finalize.</returns>
 	/// <remarks>
 	/// <para>
-	/// This method does not start loading or preparing assets. It only publishes replacement versions
-	/// that were already prepared by <see cref="AssetRef{T}.QueueReloadAsync(CancellationToken)"/> or
-	/// by dependency-triggered reload requests.
+	/// This doesn't start loading or preparing anything; it publishes replacements that
+	/// <see cref="Asset{T}.QueueReloadAsync(CancellationToken)"/> or a dependency watcher already
+	/// prepared. Publication is immediate, so borrows after this call get the new versions.
 	/// </para>
 	/// <para>
-	/// A failed reload leaves the previous live version active. Finalize failures are both returned
-	/// in the report and recorded in the store's reload-failure buffer.
+	/// A reload that fails to finalize leaves the previous version current; the failure is both
+	/// returned and recorded in the store's reload-failure buffer.
 	/// </para>
 	/// <para>
-	/// Publication is immediate; subsequent borrows after a call observe the new value.
-	/// Previously live values are kept alive until every attached thread reports a safe
-	/// boundary, at which point they are reclaimed.
+	/// A replaced version is reclaimed once every attached thread reported an asset reload boundary
+	/// since it was replaced, and no pins of it remain. This is the only place reclamation happens, so
+	/// it always runs on the thread calling this, typically the main thread, right after its own
+	/// boundary.
 	/// </para>
 	/// </remarks>
+	/// <exception cref="AggregateException">
+	/// Thrown if disposing reclaimed versions threw; every eligible version is still reclaimed, and
+	/// every prepared reload is still published.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this store has been disposed.
+	/// </exception>
 	public AssetReloadReport ApplyQueuedReloads() {
+		CheckDisposed();
 		ImmutableArray<AssetReloadFailure>.Builder failures = ImmutableArray.CreateBuilder<AssetReloadFailure>();
 		ulong epoch = ReserveRetireEpoch();
 		int n = 0;
 		foreach (IAssetSlot s in slots.Values.ToArray())
 			if (s.ApplyQueuedReload(epoch, failures))
 				n++;
-		TryCollectRetired();
+		collectRetired();
 		return new AssetReloadReport(n, failures.ToImmutable());
 	}
 
@@ -787,11 +893,14 @@ public sealed class AssetStore {
 	/// </summary>
 	/// <returns>The number of assets that published a new live version.</returns>
 	/// <remarks>
-	/// Convenience wrapper over <see cref="ApplyQueuedReloads()"/>.
-	/// Has equivalent throwing behavior to <see cref="AssetReloadReport.ThrowIfFailed()"/>.
+	/// Convenience wrapper over <see cref="ApplyQueuedReloads()"/>. Has equivalent throwing behavior
+	/// to <see cref="AssetReloadReport.ThrowIfFailed()"/>.
 	/// </remarks>
 	/// <exception cref="AggregateException">
 	/// Thrown if finalization of one or more prepared reloads failed.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this store has been disposed.
 	/// </exception>
 	public int ApplyQueuedReloadsOrThrow() {
 		AssetReloadReport r = ApplyQueuedReloads();
@@ -807,14 +916,14 @@ public sealed class AssetStore {
 	/// </returns>
 	/// <remarks>
 	/// <para>
-	/// Draining clears the store-level reload failure buffer, intended for diagnostics such as
-	/// logging / editor UIs / debug overlays / etc. It is not needed to determine the current
-	/// state of a specific asset; use <see cref="AssetRef{T}.LastReloadFailure"/> for that.
+	/// Draining clears the store-level reload failure buffer, intended for diagnostics such as logging
+	/// / editor UIs / debug overlays / etc. It is not needed to determine the current state of a
+	/// specific asset; use <see cref="Asset{T}.LastReloadFailure"/> for that.
 	/// </para>
 	/// <para>
 	/// Dependency-triggered reload failures are recorded here because they do not throw into the
-	/// dependency watcher event path. Finalize failures from <see cref="ApplyQueuedReloads()"/>
-	/// are also recorded here.
+	/// dependency watcher event path. Finalize failures from <see cref="ApplyQueuedReloads()"/> are
+	/// also recorded here.
 	/// </para>
 	/// </remarks>
 	public AssetReloadFailure[] DrainReloadFailures() {
@@ -842,21 +951,12 @@ public sealed class AssetStore {
 		}
 	}
 
-	/// <summary>
-	/// Registers an asset resolver.
-	/// </summary>
-	/// <returns>
-	/// A registration handle that can be used to remove the registration.
-	/// </returns>
-	/// <exception cref="OwnerOrderingException">
-	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
-	/// </exception>
-	public AssetStoreRegistration RegisterResolver(OwnerOrderedEntry<IAssetResolver> resolver) {
-		ArgumentNullException.ThrowIfNull(resolver);
-		lock (registryLock) {
-			ulong id = resolvers.RegisterLocked(resolver);
-			return new AssetStoreRegistration(this, AssetRegistrationKind.Resolver, id, null);
-		}
+	private static void chkAssetType(Type type, string paramName) {
+		if (typeof(IDisposable).IsAssignableFrom(type) && !typeof(IAssetStoreDisposable).IsAssignableFrom(type))
+			throw new ArgumentException(
+				$"asset type {type.FullName} implements IDisposable but not IAssetStoreDisposable, so nothing would stop its values from being disposed while the store owns them",
+				paramName
+			);
 	}
 
 	private AssetStoreRegistration registerCreatorLocked(OwnerOrderedEntry<IUntypedAssetCreator> creator, Type type) {
@@ -879,11 +979,21 @@ public sealed class AssetStore {
 	/// <returns>
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
+	/// <remarks>
+	/// Values the creator produces must follow the same rule as <typeparamref name="T"/>: a value
+	/// implementing <see cref="IDisposable"/> but not <see cref="IAssetStoreDisposable"/> fails to
+	/// load.
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <typeparamref name="T"/> implements <see cref="IDisposable"/> but not
+	/// <see cref="IAssetStoreDisposable"/>.
+	/// </exception>
 	/// <exception cref="OwnerOrderingException">
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
 	public AssetStoreRegistration RegisterCreator<T>(OwnerOrderedEntry<IAssetCreator<T>> creator) where T : class {
 		ArgumentNullException.ThrowIfNull(creator);
+		chkAssetType(typeof(T), nameof(creator));
 		lock (registryLock)
 			return registerCreatorLocked(creator.Transform<IUntypedAssetCreator>(
 				static c => new UntypedDirectAssetCreator<T>(c)
@@ -900,6 +1010,7 @@ public sealed class AssetStore {
 		OwnerOrderedEntry<IAssetStagedCreator<T, TPrepared>> creator
 	) where T : class where TPrepared : AssetPreparedData {
 		ArgumentNullException.ThrowIfNull(creator);
+		chkAssetType(typeof(T), nameof(creator));
 		lock (registryLock)
 			return registerCreatorLocked(creator.Transform<IUntypedAssetCreator>(
 				static c => new UntypedStagedAssetCreator<T, TPrepared>(c)
@@ -909,14 +1020,14 @@ public sealed class AssetStore {
 	/// <summary>
 	/// Registers a watcher for a specific dependency type.
 	/// </summary>
-	/// <typeparam name="TDependency">Dependency type handled by the watcher.</typeparam>
+	/// <typeparam name="TDep">Dependency type handled by the watcher.</typeparam>
 	/// <returns>
 	/// A registration handle that can be used to remove the registration.
 	/// </returns>
 	/// <remarks>
 	/// <para>
-	/// Newly registered watchers are immediately subscribed to all currently published
-	/// dependencies of the matching type that are already known to this store.
+	/// Newly registered watchers are immediately subscribed to all currently published dependencies of
+	/// the matching type that are already known to this store.
 	/// </para>
 	/// <para>
 	/// Unsubscription is done in reverse order; the last-ordered watcher, i.e the last one to have
@@ -926,44 +1037,45 @@ public sealed class AssetStore {
 	/// <exception cref="OwnerOrderingException">
 	/// Thrown if the new ordering constraints are invalid or unsatisfiable.
 	/// </exception>
-	public AssetStoreRegistration RegisterDependencyWatcher<TDependency>(
-		OwnerOrderedEntry<IAssetDependencyWatcher<TDependency>> watcher
-	) where TDependency : IAssetDependency {
+	public AssetStoreRegistration RegisterDepWatcher<TDep>(
+		OwnerOrderedEntry<IAssetDepWatcher<TDep>> watcher
+	) where TDep : IAssetDep {
 		ArgumentNullException.ThrowIfNull(watcher);
-		lock (dependencyLock) {
-			UntypedAssetDependencyWatcher<TDependency> untyped = new(watcher.Item);
-			OwnerOrderedEntry<IUntypedAssetDependencyWatcher> ent = watcher.Substitute<IUntypedAssetDependencyWatcher>(untyped);
-			Dictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>> old = watchers;
+		lock (depLock) {
+			UntypedAssetDepWatcher<TDep> untyped = new(watcher.Item);
+			OwnerOrderedEntry<IUntypedAssetDepWatcher> ent = watcher.Substitute<IUntypedAssetDepWatcher>(untyped);
+			Dictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>> old = watchers;
 			ulong id;
-			if (old.TryGetValue(typeof(TDependency), out UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg)) {
+			if (old.TryGetValue(typeof(TDep), out UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>? reg)) {
 				id = reg.RegisterLocked(ent);
 			} else {
-				reg = new UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>();
+				reg = new UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>();
 				id = reg.RegisterLocked(ent);
-				Dictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>> @new = new(old) {
-					[typeof(TDependency)] = reg,
+				Dictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>> @new = new(old) {
+					[typeof(TDep)] = reg,
 				};
 				Volatile.Write(ref watchers, @new);
 			}
-			untyped.Changed += onDependencyChanged;
-			foreach ((IAssetDependency dep, _) in slotsByDependency)
-				if (dep.GetType() == typeof(TDependency))
-					watcher.Item.Watch((TDependency)dep);
-			return new AssetStoreRegistration(this, AssetRegistrationKind.DependencyWatcher, id, typeof(TDependency));
+			untyped.Changed += onDepChanged;
+			foreach ((IAssetDep dep, _) in slotsByDep)
+				if (dep.GetType() == typeof(TDep))
+					watcher.Item.Watch((TDep)dep);
+			return new AssetStoreRegistration(this, AssetRegistrationKind.DepWatcher, id, typeof(TDep));
 		}
 	}
 
 	/// <summary>
-	/// Unregisters an asset source by owner ID + local ID instead of by registration handle.
-	/// This may break code that expects that source to be there since it's seemingly going to
-	/// vanish for no reason, so use with care.
+	/// Unregisters an asset source by owner ID + local ID instead of by registration handle. This may
+	/// break code that expects that source to be there since it's seemingly going to vanish for no
+	/// reason, so use with care.
 	/// </summary>
 	/// <returns>
 	/// <see langword="true"/> if the ID pair pointed to a registered source that was, as such,
 	/// successfully unregistered; otherwise, <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
-	/// The intended usecase is the handle being lost/unreachable but the registration needing to be removed.
+	/// The intended usecase is the handle being lost/unreachable but the registration needing to be
+	/// removed.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID or <paramref name="localId"/> is
@@ -975,12 +1087,13 @@ public sealed class AssetStore {
 	}
 
 	/// <summary>
-	/// Unregisters <b>every</b> source registered under the specified owner ID.
-	/// This may break code that expects these sources to be there since they're seemingly going to
-	/// vanish for no reason, so use with care.
+	/// Unregisters <b>every</b> source registered under the specified owner ID. This may break code
+	/// that expects these sources to be there since they're seemingly going to vanish for no reason,
+	/// so use with care.
 	/// </summary>
 	/// <remarks>
-	/// The intended usecase is the owner being gone but not having properly cleaned up its registrations.
+	/// The intended usecase is the owner being gone but not having properly cleaned up its
+	/// registrations.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
@@ -991,57 +1104,17 @@ public sealed class AssetStore {
 	}
 
 	/// <summary>
-	/// Unregisters an asset resolver by owner ID + local ID instead of by registration handle.
-	/// This may break code that expects that resolver to be there since it's seemingly going to
-	/// vanish for no reason, so use with care.
-	/// </summary>
-	/// <returns>
-	/// <see langword="true"/> if the ID pair pointed to a registered resolver that was, as such,
-	/// successfully unregistered; otherwise, <see langword="false"/>.
-	/// </returns>
-	/// <remarks>
-	/// The intended usecase is the handle being lost/unreachable but the registration needing to be removed.
-	/// </remarks>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID or <paramref name="localId"/> is
-	/// not a valid local ID.
-	/// </exception>
-	public bool DangerousUnregisterResolverByIdPair(string ownerId, string localId) {
-		lock (registryLock)
-			return resolvers.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out _);
-	}
-
-	/// <summary>
-	/// Unregisters <b>every</b> resolver registered under the specified owner ID.
-	/// This may break code that expects these resolvers to be there since they're seemingly going to
-	/// vanish for no reason, so use with care.
-	/// </summary>
-	/// <returns>
-	/// The amount of registrations that got removed.
-	/// </returns>
-	/// <remarks>
-	/// The intended usecase is the owner being gone but not having properly cleaned up its registrations.
-	/// </remarks>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
-	/// </exception>
-	public int DangerousUnregisterAllResolversFrom(string ownerId) {
-		lock (registryLock)
-			return resolvers.UnregisterAllByOwnerIdLocked(ownerId).Length;
-	}
-
-	/// <summary>
 	/// Unregisters an asset creator for the given asset type by owner ID + local ID instead of by
-	/// registration handle.
-	/// This may break code that expects that creator to be there since it's seemingly going to
-	/// vanish for no reason, so use with care.
+	/// registration handle. This may break code that expects that creator to be there since it's
+	/// seemingly going to vanish for no reason, so use with care.
 	/// </summary>
 	/// <returns>
-	/// <see langword="true"/> if the type and the ID pair pointed to a registered creator that was,
-	/// as such, successfully unregistered; otherwise, <see langword="false"/>.
+	/// <see langword="true"/> if the type and the ID pair pointed to a registered creator that was, as
+	/// such, successfully unregistered; otherwise, <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
-	/// The intended usecase is the handle being lost/unreachable but the registration needing to be removed.
+	/// The intended usecase is the handle being lost/unreachable but the registration needing to be
+	/// removed.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID or <paramref name="localId"/> is
@@ -1064,7 +1137,8 @@ public sealed class AssetStore {
 	/// The amount of registrations that got removed.
 	/// </returns>
 	/// <remarks>
-	/// The intended usecase is the owner being gone but not having properly cleaned up its registrations.
+	/// The intended usecase is the owner being gone but not having properly cleaned up its
+	/// registrations.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
@@ -1080,51 +1154,52 @@ public sealed class AssetStore {
 
 	/// <summary>
 	/// Unregisters an asset dependency watcher for the given dependency type by owner ID + local ID
-	/// instead of by registration handle.
-	/// This may break code that expects that watcher to be there since it's seemingly going to
-	/// vanish for no reason, so use with care.
+	/// instead of by registration handle. This may break code that expects that watcher to be there
+	/// since it's seemingly going to vanish for no reason, so use with care.
 	/// </summary>
 	/// <returns>
-	/// <see langword="true"/> if the type and the ID pair pointed to a registered watcher that was,
-	/// as such, successfully unregistered; otherwise, <see langword="false"/>.
+	/// <see langword="true"/> if the type and the ID pair pointed to a registered watcher that was, as
+	/// such, successfully unregistered; otherwise, <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
-	/// The intended usecase is the handle being lost/unreachable but the registration needing to be removed.
+	/// The intended usecase is the handle being lost/unreachable but the registration needing to be
+	/// removed.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID or <paramref name="localId"/> is
 	/// not a valid local ID.
 	/// </exception>
-	public bool DangerousUnregisterDependencyWatcherByIdPair<TDependency>(string ownerId, string localId) where TDependency : IAssetDependency {
-		lock (registryLock) {
-			if (!watchers.TryGetValue(typeof(TDependency), out UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg))
+	public bool DangerousUnregisterDepWatcherByIdPair<TDep>(string ownerId, string localId) where TDep : IAssetDep {
+		lock (depLock) {
+			if (!watchers.TryGetValue(typeof(TDep), out UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>? reg))
 				return false;
-			bool ret = reg.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out OwnerOrderedEntry<IUntypedAssetDependencyWatcher>? ent);
+			bool ret = reg.UnregisterByOwnerAndLocalIdsLocked(ownerId, localId, out OwnerOrderedEntry<IUntypedAssetDepWatcher>? ent);
 			ent?.Item.Dispose();
 			return ret;
 		}
 	}
 
 	/// <summary>
-	/// Unregisters <b>every</b> dependency watcher of every dependency type registered under the specified owner ID.
-	/// This may break code that expects these watchers to be there since they're seemingly going to
-	/// vanish for no reason, so use with care.
+	/// Unregisters <b>every</b> dependency watcher of every dependency type registered under the
+	/// specified owner ID. This may break code that expects these watchers to be there since they're
+	/// seemingly going to vanish for no reason, so use with care.
 	/// </summary>
 	/// <returns>
 	/// The amount of registrations that got removed.
 	/// </returns>
 	/// <remarks>
-	/// The intended usecase is the owner being gone but not having properly cleaned up its registrations.
+	/// The intended usecase is the owner being gone but not having properly cleaned up its
+	/// registrations.
 	/// </remarks>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="ownerId"/> is not a valid owner ID.
 	/// </exception>
-	public int DangerousUnregisterAllDependencyWatchersFrom(string ownerId) {
-		lock (registryLock) {
+	public int DangerousUnregisterAllDepWatchersFrom(string ownerId) {
+		lock (depLock) {
 			int removed = 0;
-			foreach (UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg in watchers.Values) {
-				OwnerOrderedEntry<IUntypedAssetDependencyWatcher>[] ents = reg.UnregisterAllByOwnerIdLocked(ownerId);
-				foreach (OwnerOrderedEntry<IUntypedAssetDependencyWatcher> ent in ents)
+			foreach (UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>? reg in watchers.Values) {
+				OwnerOrderedEntry<IUntypedAssetDepWatcher>[] ents = reg.UnregisterAllByOwnerIdLocked(ownerId);
+				foreach (OwnerOrderedEntry<IUntypedAssetDepWatcher> ent in ents)
 					ent.Item.Dispose();
 				removed += ents.Length;
 			}
@@ -1134,43 +1209,144 @@ public sealed class AssetStore {
 
 	// ==========================================================================
 	// internal api
+	// the attachment checks that it's used from its own thread, so the TLS entry is always there
 	internal void DetachThread(AssetThreadAttachment attachment) {
 		attachedThreadsById.TryRemove(attachment.Id, out _);
 		if (tlsAttachmentsByStoreId is null || !tlsAttachmentsByStoreId.Remove(StoreId))
-			throw new InvalidOperationException(
-				"tried to detach a thread that is not attached to this AssetStore. if you're using Task/etc., crossing an await is not guaranteed to resume on the same physical thread, use a real Thread"
-			);
+			throw new InternalStateException("detached an asset thread attachment that wasn't in the thread's attachment table");
+		if (ReferenceEquals(tlsLastAttachment, attachment))
+			tlsLastAttachment = null;
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal AssetThreadAttachment CurrentAttachment() {
+		CheckDisposed();
+		AssetThreadAttachment? last = tlsLastAttachment;
+		if (last is not null && ReferenceEquals(last.Store, this))
+			return last;
+		if (tlsAttachmentsByStoreId is null || !tlsAttachmentsByStoreId.TryGetValue(StoreId, out AssetThreadAttachment? attachment))
+			throw new InvalidOperationException(
+				"the current thread isn't attached to this AssetStore, which borrowing requires; attach it with AttachCurrentThread(), or use a pin instead"
+			);
+		tlsLastAttachment = attachment;
+		return attachment;
+	}
+
+	internal void CheckDisposed() => ObjectDisposedException.ThrowIf(IsDisposed, this);
+
 	internal void RecordFailedReload(AssetReloadFailure f) {
 		lock (reloadFailureLock)
 			reloadFailures.PushNewest(f);
 	}
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	internal ulong ReserveRetireEpoch() => Interlocked.Increment(ref publishedEpoch);
 
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	internal void QueueRetire<T>(T val, ulong epoch) where T : class => retired.Enqueue(new PendingRetired(val, epoch));
+	internal void QueueRetire(AssetVersion version, ulong epoch) {
+		lock (retiredLock)
+			retired.Add(new Retired(version, epoch));
+	}
 
-	internal void TryCollectRetired() {
+	// a version is reclaimable once every attached thread passed a boundary after its retirement
+	// (so no borrows of it exist, and none can be upgraded to pins anymore) and its pins are gone;
+	// checking the epoch before the pin count is what makes that order safe
+	private void collectRetired() {
 		ulong cutoff = ulong.MaxValue;
-		foreach (AssetThreadAttachment attachment in attachedThreadsById.Values) {
-			ulong e = Volatile.Read(ref attachment.QuiescentEpoch);
-			cutoff = Math.Min(e, cutoff);
-		}
-		while (retired.TryPeek(out PendingRetired? rv) && rv.RetireEpoch <= cutoff) {
-			if (!retired.TryDequeue(out rv))
+		foreach (AssetThreadAttachment attachment in attachedThreadsById.Values)
+			cutoff = Math.Min(Volatile.Read(ref attachment.QuiescentEpoch), cutoff);
+		// reclaiming a derived version releases its pins of its inputs, which may make those
+		// reclaimable too, so repeat until nothing changes
+		List<Exception>? errors = null;
+		for (;;) {
+			List<AssetVersion>? reclaim = null;
+			lock (retiredLock) {
+				retired.RemoveAll(r => {
+					if (r.Epoch > cutoff || r.Version.PinCount != 0)
+						return false;
+					(reclaim ??= new List<AssetVersion>()).Add(r.Version);
+					return true;
+				});
+			}
+			if (reclaim is null)
 				break;
-			(rv.Val as IRevokable)?.Revoke();
-			(rv.Val as IDisposable)?.Dispose();
+			try {
+				reclaimAll(reclaim);
+			} catch (AggregateException ex) {
+				(errors ??= new List<Exception>()).AddRange(ex.InnerExceptions);
+			}
 		}
+		if (errors is not null)
+			throw new AggregateException("disposing reclaimed asset versions failed", errors);
+	}
+
+	// disposal exceptions don't stop the rest from being reclaimed
+	private static void reclaimAll(List<AssetVersion> versions) {
+		List<Exception>? errors = null;
+		foreach (AssetVersion v in versions) {
+			try {
+				v.Reclaim();
+			} catch (Exception ex) {
+				(errors ??= new List<Exception>()).Add(ex);
+			}
+		}
+		if (errors is not null)
+			throw new AggregateException("disposing reclaimed asset versions failed", errors);
+	}
+
+	/// <summary>
+	/// Reclaims every version this store holds, including pinned ones, discards prepared reloads, and
+	/// disposes the registered dependency watchers.
+	/// </summary>
+	/// <remarks>
+	/// Pins and borrows of this store's versions are invalid afterwards, since their values may be
+	/// disposed. Loads still in progress finish without publishing.
+	/// </remarks>
+	/// <exception cref="AggregateException">
+	/// Thrown if disposing versions or watchers threw; everything else is still disposed.
+	/// </exception>
+	public void Dispose() {
+		if (Interlocked.Exchange(ref disposed, 1) != 0)
+			return;
+		// derived versions can reference the versions they were computed from, so deeper ones go first
+		List<AssetVersion> reclaim = new();
+		foreach (IDerivedSlot slot in derivedSlots.Keys)
+			if (slot.DetachForStoreDispose() is AssetVersion v)
+				reclaim.Add(v);
+		derivedSlots.Clear();
+		foreach (IAssetSlot slot in slots.Values)
+			if (slot.DetachForStoreDispose() is AssetVersion v)
+				reclaim.Add(v);
+		lock (retiredLock) {
+			foreach (Retired r in retired)
+				reclaim.Add(r.Version);
+			retired.Clear();
+		}
+		reclaim.Sort(static (a, b) => b.Depth.CompareTo(a.Depth));
+		List<IUntypedAssetDepWatcher> toDispose = new();
+		lock (depLock) {
+			foreach (UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher> reg in watchers.Values)
+				toDispose.AddRange(reg.ReadSnapshot());
+			watchers = new Dictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>>();
+			slotsByDep.Clear();
+		}
+		List<Exception>? errors = null;
+		try {
+			reclaimAll(reclaim);
+		} catch (AggregateException ex) {
+			(errors ??= new List<Exception>()).AddRange(ex.InnerExceptions);
+		}
+		foreach (IUntypedAssetDepWatcher w in toDispose) {
+			try {
+				w.Dispose();
+			} catch (Exception ex) {
+				(errors ??= new List<Exception>()).Add(ex);
+			}
+		}
+		if (errors is not null)
+			throw new AggregateException("disposing the asset store failed", errors);
 	}
 
 	internal void UnregisterRegistration(ulong registrationStoreId, AssetRegistrationKind kind, ulong id, Type? type) {
 		if (id == 0)
-			throw new InternalStateException("registration ID 0 is not valid; did an AssetRegistration object somehow get corrupted?");
+			throw new InternalStateException("registration ID 0 is not valid");
 		if (registrationStoreId != StoreId)
 			throw new InternalStateException("UnregisterRegistration() called on foreign handle");
 		switch (kind) {
@@ -1180,12 +1356,6 @@ public sealed class AssetStore {
 			lock (registryLock)
 				_ = sources.UnregisterLocked(id, out _); // no-op if it's already unregistered
 			break;
-		case AssetRegistrationKind.Resolver:
-			if (type is not null)
-				throw new InternalStateException("nonnull type passed for Resolver unregistry");
-			lock (registryLock)
-				_ = resolvers.UnregisterLocked(id, out _); // no-op if it's already unregistered
-			break;
 		case AssetRegistrationKind.Creator:
 			if (type is null)
 				throw new InternalStateException("null type passed for Creator unregistry");
@@ -1194,12 +1364,12 @@ public sealed class AssetStore {
 					_ = reg.UnregisterLocked(id, out _); // no-op if it's already unregistered
 			}
 			break;
-		case AssetRegistrationKind.DependencyWatcher:
+		case AssetRegistrationKind.DepWatcher:
 			if (type is null)
-				throw new InternalStateException("null type passed for DependencyWatcher unregistry");
-			lock (registryLock) {
-				if (watchers.TryGetValue(type, out UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg)) { // no-op on missing
-					_ = reg.UnregisterLocked(id, out OwnerOrderedEntry<IUntypedAssetDependencyWatcher>? ent); // no-op if it's already unregistered
+				throw new InternalStateException("null type passed for DepWatcher unregistry");
+			lock (depLock) {
+				if (watchers.TryGetValue(type, out UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>? reg)) { // no-op on missing
+					_ = reg.UnregisterLocked(id, out OwnerOrderedEntry<IUntypedAssetDepWatcher>? ent); // no-op if it's already unregistered
 					ent?.Item.Dispose();
 				}
 			}
@@ -1211,33 +1381,65 @@ public sealed class AssetStore {
 
 	// ==========================================================================
 	// asset creation
-	private static void checkCycle(AssetKey key) {
-		AssetLoadStackFrame? prev = loadStackTop.Value;
-		for (AssetLoadStackFrame? f = prev; f is not null; f = f.Prev)
-			if (f.Key == key)
-				throw makeCycleException(key, prev!);
+
+	// the asset's own data, opened through the sources on first use and shared by the creators
+	// tried for it; its deps belong to the asset whichever creator succeeds
+	private sealed class MainStream(AssetStore store, AssetId id, Type type, DepCollector coll) : IDisposable {
+		private Stream? stream;
+
+		public async ValueTask<Stream> OpenAsync(CancellationToken ct) {
+			stream ??= await store.tryAllSourcesAsync(id, coll, type, ct).ConfigureAwait(false);
+			stream.Position = 0;
+			return new SharedReadStream(stream);
+		}
+
+		public void Dispose() => stream?.Dispose();
 	}
 
-	private async ValueTask<(IPendingAssetValue Prepared, ImmutableArray<IAssetDependency> Dependencies)>
+	// a read-only view of the main stream whose Dispose does nothing, so a creator disposing it
+	// doesn't break the creators tried after it
+	private sealed class SharedReadStream(Stream inner) : Stream {
+		public override bool CanRead => true;
+		public override bool CanSeek => true;
+		public override bool CanWrite => false;
+		public override long Length => inner.Length;
+		public override long Position {
+			get => inner.Position;
+			set => inner.Position = value;
+		}
+		public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+		public override int Read(Span<byte> buffer) => inner.Read(buffer);
+		public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) => inner.ReadAsync(buffer, offset, count, ct);
+		public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) => inner.ReadAsync(buffer, ct);
+		public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+		public override void Flush() {}
+		public override void SetLength(long value) => throw new NotSupportedException("the asset's data stream is read-only");
+		public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException("the asset's data stream is read-only");
+	}
+
+	// pipeline components throw whatever they like; callers get an AssetLoadException with that as
+	// the inner exception
+	private static bool shouldWrap(Exception ex) =>
+		ex is not (AssetLoadException or OperationCanceledException) && !ExceptionPolicy.IsInternalState(ex);
+
+	private static AssetLoadException wrap(AssetId id, Type type, string what, Exception ex) =>
+		new(id, type, $"{what} failed: {ex.GetType().Name}: {ex.Message}", ex);
+
+	private async ValueTask<(IPendingAssetValue Prepared, ImmutableArray<IAssetDep> Deps)>
 		tryPrepareValueAsync<T>(AssetId id, CancellationToken ct = default) where T : class {
-		AssetKey key = new(id, typeof(T));
-		AssetLoadStackFrame? prev = loadStackTop.Value;
-		for (AssetLoadStackFrame? f = prev; f is not null; f = f.Prev)
-			if (f.Key == key)
-				throw makeCycleException(key, prev!);
-		loadStackTop.Value = new AssetLoadStackFrame(key, prev);
-
+		DepCollector rootColl = new();
+		using MainStream main = new(this, id, typeof(T), rootColl);
 		try {
-			DependencyCollector rootColl = new();
-			using AssetData data = await tryAllResolversAsync(id, rootColl, typeof(T), ct).ConfigureAwait(false);
-
-			AssetCreateInfo info = new(id, data);
 			ImmutableDictionary<Type, UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>> dictsnap = Volatile.Read(ref creators);
 			if (dictsnap.TryGetValue(typeof(T), out UnsafeOwnerOrderedRegistry<IUntypedAssetCreator>? reg)) {
-				IReadOnlyList<IUntypedAssetCreator> snapshot = reg.ReadSnapshot();
-
-				foreach (IUntypedAssetCreator creator in snapshot) {
-					DependencyCollector childColl = new();
+				foreach (IUntypedAssetCreator creator in reg.ReadSnapshot()) {
+					DepCollector childColl = new();
+					AssetCreateInfo info = new(
+						id,
+						main.OpenAsync,
+						(toFetch, passedCt) => tryAllSourcesAsync(toFetch, childColl, typeof(T), passedCt),
+						(toFetch, passedCt) => tryAllSourcesAsyncOrNull(toFetch, childColl, typeof(T), passedCt)
+					);
 					UntypedCreateResult res = await creator.TryCreateAsync(info, childColl, ct).ConfigureAwait(false);
 					switch (res.Kind.Tag) {
 					case AssetCreateResultKind.Case.NotHandled:
@@ -1252,16 +1454,26 @@ public sealed class AssetStore {
 					}
 				}
 			}
-			throw new AssetUnhandledException(id, typeof(T), "no registered asset creator accepted the asset");
-		} finally {
-			loadStackTop.Value = prev;
+		} catch (Exception ex) when (shouldWrap(ex)) {
+			throw wrap(id, typeof(T), "creating the asset", ex);
 		}
+		throw new AssetUnhandledException(id, typeof(T), "no registered asset creator accepted the asset");
 	}
 
 	private static T finalizePrepared<T>(AssetId id, IPendingAssetValue pv) where T : class {
-		object v = pv.FinalizeValue(id);
+		object v;
+		try {
+			v = pv.FinalizeValue(id);
+		} catch (Exception ex) when (shouldWrap(ex)) {
+			throw wrap(id, typeof(T), "finalizing the asset", ex);
+		}
 		if (v is not T typed)
 			throw new InternalStateException($"pending asset value returned some value of type {v.GetType().FullName}, expected the {typeof(T).FullName} from the creator");
+		// a derived type can add IDisposable even when T doesn't have it
+		if (v is IDisposable d && v is not IAssetStoreDisposable) {
+			d.Dispose();
+			throw new AssetLoadException(id, typeof(T), $"the created value's type {v.GetType().FullName} implements IDisposable but not IAssetStoreDisposable");
+		}
 		return typed;
 	}
 
@@ -1283,11 +1495,11 @@ public sealed class AssetStore {
 		}
 	}
 
-	private async ValueTask<Stream?> tryAllSourcesAsyncOrNull(AssetId id, DependencyCollector parentColl, Type t, CancellationToken ct) {
+	private async ValueTask<Stream?> tryAllSourcesAsyncOrNull(AssetId id, DepCollector parentColl, Type t, CancellationToken ct) {
 		IReadOnlyList<IAssetSource> snapshot = sources.ReadSnapshot();
 		AssetSourceInfo info = new(id);
 		foreach (IAssetSource source in snapshot) {
-			DependencyCollector childColl = new();
+			DepCollector childColl = new();
 			AssetSourceResult res = await source.TrySourceAsync(info, childColl, ct).ConfigureAwait(false);
 			switch (res.Kind.Tag) {
 			case AssetSourceResultKind.Case.NotHandled:
@@ -1304,117 +1516,67 @@ public sealed class AssetStore {
 		return null;
 	}
 
-	private async ValueTask<Stream> tryAllSourcesAsync(AssetId id, DependencyCollector parentColl, Type t, CancellationToken ct) =>
+	private async ValueTask<Stream> tryAllSourcesAsync(AssetId id, DepCollector parentColl, Type t, CancellationToken ct) =>
 		await tryAllSourcesAsyncOrNull(id, parentColl, t, ct) ?? throw new AssetUnhandledException(id, t, "no registered asset source managed to provide the asset");
-
-	private async ValueTask<AssetData> tryAllResolversAsync(AssetId id, DependencyCollector parentColl, Type t, CancellationToken ct) {
-		IReadOnlyList<IAssetResolver> snapshot = resolvers.ReadSnapshot();
-		foreach (IAssetResolver resolver in snapshot) {
-			DependencyCollector childColl = new();
-			AssetResolveInfo info = new(
-				id,
-				(toFetch, passedCt) => tryAllSourcesAsync(toFetch, childColl, t, passedCt),
-				(toFetch, passedCt) => tryAllSourcesAsyncOrNull(toFetch, childColl, t, passedCt)
-			);
-			AssetResolveResult res = await resolver.TryResolveAsync(info, childColl, ct).ConfigureAwait(false);
-			switch (res.Kind.Tag) {
-			case AssetResolveResultKind.Case.NotHandled:
-				continue;
-			case AssetResolveResultKind.Case.Success:
-				if (res.Data is null)
-					throw new AssetLoadException(id, t, "asset resolver returned Success but didn't set Data");
-				parentColl.MergeFrom(childColl);
-				return res.Data;
-			default:
-				throw new UnreachableException();
-			}
-		}
-		throw new AssetUnhandledException(id, t, "no registered asset resolver managed to resolve the asset");
-	}
 
 	// ==========================================================================
 	// dependencies
-	private void onDependencyChanged(IAssetDependency dependency) {
+	private void onDepChanged(IAssetDep dep) {
 		IAssetSlot[] affected;
-		lock (dependencyLock) {
-			if (!slotsByDependency.TryGetValue(dependency, out HashSet<IAssetSlot>? slots))
+		lock (depLock) {
+			if (!slotsByDep.TryGetValue(dep, out HashSet<IAssetSlot>? slots))
 				return;
 			affected = slots.ToArray();
 		}
 		foreach (IAssetSlot slot in affected)
-			slot.QueueReloadFromDependency(dependency);
+			slot.QueueReloadFromDep(dep);
 	}
 
-	private void onSlotPublished(IAssetSlot slot, ImmutableArray<IAssetDependency> oldDeps, ImmutableArray<IAssetDependency> newDeps) {
-		static HashSet<IAssetDependency> makeSet(ImmutableArray<IAssetDependency> deps) {
-			HashSet<IAssetDependency> s = new();
+	private void onSlotPublished(IAssetSlot slot, ImmutableArray<IAssetDep> oldDeps, ImmutableArray<IAssetDep> newDeps) {
+		static HashSet<IAssetDep> makeSet(ImmutableArray<IAssetDep> deps) {
+			HashSet<IAssetDep> s = new();
 			for (int i = 0; i < deps.Length; i++)
 				s.Add(deps[i]);
 			return s;
 		}
 
-		// note: do the watch/unwatch calls under the lock, because the alternative
-		// is a race condition window where the map says the dep is watched but
-		// it actually isn't so an update is gonna get missed if it happens right then
-		lock (dependencyLock) {
-			HashSet<IAssetDependency> oldSet = makeSet(oldDeps);
-			HashSet<IAssetDependency> newSet = makeSet(newDeps);
-			foreach (IAssetDependency dep in oldSet) {
+		// note: do the watch/unwatch calls under the lock, because the alternative is a race window where
+		// where the map says the dep is watched but it actually isn't, so an update would be missed if it
+		// happened right then
+		lock (depLock) {
+			HashSet<IAssetDep> oldSet = makeSet(oldDeps);
+			HashSet<IAssetDep> newSet = makeSet(newDeps);
+			foreach (IAssetDep dep in oldSet) {
 				if (newSet.Contains(dep))
 					continue;
-				if (!slotsByDependency.TryGetValue(dep, out HashSet<IAssetSlot>? users))
+				if (!slotsByDep.TryGetValue(dep, out HashSet<IAssetSlot>? users))
 					continue;
 				users.Remove(slot);
 				if (users.Count != 0)
 					continue;
-				slotsByDependency.Remove(dep);
-				if (watchers.TryGetValue(dep.GetType(), out UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg)) {
-					IReadOnlyList<IUntypedAssetDependencyWatcher> snapshot = reg.ReadSnapshot();
+				slotsByDep.Remove(dep);
+				if (watchers.TryGetValue(dep.GetType(), out UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>? reg)) {
+					IReadOnlyList<IUntypedAssetDepWatcher> snapshot = reg.ReadSnapshot();
 					for (int i = snapshot.Count - 1; i >= 0; i--) {
-						IUntypedAssetDependencyWatcher watcher = snapshot[i];
+						IUntypedAssetDepWatcher watcher = snapshot[i];
 						watcher.Unwatch(dep);
 					}
 				}
 			}
-			foreach (IAssetDependency dep in newSet) {
+			foreach (IAssetDep dep in newSet) {
 				if (oldSet.Contains(dep))
 					continue;
-				if (!slotsByDependency.TryGetValue(dep, out HashSet<IAssetSlot>? users)) {
+				if (!slotsByDep.TryGetValue(dep, out HashSet<IAssetSlot>? users)) {
 					users = new HashSet<IAssetSlot>();
-					slotsByDependency.Add(dep, users);
-					if (watchers.TryGetValue(dep.GetType(), out UnsafeOwnerOrderedRegistry<IUntypedAssetDependencyWatcher>? reg)) {
-						IReadOnlyList<IUntypedAssetDependencyWatcher> snapshot = reg.ReadSnapshot();
-						foreach (IUntypedAssetDependencyWatcher watcher in snapshot)
+					slotsByDep.Add(dep, users);
+					if (watchers.TryGetValue(dep.GetType(), out UnsafeOwnerOrderedRegistry<IUntypedAssetDepWatcher>? reg)) {
+						IReadOnlyList<IUntypedAssetDepWatcher> snapshot = reg.ReadSnapshot();
+						foreach (IUntypedAssetDepWatcher watcher in snapshot)
 							watcher.Watch(dep);
 					}
 				}
 				users.Add(slot);
 			}
 		}
-	}
-
-	// ==========================================================================
-	// exception formatting
-	private static string formatCycle(ImmutableArray<AssetKey> cycle) {
-		StringBuilder sb = new("recursive asset load detected: ");
-		for (int i = 0; i < cycle.Length; i++) {
-			if (i > 0)
-				sb.Append(" -> ");
-			sb.Append(cycle[i].AssetType.Name).Append('(').Append(cycle[i].AssetId).Append(')');
-		}
-		return sb.ToString();
-	}
-
-	private static AssetLoadCycleException makeCycleException(AssetKey repeated, AssetLoadStackFrame prev) {
-		ImmutableArray<AssetKey>.Builder builder = ImmutableArray.CreateBuilder<AssetKey>();
-		for (AssetLoadStackFrame? f = prev; f is not null; f = f.Prev) {
-			builder.Add(f.Key);
-			if (f.Key == repeated)
-				break;
-		}
-		builder.Reverse();
-		builder.Add(repeated);
-		ImmutableArray<AssetKey> cycle = builder.ToImmutable();
-		return new AssetLoadCycleException(repeated.AssetId, repeated.AssetType, formatCycle(cycle), cycle);
 	}
 }
