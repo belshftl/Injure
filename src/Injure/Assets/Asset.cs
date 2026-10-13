@@ -86,7 +86,7 @@ public interface IUntypedAsset {
 /// borrowing/pinning is oftentimes not even necessary.
 /// </para>
 /// </remarks>
-public sealed class Asset<T> : Versioned<T>, IUntypedAsset where T : class {
+public sealed class Asset<T> : Versioned<T>, IUntypedAsset, IAssetSlotAccess where T : class {
 	internal readonly AssetStore.AssetSlot<T> AssetSlot;
 	internal ulong SlotId => AssetSlot.SlotId;
 	internal Asset(AssetStore.AssetSlot<T> slot) {
@@ -94,6 +94,7 @@ public sealed class Asset<T> : Versioned<T>, IUntypedAsset where T : class {
 	}
 
 	internal override VersionSlot<T> Slot => AssetSlot;
+	AssetStore.IAssetSlot IAssetSlotAccess.UntypedAssetSlot => AssetSlot;
 
 	/// <summary>
 	/// The asset type, i.e. <typeparamref name="T"/>.

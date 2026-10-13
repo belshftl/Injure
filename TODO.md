@@ -109,9 +109,10 @@ anyhow, to v0.1:
   - [x] rewrite `Draw.Text`'s asset integration to use derived values (drop the version polling and version-keyed caches; the `GlyphAtlasPage` refcounting stays, since it protects pages from atlas trimming rather than from reloads)
   - [x] honestly, maybe collapse asset resolvers and asset creators into one
   - [x] make `DirectoryAssetSource` reject paths that only match a file case-insensitively, so case-insensitive filesystems (windows, macos by default) behave like linux
-  - [ ] an analyzer flagging `AssetBorrow<T>.Value` being stored into fields, statics, captured closures, or collections, reusing the `[DontCache]` machinery
-  - [ ] add some kind of "asset pool" convenience, probably sourcegen-backed, as the asset system is a bit of a pain to use right now for the overwhelmingly common case of just having a bunch of assets known ahead of time used in the game/scene/entity/whatever. it also needs careful management between "load all the textures ahead of time and use a lot of vram idle" vs "load them too lazily and have micro-stutters during gameplay"
-  - [ ] add some proper system to allow mods to override assets, probably both for a whole asset id and for a particular `Asset<T>` but i'm uncertain right now
+  - [x] some kind of convenience for a typed catalog of assets, probably sourcegen-backed, as the asset system is a bit of a pain to use right now for the overwhelmingly common case of just having a bunch of assets known ahead of time used in the game/scene/entity/whatever. it also needs careful management between "load all the textures ahead of time and use a lot of vram idle" vs "load them too lazily and have micro-stutters during gameplay"
+  - [x] an analyzer flagging `AssetBorrow<T>.Value` being stored into fields, properties, indexers, arrays, or collections, or captured by closures (origin-based rather than reusing the type-based `[DontCache]` analyzer, since the value's type is arbitrary)
+  - [x] tests for `Injure.Analyzers` (none exist yet), in a new `Injure.Analyzers.Tests`
+  - [ ] some proper system to allow mods to override assets, either just for an asset id or both for a whole asset id and for a particular `Asset<T>`; i'm uncertain right now
   - [ ] dedicated docs
 - [ ] switch over the codebase to the new `InvalidDefaultException`
 - [ ] fix remaining abbreviations with out-of-date abbreviation style in the codebase
@@ -125,7 +126,6 @@ anyhow, to v0.1:
   - [ ] consider supporting a case like "write a custom 'driver' for an input device that sends input data over ipc (say, a socket) to the game"; we don't need to include any ipc/socket/etc machinery, just some way for such a hypothetical game/mod to turn the decoded input events into a real custom input device
   - [ ] support built-in serialization/deserialization for bindings (probably to json); this is something every game will be forced to reinvent if it's not built-in
 - [ ] add more to the regular analyzer:
-  - [ ] a decent amount of code is duplicated, merge it together into shared helpers
   - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests

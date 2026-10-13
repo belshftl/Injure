@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.CodeAnalysis.Internal;
+using Injure.Diagnostics;
 using Injure.Mods.Abstractions.Modif;
 
 namespace Injure.Mods.Abstractions;

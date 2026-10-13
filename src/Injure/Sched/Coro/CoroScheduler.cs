@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using Injure.Diagnostics;
 using Injure.Mods;
 
 namespace Injure.Sched.Coro;
@@ -11,9 +12,9 @@ namespace Injure.Sched.Coro;
 /// Schedules and runs coroutines bound to <see cref="CoroScope"/>s.
 /// </summary>
 /// <remarks>
-/// Coroutines are advanced by calling <see cref="Tick(double, double, CoroUpdatePhase)"/>.
-/// When in the middle of a coroutine step, control operations (cancel/pause/resume) are
-/// deferred to be applied at safe points instead of interrupting execution on the spot.
+/// Coroutines are advanced by calling <see cref="Tick(double, double, CoroUpdatePhase)"/>. When in
+/// the middle of a coroutine step, control operations (cancel/pause/resume) are deferred to be
+/// applied at safe points instead of interrupting execution on the spot.
 /// </remarks>
 public sealed class CoroScheduler : IDisposable {
 	// ==========================================================================
@@ -168,34 +169,40 @@ public sealed class CoroScheduler : IDisposable {
 	private CoroTick tick;
 
 	/// <summary>
-	/// How unhandled coroutine faults are processed after the scheduler is finished
-	/// with the current tick.
+	/// How unhandled coroutine faults are processed after the scheduler is finished with the current
+	/// tick.
 	/// </summary>
 	/// <remarks>
-	/// "Unhandled" means coroutine faults that are not otherwise observed/propagated
-	/// through child execution or handle waits.
-	/// Processing is done after faulted coroutines have already been transitioned
-	/// to terminal state, unwound, recorded, and queued to be reaped.
+	/// "Unhandled" means coroutine faults that are not otherwise observed/propagated through child
+	/// execution or handle waits. Processing is done after faulted coroutines have already been
+	/// transitioned to terminal state, unwound, recorded, and queued to be reaped.
 	/// </remarks>
 	public CoroUnhandledFaultMode UnhandledFaultMode { get; set; } = CoroUnhandledFaultMode.LogAndThrowAfterTick;
 
 	/// <summary>
-	/// Receives formatted diagnostic messages emitted by the scheduler.
+	/// Receives the diagnostics the scheduler reports, attributed to the owner of the coroutine
+	/// involved (or the engine, for coroutines without one). Defaults to a
+	/// <see cref="DefaultDiagnosticsSink"/>.
 	/// </summary>
 	/// <remarks>
-	/// Primarily used to report unhandled coroutine faults. Only used when the
-	/// selected <see cref="UnhandledFaultMode"/> includes logging.
+	/// Currently reports unhandled coroutine faults with <see cref="DiagnosticSeverity.Error"/>
+	/// severity, when the selected <see cref="UnhandledFaultMode"/> includes logging.
 	/// </remarks>
-	public Action<string> DiagnosticLogSink { get; set; } = Console.Error.WriteLine;
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if set to <see langword="null"/>.
+	/// </exception>
+	public IDiagnosticsSink DiagnosticsSink {
+		get;
+		set => field = value ?? throw new ArgumentNullException(nameof(value));
+	} = new DefaultDiagnosticsSink();
 
 	/// <summary>
-	/// Invoked for each unhandled coroutine fault after the faulted coroutine has
-	/// already been transitioned to terminal state.
+	/// Invoked for each unhandled coroutine fault after the faulted coroutine has already been
+	/// transitioned to terminal state.
 	/// </summary>
 	/// <remarks>
-	/// This callback runs during end-of-tick fault processing, after scheduler
-	/// bookkeeping for the faulting coroutine. Throwing from this callback will
-	/// abort fault processing for the tick.
+	/// This callback runs during end-of-tick fault processing, after scheduler bookkeeping for the
+	/// faulting coroutine. Throwing from this callback will abort fault processing for the tick.
 	/// </remarks>
 	public Action<CoroUnhandledFaultInfo>? UnhandledFault { get; set; } = null;
 
@@ -241,11 +248,14 @@ public sealed class CoroScheduler : IDisposable {
 	}
 
 	/// <summary>
-	/// Creates a coroutine bound to the specified scope and schedules it to be started on the next tick.
+	/// Creates a coroutine bound to the specified scope and schedules it to be started on the next
+	/// tick.
 	/// </summary>
 	/// <param name="iterator">The root iterator to run.</param>
 	/// <param name="scope">The lifetime scope to bind to. Must belong to this scheduler.</param>
-	/// <param name="options">Optional coroutine options. When <see langword="null"/>, defaults are used.</param>
+	/// <param name="options">
+	/// Optional coroutine options. When <see langword="null"/>, defaults are used.
+	/// </param>
 	/// <param name="callerFile">Caller file path, used for debug info.</param>
 	/// <param name="callerLine">Caller line number, used for debug info.</param>
 	/// <param name="callerMember">Caller member name, used for debug info.</param>
@@ -263,8 +273,8 @@ public sealed class CoroScheduler : IDisposable {
 	/// <see cref="CoroOptions.MaxStepsPerTick"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="scope"/> is a cancelled scope or registering the coroutine
-	/// handle in the scope failed.
+	/// Thrown if <paramref name="scope"/> is a cancelled scope or registering the coroutine handle in
+	/// the scope failed.
 	/// </exception>
 	public CoroHandle Start(
 		IEnumerator<CoroYield> iterator,
@@ -281,7 +291,9 @@ public sealed class CoroScheduler : IDisposable {
 	/// </summary>
 	/// <param name="iterator">The root iterator to run.</param>
 	/// <param name="scope">The lifetime scope to bind to. Must belong to this scheduler.</param>
-	/// <param name="options">Optional coroutine options. When <see langword="null"/>, defaults are used.</param>
+	/// <param name="options">
+	/// Optional coroutine options. When <see langword="null"/>, defaults are used.
+	/// </param>
 	/// <param name="callerFile">Caller file path, used for debug info.</param>
 	/// <param name="callerLine">Caller line number, used for debug info.</param>
 	/// <param name="callerMember">Caller member name, used for debug info.</param>
@@ -301,13 +313,14 @@ public sealed class CoroScheduler : IDisposable {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the scheduler is currently executing a tick, or for the same reasons as
 	/// <see cref="Start(IEnumerator{CoroYield}, CoroScope, CoroOptions, string, int, string)"/>:
-	/// <paramref name="scope"/> is a cancelled scope or registering the coroutine handle in
-	/// the scope failed.
+	/// <paramref name="scope"/> is a cancelled scope or registering the coroutine handle in the scope
+	/// failed.
 	/// </exception>
 	/// <remarks>
-	/// Coroutines can only be started when the scheduler is idle; as such, to create
-	/// a coroutine during a tick and defer its first execution to the next tick, use
-	/// <see cref="Start(IEnumerator{CoroYield}, CoroScope, CoroOptions, string, int, string)"/> instead.
+	/// Coroutines can only be started when the scheduler is idle; as such, to create a coroutine
+	/// during a tick and defer its first execution to the next tick, use
+	/// <see cref="Start(IEnumerator{CoroYield}, CoroScope, CoroOptions, string, int, string)"/>
+	/// instead.
 	/// </remarks>
 	public CoroHandle StartImmediately(
 		IEnumerator<CoroYield> iterator,
@@ -338,14 +351,14 @@ public sealed class CoroScheduler : IDisposable {
 	/// </summary>
 	/// <param name="handle">The handle for the coroutine to cancel.</param>
 	/// <returns>
-	/// <see langword="true"/> if <paramref name="handle"/> refers to a known
-	/// coroutine that is currently running or paused and the cancellation
-	/// request was accepted; otherwise, <see langword="false"/>.
+	/// <see langword="true"/> if <paramref name="handle"/> refers to a known coroutine that is
+	/// currently running or paused and the cancellation request was accepted; otherwise,
+	/// <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
 	/// <para>
-	/// When in the middle of a coroutine step, cancellation is deferred to be
-	/// applied at a safe point instead of interrupting execution immediately.
+	/// When in the middle of a coroutine step, cancellation is deferred to be applied at a safe point
+	/// instead of interrupting execution immediately.
 	/// </para>
 	/// <para>
 	/// <see cref="CoroCancellationReason.ManualStop"/> is recorded as the cancellation reason.
@@ -358,14 +371,13 @@ public sealed class CoroScheduler : IDisposable {
 	/// </summary>
 	/// <param name="handle">The handle for the coroutine to pause.</param>
 	/// <returns>
-	/// <see langword="true"/> if <paramref name="handle"/> refers to a known
-	/// coroutine that is currently running and the pause request was accepted;
-	/// otherwise, <see langword="false"/>.
+	/// <see langword="true"/> if <paramref name="handle"/> refers to a known coroutine that is
+	/// currently running and the pause request was accepted; otherwise, <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
-	/// When in the middle of a coroutine step, pausing is deferred to be applied
-	/// at a safe point instead of interrupting execution immediately. While paused,
-	/// the coroutine does not advance and its current wait does not progress.
+	/// When in the middle of a coroutine step, pausing is deferred to be applied at a safe point
+	/// instead of interrupting execution immediately. While paused, the coroutine does not advance and
+	/// its current wait does not progress.
 	/// </remarks>
 	public bool TryPause(CoroHandle handle) {
 		if (!tryGetInstance(handle, out CoroInstance? inst))
@@ -383,13 +395,12 @@ public sealed class CoroScheduler : IDisposable {
 	/// </summary>
 	/// <param name="handle">The handle for the coroutine to resume.</param>
 	/// <returns>
-	/// <see langword="true"/> if <paramref name="handle"/> refers to a known
-	/// coroutine that is currently paused and the resume request was accepted;
-	/// otherwise, <see langword="false"/>.
+	/// <see langword="true"/> if <paramref name="handle"/> refers to a known coroutine that is
+	/// currently paused and the resume request was accepted; otherwise, <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
-	/// When in the middle of a coroutine step, resuming is deferred to be applied
-	/// at a safe point instead of interrupting execution immediately.
+	/// When in the middle of a coroutine step, resuming is deferred to be applied at a safe point
+	/// instead of interrupting execution immediately.
 	/// </remarks>
 	public bool TryResume(CoroHandle handle) {
 		if (!tryGetInstance(handle, out CoroInstance? inst))
@@ -407,17 +418,16 @@ public sealed class CoroScheduler : IDisposable {
 	/// </summary>
 	/// <param name="handle">The handle to inspect.</param>
 	/// <param name="info">
-	/// On success, a snapshot of the coroutine's current state if it is still live,
-	/// or its terminal record if it has already completed, been cancelled, or faulted.
+	/// On success, a snapshot of the coroutine's current state if it is still live, or its terminal
+	/// record if it has already completed, been cancelled, or faulted.
 	/// </param>
 	/// <returns>
-	/// <see langword="true"/> if <paramref name="handle"/> still identifies a live
-	/// coroutine or a retained terminal record; otherwise, <see langword="false"/>.
+	/// <see langword="true"/> if <paramref name="handle"/> still identifies a live coroutine or a
+	/// retained terminal record; otherwise, <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
-	/// Terminal info remains queryable after the coroutine has finished and
-	/// continues to be until the handle is invalidated, typically when the internal
-	/// slot is reused for a newer coroutine.
+	/// Terminal info remains queryable after the coroutine has finished and continues to be until the
+	/// handle is invalidated, typically when the internal slot is reused for a newer coroutine.
 	/// </remarks>
 	public bool TryGetInfo(CoroHandle handle, out CoroInfo info) {
 		if (!tryGetSlot(handle, out CoroSlot? slot)) {
@@ -439,14 +449,14 @@ public sealed class CoroScheduler : IDisposable {
 	/// <param name="rawDt">The unscaled deltatime for this tick.</param>
 	/// <param name="phase">The update phase associated with this tick.</param>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if <see cref="Tick(double, double, CoroUpdatePhase)"/> is called while
-	/// a previous call is still in progress.
+	/// Thrown if <see cref="Tick(double, double, CoroUpdatePhase)"/> is called while a previous call
+	/// is still in progress.
 	/// </exception>
 	/// <remarks>
-	/// Each call represents one scheduler tick, regardless of the passed parameter values.
-	/// Coroutines started during this call are activated after the tick completes and do
-	/// not run until the next tick. Pending control operations (cancel/pause/resume) are
-	/// applied before the tick fully completes.
+	/// Each call represents one scheduler tick, regardless of the passed parameter values. Coroutines
+	/// started during this call are activated after the tick completes and do not run until the next
+	/// tick. Pending control operations (cancel/pause/resume) are applied before the tick fully
+	/// completes.
 	/// </remarks>
 	public void Tick(double dt, double rawDt, CoroUpdatePhase phase) {
 		if (ticking)
@@ -477,13 +487,12 @@ public sealed class CoroScheduler : IDisposable {
 	/// Returns a snapshot of info records for all currently active coroutines.
 	/// </summary>
 	/// <returns>
-	/// An array containing a <see cref="CoroInfo"/> record for each
-	/// currently active coroutine.
+	/// An array containing a <see cref="CoroInfo"/> record for each currently active coroutine.
 	/// </returns>
 	/// <remarks>
-	/// The returned records describe the scheduler state at the moment the snapshot is taken.
-	/// Terminal records are not included; use <see cref="TryGetInfo(CoroHandle, out CoroInfo)"/>
-	/// to get information for a specific completed/cancelled/faulted coroutine by handle.
+	/// The returned records describe the scheduler state at the moment the snapshot is taken. Terminal
+	/// records are not included; use <see cref="TryGetInfo(CoroHandle, out CoroInfo)"/> to get
+	/// information for a specific completed/cancelled/faulted coroutine by handle.
 	/// </remarks>
 	public CoroInfo[] SnapshotActive() {
 		List<CoroInfo> ret = new(activeSlots.Count);
@@ -500,17 +509,16 @@ public sealed class CoroScheduler : IDisposable {
 	/// </summary>
 	/// <param name="handle">The handle to inspect.</param>
 	/// <param name="trace">
-	/// On success, a stacktrace of the coroutine, including any available debug names or
-	/// source metadata.
+	/// On success, a stacktrace of the coroutine, including any available debug names or source
+	/// metadata.
 	/// </param>
 	/// <returns>
-	/// <see langword="true"/> if <paramref name="handle"/> still identifies a live
-	/// coroutine or a retained terminal record; otherwise, <see langword="false"/>.
+	/// <see langword="true"/> if <paramref name="handle"/> still identifies a live coroutine or a
+	/// retained terminal record; otherwise, <see langword="false"/>.
 	/// </returns>
 	/// <remarks>
-	/// Terminal traces remain queryable after the coroutine has finished and
-	/// continue to be until the handle is invalidated, typically when the internal
-	/// slot is reused for a newer coroutine.
+	/// Terminal traces remain queryable after the coroutine has finished and continue to be until the
+	/// handle is invalidated, typically when the internal slot is reused for a newer coroutine.
 	/// </remarks>
 	public bool TryGetTrace(CoroHandle handle, [NotNullWhen(true)] out CoroTrace? trace) {
 		trace = null;
@@ -528,7 +536,8 @@ public sealed class CoroScheduler : IDisposable {
 	}
 
 	/// <summary>
-	/// Cancels every active/pending coroutine and clears state such as pending activations and unhandled faults.
+	/// Cancels every active/pending coroutine and clears state such as pending activations and
+	/// unhandled faults.
 	/// </summary>
 	/// <remarks>
 	/// <see cref="CoroCancellationReason.SchedulerDisposed"/> is used as the cancellation reason.
@@ -549,9 +558,9 @@ public sealed class CoroScheduler : IDisposable {
 	}
 
 	/// <summary>
-	/// Requests cancellation of <b>every</b> live coroutine whose scope owner ID matches
-	/// the specified owner ID.
-	/// This will certainly cause a lot of chaos and breakage if used on a live owner, so use with care.
+	/// Requests cancellation of <b>every</b> live coroutine whose scope owner ID matches the specified
+	/// owner ID. This will certainly cause a lot of chaos and breakage if used on a live owner, so use
+	/// with care.
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -874,13 +883,15 @@ public sealed class CoroScheduler : IDisposable {
 	private void instFault(CoroInstance inst, Exception ex) {
 		// capture stacktrace here before the unwind
 		inst.PreservedTerminalTrace = makeTrace(inst);
+		// the transition detaches the scope, which the fault info still names
+		CoroScope? scope = inst.Scope;
 
 		inst.TransitionToFaulted(this, ex, tick);
 		if (slots[inst.Handle.Slot].RetainCount == 0) // TODO: better policy for what counts as "unhandled"
 			pendingUnhandledFaults.Add(
 				new CoroUnhandledFaultInfo {
 					Exception = ExceptionSnapshot.FromException(ex),
-					Info = makeInfo(inst),
+					Info = makeInfo(inst) with { OwnerId = scope?.OwnerId, ScopeName = scope?.Name },
 					Trace = inst.PreservedTerminalTrace,
 				}
 			);
@@ -895,7 +906,7 @@ public sealed class CoroScheduler : IDisposable {
 				CoroUnhandledFaultInfo info = pendingUnhandledFaults[i];
 				UnhandledFault?.Invoke(info);
 				if (UnhandledFaultMode.Tag is CoroUnhandledFaultMode.Case.LogAfterTick or CoroUnhandledFaultMode.Case.LogAndThrowAfterTick)
-					DiagnosticLogSink?.Invoke(CoroDiagnostics.FormatFault(info));
+					DiagnosticsSink.Report(new DiagnosticEvent(info.Info.OwnerId ?? EngineInfo.OwnerId, DiagnosticSeverity.Error, CoroDiagnostics.FormatFault(info)));
 			}
 			if (UnhandledFaultMode.Tag is CoroUnhandledFaultMode.Case.ThrowAfterTick or CoroUnhandledFaultMode.Case.LogAndThrowAfterTick) {
 				CoroUnhandledFaultInfo[] arr = pendingUnhandledFaults.ToArray();

@@ -1,0 +1,6 @@
+<Project>
+	<!-- the asset catalog generator resolves [AssetCatalog] directories relative to the project -->
+	<ItemGroup>
+		<CompilerVisibleProperty Include="ProjectDir" />
+	</ItemGroup>
+</Project>

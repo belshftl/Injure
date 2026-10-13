@@ -15,6 +15,7 @@
 	<Project Path="./smoke/AvaloniaEmbed/AvaloniaEmbed.csproj" />
 	<Project Path="./smoke/WaylandEmbed/WaylandEmbed.csproj" />
 
+	<Project Path="./test/Injure.Analyzers.Tests/Injure.Analyzers.Tests.csproj" />
 	<Project Path="./test/Injure.Mods.Abstractions.Tests/Injure.Mods.Abstractions.Tests.csproj" />
 	<Project Path="./test/Injure.Mods.Runtime.Tests/Injure.Mods.Runtime.Tests.csproj" />
 	<Project Path="./test/Injure.Mods.Runtime.Tests.Modif.E2e/Injure.Mods.Runtime.Tests.Modif.E2e.csproj" />

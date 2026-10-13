@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Runtime.ExceptionServices;
+using Injure.Diagnostics;
 using Injure.Draw;
 using Injure.Input;
 using Injure.Mods.CodeAnalysis;
@@ -9,7 +10,9 @@ using Injure.Sched.Tickers;
 
 namespace Injure.Layers;
 
-public sealed class LayerStack(ITickerRegistry tickers, IInputSource input) : IDisposable {
+// diagnosticsSink receives the diagnostics of the layers' coroutine schedulers; null keeps their
+// default sink
+public sealed class LayerStack(ITickerRegistry tickers, IInputSource input, IDiagnosticsSink? diagnosticsSink = null) : IDisposable {
 	// ==========================================================================
 	// internal types
 	private sealed class LayerEntry {
@@ -464,7 +467,7 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input) : ID
 		if (!ReferenceEquals(layer.Owner, this) || findEntryIdx(layer) >= 0)
 			return;
 
-		LayerRuntime runtime = new();
+		LayerRuntime runtime = new(diagnosticsSink);
 		runtime.InitActions(layer.ActionProfile);
 
 		LayerEntry ent = new() {
@@ -530,7 +533,7 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input) : ID
 		if (oldTicker != newTicker)
 			releaseTicker(oldTicker);
 
-		LayerRuntime newRuntime = new();
+		LayerRuntime newRuntime = new(diagnosticsSink);
 		newRuntime.InitActions(newLayer.ActionProfile);
 
 		entries[idx] = new LayerEntry {

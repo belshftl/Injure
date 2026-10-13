@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.Primitives;
+using Injure.Diagnostics;
 using Injure.Gpu;
+using Injure.Mods;
+using Injure.Primitives;
 using Injure.Sdl;
 
 namespace Injure.Game;
@@ -11,10 +13,26 @@ namespace Injure.Game;
 /// Configuration for a <see cref="StandardGame"/>.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is invalid, as <see cref="Window"/> and <see cref="MaxFps"/>
-/// are required.
+/// The <see langword="default"/> value is invalid, as <see cref="GameOwnerId"/>,
+/// <see cref="Window"/>, and <see cref="MaxFps"/> are required.
 /// </remarks>
 public readonly struct StandardGameOptions {
+	/// <summary>
+	/// The game's owner ID.
+	/// </summary>
+	public required string GameOwnerId { get; init; }
+
+	/// <summary>
+	/// The diagnostics sinks the game starts with, or <see langword="null"/> for one
+	/// <see cref="DefaultDiagnosticsSink"/> with no minimum-severity cutoff. More can be added while
+	/// running through <see cref="StandardGame.DiagnosticsSinks"/>.
+	/// </summary>
+	/// <remarks>
+	/// A game may want to pass <c>[new DefaultDiagnosticsSink(DiagnosticSeverity.Info)]</c> in
+	/// release builds, since the default configuration logs debug diagnostics too.
+	/// </remarks>
+	public IReadOnlyList<IDiagnosticsSink>? DiagnosticsSinks { get; init; } = null;
+
 	/// <summary>
 	/// SDL initialization options.
 	/// </summary>
@@ -31,8 +49,8 @@ public readonly struct StandardGameOptions {
 	/// <see cref="StandardGame.SetMaxFps(double?)"/>.
 	/// </summary>
 	/// <remarks>
-	/// Also determines the ticker scheduler's per-batch time budget (one frame period, or 1/60th
-	/// of a second when uncapped); that budget is currently fixed when the game starts.
+	/// Also determines the ticker scheduler's per-batch time budget (one frame period, or 1/60th of a
+	/// second when uncapped); that budget is currently fixed when the game starts.
 	/// </remarks>
 	public required double? MaxFps { get; init; }
 
@@ -40,8 +58,8 @@ public readonly struct StandardGameOptions {
 	/// Options for the GPU device.
 	/// </summary>
 	/// <remarks>
-	/// <see cref="GpuDeviceOptions.CompatibleHost"/> is ignored; the device is always created
-	/// to be compatible with the window. Defaults to no features and a high-performance adapter.
+	/// <see cref="GpuDeviceOptions.CompatibleHost"/> is ignored; the device is always created to be
+	/// compatible with the window. Defaults to no features and a high-performance adapter.
 	/// </remarks>
 	public GpuDeviceOptions GpuDevice { get; init; } = new() { RequiredFeatures = GpuFeatures.None };
 
@@ -76,6 +94,10 @@ public readonly struct StandardGameOptions {
 	}
 
 	internal void Validate(string paramName) {
+		if (!ModMetadataValidation.ValidateOwnerId(GameOwnerId, out string? ownerErr))
+			throw new ArgumentException($"GameOwnerId is invalid: {ownerErr}", paramName);
+		if (DiagnosticsSinks is not null && DiagnosticsSinks.Any(static s => s is null))
+			throw new ArgumentException("DiagnosticsSinks must not contain null", paramName);
 		Window.Validate(paramName);
 		if (MaxFps is double fps && (!double.IsFinite(fps) || fps <= 0.0))
 			throw new ArgumentOutOfRangeException(paramName, $"MaxFps must be positive and finite, or null, got {fps}");

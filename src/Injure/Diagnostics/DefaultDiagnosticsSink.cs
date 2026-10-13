@@ -3,16 +3,38 @@
 
 using System.Diagnostics;
 using System.Globalization;
-using Injure.Mods.Abstractions;
+using Injure.Mods;
 
-namespace Injure.Mods.Runtime;
+namespace Injure.Diagnostics;
 
-public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput) : IDiagnosticsSink {
-	private readonly TextWriter output = output;
+/// <summary>
+/// Writes diagnostics as lines of text, with ANSI colors if wanted, e.g. to the standard error
+/// stream.
+/// </summary>
+/// <param name="output">
+/// Where to write; writes are serialized, so it doesn't need to be thread-safe.
+/// </param>
+/// <param name="colorOutput">Whether to color the output with ANSI escape sequences.</param>
+/// <param name="minimumSeverity">
+/// The least severe diagnostics written, or <see langword="null"/> to write all of them.
+/// </param>
+/// <remarks>
+/// Writes diagnostics of every severity by default, including debug; a game may want to set
+/// <paramref name="minimumSeverity"/> to <see cref="DiagnosticSeverity.Info"/> in release builds.
+/// </remarks>
+public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput, DiagnosticSeverity? minimumSeverity = null) : IDiagnosticsSink {
+	private readonly TextWriter output = output ?? throw new ArgumentNullException(nameof(output));
 	private readonly bool colorOutput = colorOutput;
+	private readonly int minimum = (int)(minimumSeverity ?? DiagnosticSeverity.Debug).Tag;
 	private readonly Lock outputLock = new(); // XXX: might have contention under very high-volume logging, fine for now
 
-	public DefaultDiagnosticsSink() : this(Console.Error, colorOutput: !Console.IsErrorRedirected) {
+	/// <summary>
+	/// Creates a sink writing to the standard error stream, colored unless it's redirected.
+	/// </summary>
+	/// <param name="minimumSeverity">
+	/// The least severe diagnostics written, or <see langword="null"/> to write all of them.
+	/// </param>
+	public DefaultDiagnosticsSink(DiagnosticSeverity? minimumSeverity = null) : this(Console.Error, colorOutput: !Console.IsErrorRedirected, minimumSeverity) {
 	}
 
 	public const string TimestampColor = "\x1b[2m";
@@ -24,7 +46,10 @@ public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput) 
 	public const string OwnerColor = "\x1b[1m";
 	private const string resetColor = "\x1b[0m";
 
+	/// <inheritdoc/>
 	public void Report(in DiagnosticEvent d) {
+		if ((int)d.Severity.Tag < minimum)
+			return;
 		DateTimeOffset now = DateTimeOffset.Now;
 		string timestamp = now.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + now.ToString("zzz", CultureInfo.InvariantCulture).Replace(":", "");
 		string genText = d.Generation?.Value.ToString("D4") ?? "XXXX";

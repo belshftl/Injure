@@ -3,10 +3,12 @@
 
 using Injure.Assets;
 using Injure.Assets.Builtin;
+using Injure.Diagnostics;
 using Injure.Draw;
 using Injure.Draw.Text;
 using Injure.Host;
 using Injure.Input;
+using Injure.Mods;
 using Injure.Gpu;
 using Injure.Sched.Tickers;
 using Injure.Sdl;
@@ -31,9 +33,8 @@ namespace Injure.Game;
 /// <para>
 /// Everything this class does is built from public APIs (<see cref="SdlInstance"/>,
 /// <see cref="SdlWindow"/>, <see cref="IHostEventSource"/>, <see cref="HostWait"/>,
-/// <see cref="FixedRatePacer"/>, <see cref="TickerScheduler"/>, ...); a game that needs a
-/// different structure is expected to write its own loop from those instead of customizing this
-/// one.
+/// <see cref="FixedRatePacer"/>, <see cref="TickerScheduler"/>, ...); a game that needs a different
+/// structure is expected to write its own loop from those instead of customizing this one.
 /// </para>
 /// </remarks>
 public abstract class StandardGame {
@@ -53,6 +54,7 @@ public abstract class StandardGame {
 
 	private readonly StandardGameOptions options;
 	private readonly CanvasParams baseCanvasParams;
+	private readonly IOwnerDiagnostics engineDiagnostics;
 	private Session? session;
 	private int quitRequested;
 	private int running;
@@ -67,7 +69,26 @@ public abstract class StandardGame {
 		options.Validate(nameof(options));
 		this.options = options;
 		baseCanvasParams = CanvasParams.Primary(options.ClearColor);
+		DiagnosticsSinks = new DiagnosticsSinkRegistry(options.DiagnosticsSinks ?? [new DefaultDiagnosticsSink()]);
+		Diagnostics = DiagnosticsSinks.ForOwner(options.GameOwnerId);
+		engineDiagnostics = DiagnosticsSinks.ForOwner(EngineInfo.OwnerId);
 	}
+
+	// ==========================================================================
+	// diagnostics, available from construction on
+
+	/// <summary>
+	/// The diagnostics sinks of the game, starting with
+	/// <see cref="StandardGameOptions.DiagnosticsSinks"/>. The engine's diagnostics go here too, and a
+	/// mod runtime should be given this registry (see <c>ModRuntimeOptions.DiagnosticsSinks</c>) so
+	/// mods' diagnostics and sinks share it.
+	/// </summary>
+	protected DiagnosticsSinkRegistry DiagnosticsSinks { get; }
+
+	/// <summary>
+	/// Diagnostics attributed to the game, i.e. to <see cref="StandardGameOptions.GameOwnerId"/>.
+	/// </summary>
+	protected IOwnerDiagnostics Diagnostics { get; }
 
 	// ==========================================================================
 	// services, available while Run is executing
@@ -160,8 +181,7 @@ public abstract class StandardGame {
 	/// Called to render a frame into the window.
 	/// </summary>
 	/// <param name="frame">
-	/// The frame, presenting on the window. Owned by the engine, which submits it once this
-	/// returns.
+	/// The frame, presenting on the window. Owned by the engine, which submits it once this returns.
 	/// </param>
 	/// <remarks>
 	/// Record rendering into <paramref name="frame"/>'s <see cref="RenderFrame.Encoder"/>, or use
@@ -235,8 +255,8 @@ public abstract class StandardGame {
 	/// </exception>
 	/// <remarks>
 	/// The canvas keeps its render pass open, so it must be disposed before recording passes into
-	/// <paramref name="frame"/> directly, and before <see cref="OnRender(RenderFrame)"/> returns.
-	/// Draw through its <see cref="OwnedCanvas.Canvas"/>.
+	/// <paramref name="frame"/> directly, and before <see cref="OnRender(RenderFrame)"/> returns. Draw
+	/// through its <see cref="OwnedCanvas.Canvas"/>.
 	/// </remarks>
 	protected OwnedCanvas CreateCanvas(RenderFrame frame) {
 		ArgumentNullException.ThrowIfNull(frame);
@@ -265,10 +285,14 @@ public abstract class StandardGame {
 		try {
 			sdl = SdlInstance.Init(options.Sdl);
 			window = SdlWindow.Create(sdl, options.Window);
-			gpuDevice = new GpuDevice(options.GpuDevice with { CompatibleHost = window.SurfaceHost });
+			gpuDevice = new GpuDevice(options.GpuDevice with { CompatibleHost = window.SurfaceHost, ErrorHandler = gpuErrorHandler() });
 			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, SurfaceFormatPolicy.PreferNonSrgb, options.PresentModePolicy);
 			if (options.Assets) {
 				assets = new AssetStore();
+				// likely stutters; making the asset's group resident beforehand avoids them
+				assets.NonResidentLoad += key => engineDiagnostics.Debug(
+					$"{key.AssetType.Name} asset '{key.AssetId}' was loaded synchronously by a borrow or pin, since no residency includes it"
+				);
 				BuiltinAssetRegistrations.RegisterBaseInto(assets);
 				BuiltinAssetRegistrations.RegisterTexture2dInto(assets, gpuDevice);
 				assetAttachment = assets.AttachCurrentThread();
@@ -314,6 +338,20 @@ public abstract class StandardGame {
 			window?.Dispose();
 			sdl?.Dispose();
 		}
+	}
+
+	private GpuErrorHandler gpuErrorHandler() {
+		GpuErrorHandler? configured = options.GpuDevice.ErrorHandler;
+		if (configured is not null && !ReferenceEquals(configured, GpuErrorHandlers.FailFast))
+			return configured;
+		GpuErrorHandler report = GpuErrorHandlers.Report(engineDiagnostics);
+		return (device, in error) => {
+			try {
+				report(device, in error);
+			} finally {
+				GpuErrorHandlers.FailFast(device, in error);
+			}
+		};
 	}
 
 	private void loop(Session ses) {

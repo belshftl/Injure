@@ -139,6 +139,12 @@ public sealed class AssetStore : IDisposable {
 		// takes the current version and any prepared reload out of the slot, for store disposal
 		AssetVersion? DetachForStoreDispose();
 
+		void AddResident();
+		void ReleaseResident();
+		// evicts the slot if it's still not resident; false if a load is in progress, so it has to
+		// be tried again later
+		bool TryEvictUnresident(ulong epoch);
+
 		// returns true if something actually got published
 		bool ApplyQueuedReload(ulong epoch, ImmutableArray<AssetReloadFailure>.Builder failures);
 	}
@@ -213,6 +219,7 @@ public sealed class AssetStore : IDisposable {
 		private ExceptionSnapshot? reloadPrepareTaskEx;
 
 		private ulong newestRequestedVersion = 1;
+		private int residentCount = 0;
 		private AssetReloadRequestOrigin newestReloadOrigin;
 		private AssetDepSnapshot? newestReloadTrigger;
 
@@ -243,6 +250,7 @@ public sealed class AssetStore : IDisposable {
 			AssetThreadAttachment attachment = Store.CurrentAttachment();
 			AssetVersion<T>? ver = Volatile.Read(ref curr);
 			if (ver is null) {
+				reportIfNonResident();
 				getOrStartMaterialize().GetAwaiter().GetResult();
 				ver = Volatile.Read(ref curr) ?? throw new InternalStateException("asset materialize finished without making the curr version");
 			}
@@ -269,8 +277,60 @@ public sealed class AssetStore : IDisposable {
 						return curr;
 					}
 				}
+				reportIfNonResident();
 				getOrStartMaterialize().GetAwaiter().GetResult();
 			}
+		}
+
+		// a residency loads its assets ahead of time; a blocking first load of an asset nothing made
+		// resident is likely a stutter
+		private void reportIfNonResident() {
+			bool resident;
+			lock (@lock)
+				resident = residentCount != 0;
+			if (!resident)
+				Store.ReportNonResidentLoad(new AssetKey(AssetId, typeof(T)));
+		}
+
+		// under the lock, so eviction (which checks the count under it too) can't slip in between a
+		// new residency's increment and its load
+		public void AddResident() {
+			lock (@lock)
+				residentCount++;
+		}
+
+		public void ReleaseResident() {
+			bool last;
+			lock (@lock) {
+				if (--residentCount < 0)
+					throw new InternalStateException("asset resident count went negative");
+				last = residentCount == 0;
+			}
+			if (last)
+				Store.QueueEvictCandidate(this);
+		}
+
+		public bool TryEvictUnresident(ulong epoch) {
+			AssetVersion<T>? oldver;
+			PendingPrepared? oldPending;
+			lock (@lock) {
+				if (residentCount != 0)
+					return true;
+				if (materializeTask is not null || reloadPrepareTaskActive)
+					return false;
+				oldver = curr;
+				oldPending = pending;
+				if (oldver is null && oldPending is null)
+					return true;
+				if (oldver is not null && oldPending is null)
+					newestRequestedVersion++;
+				curr = null;
+				pending = null;
+			}
+			oldPending?.Dispose();
+			if (oldver is not null)
+				Store.QueueRetire(oldver, epoch);
+			return true;
 		}
 
 		public bool TryPassivePin([NotNullWhen(true)] out AssetPin<T>? pin) {
@@ -310,7 +370,7 @@ public sealed class AssetStore : IDisposable {
 				outcome = (reloadOutcome ??= newReloadOutcome()).Task;
 			}
 			if (startTask)
-				_ = runReloadPrepareLoopAsync();
+				startReloadPrepareLoop();
 			await outcome.WaitAsync(ct).ConfigureAwait(false);
 		}
 
@@ -344,7 +404,7 @@ public sealed class AssetStore : IDisposable {
 			lock (@lock)
 				startTask = requestReloadLocked(AssetReloadRequestOrigin.Dep, dep, out _);
 			if (startTask)
-				_ = runReloadPrepareLoopAsync();
+				startReloadPrepareLoop();
 		}
 
 		public bool Evict() {
@@ -461,6 +521,10 @@ public sealed class AssetStore : IDisposable {
 			return startTask;
 		}
 
+		// on the thread pool rather than inline, as sources and creators may complete synchronously, and
+		// would otherwise run on the requesting thread (e.g. the main one) before the request returns
+		private void startReloadPrepareLoop() => _ = Task.Run(runReloadPrepareLoopAsync);
+
 		private async Task runReloadPrepareLoopAsync() {
 			try {
 				for (;;) {
@@ -574,7 +638,9 @@ public sealed class AssetStore : IDisposable {
 			lock (@lock) {
 				Task task = getOrStartMaterializeLocked(out TaskCompletionSource<object?>? startMaterialize);
 				if (startMaterialize is not null)
-					_ = runMaterializeAsync(startMaterialize);
+					// not inline, as that would run sources and creators under this lock whenever they complete
+					// synchronously
+					_ = Task.Run(() => runMaterializeAsync(startMaterialize));
 				return task;
 			}
 		}
@@ -758,6 +824,27 @@ public sealed class AssetStore : IDisposable {
 
 	private readonly ConcurrentDictionary<IDerivedSlot, byte> derivedSlots = new();
 	internal void RegisterDerived(IDerivedSlot slot) => derivedSlots.TryAdd(slot, 0);
+
+	// slots whose last residency was released, evicted by the next ApplyQueuedReloads
+	private readonly ConcurrentDictionary<IAssetSlot, byte> evictCandidates = new();
+	internal void QueueEvictCandidate(IAssetSlot slot) => evictCandidates.TryAdd(slot, 0);
+
+	/// <summary>
+	/// Raised when a borrow or pin has to load an asset synchronously, and no residency includes it.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Since such a load blocks, it's likely to surface as a microstutter mid-gameplay; making the
+	/// asset's group resident beforehand (see <see cref="AssetResidency"/>) avoids that.
+	/// </para>
+	/// <para>
+	/// Raised on the borrowing thread before the load starts. Handlers must not throw or call into
+	/// this store; calling into this store may deadlock or recurse without end.
+	/// </para>
+	/// </remarks>
+	public event Action<AssetKey>? NonResidentLoad;
+
+	internal void ReportNonResidentLoad(AssetKey key) => NonResidentLoad?.Invoke(key);
 	internal void UnregisterDerived(IDerivedSlot slot) => derivedSlots.TryRemove(slot, out _);
 
 	// ==========================================================================
@@ -849,7 +936,8 @@ public sealed class AssetStore : IDisposable {
 	public void AtReloadBoundary() => CurrentAttachment().AtReloadBoundary();
 
 	/// <summary>
-	/// Publishes every prepared reload, then reclaims replaced versions that nothing can use anymore.
+	/// Publishes every prepared reload, evicts assets whose last residency was released (see
+	/// <see cref="AssetResidency"/>), then reclaims replaced versions that nothing can use anymore.
 	/// </summary>
 	/// <returns>The number of published reloads, and the reloads that failed to finalize.</returns>
 	/// <remarks>
@@ -884,6 +972,12 @@ public sealed class AssetStore : IDisposable {
 		foreach (IAssetSlot s in slots.Values.ToArray())
 			if (s.ApplyQueuedReload(epoch, failures))
 				n++;
+		// removed before evicting, so a release meanwhile re-adds it rather than getting lost
+		foreach (IAssetSlot s in evictCandidates.Keys) {
+			evictCandidates.TryRemove(s, out _);
+			if (!s.TryEvictUnresident(epoch))
+				evictCandidates.TryAdd(s, 0);
+		}
 		collectRetired();
 		return new AssetReloadReport(n, failures.ToImmutable());
 	}

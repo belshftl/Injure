@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using Injure.DevAnalyzers.Attributes;
+using Injure.Diagnostics;
 
 namespace Injure.Gpu;
 
@@ -16,8 +17,8 @@ public readonly partial struct GpuErrorKind {
 	/// <summary>Raw switch tag for <see cref="GpuErrorKind"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// A call or the commands it recorded broke WebGPU's validation rules; a bug in the calling
-		/// code, or in Injure if Injure's own validation should have caught it.
+		/// A call or the commands it recorded broke WebGPU's validation rules; a bug in the calling code,
+		/// or in Injure if Injure's own validation should have caught it.
 		/// </summary>
 		Validation = 1,
 
@@ -62,10 +63,10 @@ public delegate void GpuErrorHandler(GpuDevice device, in GpuError error);
 /// </summary>
 public static class GpuErrorHandlers {
 	/// <summary>
-	/// Terminates the process with <see cref="Environment.FailFast(string)"/>, reporting the error
-	/// and the managed stack trace. The default handler.
+	/// Terminates the process with <see cref="Environment.FailFast(string)"/>, reporting the error and
+	/// the managed stack trace. The default handler.
 	/// </summary>
-	public static readonly GpuErrorHandler FailFast = static (GpuDevice _, in GpuError error) =>
+	public static readonly GpuErrorHandler FailFast = static (_, in error) =>
 		Environment.FailFast($"WebGPU {error.Kind} error: {error.Message}");
 
 	/// <summary>
@@ -76,15 +77,28 @@ public static class GpuErrorHandlers {
 	/// Thrown if <paramref name="writer"/> is <see langword="null"/>.
 	/// </exception>
 	/// <remarks>
-	/// WebGPU keeps working after an error, but the object or commands involved are invalid, so
-	/// later operations that use them fail too, typically with more errors.
+	/// WebGPU keeps working after an error, but the object or commands involved are invalid, so later
+	/// operations that use them fail too, typically with more errors.
 	/// </remarks>
 	public static GpuErrorHandler Log(TextWriter writer) {
 		ArgumentNullException.ThrowIfNull(writer);
-		return (GpuDevice _, in GpuError error) => {
+		return (_, in error) => {
 			lock (writer)
 				writer.WriteLine($"WebGPU {error.Kind} error: {error.Message}");
 		};
+	}
+
+	/// <summary>
+	/// Creates a handler that reports each error to <paramref name="diagnostics"/> with
+	/// <see cref="DiagnosticSeverity.Error"/> severity, and lets the program continue.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="diagnostics"/> is <see langword="null"/>.
+	/// </exception>
+	/// <inheritdoc cref="Log(TextWriter)" path="/remarks"/>
+	public static GpuErrorHandler Report(IOwnerDiagnostics diagnostics) {
+		ArgumentNullException.ThrowIfNull(diagnostics);
+		return (_, in error) => diagnostics.Error($"WebGPU {error.Kind} error: {error.Message}");
 	}
 }
 
@@ -102,7 +116,7 @@ public sealed class GpuErrorCollector {
 	/// <summary>
 	/// A <see cref="GpuErrorHandler"/> that records the error.
 	/// </summary>
-	public void Handle(GpuDevice device, in GpuError error) {
+	public void Handle(GpuDevice _, in GpuError error) {
 		lock (errorsLock)
 			errors.Add(error);
 	}

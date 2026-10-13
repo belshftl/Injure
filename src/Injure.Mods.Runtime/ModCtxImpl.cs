@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using Injure.Diagnostics;
 using Injure.Mods.Abstractions;
 using Injure.Mods.Abstractions.Modif;
 using Injure.Mods.Runtime.Modif;

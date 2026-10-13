@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using Injure.Diagnostics;
 using Injure.Input;
 using Injure.Mods;
 using Injure.Sched.Coro;
@@ -17,9 +18,11 @@ internal sealed class LayerRuntime : ILayerTickFeeder, IDisposable {
 	private readonly List<IHostTickReceiver> toUpdate;
 	private ActionTracker? actionTracker;
 
-	public LayerRuntime() {
+	public LayerRuntime(IDiagnosticsSink? diagnosticsSink) {
 		Time = new LayerTimeDomain();
 		Coroutines = new CoroScheduler();
+		if (diagnosticsSink is not null)
+			Coroutines.DiagnosticsSink = diagnosticsSink;
 		CoroutineScope = CoroScope.CreateRoot(Coroutines, "Layer", EngineInfo.OwnerId); // TODO think about what owner ID this should use
 		toUpdate = new List<IHostTickReceiver>();
 	}

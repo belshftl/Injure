@@ -20,5 +20,6 @@
 
 	<ItemGroup>
 		<None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs/" />
+		<None Include="build/Injure.Analyzers.props" Pack="true" PackagePath="build/" />
 	</ItemGroup>
 </Project>

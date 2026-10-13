@@ -10,6 +10,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Injure.DevAnalyzers.Attributes;
+using Injure.Diagnostics;
 using Injure.Mods.Abstractions;
 using Injure.Mods.Abstractions.ManifestReader;
 using Injure.Mods.Abstractions.Modif.Il;
@@ -38,7 +39,9 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public required Func<ModApiFactoryCtx, TGameApi> ApiFactory { get; init; }
 	public required IReadOnlyList<string> AdditionalSharedAssemblies { get; init; }
 
-	public IDiagnosticsSink DiagnosticsSink { get; init; } = new DefaultDiagnosticsSink();
+	// shared with the rest of the game, e.g. StandardGame.DiagnosticsSinks, so sinks mods add also get
+	// the engine's and the game's diagnostics
+	public DiagnosticsSinkRegistry DiagnosticsSinks { get; init; } = new([new DefaultDiagnosticsSink()]);
 	public TimeSpan UnloadGracePeriod { get; init; } = TimeSpan.FromMilliseconds(75);
 	public int MaxLoadParallelism { get; init; } = Math.Max(1, Environment.ProcessorCount - 1);
 	public int MaxScopeTeardownParallelism { get; init; } = 8;
@@ -217,7 +220,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 	private readonly List<PendingOp> pendingOps = new();
 	private ulong nextOpSeq = 0;
 
-	private readonly OwnerDiagnostics diagnostics;
+	private readonly IOwnerDiagnostics diagnostics;
 
 	// ==========================================================================
 	// public properties
@@ -236,9 +239,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 		if (options.AdditionalSharedAssemblies is null)
 			throw new ArgumentNullException(nameof(options), "AdditionalSharedAssemblies cannot be null");
 		sharedAssemblies = DefaultSharedAssemblies.Concat(gameAssemblyNames).Concat(options.AdditionalSharedAssemblies).ToArray();
-		if (options.DiagnosticsSink is null)
-			throw new ArgumentNullException(nameof(options), "DiagnosticsSink cannot be null");
-		diagnosticsSinkRegistry = new DiagnosticsSinkRegistry([options.DiagnosticsSink]);
+		diagnosticsSinkRegistry = options.DiagnosticsSinks ?? throw new ArgumentNullException(nameof(options), "DiagnosticsSinks cannot be null");
 		unloadGracePeriod = options.UnloadGracePeriod;
 		maxLoadParallelism = Math.Max(1, options.MaxLoadParallelism);
 		maxScopeTeardownParallelism = Math.Max(1, options.MaxScopeTeardownParallelism);
@@ -256,8 +257,8 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 			this
 		);
 		modifOrchestrator.Attach(prof);
-		diagnostics = new OwnerDiagnostics(EngineInfo.OwnerId, diagnosticsSinkRegistry, null);
-		GameDiagnostics = new OwnerDiagnostics(gameOwnerId, diagnosticsSinkRegistry, null);
+		diagnostics = diagnosticsSinkRegistry.ForOwner(EngineInfo.OwnerId);
+		GameDiagnostics = diagnosticsSinkRegistry.ForOwner(gameOwnerId);
 	}
 
 	// ==========================================================================
@@ -1981,7 +1982,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerId, diagnosticsSinkRegistry, mod.Staged.Generation),
+		diagnosticsSinkRegistry.ForOwner(mod.Staged.Manifest.OwnerId, mod.Staged.Generation),
 		mod.Scope,
 		diagnosticsSinkRegistry
 	)!;
@@ -1999,7 +2000,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerId, diagnosticsSinkRegistry, mod.Staged.Generation),
+		diagnosticsSinkRegistry.ForOwner(mod.Staged.Manifest.OwnerId, mod.Staged.Generation),
 		mod.Scope,
 		diagnosticsSinkRegistry
 	)!;
@@ -2014,7 +2015,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerId, diagnosticsSinkRegistry, mod.Staged.Generation),
+		diagnosticsSinkRegistry.ForOwner(mod.Staged.Manifest.OwnerId, mod.Staged.Generation),
 		mod.Scope,
 		diagnosticsSinkRegistry
 	)!;
@@ -2030,7 +2031,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 		mod.Staged.Manifest.OwnerId,
 		mod.Staged.Manifest.Version,
 		api,
-		new OwnerDiagnostics(mod.Staged.Manifest.OwnerId, diagnosticsSinkRegistry, mod.Staged.Generation),
+		diagnosticsSinkRegistry.ForOwner(mod.Staged.Manifest.OwnerId, mod.Staged.Generation),
 		mod.Scope,
 		diagnosticsSinkRegistry
 	)!;
@@ -2119,7 +2120,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 		return !weak.IsAlive;
 	}
 
-	private static void unload(PendingAlcUnload pending, OwnerDiagnostics diagnostics) {
+	private static void unload(PendingAlcUnload pending, IOwnerDiagnostics diagnostics) {
 		WeakReference weak = beginUnload(pending);
 		if (!probeUnload(weak, maxAttempts: MaxAlcUnloadGcAttempts))
 			diagnostics.Warning($"{pending.Generation} is still alive after {MaxAlcUnloadGcAttempts} unload attempts, giving up");
