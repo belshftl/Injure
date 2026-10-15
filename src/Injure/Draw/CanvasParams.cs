@@ -138,9 +138,9 @@ public readonly record struct CanvasParamsOverride(
 /// </remarks>
 public readonly ref struct CanvasParamsScope {
 	private readonly OwnedCanvas? canvas;
-	private readonly long id;
+	private readonly ulong id;
 
-	internal CanvasParamsScope(OwnedCanvas canvas, long id) {
+	internal CanvasParamsScope(OwnedCanvas canvas, ulong id) {
 		this.canvas = canvas;
 		this.id = id;
 	}

@@ -131,8 +131,8 @@ public sealed class OwnedCanvas : IDisposable {
 	private readonly Stack<CanvasParams> @params = new();
 	// one per override in @params, i.e. one fewer than @params; identifies the CanvasParamsScope
 	// that pops it, so that disposing a scope twice (or a copy of one) can be told apart
-	private readonly Stack<long> scopeIds = new();
-	private long nextScopeId = 1;
+	private readonly Stack<ulong> scopeIds = new();
+	private ulong nextScopeId = 1;
 	private RenderPass? pass;
 	private bool disposed = false;
 
@@ -157,6 +157,12 @@ public sealed class OwnedCanvas : IDisposable {
 	private CanvasUniform lastUniform;
 	private CanvasArena.UniformChunk? lastUniformChunk;
 	private uint lastUniformOffset;
+
+	// scratch buffers for generated geometry
+	private Vector2[] scratchPoints = new Vector2[128];
+	private Vertex2dColor[] scratchVerts = new Vertex2dColor[128];
+	private uint[] scratchIndices = new uint[256];
+	private int[] scratchInts = new int[16];
 
 	// what's set on the current pass, to skip redundant calls
 	private GpuRenderPipeline? setPipeline;
@@ -287,9 +293,35 @@ public sealed class OwnedCanvas : IDisposable {
 		validate(@new);
 		transition(in old, in @new, returning: false);
 		@params.Push(@new);
-		long id = nextScopeId++;
+		ulong id = nextScopeId++;
 		scopeIds.Push(id);
 		return new CanvasParamsScope(this, id);
+	}
+
+	/// <remarks>
+	/// Invalidates the value returned by the previous <see cref="ScratchPoints(int)"/> call, if any.
+	/// </remarks>
+	internal Span<Vector2> ScratchPoints(int count) => scratch(ref scratchPoints, count);
+
+	/// <remarks>
+	/// Invalidates the value returned by the previous <see cref="ScratchVerts(int)"/> call, if any.
+	/// </remarks>
+	internal Span<Vertex2dColor> ScratchVerts(int count) => scratch(ref scratchVerts, count);
+
+	/// <remarks>
+	/// Invalidates the value returned by the previous <see cref="ScratchIndices(int)"/> call, if any.
+	/// </remarks>
+	internal Span<uint> ScratchIndices(int count) => scratch(ref scratchIndices, count);
+
+	/// <remarks>
+	/// Invalidates the value returned by the previous <see cref="ScratchInts(int)"/> call, if any.
+	/// </remarks>
+	internal Span<int> ScratchInts(int count) => scratch(ref scratchInts, count);
+
+	private static Span<T> scratch<T>(ref T[] arr, int count) where T : unmanaged {
+		if (arr.Length < count)
+			arr = new T[Math.Max(count, arr.Length * 2)];
+		return arr.AsSpan(0, count);
 	}
 
 	/// <remarks>
@@ -459,7 +491,7 @@ public sealed class OwnedCanvas : IDisposable {
 	// params
 
 	// called from CanvasParamsScope.Dispose, which is public
-	internal void PopParams(long scopeId) {
+	internal void PopParams(ulong scopeId) {
 		// the whole stack is gone once this canvas is disposed, and an id that's no longer on the stack
 		// belongs to a scope that was already disposed
 		if (disposed || !scopeIds.Contains(scopeId))

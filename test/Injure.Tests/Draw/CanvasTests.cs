@@ -18,9 +18,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	private static CanvasParams baseParams(RawColor32 clear) => CanvasParams.Primary(clear.AssumeSrgb());
 
-	// draws into a 4x4 test texture standing in for the primary output and returns its texels
-	private byte[] render(RawColor32 clear, Action<OwnedCanvas> draw) {
-		using GpuTexture target = GpuRig.Target(Device, 4, 4);
+	// draws into a size x size test texture standing in for the primary output and returns its texels
+	private byte[] render(RawColor32 clear, Action<OwnedCanvas> draw, uint size = 4) {
+		using GpuTexture target = GpuRig.Target(Device, size, size);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
 			using (OwnedCanvas canvas = new(frame, baseParams(clear)))
 				draw(canvas);
@@ -611,6 +611,331 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			try { cv.Line(two[0], two[1], SrgbColor32.White, float.NaN); } catch (ArgumentOutOfRangeException) { caught++; }
 			try { cv.Line(two[0], two[1], SrgbColor32.White, float.PositiveInfinity); } catch (ArgumentOutOfRangeException) { caught++; }
 			Assert.Equal(7, caught);
+		});
+	}
+
+	// ==========================================================================
+	// shapes
+	private static readonly SrgbColor32 halfRed = new(255, 0, 0, 128);
+
+	private byte[] render16(Action<Canvas> draw) => render(black, canvas => draw(canvas.Canvas), 16);
+	private static RawColor32 at16(byte[] px, uint x, uint y) => GpuRig.At(px, 16, x, y);
+	private static bool isHalf(RawColor32 c) => c.R is >= 125 and <= 131 && c.G == 0 && c.B == 0;
+
+	// checks that a translucent red draw over black blended exactly once wherever it drew anything;
+	// returns how many pixels it drew
+	private static int assertBlendedOnce(byte[] px) {
+		int drawn = 0;
+		for (uint y = 0; y < 16; y++) {
+			for (uint x = 0; x < 16; x++) {
+				RawColor32 c = at16(px, x, y);
+				if (c == black)
+					continue;
+				Assert.True(isHalf(c), $"pixel ({x}, {y}) is {c}");
+				drawn++;
+			}
+		}
+		Assert.NotEqual(0, drawn);
+		return drawn;
+	}
+
+	[Fact]
+	public void RectOutlinesLieInsideTheRect() {
+		byte[] px = render16(cv => cv.RectOutline(new RectF(2, 2, 12, 12), halfRed, 2f));
+		assertBlendedOnce(px);
+		foreach ((uint x, uint y) in (ReadOnlySpan<(uint, uint)>)[(2, 2), (3, 3), (8, 2), (13, 13), (13, 8), (2, 12)])
+			Assert.True(isHalf(at16(px, x, y)), $"({x}, {y})");
+		foreach ((uint x, uint y) in (ReadOnlySpan<(uint, uint)>)[(1, 1), (14, 14), (4, 4), (8, 8), (11, 11)])
+			Assert.Equal(black, at16(px, x, y));
+
+		// too thick to have a hole; fills the rect
+		px = render16(cv => cv.RectOutline(new RectF(2, 2, 12, 6), halfRed, 3f));
+		Assert.Equal(12 * 6, assertBlendedOnce(px));
+	}
+
+	[Fact]
+	public void CirclesAndEllipsesCoverTheirArea() {
+		byte[] px = render16(cv => cv.Circle(new Vector2(8, 8), 6f, red.AssumeSrgb()));
+		Assert.Equal(red, at16(px, 8, 8));
+		Assert.Equal(red, at16(px, 8, 3));
+		Assert.Equal(red, at16(px, 13, 8));
+		Assert.Equal(black, at16(px, 2, 2));
+		Assert.Equal(black, at16(px, 0, 8));
+
+		px = render16(cv => cv.Ellipse(new Vector2(8, 8), new Vector2(7, 3), red.AssumeSrgb()));
+		Assert.Equal(red, at16(px, 2, 8));
+		Assert.Equal(red, at16(px, 8, 10));
+		Assert.Equal(black, at16(px, 8, 3));
+		Assert.Equal(black, at16(px, 3, 5));
+
+		// 4 segments is a diamond, leaving out parts of the circle
+		px = render16(cv => cv.Circle(new Vector2(8, 8), 7f, red.AssumeSrgb(), segments: 4));
+		Assert.Equal(red, at16(px, 5, 4));
+		Assert.Equal(black, at16(px, 3, 4));
+
+		// radius 0 draws nothing
+		px = render16(cv => cv.Circle(new Vector2(8, 8), 0f, red.AssumeSrgb()));
+		Assert.Equal(black, at16(px, 8, 8));
+	}
+
+	[Fact]
+	public void CircleAndEllipseOutlinesLieInsideTheShape() {
+		byte[] px = render16(cv => cv.CircleOutline(new Vector2(8, 8), 6f, halfRed, 2f));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 8, 2)));
+		Assert.True(isHalf(at16(px, 13, 8)));
+		Assert.Equal(black, at16(px, 8, 8));
+		Assert.Equal(black, at16(px, 8, 5));
+		Assert.Equal(black, at16(px, 8, 1));
+
+		px = render16(cv => cv.EllipseOutline(new Vector2(8, 8), new Vector2(7, 4), halfRed, 1.5f));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 1, 8)));
+		Assert.True(isHalf(at16(px, 8, 4)));
+		Assert.Equal(black, at16(px, 8, 8));
+		Assert.Equal(black, at16(px, 4, 8));
+
+		// thicker than the smaller radius makes a filled shape
+		px = render16(cv => cv.EllipseOutline(new Vector2(8, 8), new Vector2(7, 3), halfRed, 3f));
+		Assert.True(isHalf(at16(px, 8, 8)));
+	}
+
+	[Fact]
+	public void RoundedRectsRoundTheirCorners() {
+		byte[] px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 16), 6f, red.AssumeSrgb()));
+		Assert.Equal(black, at16(px, 0, 0));
+		Assert.Equal(black, at16(px, 1, 1));
+		Assert.Equal(black, at16(px, 15, 15));
+		Assert.Equal(red, at16(px, 2, 2));
+		Assert.Equal(red, at16(px, 8, 0));
+		Assert.Equal(red, at16(px, 0, 8));
+		Assert.Equal(red, at16(px, 8, 8));
+
+		// the radius is limited to half the shorter side, making a pill
+		px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 8), 100f, red.AssumeSrgb()));
+		Assert.Equal(black, at16(px, 0, 0));
+		Assert.Equal(red, at16(px, 8, 0));
+		Assert.Equal(red, at16(px, 0, 4));
+		Assert.Equal(black, at16(px, 8, 8));
+
+		// radius 0 makes a plain rect
+		px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 16), 0f, red.AssumeSrgb()));
+		Assert.Equal(red, at16(px, 0, 0));
+		Assert.Equal(red, at16(px, 15, 15));
+	}
+
+	[Fact]
+	public void RoundedRectOutlinesFollowTheCorners() {
+		byte[] px = render16(cv => cv.RoundedRectOutline(new RectF(0, 0, 16, 16), 6f, halfRed, 2f));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 8, 0)));
+		Assert.True(isHalf(at16(px, 8, 1)));
+		Assert.True(isHalf(at16(px, 2, 2)));
+		Assert.True(isHalf(at16(px, 15, 8)));
+		Assert.Equal(black, at16(px, 0, 0));
+		Assert.Equal(black, at16(px, 8, 2));
+		Assert.Equal(black, at16(px, 4, 4));
+		Assert.Equal(black, at16(px, 8, 8));
+
+		// thicker than the radius, so the inner corners are sharp
+		px = render16(cv => cv.RoundedRectOutline(new RectF(0, 0, 16, 16), 2f, halfRed, 4f));
+		assertBlendedOnce(px);
+		Assert.Equal(black, at16(px, 0, 0));
+		Assert.True(isHalf(at16(px, 3, 3)));
+		Assert.Equal(black, at16(px, 4, 4));
+	}
+
+	[Fact]
+	public void PiesCoverTheirSector() {
+		Vector2 c = new(8, 8);
+		// +X toward +Y: the bottom right quadrant on the screen
+		byte[] px = render16(cv => cv.Pie(c, 7f, 0f, MathF.PI / 2, halfRed));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 11, 11)));
+		Assert.Equal(black, at16(px, 4, 4));
+		Assert.Equal(black, at16(px, 11, 4));
+		Assert.Equal(black, at16(px, 4, 11));
+
+		px = render16(cv => cv.Pie(c, 7f, 0f, -MathF.PI / 2, halfRed));
+		Assert.True(isHalf(at16(px, 11, 4)));
+		Assert.Equal(black, at16(px, 11, 11));
+
+		px = render16(cv => cv.Pie(c, 7f, 1f, 3 * MathF.Tau, halfRed));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 4, 4)));
+		Assert.True(isHalf(at16(px, 11, 11)));
+	}
+
+	[Fact]
+	public void ArcsAreCenteredOnTheCircle() {
+		Vector2 c = new(8, 8);
+		byte[] px = render16(cv => cv.Arc(c, 5f, 0f, MathF.PI, halfRed, 2f));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 8, 13)));
+		Assert.True(isHalf(at16(px, 3, 9)));
+		Assert.Equal(black, at16(px, 8, 2));
+		Assert.Equal(black, at16(px, 8, 8));
+		Assert.Equal(black, at16(px, 8, 15));
+
+		px = render16(cv => cv.Arc(c, 5f, 0f, MathF.Tau, halfRed, 2f));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 8, 2)));
+		Assert.True(isHalf(at16(px, 8, 13)));
+	}
+
+	[Fact]
+	public void LineStripJoinsDontOverlap() {
+		// a right angle: the separate quads of the old strips used to blend twice at the corner,
+		// and miss the outer corner
+		byte[] px = render16(cv => cv.LineStrip([new(2, 2), new(12, 2), new(12, 12)], halfRed, 4f));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 12, 2)));
+		Assert.True(isHalf(at16(px, 13, 0)));
+		Assert.Equal(black, at16(px, 1, 2));
+		Assert.Equal(black, at16(px, 12, 12));
+
+		// sharp enough that it becomes a bevel
+		px = render16(cv => cv.LineStrip([new(2, 6), new(14, 8), new(2, 10)], halfRed, 2f));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 13, 8)));
+		Assert.Equal(black, at16(px, 15, 8));
+	}
+
+	[Fact]
+	public void LineLoopsJoinAtEveryPoint() {
+		Vector2[] square = [new(3, 3), new(12, 3), new(12, 12), new(3, 12)];
+		byte[] px = render16(cv => cv.LineLoop(square, halfRed, 2f));
+		int drawn = assertBlendedOnce(px);
+		// the miters reach the outer corners, the first point's included
+		Assert.True(isHalf(at16(px, 2, 2)));
+		Assert.True(isHalf(at16(px, 12, 12)));
+		Assert.Equal(black, at16(px, 7, 7));
+
+		// repeated points, including the first one at the end, change nothing
+		Vector2[] repeated = [new(3, 3), new(3, 3), new(12, 3), new(12, 12), new(12, 12), new(3, 12), new(3, 3)];
+		Assert.Equal(px, render16(cv => cv.LineLoop(repeated, halfRed, 2f)));
+		Assert.Equal(11 * 11 - 7 * 7, drawn);
+	}
+
+	[Fact]
+	public void LineJoinsShapeTheOuterCorner() {
+		Vector2[] corner = [new(2, 5), new(10, 5), new(10, 15)];
+		// (13, 2) is only inside the miter's corner, (12, 2) is also inside the round join
+		byte[] px = render16(cv => cv.LineStrip(corner, halfRed, 8f, LineJoin.Miter));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 13, 2)));
+		Assert.True(isHalf(at16(px, 12, 2)));
+
+		px = render16(cv => cv.LineStrip(corner, halfRed, 8f, LineJoin.Round));
+		assertBlendedOnce(px);
+		Assert.Equal(black, at16(px, 13, 2));
+		Assert.True(isHalf(at16(px, 12, 2)));
+
+		px = render16(cv => cv.LineStrip(corner, halfRed, 8f, LineJoin.Bevel));
+		assertBlendedOnce(px);
+		Assert.Equal(black, at16(px, 13, 2));
+		Assert.Equal(black, at16(px, 12, 2));
+		Assert.True(isHalf(at16(px, 11, 4)));
+
+		// sharp turns and loops blend once with round joins too
+		assertBlendedOnce(render16(cv => cv.LineStrip([new(2, 6), new(14, 8), new(2, 10)], halfRed, 2f, LineJoin.Round)));
+		Vector2[] square = [new(3, 3), new(12, 3), new(12, 12), new(3, 12)];
+		px = render16(cv => cv.LineLoop(square, halfRed, 3f, LineJoin.Round));
+		assertBlendedOnce(px);
+		Assert.Equal(black, at16(px, 1, 1));
+		Assert.True(isHalf(at16(px, 2, 3)));
+	}
+
+	[Fact]
+	public void LineCapsExtendTheEnds() {
+		// (1, 8) is inside the round and square caps, (1, 5) only inside the square one
+		foreach (bool strip in (ReadOnlySpan<bool>)[false, true]) {
+			byte[] draw(LineCap cap) => render16(cv => {
+				if (strip)
+					cv.LineStrip([new(4, 8), new(12, 8)], halfRed, 6f, cap: cap);
+				else
+					cv.Line(new Vector2(4, 8), new Vector2(12, 8), halfRed, 6f, cap);
+			});
+			byte[] px = draw(LineCap.Butt);
+			Assert.Equal(8 * 6, assertBlendedOnce(px));
+			Assert.Equal(black, at16(px, 3, 8));
+
+			px = draw(LineCap.Round);
+			assertBlendedOnce(px);
+			Assert.True(isHalf(at16(px, 1, 8)));
+			Assert.True(isHalf(at16(px, 14, 8)));
+			Assert.Equal(black, at16(px, 1, 5));
+
+			px = draw(LineCap.Square);
+			Assert.Equal(14 * 6, assertBlendedOnce(px));
+			Assert.True(isHalf(at16(px, 1, 5)));
+			Assert.True(isHalf(at16(px, 14, 10)));
+		}
+	}
+
+	[Fact]
+	public void ArcCapsAttachToTheEnds() {
+		Vector2 c = new(8, 8);
+		// the arc starts at (13, 8) going down, so a start cap reaches up
+		byte[] px = render16(cv => cv.Arc(c, 5f, 0f, MathF.PI, halfRed, 4f));
+		assertBlendedOnce(px);
+		Assert.Equal(black, at16(px, 13, 6));
+
+		px = render16(cv => cv.Arc(c, 5f, 0f, MathF.PI, halfRed, 4f, LineCap.Round));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 13, 6)));
+		Assert.True(isHalf(at16(px, 2, 6)));
+		Assert.Equal(black, at16(px, 13, 5));
+
+		px = render16(cv => cv.Arc(c, 5f, 0f, MathF.PI, halfRed, 4f, LineCap.Square));
+		assertBlendedOnce(px);
+		Assert.True(isHalf(at16(px, 14, 6)));
+		Assert.True(isHalf(at16(px, 1, 6)));
+
+		// thicker than the diameter, causing a clamp; the caps shrink with the ends rather than reaching
+		// past the center
+		foreach (LineCap cap in (ReadOnlySpan<LineCap>)[LineCap.Round, LineCap.Square])
+			assertBlendedOnce(render16(cv => cv.Arc(c, 2f, 0f, MathF.PI, halfRed, 6f, cap)));
+	}
+
+	[Fact]
+	public void LineStripsInterpolatePerVertexColors() {
+		byte[] px = render16(cv => cv.LineStrip([
+			new Vertex2dColor(1, 8, red.AssumeSrgb()),
+			new Vertex2dColor(8, 8, green.AssumeSrgb()),
+			new Vertex2dColor(15, 8, blue.AssumeSrgb()),
+		], 2f));
+		Assert.True(at16(px, 1, 7).R > 200);
+		Assert.True(at16(px, 8, 7).G > 200);
+		Assert.True(at16(px, 14, 7).B > 200);
+	}
+
+	[Fact]
+	public void BadShapeArgumentsAreRejected() {
+		render16(cv => {
+			Vector2 c = new(8, 8);
+			SrgbColor32 w = SrgbColor32.White;
+			int caught = 0;
+			try { cv.Circle(c, -1f, w); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.Circle(c, float.NaN, w); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.Circle(c, 1f, w, segments: 2); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.Ellipse(c, new Vector2(1, float.PositiveInfinity), w); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.CircleOutline(c, 1f, w, 0f); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.RoundedRect(new RectF(0, 0, 4, 4), 1f, w, segments: 0); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.RectOutline(new RectF(0, 0, 4, 4), w, -1f); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.Pie(c, 1f, float.NaN, 1f, w); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.Arc(c, 1f, 0f, 1f, w, 1f, segments: 70000); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.LineLoop([c], w); } catch (ArgumentException) { caught++; }
+			Assert.Equal(10, caught);
+
+			// degenerate input doesn't throw and just draws nothing
+			cv.LineStrip([c, c, c], w);
+			cv.LineLoop([c, c], w);
+			cv.Pie(c, 1f, 0f, 0f, w);
+			cv.Arc(c, 1f, 0f, 0f, w);
+
+			// turning straight back gives a half-turn round join
+			cv.LineStrip([new(2, 8), new(12, 8), new(2, 8)], w, 3f, LineJoin.Round, LineCap.Round);
 		});
 	}
 

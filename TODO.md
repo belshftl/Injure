@@ -74,7 +74,8 @@ anyhow, to v0.1:
   - [x] a mid-canvas `Clear(SrgbColor32)`
   - [x] support multi-mip `Texture2d`s; render target mips can wait
   - [x] texture slices
-  - [ ] shapes: rect outline, circle/ellipse fill + outline, rounded rect, arc/pie, polylines with proper joins (`LineStrip` is currently separate quads, so joints gap/overlap and overlaps double-blend)
+  - [x] shapes: rect outline, circle/ellipse fill + outline, rounded rect, arc/pie, polylines with proper joins (`LineStrip` is currently separate quads, so joints gap/overlap and overlaps double-blend)
+  - [x] `LineJoin`/`LineCap` settings for lines, strips, loops, and arcs
   - [ ] resolution independence: drawing in logical units on hidpi, and a fixed virtual resolution with letterboxing / integer scaling
   - [ ] textured geometry beyond quads: textured triangles/meshes, arbitrary-corner textured quads (`Vertex2dTextureColor` has no draw call taking it yet)
   - [ ] more blend presets in `CanvasOutputStates`, e.g. additive and multiply
