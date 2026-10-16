@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Diagnostics;
 using System.Numerics;
 using Injure.Gpu;
 using Injure.Primitives;
@@ -10,12 +11,17 @@ namespace Injure.Draw;
 /// <summary>
 /// Parameters for <see cref="Canvas"/>.
 /// </summary>
-/// <param name="Target">What to draw into.</param>
+/// <param name="Target">
+/// What to draw into; also carries the view matrix applied after <paramref name="Transform"/>.
+/// </param>
 /// <param name="ColorAttachmentOps">
 /// What to do with <paramref name="Target"/>'s contents when its render pass begins, e.g. clear it.
 /// </param>
 /// <param name="Scissor">Rectangle that draws are clipped to.</param>
-/// <param name="Transform">Transform matrix applied to the positions of draws.</param>
+/// <param name="Transform">
+/// Transform matrix applied to the positions of draws, before the view matrix of
+/// <paramref name="Target"/>. Must be invertible (see <see cref="MatrixInvert"/>).
+/// </param>
 /// <param name="OutputState">
 /// How draws are written to the target: blending and color write mask.
 /// </param>
@@ -26,21 +32,25 @@ namespace Injure.Draw;
 /// </param>
 /// <remarks>
 /// <para>
-/// A scissor of kind <see cref="CanvasScissorKind.Intersect"/> is invalid in the base parameters,
-/// since there's no scissor to intersect with.
+/// Changing the render target of <paramref name="Target"/> (see
+/// <see cref="CanvasTarget.SameRenderTarget(CanvasTarget)"/>) or
+/// <paramref name="ColorAttachmentOps"/> ends the current render pass and begins a new one.
+/// Returning to an earlier state by disposing an override keeps the target's contents (the pass is
+/// begun with <see cref="LoadOp.Load"/>), rather than applying that state's
+/// <paramref name="ColorAttachmentOps"/> again. Changing <paramref name="OutputState"/>,
+/// <paramref name="Material"/>, <paramref name="Sampling"/>, or <paramref name="Scissor"/> starts a
+/// new draw call; changing <paramref name="Transform"/> or only the view matrix of
+/// <paramref name="Target"/> doesn't, since both are applied to vertices on the CPU.
 /// </para>
 /// <para>
-/// Changing <paramref name="Target"/> or <paramref name="ColorAttachmentOps"/> ends the current
-/// render pass and begins a new one. Returning to an earlier state by disposing an override keeps
-/// the target's contents (the pass is begun with <see cref="LoadOp.Load"/>), rather than applying
-/// that state's <paramref name="ColorAttachmentOps"/> again. Changing
-/// <paramref name="OutputState"/>, <paramref name="Material"/>, <paramref name="Sampling"/>, or
-/// <paramref name="Scissor"/> starts a new draw call; changing <paramref name="Transform"/>
-/// doesn't, since it's applied to vertices on the CPU.
+/// Transform and view matrices must be invertible, as <see cref="MatrixInvert"/> defines it. The
+/// effective transform, <c>Transform * view</c>, must be invertible too; it is capable of becoming
+/// non-invertible at extreme scales even if both factors are invertible, since the product can
+/// underflow or overflow.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is invalid, since its <paramref name="ColorAttachmentOps"/>
-/// is.
+/// The <see langword="default"/> value is invalid, since its <paramref name="Target"/>,
+/// <paramref name="ColorAttachmentOps"/>, and <paramref name="Transform"/> are.
 /// </para>
 /// </remarks>
 public readonly record struct CanvasParams(
@@ -53,30 +63,40 @@ public readonly record struct CanvasParams(
 	TexSampling Sampling
 ) {
 	/// <summary>
-	/// Creates parameters for drawing into the primary target, clearing it to
-	/// <paramref name="clearColor"/> first.
+	/// Creates parameters for drawing into the primary target with the given view matrix, clearing it
+	/// to <paramref name="clearColor"/> first.
 	/// </summary>
+	/// <param name="view">
+	/// View matrix of the primary target; see <see cref="CanvasTarget.View"/>.
+	/// </param>
 	/// <param name="clearColor">Color the target is cleared to.</param>
-	/// <inheritdoc cref="Primary(ColorAttachmentOps)" path="/remarks"/>
-	public static CanvasParams Primary(SrgbColor32 clearColor) =>
-		Primary(ColorAttachmentOps.Clear(clearColor.ToRawF128()));
+	/// <inheritdoc cref="Primary(Matrix3x2, ColorAttachmentOps)" path="/exception"/>
+	/// <inheritdoc cref="Primary(Matrix3x2, ColorAttachmentOps)" path="/remarks"/>
+	public static CanvasParams Primary(Matrix3x2 view, SrgbColor32 clearColor) =>
+		Primary(view, ColorAttachmentOps.Clear(clearColor.ToRawF128()));
 
 	/// <summary>
-	/// Creates parameters for drawing into the primary target, with the given
+	/// Creates parameters for drawing into the primary target with the given view matrix and
 	/// <see cref="ColorAttachmentOps"/>.
 	/// </summary>
+	/// <param name="view">
+	/// View matrix of the primary target; see <see cref="CanvasTarget.View"/>.
+	/// </param>
 	/// <param name="colorAttachmentOps">
 	/// What to do with the target's contents when its render pass begins, e.g.
 	/// <see cref="ColorAttachmentOps.Load"/> to draw over them.
 	/// </param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="view"/> isn't invertible.
+	/// </exception>
 	/// <remarks>
 	/// The other parameters are: no scissor, the identity transform,
 	/// <see cref="CanvasOutputStates.Alpha"/>, <see cref="CanvasMaterials.Color"/>, and
 	/// <see cref="TexSampling.Nearest"/>. Use a <see langword="with"/> expression to change some of
 	/// them.
 	/// </remarks>
-	public static CanvasParams Primary(ColorAttachmentOps colorAttachmentOps) => new(
-		Target: CanvasTarget.Primary,
+	public static CanvasParams Primary(Matrix3x2 view, ColorAttachmentOps colorAttachmentOps) => new(
+		Target: CanvasTarget.Primary(view),
 		ColorAttachmentOps: colorAttachmentOps,
 		Scissor: CanvasScissor.None,
 		Transform: Matrix3x2.Identity,
@@ -84,6 +104,83 @@ public readonly record struct CanvasParams(
 		Material: CanvasMaterials.Color,
 		Sampling: TexSampling.Nearest
 	);
+
+	/// <summary>
+	/// <c>Transform * Target.View</c>. Maps draw coordinates to target pixels.
+	/// </summary>
+	/// <exception cref="InvalidDefaultException">
+	/// Thrown if <see cref="Target"/> is the <see langword="default"/> value.
+	/// </exception>
+	public Matrix3x2 EffectiveTransform => Transform * Target.View;
+
+	/// <summary>
+	/// Returns these parameters with <paramref name="ov"/> applied, as
+	/// <see cref="Canvas.PushParams(in CanvasParamsOverride)"/> applies it.
+	/// </summary>
+	/// <param name="ov">Override to apply.</param>
+	/// <returns>
+	/// The parameters <see cref="Canvas.PushParams(in CanvasParamsOverride)"/> would push.
+	/// </returns>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if <paramref name="ov"/>'s transform override is the <see langword="default"/>
+	/// <see cref="CanvasTransformOverride"/>.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// A <see langword="null"/> field of <paramref name="ov"/> keeps the current value, and a
+	/// non-<see langword="null"/> one replaces it, except for the transform and scissor, whose
+	/// overrides can also combine with the current value; see <see cref="CanvasTransformOverride"/>
+	/// and <see cref="CanvasScissorOverride"/>.
+	/// </para>
+	/// <para>
+	/// This doesn't validate the result. <see cref="Canvas.PushParams(in CanvasParamsOverride)"/>
+	/// does, and can reject it, e.g. if a <see cref="CanvasTransformOverrideKind.Multiply"/> override
+	/// made the transform non-invertible, or the new target has an sRGB format.
+	/// </para>
+	/// </remarks>
+	public CanvasParams Merge(in CanvasParamsOverride ov) => new(
+		Target: ov.Target ?? Target,
+		ColorAttachmentOps: ov.ColorAttachmentOps ?? ColorAttachmentOps,
+		Scissor: mergeScissor(Scissor, ov.Scissor),
+		Transform: mergeTransform(Transform, ov.Transform),
+		OutputState: ov.OutputState ?? OutputState,
+		Material: ov.Material ?? Material,
+		Sampling: ov.Sampling ?? Sampling
+	);
+
+	private static Matrix3x2 mergeTransform(Matrix3x2 curr, CanvasTransformOverride? ov) {
+		if (ov is not CanvasTransformOverride t)
+			return curr;
+		if (t.IsDefault)
+			throw ArgumentInvalidDefaultException.For<CanvasTransformOverride>(nameof(ov));
+		return t.Kind.Tag switch {
+			CanvasTransformOverrideKind.Case.Set => t.Matrix,
+			// row vectors: the override applies first, then the current transform
+			CanvasTransformOverrideKind.Case.Multiply => t.Matrix * curr,
+			_ => throw new UnreachableException(),
+		};
+	}
+
+	private static CanvasScissor mergeScissor(CanvasScissor curr, CanvasScissorOverride? ov) {
+		if (ov is not CanvasScissorOverride s)
+			return curr;
+		return s.Kind.Tag switch {
+			CanvasScissorOverrideKind.Case.None => CanvasScissor.None,
+			CanvasScissorOverrideKind.Case.Set => CanvasScissor.Set(s.Rect),
+			CanvasScissorOverrideKind.Case.Intersect => curr.Kind.Tag switch {
+				CanvasScissorKind.Case.None => CanvasScissor.Set(s.Rect),
+				CanvasScissorKind.Case.Set => CanvasScissor.Set(intersect(curr.Rect, s.Rect)),
+				_ => throw new UnreachableException(),
+			},
+			_ => throw new UnreachableException(),
+		};
+	}
+
+	// no overlap = RectI.Empty, so all empty intersections compare equal
+	private static RectI intersect(RectI a, RectI b) {
+		_ = a.TryIntersect(b, out RectI result);
+		return result;
+	}
 }
 
 /// <summary>
@@ -94,12 +191,12 @@ public readonly record struct CanvasParams(
 /// Overrides <see cref="CanvasParams.ColorAttachmentOps"/>.
 /// </param>
 /// <param name="Scissor">
-/// Overrides <see cref="CanvasParams.Scissor"/>; <see cref="CanvasScissorKind.Intersect"/>
-/// intersects with the current scissor.
+/// Overrides <see cref="CanvasParams.Scissor"/>, either replacing or intersecting with the current
+/// scissor; see <see cref="CanvasScissorOverride"/>.
 /// </param>
 /// <param name="Transform">
-/// Overrides <see cref="CanvasParams.Transform"/>; the override replaces the current transform
-/// rather than being combined with it.
+/// Overrides <see cref="CanvasParams.Transform"/>, either replacing the current transform or
+/// multiplying into it; see <see cref="CanvasTransformOverride"/>.
 /// </param>
 /// <param name="OutputState">Overrides <see cref="CanvasParams.OutputState"/>.</param>
 /// <param name="Material">Overrides <see cref="CanvasParams.Material"/>.</param>
@@ -115,8 +212,8 @@ public readonly record struct CanvasParams(
 public readonly record struct CanvasParamsOverride(
 	CanvasTarget? Target = null,
 	ColorAttachmentOps? ColorAttachmentOps = null,
-	CanvasScissor? Scissor = null,
-	Matrix3x2? Transform = null,
+	CanvasScissorOverride? Scissor = null,
+	CanvasTransformOverride? Transform = null,
 	CanvasOutputState? OutputState = null,
 	CanvasMaterial? Material = null,
 	TexSampling? Sampling = null

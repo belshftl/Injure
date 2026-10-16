@@ -159,15 +159,15 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 /// <remarks>
 /// <para>
 /// <see cref="Vector2"/> (a top-left position at natural size) and <see cref="RectF"/> (a
-/// destination rectangle) convert to <see cref="TexDraw"/> implicitly, so the common cases are
+/// destination rect) convert to <see cref="TexDraw"/> implicitly, so the common cases are
 /// <c>cv.Texture(tex, pos)</c> and <c>cv.Texture(tex, rect)</c>.
 /// </para>
 /// <para>
 /// The quad is placed as described by <paramref name="Destination"/>, then scaled by
 /// <see cref="Scale"/> and rotated by <see cref="Rotation"/>, both around <see cref="Origin"/>.
 /// <see cref="FlipX"/> and <see cref="FlipY"/> mirror the texture within the quad without moving
-/// it. All of this happens before <see cref="CanvasParams.Transform"/>, which applies to the result
-/// like to any other draw.
+/// it. All of this happens before <see cref="CanvasParams.Transform"/> and
+/// <see cref="CanvasTarget.View"/>, which apply to the result like to any other draw.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid, since its <paramref name="Destination"/> is.

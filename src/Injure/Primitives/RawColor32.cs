@@ -3,6 +3,8 @@
 
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Injure.DevAnalyzers.Attributes;
 
 namespace Injure.Primitives;
@@ -12,6 +14,7 @@ namespace Injure.Primitives;
 /// defined by the API that produced it, e.g. texture readback.
 /// </summary>
 [Color32Type]
+[JsonConverter(typeof(RawColor32JsonConverter))]
 public readonly partial struct RawColor32 {
 	/// <summary>
 	/// Reinterprets this value as if it is sRGB-encoded, without changing the bytes.
@@ -42,4 +45,32 @@ public readonly partial struct RawColor32 {
 	/// to [0, 1].
 	/// </summary>
 	public RawColorF128 ToRawF128() => new(R / 255f, G / 255f, B / 255f, A / 255f);
+}
+
+/// <summary>
+/// <see cref="JsonConverter{T}"/> for <see cref="RawColor32"/>s, as JSON strings holding hex codes,
+/// e.g. <c>"#CBA6F7FF"</c>.
+/// </summary>
+public sealed class RawColor32JsonConverter : JsonConverter<RawColor32> {
+	/// <summary>
+	/// Reads a JSON string value and parses it with <see cref="RawColor32.Parse(string?)"/>, so the
+	/// alpha and the leading <c>#</c> are optional.
+	/// </summary>
+	/// <exception cref="JsonException">
+	/// Thrown if the value isn't a JSON string, or isn't a valid hex code.
+	/// </exception>
+	public override RawColor32 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
+		if (reader.TokenType != JsonTokenType.String)
+			throw new JsonException("expected string");
+		return RawColor32.TryParse(reader.GetString(), out RawColor32 val)
+			? val
+			: throw new JsonException($"invalid RawColor32 hex code '{reader.GetString()}'");
+	}
+
+	/// <summary>
+	/// Writes a <see cref="RawColor32"/> as a JSON string value using
+	/// <see cref="RawColor32.ToString()"/>, i.e. in the form <c>#RRGGBBAA</c>.
+	/// </summary>
+	public override void Write(Utf8JsonWriter writer, RawColor32 val, JsonSerializerOptions options) =>
+		writer.WriteStringValue(val.ToString());
 }

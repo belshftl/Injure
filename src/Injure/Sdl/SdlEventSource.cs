@@ -212,7 +212,7 @@ public sealed partial class SdlEventSource : IHostEventSource {
 			result = HostEvent.ForPointerMove(
 				tick,
 				windowOrInvalid(ev.Motion.WindowID),
-				new HostPointerMoveEvent(ev.Motion.X, ev.Motion.Y, ev.Motion.XRel, ev.Motion.YRel)
+				new HostPointerMoveEvent(new WindowPos(ev.Motion.X, ev.Motion.Y), new WindowDelta(ev.Motion.XRel, ev.Motion.YRel))
 			);
 			return true;
 		case SDL.EventType.MouseButtonDown:
@@ -220,7 +220,7 @@ public sealed partial class SdlEventSource : IHostEventSource {
 			result = HostEvent.ForPointerButton(
 				tick,
 				windowOrInvalid(ev.Button.WindowID),
-				new HostPointerButtonEvent(TranslatePointerButton(ev.Button.Button), edge(ev.Button.Down), ev.Button.Clicks, ev.Button.X, ev.Button.Y)
+				new HostPointerButtonEvent(TranslatePointerButton(ev.Button.Button), edge(ev.Button.Down), ev.Button.Clicks, new WindowPos(ev.Button.X, ev.Button.Y))
 			);
 			return true;
 		case SDL.EventType.MouseWheel: {
@@ -237,7 +237,7 @@ public sealed partial class SdlEventSource : IHostEventSource {
 			result = HostEvent.ForPointerWheel(
 				tick,
 				windowOrInvalid(ev.Wheel.WindowID),
-				new HostPointerWheelEvent(x, y, ix, iy, ev.Wheel.MouseX, ev.Wheel.MouseY)
+				new HostPointerWheelEvent(x, y, ix, iy, new WindowPos(ev.Wheel.MouseX, ev.Wheel.MouseY))
 			);
 			return true;
 		}

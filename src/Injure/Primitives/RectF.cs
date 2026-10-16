@@ -4,18 +4,25 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Injure.Primitives;
 
 /// <summary>
-/// Half-open rectangle stored as 4 finite <see langword="float"/>s: X, Y, width, height.
-/// Width/height cannot be negative but may be zero.
+/// Half-open rectangle represented by 4 <see langword="float"/> components: X, Y, width, height.
+/// Width/height cannot be negative but may be zero. All four components are non-NaN and finite.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>The memory layout is unspecified.</b>
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is valid and is <see cref="Empty"/>, a rectangle at the
+/// origin with zero width and height.
+/// </para>
+/// </remarks>
 [JsonConverter(typeof(RectFJsonConverter))]
-[StructLayout(LayoutKind.Sequential)]
 public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// <summary>
 	/// X coordinate of the rectangle's left edge.
@@ -139,8 +146,12 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// </summary>
 	/// <param name="left">The inclusive left edge.</param>
 	/// <param name="top">The inclusive top edge.</param>
-	/// <param name="right">The exclusive right edge. Must be greater than or equal to <paramref name="left"/>.</param>
-	/// <param name="bottom">The exclusive bottom edge. Must be greater than or equal to <paramref name="top"/>.</param>
+	/// <param name="right">
+	/// The exclusive right edge. Must be greater than or equal to <paramref name="left"/>.
+	/// </param>
+	/// <param name="bottom">
+	/// The exclusive bottom edge. Must be greater than or equal to <paramref name="top"/>.
+	/// </param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown when any edge is not finite, when <paramref name="right"/> is less than
 	/// <paramref name="left"/>, when <paramref name="bottom"/> is less than
@@ -185,9 +196,12 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// Attempts to compute the intersection of this rectangle and another rectangle.
 	/// </summary>
 	/// <param name="other">The rectangle to intersect with this rectangle.</param>
-	/// <param name="result">The intersection rectangle, or <see cref="Empty"/> if the rectangles do not intersect.</param>
+	/// <param name="result">
+	/// The intersection rectangle, or <see cref="Empty"/> if the rectangles do not intersect.
+	/// </param>
 	/// <returns>
-	/// <see langword="true"/> if the rectangles overlap with positive area; otherwise, <see langword="false"/>.
+	/// <see langword="true"/> if the rectangles overlap with positive area; otherwise,
+	/// <see langword="false"/>.
 	/// </returns>
 	public bool TryIntersect(RectF other, out RectF result) {
 		float left = MathF.Max(Left, other.Left);
@@ -257,29 +271,57 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	public static bool operator !=(RectF left, RectF right) => !left.Equals(right);
 
 	/// <summary>
-	/// Returns a culture-sensitive string representation of this rectangle.
+	/// Returns a string representation of this rectangle, in the form
+	/// <c>{ X = 1, Y = 2, Width = 3, Height = 4 }</c>.
 	/// </summary>
-	public override string ToString() => ToString(null, CultureInfo.CurrentCulture);
+	/// <remarks>
+	/// Always formats in the invariant culture, regardless of the current culture.
+	/// </remarks>
+	public override string ToString() => ToString(null, null);
 
 	/// <summary>
-	/// Returns a formatted string representation of this rectangle.
+	/// Returns a string representation of this rectangle, in the form
+	/// <c>{ X = 1, Y = 2, Width = 3, Height = 4 }</c>, with each component formatted with
+	/// <paramref name="format"/>.
 	/// </summary>
 	/// <param name="format">Numeric format string to use for each component.</param>
-	/// <param name="formatProvider">Format provider to use.</param>
+	/// <param name="formatProvider">Ignored.</param>
+	/// <remarks>
+	/// Always formats in the invariant culture, regardless of the current culture and
+	/// <paramref name="formatProvider"/>.
+	/// </remarks>
 	public string ToString(string? format, IFormatProvider? formatProvider) {
-		formatProvider ??= CultureInfo.CurrentCulture;
+		CultureInfo inv = CultureInfo.InvariantCulture;
 		return string.Format(
-			formatProvider,
+			inv,
 			"{{ X = {0}, Y = {1}, Width = {2}, Height = {3} }}",
-			X.ToString(format, formatProvider),
-			Y.ToString(format, formatProvider),
-			Width.ToString(format, formatProvider),
-			Height.ToString(format, formatProvider)
+			X.ToString(format, inv),
+			Y.ToString(format, inv),
+			Width.ToString(format, inv),
+			Height.ToString(format, inv)
 		);
 	}
 }
 
+/// <summary>
+/// <see cref="JsonConverter{T}"/> for <see cref="RectF"/>s, as JSON objects of the form
+/// <c>{ "x": 1, "y": 2, "width": 3, "height": 4 }</c>.
+/// </summary>
 public sealed class RectFJsonConverter : JsonConverter<RectF> {
+	/// <summary>
+	/// Reads a JSON object with the properties <c>x</c>, <c>y</c>, <c>width</c>, and <c>height</c>,
+	/// in any order, as JSON numbers.
+	/// </summary>
+	/// <exception cref="JsonException">
+	/// Thrown if the value isn't an object, a property is missing or unknown, a property's value isn't
+	/// a JSON number representable as a finite <see langword="float"/>, or the values don't form a
+	/// valid <see cref="RectF"/> (see <see cref="RectF(float, float, float, float)"/>).
+	/// </exception>
+	/// <remarks>
+	/// Property names are matched case-insensitively if
+	/// <see cref="JsonSerializerOptions.PropertyNameCaseInsensitive"/> is set, and case-sensitively
+	/// otherwise.
+	/// </remarks>
 	public override RectF Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
 		if (reader.TokenType != JsonTokenType.StartObject)
 			throw new JsonException("expected object");
@@ -288,7 +330,11 @@ public sealed class RectFJsonConverter : JsonConverter<RectF> {
 			if (reader.TokenType == JsonTokenType.EndObject) {
 				if (x is null || y is null || width is null || height is null)
 					throw new JsonException("missing one or more RectF fields");
-				return new RectF(x.Value, y.Value, width.Value, height.Value);
+				try {
+					return new RectF(x.Value, y.Value, width.Value, height.Value);
+				} catch (ArgumentOutOfRangeException ex) {
+					throw new JsonException($"invalid RectF: {ex.Message}", ex);
+				}
 			}
 
 			if (reader.TokenType != JsonTokenType.PropertyName)
@@ -298,19 +344,26 @@ public sealed class RectFJsonConverter : JsonConverter<RectF> {
 				throw new JsonException("unexpected end of json");
 
 			if (eq(name, "x", options))
-				x = reader.GetSingle();
+				x = read(ref reader, name);
 			else if (eq(name, "y", options))
-				y = reader.GetSingle();
+				y = read(ref reader, name);
 			else if (eq(name, "width", options))
-				width = reader.GetSingle();
+				width = read(ref reader, name);
 			else if (eq(name, "height", options))
-				height = reader.GetSingle();
+				height = read(ref reader, name);
 			else
 				throw new JsonException($"unexpected json property '{name}'");
 		}
 		throw new JsonException("unexpected end of json");
 	}
 
+	/// <summary>
+	/// Writes a JSON object with the properties <c>x</c>, <c>y</c>, <c>width</c>, and <c>height</c>.
+	/// </summary>
+	/// <remarks>
+	/// The property names are always lowercase, regardless of
+	/// <see cref="JsonSerializerOptions.PropertyNamingPolicy"/>.
+	/// </remarks>
 	public override void Write(Utf8JsonWriter writer, RectF val, JsonSerializerOptions options) {
 		writer.WriteStartObject();
 		writer.WriteNumber("x", val.X);
@@ -319,6 +372,11 @@ public sealed class RectFJsonConverter : JsonConverter<RectF> {
 		writer.WriteNumber("height", val.Height);
 		writer.WriteEndObject();
 	}
+
+	private static float read(ref Utf8JsonReader reader, string? name) =>
+		reader.TokenType == JsonTokenType.Number && reader.TryGetSingle(out float v)
+			? v
+			: throw new JsonException($"json property '{name}' must be a number representable as a finite float");
 
 	private static bool eq(string? got, string expected, JsonSerializerOptions options) =>
 		string.Equals(got, expected, options.PropertyNameCaseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);

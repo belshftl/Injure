@@ -254,10 +254,10 @@ public sealed class ActionTracker(ActionProfile profile) {
 					handleGamepadButton(removed.Tick, removed.Gamepad, button, down: false);
 			break;
 		case PointerMoveEvent move:
-			events.Add(new PointerMoveControlEvent(move.Tick, move.Window, move.X, move.Y, new Vector2(move.DeltaX, move.DeltaY)));
+			events.Add(new PointerMoveControlEvent(move.Tick, move.Window, move.Position, move.Delta));
 			break;
 		case PointerButtonEvent ptr:
-			handleButtonSourceEdge(ptr.Tick, InputButtonSource.PointerButton(ptr.Button), ptr.Edge, ButtonActionEventInfo.FromPointer(ptr.Window, ptr.X, ptr.Y, ptr.Clicks));
+			handleButtonSourceEdge(ptr.Tick, InputButtonSource.PointerButton(ptr.Button), ptr.Edge, ButtonActionEventInfo.FromPointer(ptr.Window, ptr.Position, ptr.Clicks));
 			break;
 		case PointerWheelEvent wheel:
 			handlePointerWheel(wheel);
@@ -335,13 +335,13 @@ public sealed class ActionTracker(ActionProfile profile) {
 			wheel.Tick,
 			InputImpulseAxisSource.PointerWheel(PointerWheelAxis.X),
 			wheel.X,
-			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.PointerX, wheel.PointerY, wheel.IntegerX)
+			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.PointerPosition, wheel.IntegerX)
 		);
 		handleImpulseAxis(
 			wheel.Tick,
 			InputImpulseAxisSource.PointerWheel(PointerWheelAxis.Y),
 			wheel.Y,
-			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.PointerX, wheel.PointerY, wheel.IntegerY)
+			ImpulseAxisActionEventInfo.FromPointer(wheel.Window, wheel.PointerPosition, wheel.IntegerY)
 		);
 	}
 

@@ -16,7 +16,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	private static readonly RawColor32 blue = RawColor32.Blue;
 	private static readonly RawColor32 black = RawColor32.Black;
 
-	private static CanvasParams baseParams(RawColor32 clear) => CanvasParams.Primary(clear.AssumeSrgb());
+	private static CanvasParams baseParams(RawColor32 clear) => CanvasParams.Primary(Matrix3x2.Identity, clear.AssumeSrgb());
 
 	// draws into a size x size test texture standing in for the primary output and returns its texels
 	private byte[] render(RawColor32 clear, Action<OwnedCanvas> draw, uint size = 4) {
@@ -210,7 +210,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void TransformsApplyPerDraw() {
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			using (cv.PushParams(transform: Matrix3x2.CreateTranslation(2, 0)))
+			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(2, 0))))
 				cv.Rect(new RectF(0, 0, 2, 2), red.AssumeSrgb());
 			cv.Rect(new RectF(0, 2, 2, 2), blue.AssumeSrgb());
 		});
@@ -224,13 +224,199 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void ScissorClipsAndRestores() {
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			using (cv.PushParams(scissor: CanvasScissor.Set(new RectI(0, 0, 2, 2))))
+			using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectI(0, 0, 2, 2))))
 				cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
 			cv.Rect(new RectF(0, 3, 4, 1), blue.AssumeSrgb());
 		});
 		Assert.Equal(red, GpuRig.At(px, 4, 1, 1));
 		Assert.Equal(black, GpuRig.At(px, 4, 3, 0));
 		Assert.Equal(blue, GpuRig.At(px, 4, 3, 3));
+	}
+
+	[Fact]
+	public void TransformOverridesSetOrMultiply() {
+		byte[] px = render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateScale(2)))) {
+				// applied before the scale, so the translation is scaled too: lands at (2, 0)
+				using (cv.PushParams(transform: CanvasTransformOverride.Multiply(Matrix3x2.CreateTranslation(1, 0))))
+					cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgb());
+				// replaces the scale rather than combining with it
+				using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(0, 3))))
+					cv.Rect(new RectF(0, 0, 1, 1), blue.AssumeSrgb());
+			}
+		});
+		Assert.Equal(black, GpuRig.At(px, 4, 1, 0));
+		Assert.Equal(red, GpuRig.At(px, 4, 2, 0));
+		Assert.Equal(red, GpuRig.At(px, 4, 3, 1));
+		Assert.Equal(blue, GpuRig.At(px, 4, 0, 3));
+		Assert.Equal(black, GpuRig.At(px, 4, 1, 3));
+	}
+
+	[Fact]
+	public void ScissorOverridesIntersectAndClear() {
+		byte[] px = render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectI(0, 0, 3, 3)))) {
+				using (cv.PushParams(scissor: CanvasScissorOverride.Intersect(new RectI(1, 1, 3, 3))))
+					cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
+				using (cv.PushParams(scissor: CanvasScissorOverride.None))
+					cv.Rect(new RectF(3, 0, 1, 1), blue.AssumeSrgb());
+			}
+		});
+		Assert.Equal(black, GpuRig.At(px, 4, 0, 0));
+		Assert.Equal(red, GpuRig.At(px, 4, 1, 1));
+		Assert.Equal(red, GpuRig.At(px, 4, 2, 2));
+		Assert.Equal(black, GpuRig.At(px, 4, 3, 3));
+		Assert.Equal(blue, GpuRig.At(px, 4, 3, 0));
+	}
+
+	[Fact]
+	public void IntersectWithoutAScissorSetsIt() {
+		byte[] px = render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			using (cv.PushParams(scissor: CanvasScissorOverride.Intersect(new RectI(0, 0, 2, 2))))
+				cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
+		});
+		Assert.Equal(red, GpuRig.At(px, 4, 1, 1));
+		Assert.Equal(black, GpuRig.At(px, 4, 2, 2));
+	}
+
+	[Fact]
+	public void ViewAppliesAfterTheTransformAndSurvivesSet() {
+		byte[] px = render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			using (cv.PushParams(target: CanvasTarget.Primary(Matrix3x2.CreateScale(2))))
+			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(1, 0))))
+				// translated, then scaled: lands at (2, 0) with size 2
+				cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgb());
+		});
+		Assert.Equal(black, GpuRig.At(px, 4, 1, 0));
+		Assert.Equal(red, GpuRig.At(px, 4, 2, 0));
+		Assert.Equal(red, GpuRig.At(px, 4, 3, 1));
+		Assert.Equal(black, GpuRig.At(px, 4, 3, 2));
+	}
+
+	// a new pass would be begun with the base params' clear op and wipe the red rect
+	[Fact]
+	public void ChangingOnlyTheViewKeepsTheRenderPass() {
+		byte[] px = render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgb());
+			using (cv.PushParams(target: CanvasTarget.Primary(Matrix3x2.CreateScale(2))))
+				cv.Rect(new RectF(1, 1, 1, 1), blue.AssumeSrgb());
+			cv.Rect(new RectF(0, 3, 1, 1), green.AssumeSrgb());
+		});
+		Assert.Equal(red, GpuRig.At(px, 4, 0, 0));
+		Assert.Equal(blue, GpuRig.At(px, 4, 2, 2));
+		Assert.Equal(blue, GpuRig.At(px, 4, 3, 3));
+		Assert.Equal(green, GpuRig.At(px, 4, 0, 3));
+	}
+
+	[Fact]
+	public void OffscreenTargetsApplyTheirView() {
+		using RenderTarget2d rt = new(Device, 4, 4);
+		byte[] px = render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			var target = CanvasTarget.Offscreen(rt, Matrix3x2.CreateTranslation(2, 0));
+			using (cv.PushParams(target: target, colorAttachmentOps: ColorAttachmentOps.Clear(blue.ToRawF128())))
+				cv.Rect(new RectF(0, 0, 2, 4), red.AssumeSrgb());
+			cv.Texture(rt, Vector2.Zero);
+		});
+		Assert.Equal(blue, GpuRig.At(px, 4, 1, 1));
+		Assert.Equal(red, GpuRig.At(px, 4, 2, 1));
+		Assert.Equal(red, GpuRig.At(px, 4, 3, 2));
+	}
+
+	[Fact]
+	public void DefaultTargetsAreRejected() {
+		render(black, canvas => {
+			Assert.Throws<ArgumentInvalidDefaultException>(() => {
+				using (canvas.Canvas.PushParams(target: default(CanvasTarget))) { }
+			});
+		});
+		Assert.Throws<InvalidDefaultException>(() => default(CanvasTarget).IsPrimary);
+		Assert.Throws<InvalidDefaultException>(() => default(CanvasTarget).View);
+	}
+
+	[Fact]
+	public void NonInvertibleMatricesAreRejected() {
+		// 1e20 squared overflows the determinant; Matrix3x2.Invert alone would "invert" it to zeros
+		Matrix3x2[] bad = [
+			Matrix3x2.CreateScale(0),
+			Matrix3x2.CreateScale(1, 0),
+			Matrix3x2.CreateScale(1e20f),
+			Matrix3x2.CreateTranslation(float.NaN, 0),
+		];
+		foreach (Matrix3x2 m in bad) {
+			Assert.Throws<ArgumentOutOfRangeException>(() => CanvasTransformOverride.Set(m));
+			Assert.Throws<ArgumentOutOfRangeException>(() => CanvasTransformOverride.Multiply(m));
+			Assert.Throws<ArgumentOutOfRangeException>(() => CanvasTarget.Primary(m));
+			Assert.Throws<ArgumentOutOfRangeException>(() => CanvasParams.Primary(m, SrgbColor32.Black));
+		}
+	}
+
+	[Fact]
+	public void NonInvertibleProductsAreRejected() {
+		// each factor is invertible, but the product's determinant (1e-40) has no finite reciprocal
+		var tiny = Matrix3x2.CreateScale(1e-10f);
+		render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			using (cv.PushParams(transform: CanvasTransformOverride.Set(tiny))) {
+				Assert.Throws<ArgumentException>(() => {
+					using (canvas.Canvas.PushParams(transform: CanvasTransformOverride.Multiply(tiny))) { }
+				});
+				Assert.Throws<ArgumentException>(() => {
+					using (canvas.Canvas.PushParams(target: CanvasTarget.Primary(tiny))) { }
+				});
+			}
+		});
+	}
+
+	[Fact]
+	public void DefaultTransformOverridesAreRejected() {
+		render(black, canvas => {
+			Assert.Throws<ArgumentInvalidDefaultException>(() => {
+				using (canvas.Canvas.PushParams(transform: default(CanvasTransformOverride))) { }
+			});
+		});
+		Assert.Throws<InvalidDefaultException>(() => default(CanvasTransformOverride).Matrix);
+		Assert.Throws<InvalidDefaultException>(() => default(CanvasTransformOverride).Kind);
+	}
+
+	[Fact]
+	public void TargetEqualityIncludesTheView() {
+		using RenderTarget2d rt = new(Device, 4, 4);
+		using RenderTarget2d other = new(Device, 4, 4);
+		var scale = Matrix3x2.CreateScale(2);
+
+		Assert.Equal(CanvasTarget.Primary(scale), CanvasTarget.Primary(scale));
+		Assert.NotEqual(CanvasTarget.Primary(scale), CanvasTarget.Primary(Matrix3x2.Identity));
+		Assert.True(CanvasTarget.Primary(scale).SameRenderTarget(CanvasTarget.Primary(Matrix3x2.Identity)));
+
+		Assert.Equal(CanvasTarget.Offscreen(rt, Matrix3x2.Identity), (CanvasTarget)rt);
+		Assert.NotEqual(CanvasTarget.Offscreen(rt, scale), (CanvasTarget)rt);
+		Assert.True(CanvasTarget.Offscreen(rt, scale).SameRenderTarget(rt));
+		Assert.False(((CanvasTarget)rt).SameRenderTarget(other));
+		Assert.False(((CanvasTarget)rt).SameRenderTarget(CanvasTarget.Primary(Matrix3x2.Identity)));
+	}
+
+	[Fact]
+	public void TransformGettersReflectTheParamsStack() {
+		render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			var scale = Matrix3x2.CreateScale(2);
+			var translate = Matrix3x2.CreateTranslation(1, 0);
+			using (cv.PushParams(target: CanvasTarget.Primary(scale)))
+			using (cv.PushParams(transform: CanvasTransformOverride.Set(translate))) {
+				Assert.Equal(translate, cv.CurrentTransform);
+				Assert.Equal(scale, cv.CurrentView);
+				Assert.Equal(translate * scale, cv.EffectiveTransform);
+			}
+			Assert.Equal(Matrix3x2.Identity, cv.CurrentTransform);
+			Assert.Equal(Matrix3x2.Identity, cv.CurrentView);
+			Assert.Equal(Matrix3x2.Identity, cv.EffectiveTransform);
+		});
 	}
 
 	// 4x4 checkerboard of a and b
@@ -441,7 +627,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
-			using (cv.PushParams(transform: Matrix3x2.CreateScale(0.25f)))
+			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateScale(0.25f))))
 				cv.Clear(translucent.AssumeSrgb());
 			cv.Rect(new RectF(3, 3, 1, 1), green.AssumeSrgb());
 		});
@@ -454,7 +640,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void ClearRespectsTheScissor() {
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			using (cv.PushParams(scissor: CanvasScissor.Set(new RectI(0, 0, 2, 2))))
+			using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectI(0, 0, 2, 2))))
 				cv.Clear(red.AssumeSrgb());
 		});
 		Assert.Equal(red, GpuRig.At(px, 4, 1, 1));
@@ -464,9 +650,10 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void PrimaryFactoryFillsInTheCommonParams() {
-		var p = CanvasParams.Primary(SrgbColor32.Red);
+		var view = Matrix3x2.CreateScale(2);
+		var p = CanvasParams.Primary(view, SrgbColor32.Red);
 		Assert.Equal(new CanvasParams(
-			Target: CanvasTarget.Primary,
+			Target: CanvasTarget.Primary(view),
 			ColorAttachmentOps: ColorAttachmentOps.Clear(SrgbColor32.Red.ToRawF128()),
 			Scissor: CanvasScissor.None,
 			Transform: Matrix3x2.Identity,
@@ -474,7 +661,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Material: CanvasMaterials.Color,
 			Sampling: TexSampling.Nearest
 		), p);
-		Assert.Equal(p with { ColorAttachmentOps = ColorAttachmentOps.Load }, CanvasParams.Primary(ColorAttachmentOps.Load));
+		Assert.Equal(p with { ColorAttachmentOps = ColorAttachmentOps.Load }, CanvasParams.Primary(view, ColorAttachmentOps.Load));
 	}
 
 	// many draws with alternating textures make many draw ranges; the second frame has to reuse the
@@ -579,8 +766,8 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void OverridesMustBeDisposedInReverseOrder() {
 		render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			CanvasParamsScope outer = cv.PushParams(transform: Matrix3x2.CreateTranslation(1, 0));
-			CanvasParamsScope inner = cv.PushParams(transform: Matrix3x2.CreateTranslation(2, 0));
+			CanvasParamsScope outer = cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(1, 0)));
+			CanvasParamsScope inner = cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(2, 0)));
 			bool threw = false;
 			try {
 				outer.Dispose();

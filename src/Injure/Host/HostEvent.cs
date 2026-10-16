@@ -92,29 +92,40 @@ public readonly partial struct HostEventKind {
 public readonly record struct HostKeyEvent(Key Key, EdgeType Edge, bool Repeat);
 
 /// <summary>
-/// Payload of <see cref="HostEventKind.PointerMove"/>, in window coordinates.
+/// Payload of <see cref="HostEventKind.PointerMove"/>.
 /// </summary>
+/// <param name="Position">Where the pointer moved to.</param>
+/// <param name="Delta">How far the pointer moved.</param>
 /// <remarks>
 /// The <see langword="default"/> value is valid and is a zero-length move at the origin.
 /// </remarks>
-public readonly record struct HostPointerMoveEvent(float X, float Y, float DeltaX, float DeltaY);
+public readonly record struct HostPointerMoveEvent(WindowPos Position, WindowDelta Delta);
 
 /// <summary>
-/// Payload of <see cref="HostEventKind.PointerButton"/>, in window coordinates.
+/// Payload of <see cref="HostEventKind.PointerButton"/>.
 /// </summary>
+/// <param name="Button">The button.</param>
+/// <param name="Edge">Whether the button was pressed or released.</param>
+/// <param name="Clicks">Click count of a press (1 = single click, 2 = double click, ...).</param>
+/// <param name="Position">Where the pointer was.</param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Edge"/> is.
 /// </remarks>
-public readonly record struct HostPointerButtonEvent(PointerButton Button, EdgeType Edge, int Clicks, float X, float Y);
+public readonly record struct HostPointerButtonEvent(PointerButton Button, EdgeType Edge, int Clicks, WindowPos Position);
 
 /// <summary>
 /// Payload of <see cref="HostEventKind.PointerWheel"/>. Positive <see cref="Y"/> scrolls away
 /// from the user, positive <see cref="X"/> to the right, regardless of "natural scrolling".
 /// </summary>
+/// <param name="X">Horizontal scroll amount.</param>
+/// <param name="Y">Vertical scroll amount.</param>
+/// <param name="IntegerX">Horizontal scroll amount in whole wheel notches.</param>
+/// <param name="IntegerY">Vertical scroll amount in whole wheel notches.</param>
+/// <param name="PointerPosition">Where the pointer was.</param>
 /// <remarks>
 /// The <see langword="default"/> value is valid and is a zero scroll at the window origin.
 /// </remarks>
-public readonly record struct HostPointerWheelEvent(float X, float Y, int IntegerX, int IntegerY, float PointerX, float PointerY);
+public readonly record struct HostPointerWheelEvent(float X, float Y, int IntegerX, int IntegerY, WindowPos PointerPosition);
 
 /// <summary>
 /// Payload of <see cref="HostEventKind.GamepadAxis"/>. <see cref="Value"/> is in [-1, 1] for
@@ -212,6 +223,7 @@ public readonly struct HostEvent {
 
 	// ==========================================================================
 	// payload accessors
+
 	/// <summary>
 	/// Payload of <see cref="HostEventKind.WindowMoved"/>.
 	/// </summary>
@@ -320,6 +332,7 @@ public readonly struct HostEvent {
 
 	// ==========================================================================
 	// construction
+
 	/// <summary>
 	/// Creates a <see cref="HostEventKind.Quit"/> event.
 	/// </summary>

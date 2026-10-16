@@ -96,7 +96,7 @@ public sealed class InputRegressionTests {
 		Assert.True(lost.HistoryLost);
 		Assert.Equal(1UL, lost.LostEventCount);
 		Assert.False(input.CreateViewAndAdvance(ref current).HistoryLost);
-		Assert.Equal(1f, input.CurrentState.Pointer.X); // state is kept
+		Assert.Equal(1f, input.CurrentState.Pointer.Position.X); // state is kept
 	}
 
 	[Fact]
@@ -105,7 +105,7 @@ public sealed class InputRegressionTests {
 		InputSystem input = new(16);
 		input.TryHandle(Ev.Wheel(0, 1, iy: 1, px: 30, py: 40, window: w));
 		PointerState ptr = input.CurrentState.Pointer;
-		Assert.Equal((w, 30f, 40f), (ptr.Window, ptr.X, ptr.Y));
+		Assert.Equal((w, new WindowPos(30f, 40f)), (ptr.Window, ptr.Position));
 	}
 
 	[Fact]

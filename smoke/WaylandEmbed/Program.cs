@@ -134,7 +134,7 @@ public static class Program {
 				return false;
 			using (frame) {
 				uint w = frame.PrimaryView.Width, h = frame.PrimaryView.Height;
-				using (OwnedCanvas oc = new(frame, CanvasParams.Primary(clear))) {
+				using (OwnedCanvas oc = new(frame, CanvasParams.Primary(Matrix3x2.Identity, clear))) {
 					Canvas cv = oc.Canvas;
 					float t = (float)sw.Elapsed.TotalSeconds;
 					float regionW = leftHalfOnly ? w / 2f : w;

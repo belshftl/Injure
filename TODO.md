@@ -29,7 +29,6 @@ anyhow, to v0.1:
   - [x] merge `Shared.Constants` and `Shared.AttributeSources`
   - [x] add a warning for if a struct doesn't have the "the default value is valid/invalid" doc comments that are on every recently-added struct
   - [x] add `DangerousCreate*` as a sibling to `DangerousGet*`; if `DangerousGet*` suppresses the "exposes external types" check for the return type, `DangerousCreate*` should suppress it for the parameter types but not the return type
-  - [x] add a `[WrapperType]` sourcegen attribute that applies to an empty `partial` class / `readonly struct` / `readonly ref struct`; takes in a type T via `typeof` and a `params[]` array of property/method names from that type; and generates a single private field of type T, properties/methods that redirect to the ones on that field (and have `inheritdoc`s), and an `internal` constructor that takes in T
 - [x] redesign `Runtime.*` entirely, as the current api is old, kind of too magic-y, and restrictive, and `Runner.Run`'s config is very monolithic, all of which goes against a lot of the more recently developed design philosophy:
   - [x] remove the current `Runtime.*` namespace wholly
   - [x] touch up `docs/conventions/dangerous-get.md` and rename it
@@ -76,7 +75,15 @@ anyhow, to v0.1:
   - [x] texture slices
   - [x] shapes: rect outline, circle/ellipse fill + outline, rounded rect, arc/pie, polylines with proper joins (`LineStrip` is currently separate quads, so joints gap/overlap and overlaps double-blend)
   - [x] `LineJoin`/`LineCap` settings for lines, strips, loops, and arcs
-  - [ ] resolution independence: drawing in logical units on hidpi, and a fixed virtual resolution with letterboxing / integer scaling
+  - [x] resolution independence
+    - [x] set/multiply transform matrix overrides
+    - [x] put a view matrix on `CanvasTarget`, introduce an "effective transform" concept
+    - [x] roslyn analyzer warning for when an override sets the target but doesn't either set the transform or explicitly `Transform: null`
+    - [x] helper to map a logical rect through a transform to a scissor rect in target pixels
+    - [x] helper to map window coordinates to virtual coordinates
+    - [x] use distinct `WindowPos`/`WindowDelta` types for window coordinates to avoid confusion with `Vector2` draw coords
+    - [x] make `StandardGame` build the pixel-density view matrix for the primary target, with an opt-out
+  - [ ] sharp-bilinear upscaling as a shader
   - [ ] textured geometry beyond quads: textured triangles/meshes, arbitrary-corner textured quads (`Vertex2dTextureColor` has no draw call taking it yet)
   - [ ] more blend presets in `CanvasOutputStates`, e.g. additive and multiply
   - [ ] antialiasing; there's no msaa for render targets or the primary target yet, so shape edges alias and sub-pixel lines flicker
@@ -91,6 +98,7 @@ anyhow, to v0.1:
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`
   - [ ] primary docs for `Draw`, `docs/draw/`
+    - [ ] resolution independence: "logical unit" is defined by pixel density, not display/content scale; pixel art presents in physical pixels at an integer scale (density only matters for input and initial window size), resolution-independent content uses logical units; mention fractional density, macos scaled display modes, and display scale on windows
   - [ ] pixel converter docs; a single doc would probably be enough since it's pretty small api-wise
   - [ ] `Draw`-less triangle tutorial under `docs/gpu/`, maybe also an example with something like msaa
   - [ ] "embed into avalonia" tutorial or explanatory doc under `docs/gpu/`; explicitly mention that windows hasn't been tested yet, maybe provide some advisory direction info regarding it but ultimately leave it to be updated for windows later
@@ -137,6 +145,7 @@ anyhow, to v0.1:
   - [ ] standardize on a bunch of things (maybe by using more derived abstract types? or interfaces? unsure) like entities with a notion of position, entities with a notion of collision, entities that can serialize/deserialize, perhaps entities that "bind" in some way to a reloadable mod generation and need `<L>`, etc. the important thing isn't really that adding `public Vector2 Position` to your entity is hard, but that having everyone on the same page on how it's done is very valuable
   - [ ] here be dragons
 - [ ] revisit the text renderer; the apis don't feel very nice to me, and it's missing most non-basic features, for instance regarding layout
+  - [ ] make glyph raster size account for the effective transform's scale (and so the target's pixels per logical unit); text is currently rasterized at `PixelSize` and stretched
 - [ ] expose WebGPU error scopes in `Gpu` (push/pop around specific operations, popping asynchronously through `GpuDevice.Poll()` like buffer mapping), for code that wants to detect and recover from a specific failure instead of only having the device-wide `GpuErrorHandler`
 - [ ] support compute pipelines, compute passes, etc. in `Gpu`
 - [ ] redesign `TGameApi` and `IReloadTeardown` from the mod infrastructure

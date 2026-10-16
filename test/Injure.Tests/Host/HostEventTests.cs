@@ -26,10 +26,10 @@ public sealed class HostEventTests {
 		HostKeyEvent key = new(Key.A, EdgeType.Press, Repeat: true);
 		Assert.Equal(key, HostEvent.ForKey(t, w, key).Key);
 
-		HostPointerButtonEvent btn = new(PointerButton.Right, EdgeType.Release, 2, 1.25f, -3f);
+		HostPointerButtonEvent btn = new(PointerButton.Right, EdgeType.Release, 2, new WindowPos(1.25f, -3f));
 		Assert.Equal(btn, HostEvent.ForPointerButton(t, default, btn).PointerButton);
 
-		HostPointerWheelEvent wheel = new(0.5f, -1f, 0, -1, 10f, 20f);
+		HostPointerWheelEvent wheel = new(0.5f, -1f, 0, -1, new WindowPos(10f, 20f));
 		Assert.Equal(wheel, HostEvent.ForPointerWheel(t, w, wheel).PointerWheel);
 
 		HostGamepadAxisEvent axis = new(g, GamepadAxis.RightTrigger, 0.75f);

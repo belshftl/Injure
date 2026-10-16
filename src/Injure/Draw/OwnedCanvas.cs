@@ -181,10 +181,14 @@ public sealed class OwnedCanvas : IDisposable {
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
 	/// </exception>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if <paramref name="baseParams"/>'s target is the <see langword="default"/> value.
+	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="baseParams"/> is invalid: it targets a texture with an sRGB format,
-	/// has a scissor of kind <see cref="CanvasScissorKind.Intersect"/> or with a negative size, or
-	/// uses <see cref="TextureInterpretation.Sdf"/> without <see cref="CanvasMaterial.SdfParams"/>.
+	/// Thrown if <paramref name="baseParams"/> is invalid: its target is a texture with an sRGB
+	/// format, its transform or effective transform isn't invertible (see <see cref="MatrixInvert"/>),
+	/// or it uses <see cref="TextureInterpretation.Sdf"/> without
+	/// <see cref="CanvasMaterial.SdfParams"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="frame"/> has already been submitted or disposed, has a render pass
@@ -270,6 +274,13 @@ public sealed class OwnedCanvas : IDisposable {
 		}
 	}
 
+	internal Matrix3x2 EffectiveTransform {
+		get {
+			chk();
+			return @params.Peek().EffectiveTransform;
+		}
+	}
+
 	internal uint TargetWidth {
 		get {
 			chk();
@@ -289,7 +300,7 @@ public sealed class OwnedCanvas : IDisposable {
 	internal CanvasParamsScope PushParams(scoped in CanvasParamsOverride ov) {
 		chk();
 		CanvasParams old = @params.Peek();
-		CanvasParams @new = merge(in old, in ov);
+		CanvasParams @new = old.Merge(in ov);
 		validate(@new);
 		transition(in old, in @new, returning: false);
 		@params.Push(@new);
@@ -329,8 +340,7 @@ public sealed class OwnedCanvas : IDisposable {
 	/// the first vertex. Same for the other <c>Add*</c> methods.
 	/// </remarks>
 	internal void AddPrimitive(ReadOnlySpan<Vertex2dColor> verts, ReadOnlySpan<uint> indices) {
-		chk();
-		Matrix3x2 m = @params.Peek().Transform;
+		Matrix3x2 m = EffectiveTransform;
 		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, untexturedSampling(), textured: false, verts.Length, indices, replace: false);
 		for (int i = 0; i < verts.Length; i++) {
 			var p = Vector2.Transform(new Vector2(verts[i].X, verts[i].Y), m);
@@ -339,8 +349,7 @@ public sealed class OwnedCanvas : IDisposable {
 	}
 
 	internal void AddPrimitive(ReadOnlySpan<Vector2> points, SrgbColor32 color, ReadOnlySpan<uint> indices) {
-		chk();
-		Matrix3x2 m = @params.Peek().Transform;
+		Matrix3x2 m = EffectiveTransform;
 		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, untexturedSampling(), textured: false, points.Length, indices, replace: false);
 		for (int i = 0; i < points.Length; i++) {
 			var p = Vector2.Transform(points[i], m);
@@ -353,7 +362,7 @@ public sealed class OwnedCanvas : IDisposable {
 		CanvasTarget target = @params.Peek().Target;
 		if (!target.IsPrimary && tex.SameRenderTargetAs(target.RenderTarget))
 			throw new InvalidOperationException("cannot draw a render target while it is the active canvas target (i.e. draw it into itself)");
-		Matrix3x2 m = @params.Peek().Transform;
+		Matrix3x2 m = EffectiveTransform;
 		Span<Vertex2dTextureColor> dst = reserve(tex.Identity, tex.BindGroup, sampling, textured: true, verts.Length, indices, replace: false);
 		for (int i = 0; i < verts.Length; i++) {
 			var p = Vector2.Transform(new Vector2(verts[i].X, verts[i].Y), m);
@@ -505,22 +514,12 @@ public sealed class OwnedCanvas : IDisposable {
 		transition(in old, @params.Peek(), returning: true);
 	}
 
-	private static CanvasParams merge(in CanvasParams curr, in CanvasParamsOverride ov) => new(
-		Target: ov.Target ?? curr.Target,
-		ColorAttachmentOps: ov.ColorAttachmentOps ?? curr.ColorAttachmentOps,
-		Scissor: mergeScissor(curr.Scissor, ov.Scissor),
-		Transform: ov.Transform ?? curr.Transform,
-		OutputState: ov.OutputState ?? curr.OutputState,
-		Material: ov.Material ?? curr.Material,
-		Sampling: ov.Sampling ?? curr.Sampling
-	);
-
 	// output state, material, sampling, and transform changes need no action here, as the next draw starts a
 	// new range if its pipeline or uniform differs, and transforms are applied per vertex
 	private void transition(in CanvasParams from, in CanvasParams to, bool returning) {
 		if (pass is null)
 			throw new InternalStateException("was expecting an open render pass to be there for params transition");
-		if (from.Target != to.Target || from.ColorAttachmentOps != to.ColorAttachmentOps) {
+		if (!from.Target.SameRenderTarget(to.Target) || from.ColorAttachmentOps != to.ColorAttachmentOps) {
 			closeRange();
 			closePass();
 			// returning keeps what was drawn rather than e.g. clearing the target again
@@ -532,56 +531,32 @@ public sealed class OwnedCanvas : IDisposable {
 	}
 
 	private void validate(in CanvasParams p) {
+		if (p.Target.IsDefault)
+			throw ArgumentInvalidDefaultException.For<CanvasTarget>();
+		// the view matrix is checked by the CanvasTarget factories
+		if (!MatrixInvert.IsInvertible(p.Transform))
+			throw new ArgumentException($"CanvasParams.Transform must be invertible, got {p.Transform}");
+		if (!MatrixInvert.IsInvertible(p.EffectiveTransform))
+			throw new ArgumentException($"the effective transform (CanvasParams.Transform * CanvasTarget.View) must be invertible, got {p.EffectiveTransform}");
 		TextureFormat fmt = targetFormat(in p);
 		if (fmt.IsSrgb())
 			throw new ArgumentException($"Canvas can't draw into a target with sRGB format {fmt}, since its colors are already sRGB-encoded");
-		if (p.Scissor.Kind == CanvasScissorKind.Intersect)
-			throw new ArgumentException("CanvasParams.Scissor cannot be Intersect as there is no existing scissor to intersect with");
-		if (p.Scissor.Kind == CanvasScissorKind.Set && (p.Scissor.Rect.Width < 0 || p.Scissor.Rect.Height < 0))
-			throw new ArgumentException("scissor rect cannot have negative width/height");
 		if (p.Material.TextureInterpretation == TextureInterpretation.Sdf && p.Material.SdfParams is null)
 			throw new ArgumentException("CanvasParams.Material.SdfParams must be set if the texture interpretation of the material is SDF");
 	}
 
 	// ==========================================================================
 	// scissor
-	private static RectI intersect(RectI a, RectI b) {
-		int x1 = Math.Max(a.X, b.X);
-		int y1 = Math.Max(a.Y, b.Y);
-		int x2 = Math.Min(a.X + a.Width, b.X + b.Width);
-		int y2 = Math.Min(a.Y + a.Height, b.Y + b.Height);
-		x2 = Math.Max(x1, x2);
-		y2 = Math.Max(y1, y2);
-		return new RectI(x1, y1, x2 - x1, y2 - y1);
-	}
-
-	private static CanvasScissor mergeScissor(CanvasScissor curr, CanvasScissor? ov) {
-		if (ov is not CanvasScissor s)
-			return curr;
-		if (curr.Kind == CanvasScissorKind.Intersect)
-			throw new InternalStateException("Intersect scissor made it to mergeScissor");
-		return s.Kind.Tag switch {
-			CanvasScissorKind.Case.None => CanvasScissor.None,
-			CanvasScissorKind.Case.Set => CanvasScissor.Set(s.Rect),
-			CanvasScissorKind.Case.Intersect => curr.Kind.Tag switch {
-				CanvasScissorKind.Case.None => CanvasScissor.Set(s.Rect),
-				CanvasScissorKind.Case.Set => CanvasScissor.Set(intersect(curr.Rect, s.Rect)),
-				_ => throw new UnreachableException(),
-			},
-			_ => throw new UnreachableException(),
-		};
-	}
-
 	private void applyScissor(RenderPass ps, in CanvasParams p) {
 		(uint w, uint h) = targetSize(in p);
 		RectI full = new(0, 0, (int)w, (int)h);
-		RectI effective = p.Scissor.Kind.Tag switch {
-			CanvasScissorKind.Case.None => full,
-			CanvasScissorKind.Case.Set => intersect(full, p.Scissor.Rect),
-			CanvasScissorKind.Case.Intersect =>
-				throw new InternalStateException("Intersect scissor made it to applyScissor"),
-			_ => throw new UnreachableException(),
-		};
+		RectI effective;
+		switch (p.Scissor.Kind.Tag) {
+		case CanvasScissorKind.Case.None: effective = full; break;
+		// no overlap gives RectI.Empty, which clips everything
+		case CanvasScissorKind.Case.Set: full.TryIntersect(p.Scissor.Rect, out effective); break;
+		default: throw new UnreachableException();
+		}
 		ps.SetScissorRect((uint)effective.X, (uint)effective.Y, (uint)effective.Width, (uint)effective.Height);
 	}
 

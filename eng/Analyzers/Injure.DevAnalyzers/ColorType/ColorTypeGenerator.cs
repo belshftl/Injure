@@ -366,12 +366,13 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 			public static bool operator !=($Self$ left, $Self$ right) => !left.Equals(right);
 
 			/// <summary>
-			/// Formats this value to a hex code in the form <c>RRGGBBAA</c>.
+			/// Formats this value to a hex code in the form <c>#RRGGBBAA</c>, e.g. <c>#CBA6F7FF</c>.
 			/// </summary>
 			/// <remarks>
-			/// Currently equivalent to <see cref="ToHexCode(bool, bool)"/> with the default parameter values.
+			/// Equivalent to <see cref="ToHexCode(bool, bool)"/> with the default parameter values. The
+			/// result always round-trips through <see cref="Parse(string?)"/>.
 			/// </remarks>
-			public override string ToString() => ToHexCode(includeAlpha: true, leadingHash: false);
+			public override string ToString() => ToHexCode(includeAlpha: true, leadingHash: true);
 
 			/// <summary>
 			/// Converts this value to a hex code in the format <c>RRGGBB</c> or <c>RRGGBBAA</c>,
@@ -381,7 +382,7 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 			/// Whether the alpha byte should be included. <see langword="false"/> will lose alpha information.
 			/// </param>
 			/// <param name="leadingHash">Whether a leading <c>#</c> character should be added.</param>
-			public string ToHexCode(bool includeAlpha = true, bool leadingHash = false) {
+			public string ToHexCode(bool includeAlpha = true, bool leadingHash = true) {
 				string prefix = leadingHash ? "#" : "";
 				return includeAlpha ? $"{prefix}{R:X2}{G:X2}{B:X2}{A:X2}" : $"{prefix}{R:X2}{G:X2}{B:X2}";
 			}
@@ -546,9 +547,9 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 		/// fixed, not incidental. Safe for FFI, <c>stackalloc $Self$[]</c>, bit/span reinterprets, etc.
 		/// </para>
 		/// <para>
-		/// Components are not clamped, so values outside [0, 1] (e.g. for HDR formats) are representable.
+		/// Components are not clamped, making values outside [0, 1] (e.g. for HDR formats) representable.
 		/// Components are also not validated to be finite; since this is a blittable primitive, meaningful
-		/// "validation" cannot happen. As such, a component may be NaN or infinite.
+		/// validation can't happen. As such, a component may be NaN or infinite.
 		/// </para>
 		/// <para>
 		/// No premultiplied-alpha information is encoded. Check in with the API producing the values.

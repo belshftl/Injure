@@ -14,8 +14,8 @@ namespace Injure.Sdl;
 /// <remarks>
 /// <para>
 /// Bound to the thread of its <see cref="SdlInstance"/> like everything else SDL-related; see
-/// <see cref="SdlInstance"/> for details. An instance can't be disposed while any of its windows are
-/// alive.
+/// <see cref="SdlInstance"/> for details. An instance can't be disposed while any of its windows
+/// are alive.
 /// </para>
 /// <para>
 /// Any WebGPU surface created through <see cref="SurfaceHost"/> must be released before the window
@@ -444,9 +444,16 @@ public sealed class SdlWindow : IDisposable {
 		case HostEventKind.Case.WindowShown: s = s with { Visible = true }; break;
 		case HostEventKind.Case.WindowHidden: s = s with { Visible = false }; break;
 		case HostEventKind.Case.WindowMoved: s = s with { X = ev.Position.X, Y = ev.Position.Y }; break;
-		case HostEventKind.Case.WindowResized: s = s with { Width = ev.Size.Width, Height = ev.Size.Height }; break;
-		case HostEventKind.Case.WindowPixelSizeChanged: s = s with { PixelWidth = ev.Size.Width, PixelHeight = ev.Size.Height }; break;
-		case HostEventKind.Case.WindowDisplayScaleChanged: s = s with { DisplayScale = ev.Scale }; break;
+		// density can change along with any of these three, and there's no event of its own
+		case HostEventKind.Case.WindowResized:
+			s = s with { Width = ev.Size.Width, Height = ev.Size.Height, PixelDensity = readPixelDensity(handle, s.PixelDensity) };
+			break;
+		case HostEventKind.Case.WindowPixelSizeChanged:
+			s = s with { PixelWidth = ev.Size.Width, PixelHeight = ev.Size.Height, PixelDensity = readPixelDensity(handle, s.PixelDensity) };
+			break;
+		case HostEventKind.Case.WindowDisplayScaleChanged:
+			s = s with { DisplayScale = ev.Scale, PixelDensity = readPixelDensity(handle, s.PixelDensity) };
+			break;
 		case HostEventKind.Case.WindowMinimized: s = s with { Mode = SdlWindowMode.Minimized }; break;
 		case HostEventKind.Case.WindowMaximized: s = s with { Mode = SdlWindowMode.Maximized }; break;
 		case HostEventKind.Case.WindowRestored: s = s with { Mode = SdlWindowMode.Normal }; break;
@@ -459,6 +466,11 @@ public sealed class SdlWindow : IDisposable {
 		default: return;
 		}
 		state = s with { UpdatedAt = ev.Tick };
+	}
+
+	private static float readPixelDensity(nint handle, float fallback) {
+		float d = SDL.GetWindowPixelDensity(handle);
+		return d > 0f && float.IsFinite(d) ? d : fallback;
 	}
 
 	private static SdlWindowState queryState(nint handle, HostTick now) {
@@ -483,6 +495,7 @@ public sealed class SdlWindow : IDisposable {
 				: (flags & SDL.WindowFlags.Maximized) != 0 ? SdlWindowMode.Maximized
 				: SdlWindowMode.Normal,
 			DisplayScale = SDL.GetWindowDisplayScale(handle),
+			PixelDensity = readPixelDensity(handle, 1f),
 			HasKeyboardFocus = (flags & SDL.WindowFlags.InputFocus) != 0,
 			HasPointer = (flags & SDL.WindowFlags.MouseFocus) != 0,
 			UpdatedAt = now,

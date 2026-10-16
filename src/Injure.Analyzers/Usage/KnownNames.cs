@@ -3,7 +3,7 @@
 
 namespace Injure.Analyzers.Usage;
 
-internal static class KnownTypeMetadataNames {
+internal static class KnownNames {
 	public const string Attribute = "System.Attribute";
 	public const string IReadOnlyCollection = "System.Collections.Generic.IReadOnlyCollection`1";
 	public const string ICollection = "System.Collections.Generic.ICollection`1";

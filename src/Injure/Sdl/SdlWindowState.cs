@@ -65,7 +65,58 @@ public readonly struct SdlWindowState {
 	/// <summary>
 	/// Content scale of the display the window is on, e.g. <c>2.0</c> for a 200% scaled display.
 	/// </summary>
+	/// <remarks>
+	/// This is, in total, how many physical pixels content should occupy per pixel it would occupy at
+	/// 100% scaling, based on the current system configuration. Equal to <c>0</c> if SDL failed to
+	/// report it.
+	/// </remarks>
 	public float DisplayScale { get; internal init; }
+
+	/// <summary>
+	/// Physical pixels per window coordinate, e.g. <c>2.0</c> on a typical macOS HiDPI display and
+	/// <c>1.0</c> on Windows.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the factor between window coordinates (what pointer positions and
+	/// <see cref="Width"/>/<see cref="Height"/> are in) and physical pixels (what
+	/// <see cref="PixelWidth"/>/<see cref="PixelHeight"/> and the primary target are in), and it
+	/// defines the size of a logical unit. <see cref="Draw.WindowCoords"/> takes this in as
+	/// <c>pixelDensity</c>.
+	/// </para>
+	/// <para>
+	/// Read from SDL (<c>SDL_GetWindowPixelDensity</c>) on window creation and on every resize, pixel
+	/// size change, and display scale change. May be fractional, e.g. <c>1.5</c> with fractional
+	/// scaling on Wayland. Equal to <c>1.0</c> if <see cref="SdlWindowOptions.HighPixelDensity"/> is
+	/// off, or the platform scales the window itself.
+	/// </para>
+	/// <para>
+	/// Always finite and positive; if SDL reports an unusable value (e.g. while a minimized window
+	/// has a zero size), the previous value is kept, starting from <c>1.0</c>.
+	/// </para>
+	/// </remarks>
+	public float PixelDensity { get; internal init; }
+
+	/// <summary>
+	/// How much to scale content in logical units to match <see cref="DisplayScale"/>;
+	/// <see cref="DisplayScale"/> divided by <see cref="PixelDensity"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the part of the display scale that <see cref="PixelDensity"/> doesn't already apply.
+	/// On macOS it's usually <c>1.0</c>, since the OS expresses scaling as pixel density. On
+	/// Windows, pixel density is always <c>1.0</c> and the display scale is used for all content
+	/// scaling, e.g. <c>1.5</c> at 150%.
+	/// </para>
+	/// <para>
+	/// A game that wants UIs to be scaled in accordance with the user's display scaling setting can
+	/// multiply its logical sizes by this.
+	/// </para>
+	/// <para>
+	/// Equal to <c>0</c> if <see cref="DisplayScale"/> is.
+	/// </para>
+	/// </remarks>
+	public float ContentScale => DisplayScale / PixelDensity;
 
 	public bool HasKeyboardFocus { get; internal init; }
 

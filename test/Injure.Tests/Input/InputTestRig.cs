@@ -55,13 +55,13 @@ internal static class Ev {
 		HostEvent.ForKey(Tm, window, new HostKeyEvent(key, down ? EdgeType.Press : EdgeType.Release, repeat));
 
 	public static HostEvent PtrButton(PointerButton button, bool down, float x = 0, float y = 0, int clicks = 1, HostWindowId window = default) =>
-		HostEvent.ForPointerButton(Tm, window, new HostPointerButtonEvent(button, down ? EdgeType.Press : EdgeType.Release, clicks, x, y));
+		HostEvent.ForPointerButton(Tm, window, new HostPointerButtonEvent(button, down ? EdgeType.Press : EdgeType.Release, clicks, new WindowPos(x, y)));
 
 	public static HostEvent PtrMove(float x, float y, HostWindowId window = default) =>
-		HostEvent.ForPointerMove(Tm, window, new HostPointerMoveEvent(x, y, 0, 0));
+		HostEvent.ForPointerMove(Tm, window, new HostPointerMoveEvent(new WindowPos(x, y), WindowDelta.Zero));
 
 	public static HostEvent Wheel(float x, float y, int ix = 0, int iy = 0, float px = 0, float py = 0, HostWindowId window = default) =>
-		HostEvent.ForPointerWheel(Tm, window, new HostPointerWheelEvent(x, y, ix, iy, px, py));
+		HostEvent.ForPointerWheel(Tm, window, new HostPointerWheelEvent(x, y, ix, iy, new WindowPos(px, py)));
 
 	public static HostEvent PadAdded(GamepadId id) => HostEvent.GamepadAdded(Tm, id);
 	public static HostEvent PadRemoved(GamepadId id) => HostEvent.GamepadRemoved(Tm, id);

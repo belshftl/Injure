@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Numerics;
 using Injure.Assets;
 using Injure.Assets.Builtin;
 using Injure.Diagnostics;
@@ -53,7 +54,6 @@ public abstract class StandardGame {
 	}
 
 	private readonly StandardGameOptions options;
-	private readonly CanvasParams baseCanvasParams;
 	private readonly IOwnerDiagnostics engineDiagnostics;
 	private Session? session;
 	private int quitRequested;
@@ -68,7 +68,6 @@ public abstract class StandardGame {
 	protected StandardGame(in StandardGameOptions options) {
 		options.Validate(nameof(options));
 		this.options = options;
-		baseCanvasParams = CanvasParams.Primary(options.ClearColor);
 		DiagnosticsSinks = new DiagnosticsSinkRegistry(options.DiagnosticsSinks ?? [new DefaultDiagnosticsSink()]);
 		Diagnostics = DiagnosticsSinks.ForOwner(options.GameOwnerId);
 		engineDiagnostics = DiagnosticsSinks.ForOwner(EngineInfo.OwnerId);
@@ -169,12 +168,63 @@ public abstract class StandardGame {
 	/// </exception>
 	protected TextSystem Text => current.Text ?? throw new InvalidOperationException("the text system is not enabled (StandardGameOptions.Text)");
 
+	/// <summary>
+	/// The view matrix of the primary target, i.e. the matrix mapping draw coordinates on the window
+	/// to physical pixels, per <see cref="StandardGameOptions.PrimaryViewMode"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// With <see cref="PrimaryViewMode.LogicalUnits"/>, this scales by the window's
+	/// <see cref="SdlWindowState.PixelDensity"/>; with <see cref="PrimaryViewMode.PhysicalPixels"/>,
+	/// this is <see cref="Matrix3x2.Identity"/>. <see cref="CreateCanvas(RenderFrame)"/> uses it as
+	/// <see cref="CanvasTarget.View"/>.
+	/// </para>
+	/// <para>
+	/// The pixel density can change between frames (e.g. when the window moves to another
+	/// display), so read this each frame rather than caching it. Within
+	/// <see cref="OnRender(RenderFrame)"/>, it matches the view matrix of the canvases created there.
+	/// </para>
+	/// </remarks>
+	/// <inheritdoc cref="Clock" path="/exception"/>
+	protected Matrix3x2 PrimaryView => primaryView(current);
+
+	/// <summary>
+	/// The size of the primary target in draw coordinates under <see cref="PrimaryView"/> (before
+	/// any canvas transform); <see cref="StandardGameOptions.PrimaryViewMode"/> determines whether
+	/// it's in logical units or physical pixels.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This is the surface's size in physical pixels as of the last frame begin (or surface creation,
+	/// before the first frame), additionally divided by the pixel density if
+	/// <see cref="PrimaryViewMode.LogicalUnits"/>. Within <see cref="OnRender(RenderFrame)"/>, it's
+	/// the size of the frame being rendered. With fractional pixel densities, logical sizes can be
+	/// fractional.
+	/// </para>
+	/// <para>
+	/// For the same reason as <see cref="PrimaryView"/>, read this each frame rather than caching it.
+	/// </para>
+	/// </remarks>
+	/// <inheritdoc cref="Clock" path="/exception"/>
+	protected Vector2 PrimaryDrawSize {
+		get {
+			Session ses = current;
+			Vector2 px = new(ses.RenderOutput.Width, ses.RenderOutput.Height);
+			return options.PrimaryViewMode == PrimaryViewMode.LogicalUnits
+				? px / ses.Window.State.PixelDensity
+				: px;
+		}
+	}
+
 	// ==========================================================================
 	// hooks
 
 	/// <summary>
 	/// Called once everything is set up, before the first loop iteration.
 	/// </summary>
+	/// <remarks>
+	/// There is no <c>OnUpdate()</c>; for periodic ticks, you're meant to set up a ticker here.
+	/// </remarks>
 	protected abstract void OnInit();
 
 	/// <summary>
@@ -197,7 +247,7 @@ public abstract class StandardGame {
 	/// <remarks>
 	/// The default implementation calls <see cref="RequestQuit()"/> on
 	/// <see cref="HostEventKind.Quit"/> and on <see cref="HostEventKind.WindowCloseRequested"/> for
-	/// <see cref="Window"/>.
+	/// <see cref="Window"/>, and does nothing for other events.
 	/// </remarks>
 	protected virtual void OnEvent(in HostEvent ev) {
 		if (ev.Kind == HostEventKind.Quit || (ev.Kind == HostEventKind.WindowCloseRequested && ev.Window == Window.Id))
@@ -207,6 +257,9 @@ public abstract class StandardGame {
 	/// <summary>
 	/// Called once after the loop has ended, before anything is torn down.
 	/// </summary>
+	/// <remarks>
+	/// The default implementation does nothing.
+	/// </remarks>
 	protected virtual void OnShutdown() {
 	}
 
@@ -246,8 +299,9 @@ public abstract class StandardGame {
 	// running
 
 	/// <summary>
-	/// Creates an <see cref="OwnedCanvas"/> drawing into <paramref name="frame"/>, which it clears to
-	/// <see cref="StandardGameOptions.ClearColor"/>.
+	/// Creates an <see cref="OwnedCanvas"/> drawing into <paramref name="frame"/> with
+	/// <see cref="PrimaryView"/> as the view matrix, clearing it to
+	/// <see cref="StandardGameOptions.ClearColor"/> first.
 	/// </summary>
 	/// <param name="frame">The frame passed to <see cref="OnRender(RenderFrame)"/>.</param>
 	/// <exception cref="ArgumentNullException">
@@ -260,8 +314,17 @@ public abstract class StandardGame {
 	/// </remarks>
 	protected OwnedCanvas CreateCanvas(RenderFrame frame) {
 		ArgumentNullException.ThrowIfNull(frame);
-		return new OwnedCanvas(frame, in baseCanvasParams);
+		var p = CanvasParams.Primary(primaryView(current), options.ClearColor);
+		return new OwnedCanvas(frame, in p);
 	}
+
+	// read on demand rather than per frame, so it's also right outside OnRender (e.g. for mapping
+	// pointer events through WindowCoords); no events are polled during OnRender, so it's stable
+	// within a frame
+	private Matrix3x2 primaryView(Session ses) =>
+		options.PrimaryViewMode == PrimaryViewMode.LogicalUnits
+			? Matrix3x2.CreateScale(ses.Window.State.PixelDensity)
+			: Matrix3x2.Identity;
 
 	/// <summary>
 	/// Sets everything up, runs the loop until <see cref="RequestQuit()"/> is called, and tears

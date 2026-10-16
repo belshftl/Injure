@@ -24,9 +24,9 @@ public sealed class InputWindowAttributionTests {
 		InputCursor cursor = input.CreateCursor();
 
 		input.TryHandle(HostEvent.ForKey(t, w1, new HostKeyEvent(Key.A, EdgeType.Press, Repeat: false)));
-		input.TryHandle(HostEvent.ForPointerMove(t, w2, new HostPointerMoveEvent(10, 20, 1, 2)));
+		input.TryHandle(HostEvent.ForPointerMove(t, w2, new HostPointerMoveEvent(new WindowPos(10, 20), new WindowDelta(1, 2))));
 		input.TryHandle(HostEvent.ForText(t, w1, "x"));
-		input.TryHandle(HostEvent.ForPointerButton(t, w2, new HostPointerButtonEvent(PointerButton.Left, EdgeType.Press, 1, 10, 20)));
+		input.TryHandle(HostEvent.ForPointerButton(t, w2, new HostPointerButtonEvent(PointerButton.Left, EdgeType.Press, 1, new WindowPos(10, 20))));
 
 		List<InputEvent> evs = drain(input, ref cursor);
 		Assert.Equal(w1, Assert.IsType<KeyEvent>(evs[0]).Window);
@@ -43,7 +43,7 @@ public sealed class InputWindowAttributionTests {
 		Assert.False(input.CurrentState.Pointer.Window.IsValid);
 
 		input.TryHandle(HostEvent.ForWindow(HostEventKind.WindowPointerEntered, t, w1));
-		input.TryHandle(HostEvent.ForPointerMove(t, w1, new HostPointerMoveEvent(5, 6, 0, 0)));
+		input.TryHandle(HostEvent.ForPointerMove(t, w1, new HostPointerMoveEvent(new WindowPos(5, 6), new WindowDelta(0, 0))));
 		Assert.Equal(w1, input.CurrentState.Pointer.Window);
 		Assert.True(input.CurrentState.Pointer.InsideWindow);
 
@@ -54,7 +54,7 @@ public sealed class InputWindowAttributionTests {
 		Assert.Equal(w1, input.CurrentState.Pointer.Window);
 		Assert.False(input.CurrentState.Pointer.InsideWindow);
 
-		input.TryHandle(HostEvent.ForPointerMove(t, w2, new HostPointerMoveEvent(7, 8, 0, 0)));
+		input.TryHandle(HostEvent.ForPointerMove(t, w2, new HostPointerMoveEvent(new WindowPos(7, 8), new WindowDelta(0, 0))));
 		Assert.Equal(w2, input.CurrentState.Pointer.Window);
 		Assert.True(input.CurrentState.Pointer.InsideWindow);
 
@@ -68,7 +68,7 @@ public sealed class InputWindowAttributionTests {
 		var pw = HostWindowId.Allocate();
 		InputSystem input = new(64);
 		input.TryHandle(HostEvent.ForKey(t, kw, new HostKeyEvent(Key.B, EdgeType.Press, Repeat: false)));
-		input.TryHandle(HostEvent.ForPointerButton(t, pw, new HostPointerButtonEvent(PointerButton.Right, EdgeType.Press, 1, 3, 4)));
+		input.TryHandle(HostEvent.ForPointerButton(t, pw, new HostPointerButtonEvent(PointerButton.Right, EdgeType.Press, 1, new WindowPos(3, 4))));
 		InputCursor cursor = input.CreateCursor();
 
 		input.ClearKeyboardAndPointer(t);

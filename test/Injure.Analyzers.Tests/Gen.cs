@@ -72,7 +72,7 @@ internal static class Gen {
 			? ImmutableDictionary<string, string>.Empty.Add("build_property.projectdir", ProjectDir)
 			: ImmutableDictionary<string, string>.Empty;
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(
-			[new Assets.AssetCatalogGenerator().AsSourceGenerator()],
+			[new Injure.Analyzers.Assets.AssetCatalogGenerator().AsSourceGenerator()],
 			files.Select(static f => (AdditionalText)new PathOnlyText(ProjectDir + f)),
 			new CSharpParseOptions(LanguageVersion.Latest),
 			new OptionsProvider(globals)

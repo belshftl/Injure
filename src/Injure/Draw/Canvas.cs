@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Buffers;
+using System.Collections.Immutable;
 using System.Numerics;
 using Injure.Assets;
 using Injure.Gpu;
@@ -21,8 +22,9 @@ namespace Injure.Draw;
 /// base of the stack cannot be popped off.
 /// </para>
 /// <para>
-/// Positions and sizes are in pixels of the current target, with the origin at the top left and +Y
-/// pointing down, before <see cref="CanvasParams.Transform"/> is applied.
+/// Positions and sizes are transformed by <see cref="CanvasParams.Transform"/>, then by the current
+/// target's <see cref="CanvasTarget.View"/>, into pixels of the current target, with the origin at
+/// the top left and +Y pointing down.
 /// </para>
 /// <para>
 /// Draws may be batched; the exact batching behavior is unspecified. Draws are never reordered.
@@ -41,14 +43,15 @@ namespace Injure.Draw;
 /// </para>
 /// <para>
 /// The name clashes with the <c>Canvas</c> controls of Avalonia and WPF, and is similar to MAUI's
-/// <c>ICanvas</c>. Code that runs into such a conflict can alias this type, e.g. <c>global using
-/// IjCanvas = Injure.Draw.Canvas;</c>.
+/// <c>ICanvas</c>. Code that runs into such a conflict can alias this type, e.g.
+/// <c>global using IjCanvas = Injure.Draw.Canvas;</c>.
 /// </para>
 /// <para>
 /// Infomative: untextured draws actually use a 1x1 <see cref="TextureInterpretation.Color"/> white
-/// texture, and <see cref="CanvasParams.Transform"/> is applied on the CPU rather than in a vertex
-/// shader. Both of these allow for particular internal optimizations. The functional behavior is
-/// unchanged, and the optimizations heavily outweigh the miniscule added overhead.
+/// texture, and <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.View"/> are
+/// applied on the CPU rather than in a vertex shader. Both of these allow for particular internal
+/// optimizations. The functional behavior is unchanged, and the optimizations heavily outweigh the
+/// miniscule added overhead.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
@@ -65,14 +68,41 @@ public readonly ref struct Canvas {
 
 	private OwnedCanvas o => ownedCanvas ?? throw InvalidDefaultException.For<Canvas>();
 
-	private static ReadOnlySpan<uint> triangleIndices => [0, 1, 2];
+	private static readonly ImmutableArray<uint> triangleIndices = [0, 1, 2];
 	// for corners in topLeft, topRight, bottomLeft, bottomRight order; ccw
-	private static ReadOnlySpan<uint> quadIndices => [0, 2, 1, 3, 1, 2];
+	private static readonly ImmutableArray<uint> quadIndices = [0, 2, 1, 3, 1, 2];
 
 	/// <summary>
 	/// The currently active canvas parameters, i.e. the top of the params stack.
 	/// </summary>
 	public CanvasParams CurrentParams => o.CurrentParams;
+
+	/// <summary>
+	/// The current transform, i.e. <see cref="CanvasParams.Transform"/> of
+	/// <see cref="CurrentParams"/>. Always invertible (see <see cref="MatrixInvert"/>).
+	/// </summary>
+	/// <remarks>
+	/// Doesn't include the active target's view matrix; see <see cref="EffectiveTransform"/>.
+	/// </remarks>
+	public Matrix3x2 CurrentTransform => o.CurrentParams.Transform;
+
+	/// <summary>
+	/// The active target's view matrix, i.e. <see cref="CanvasTarget.View"/> of
+	/// <see cref="CanvasParams.Target"/> of <see cref="CurrentParams"/>. Always invertible (see
+	/// <see cref="MatrixInvert"/>).
+	/// </summary>
+	public Matrix3x2 CurrentView => o.CurrentParams.Target.View;
+
+	/// <summary>
+	/// The matrix that maps draw positions to pixels of the active target, i.e.
+	/// <c>CurrentTransform * CurrentView</c>, or <see cref="CanvasParams.EffectiveTransform"/> of
+	/// <see cref="CurrentParams"/>. Always invertible (see <see cref="MatrixInvert"/>).
+	/// </summary>
+	/// <remarks>
+	/// Its inverse (see <see cref="Matrix3x2.Invert(Matrix3x2, out Matrix3x2)"/>) maps target pixels
+	/// back to draw positions, e.g. for hit testing.
+	/// </remarks>
+	public Matrix3x2 EffectiveTransform => o.EffectiveTransform;
 
 	/// <summary>
 	/// The drawable width in pixels of the active target.
@@ -107,7 +137,7 @@ public readonly ref struct Canvas {
 	/// <param name="b">Second vertex of the triangle.</param>
 	/// <param name="c">Third vertex of the triangle.</param>
 	public void Triangle(Vertex2dColor a, Vertex2dColor b, Vertex2dColor c) =>
-		o.AddPrimitive([a, b, c], triangleIndices);
+		o.AddPrimitive([a, b, c], triangleIndices.AsSpan());
 
 	/// <summary>
 	/// Draws a filled flat-color triangle.
@@ -117,7 +147,7 @@ public readonly ref struct Canvas {
 	/// <param name="c">Third vertex of the triangle.</param>
 	/// <param name="color">Fill color.</param>
 	public void Triangle(Vector2 a, Vector2 b, Vector2 c, SrgbColor32 color) =>
-		o.AddPrimitive([a, b, c], color, triangleIndices);
+		o.AddPrimitive([a, b, c], color, triangleIndices.AsSpan());
 
 	/// <summary>
 	/// Draws a filled convex quadrilateral with interpolated per-corner colors.
@@ -132,7 +162,7 @@ public readonly ref struct Canvas {
 	/// <paramref name="topRight"/> to <paramref name="bottomLeft"/>.
 	/// </remarks>
 	public void ConvexQuad(Vertex2dColor topLeft, Vertex2dColor topRight, Vertex2dColor bottomLeft, Vertex2dColor bottomRight) =>
-		o.AddPrimitive([topLeft, topRight, bottomLeft, bottomRight], quadIndices);
+		o.AddPrimitive([topLeft, topRight, bottomLeft, bottomRight], quadIndices.AsSpan());
 
 	/// <summary>
 	/// Draws a filled flat-color convex quadrilateral.
@@ -148,7 +178,7 @@ public readonly ref struct Canvas {
 	/// <paramref name="topRight"/> to <paramref name="bottomLeft"/>.
 	/// </remarks>
 	public void ConvexQuad(Vector2 topLeft, Vector2 topRight, Vector2 bottomLeft, Vector2 bottomRight, SrgbColor32 color) =>
-		o.AddPrimitive([topLeft, topRight, bottomLeft, bottomRight], color, quadIndices);
+		o.AddPrimitive([topLeft, topRight, bottomLeft, bottomRight], color, quadIndices.AsSpan());
 
 	/// <summary>
 	/// Draws a filled rectangle with interpolated per-corner colors.
@@ -166,7 +196,7 @@ public readonly ref struct Canvas {
 				new Vertex2dColor(rect.X, rect.Y + rect.Height, colorBottomLeft),
 				new Vertex2dColor(rect.X + rect.Width, rect.Y + rect.Height, colorBottomRight),
 			],
-			quadIndices
+			quadIndices.AsSpan()
 		);
 
 	/// <summary>
@@ -535,10 +565,11 @@ public readonly ref struct Canvas {
 	/// <para>
 	/// Not a true circle; approximated with a regular polygon with <paramref name="segments"/> edges.
 	/// The default number of edges is computed from the radius <b>after
-	/// <see cref="CanvasParams.Transform"/></b> such that, for any edge of the polygon, the sagitta of
-	/// the arc subtended by the edge is no more than 0.25px (or, in simpler terms, the polygon is at
-	/// most 0.25px off from a true circle), and then clamped to at least 8 and at most 1024 edges. The
-	/// polygon has a vertex at angle 0, i.e. at <c>center + (radius, 0)</c>.
+	/// <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.View"/></b> such that, for any
+	/// edge of the polygon, the sagitta of the arc subtended by the edge is no more than 0.25px (or,
+	/// in simpler terms, the polygon is at most 0.25px off from a true circle), and then clamped to at
+	/// least 8 and at most 1024 edges. The polygon has a vertex at angle 0, i.e. at
+	/// <c>center + (radius, 0)</c>.
 	/// </para>
 	/// <para>
 	/// A radius of 0 draws nothing.
@@ -937,7 +968,7 @@ public readonly ref struct Canvas {
 				new Vertex2dTextureColor(rotBl.X, rotBl.Y, u0, v1, c),
 				new Vertex2dTextureColor(rotBr.X, rotBr.Y, u1, v1, c),
 			],
-			quadIndices
+			quadIndices.AsSpan()
 		);
 	}
 
@@ -952,17 +983,28 @@ public readonly ref struct Canvas {
 	/// A scope that restores the previous parameters when disposed. Disposing it while a later
 	/// override is still pushed throws <see cref="InvalidOperationException"/>.
 	/// </returns>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if the transform override or the resulting parameters' target is the
+	/// <see langword="default"/> value.
+	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the resulting parameters are invalid: they target a texture with an sRGB format, have
-	/// a scissor with a negative size, or use <see cref="TextureInterpretation.Sdf"/> without
+	/// Thrown if the resulting parameters are invalid: they target a texture with an sRGB format,
+	/// their transform or effective transform isn't invertible (see <see cref="MatrixInvert"/>), or
+	/// they use <see cref="TextureInterpretation.Sdf"/> without
 	/// <see cref="CanvasMaterial.SdfParams"/>.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the resulting parameters target the primary output and the frame has none.
 	/// </exception>
 	/// <remarks>
+	/// <para>
 	/// This is the standard way to temporarily change the transform, target, etc. Changing the target
 	/// or color attachment ops ends the current render pass; see <see cref="CanvasParams"/>.
+	/// </para>
+	/// <para>
+	/// The pushed parameters are <c>CurrentParams.Merge(ov)</c>; see
+	/// <see cref="CanvasParams.Merge(in CanvasParamsOverride)"/>.
+	/// </para>
 	/// </remarks>
 	public CanvasParamsScope PushParams(scoped in CanvasParamsOverride ov) => o.PushParams(in ov);
 
@@ -984,8 +1026,8 @@ public readonly ref struct Canvas {
 	public CanvasParamsScope PushParams(
 		CanvasTarget? target = null,
 		ColorAttachmentOps? colorAttachmentOps = null,
-		CanvasScissor? scissor = null,
-		Matrix3x2? transform = null,
+		CanvasScissorOverride? scissor = null,
+		CanvasTransformOverride? transform = null,
 		CanvasOutputState? outputState = null,
 		CanvasMaterial? material = null,
 		TexSampling? sampling = null
@@ -1004,8 +1046,8 @@ public readonly ref struct Canvas {
 	/// <see langword="null"/>.
 	/// </returns>
 	/// <remarks>
-	/// Lets APIs return <c>CanvasParamsOverride?</c>, e.g. <c>using
-	/// (cv.PushParamsIfNonnull(foo.GetCanvasParams(bar, baz))) { ... }</c>.
+	/// Lets APIs return <c>CanvasParamsOverride?</c>, e.g.
+	/// <c>using (cv.PushParamsIfNonnull(foo.GetCanvasParams(bar, baz))) { ... }</c>.
 	/// </remarks>
 	/// <inheritdoc cref="PushParams(in CanvasParamsOverride)" path="/exception"/>
 	public CanvasParamsScope PushParamsIfNonnull(scoped in CanvasParamsOverride? ov) {
@@ -1120,7 +1162,7 @@ public readonly ref struct Canvas {
 	/// </remarks>
 	private static int ellipseSegments(OwnedCanvas oc, float r) {
 		const float tolerance = 0.25f;
-		Matrix3x2 m = oc.CurrentParams.Transform;
+		Matrix3x2 m = oc.EffectiveTransform;
 		float scale = MathF.Sqrt(MathF.Max(m.M11 * m.M11 + m.M12 * m.M12, m.M21 * m.M21 + m.M22 * m.M22));
 		float rpx = r * scale;
 		if (!(rpx > tolerance))

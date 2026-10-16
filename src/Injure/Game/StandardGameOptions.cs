@@ -76,6 +76,13 @@ public readonly struct StandardGameOptions {
 	public SrgbColor32 ClearColor { get; init; } = SrgbColor32.Black;
 
 	/// <summary>
+	/// Whether the primary target's view matrix should factor in HiDPI pixel density, i.e. whether
+	/// draw coordinates on the window are logical units or physical pixels. See
+	/// <see cref="StandardGame.PrimaryView"/>.
+	/// </summary>
+	public PrimaryViewMode PrimaryViewMode { get; init; } = PrimaryViewMode.LogicalUnits;
+
+	/// <summary>
 	/// Whether to create an <see cref="Assets.AssetStore"/>; see <see cref="StandardGame.Assets"/>.
 	/// </summary>
 	public bool Assets { get; init; } = false;

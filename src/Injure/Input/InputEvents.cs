@@ -64,20 +64,18 @@ public sealed record GamepadButtonEvent(
 ) : InputEvent(Tick);
 
 /// <summary>
-/// The pointer moved, to (<see cref="X"/>, <see cref="Y"/>) in <see cref="Window"/>'s coordinates.
+/// The pointer moved, to <see cref="Position"/> in <see cref="Window"/>'s coordinates.
 /// </summary>
 public sealed record PointerMoveEvent(
 	HostTick Tick,
 	HostWindowId Window,
-	float X,
-	float Y,
-	float DeltaX,
-	float DeltaY
+	WindowPos Position,
+	WindowDelta Delta
 ) : InputEvent(Tick);
 
 /// <summary>
-/// A pointer button was pressed or released, at (<see cref="X"/>, <see cref="Y"/>) in
-/// <see cref="Window"/>'s coordinates.
+/// A pointer button was pressed or released, at <see cref="Position"/> in <see cref="Window"/>'s
+/// coordinates.
 /// </summary>
 /// <remarks>
 /// For a press, <see cref="Clicks"/> is 1 for a single click, 2 for a double click, and so on; it
@@ -89,13 +87,12 @@ public sealed record PointerButtonEvent(
 	PointerButton Button,
 	EdgeType Edge,
 	int Clicks,
-	float X,
-	float Y
+	WindowPos Position
 ) : InputEvent(Tick);
 
 /// <summary>
-/// The pointer wheel scrolled, with the pointer at (<see cref="PointerX"/>, <see cref="PointerY"/>)
-/// in <see cref="Window"/>'s coordinates.
+/// The pointer wheel scrolled, with the pointer at <see cref="PointerPosition"/> in
+/// <see cref="Window"/>'s coordinates.
 /// </summary>
 /// <remarks>
 /// Positive <see cref="Y"/> scrolls away from the user and positive <see cref="X"/> to the right,
@@ -109,8 +106,7 @@ public sealed record PointerWheelEvent(
 	float Y,
 	int IntegerX,
 	int IntegerY,
-	float PointerX,
-	float PointerY
+	WindowPos PointerPosition
 ) : InputEvent(Tick);
 
 /// <summary>

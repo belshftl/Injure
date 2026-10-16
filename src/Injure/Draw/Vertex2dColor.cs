@@ -22,6 +22,10 @@ namespace Injure.Draw;
 /// Safe for FFI, <c>stackalloc Vertex2dColor[]</c>, bit/span reinterprets, etc.
 /// </para>
 /// <para>
+/// The <see langword="float"/> components aren't validated to be finite; since this is a blittable
+/// primitive, meaningful validation can't happen. As such, a component may be NaN or infinite.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is valid and is a transparent vertex at position (0, 0).
 /// </para>
 /// </remarks>

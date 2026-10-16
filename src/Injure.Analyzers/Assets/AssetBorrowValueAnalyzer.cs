@@ -34,8 +34,8 @@ public sealed class AssetBorrowValueAnalyzer : DiagnosticAnalyzer {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
 		context.RegisterCompilationStartAction(static ctx => {
-				INamedTypeSymbol? borrow = ctx.Compilation.GetTypeByMetadataName("Injure.Assets.AssetBorrow`1");
-				if (borrow is null)
+				KnownTypes known = new(ctx.Compilation);
+				if (known.AssetBorrow is not INamedTypeSymbol borrow)
 					return;
 				ctx.RegisterOperationBlockAction(c => analyzeBlock(c, borrow));
 			}

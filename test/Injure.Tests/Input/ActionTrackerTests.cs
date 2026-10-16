@@ -108,7 +108,7 @@ public sealed class ActionTrackerTests {
 		(ActionId a, InputRig rig) = buttonRig(InputButtonSource.PointerButton(PointerButton.Left));
 		ButtonActionEvent ev = rig.Feed(PtrButton(PointerButton.Left, true, 10, 20, clicks: 2, window: w)).Step().ButtonEvents(a).Single();
 		Assert.True(ev.Info.TryGetPointer(out PointerButtonActionInfo info));
-		Assert.Equal(new PointerButtonActionInfo(w, 10, 20, 2), info);
+		Assert.Equal(new PointerButtonActionInfo(w, new WindowPos(10, 20), 2), info);
 
 		Assert.Throws<InvalidOperationException>(() => ev.Info.Key);
 	}
@@ -266,7 +266,7 @@ public sealed class ActionTrackerTests {
 		Assert.Equal(6f, s.Actions.GetImpulseAxis(a).Amount);
 		var evs = s.Events.OfType<ImpulseAxisActionEvent>().ToList();
 		Assert.Equal([3f, 3f], evs.Select(static e => e.Amount));
-		Assert.Equal(new PointerImpulseAxisActionInfo(w, 4, 5, 2), evs[1].Info.Pointer);
+		Assert.Equal(new PointerImpulseAxisActionInfo(w, new WindowPos(4, 5), 2), evs[1].Info.Pointer);
 		// impulses don't carry over
 		Assert.Equal(0f, rig.Step().Actions.GetImpulseAxis(a).Amount);
 	}
@@ -286,7 +286,7 @@ public sealed class ActionTrackerTests {
 		rig.Step();
 		InputStep s = rig.Feed(PtrMove(7, 8, w), HostEvent.ForText(Tm, w, "hi")).Step();
 		PointerMoveControlEvent move = Assert.IsType<PointerMoveControlEvent>(s.Events[0]);
-		Assert.Equal((w, 7f, 8f), (move.Window, move.X, move.Y));
+		Assert.Equal((w, new WindowPos(7f, 8f)), (move.Window, move.Position));
 		TextEnteredControlEvent text = Assert.IsType<TextEnteredControlEvent>(s.Events[1]);
 		Assert.Equal((w, "hi"), (text.Window, text.Text));
 		Assert.Equal(w, s.RawPointer.Window);

@@ -58,11 +58,10 @@ public sealed class InputSystem : IInputSource {
 
 	private byte pointerButtons;
 	/// <summary>
-	/// The window <see cref="pointerX"/>/<see cref="pointerY"/> are relative to.
+	/// The window <see cref="pointerPosition"/> is relative to.
 	/// </summary>
 	private HostWindowId pointerWindow;
-	private float pointerX;
-	private float pointerY;
+	private WindowPos pointerPosition;
 	/// <summary>
 	/// The window the pointer is currently inside, per the last enter/leave events.
 	/// </summary>
@@ -104,8 +103,7 @@ public sealed class InputSystem : IInputSource {
 	private PointerState currentPointerState => new(
 		pointerButtons,
 		pointerWindow,
-		pointerX,
-		pointerY,
+		pointerPosition,
 		pointerInside.IsValid && pointerInside == pointerWindow
 	);
 
@@ -200,18 +198,18 @@ public sealed class InputSystem : IInputSource {
 			return true;
 		case HostEventKind.Case.PointerMove: {
 			HostPointerMoveEvent m = ev.PointerMove;
-			Push(new PointerMoveEvent(ev.Tick, ev.Window, m.X, m.Y, m.DeltaX, m.DeltaY));
+			Push(new PointerMoveEvent(ev.Tick, ev.Window, m.Position, m.Delta));
 			return true;
 		}
 		case HostEventKind.Case.PointerButton: {
 			HostPointerButtonEvent b = ev.PointerButton;
 			if (b.Button != PointerButton.Unknown)
-				Push(new PointerButtonEvent(ev.Tick, ev.Window, b.Button, b.Edge, b.Clicks, b.X, b.Y));
+				Push(new PointerButtonEvent(ev.Tick, ev.Window, b.Button, b.Edge, b.Clicks, b.Position));
 			return true;
 		}
 		case HostEventKind.Case.PointerWheel: {
 			HostPointerWheelEvent w = ev.PointerWheel;
-			Push(new PointerWheelEvent(ev.Tick, ev.Window, w.X, w.Y, w.IntegerX, w.IntegerY, w.PointerX, w.PointerY));
+			Push(new PointerWheelEvent(ev.Tick, ev.Window, w.X, w.Y, w.IntegerX, w.IntegerY, w.PointerPosition));
 			return true;
 		}
 		case HostEventKind.Case.WindowPointerEntered:
@@ -308,14 +306,14 @@ public sealed class InputSystem : IInputSource {
 			keyboardWindow = keyEv.Window;
 			break;
 		case PointerMoveEvent pmoveEv:
-			setPointerPosition(pmoveEv.Window, pmoveEv.X, pmoveEv.Y);
+			setPointerPosition(pmoveEv.Window, pmoveEv.Position);
 			break;
 		case PointerButtonEvent pbtnEv:
 			setPointerButton(pbtnEv.Button, pbtnEv.Edge == EdgeType.Press);
-			setPointerPosition(pbtnEv.Window, pbtnEv.X, pbtnEv.Y);
+			setPointerPosition(pbtnEv.Window, pbtnEv.Position);
 			break;
 		case PointerWheelEvent pwheelEv:
-			setPointerPosition(pwheelEv.Window, pwheelEv.PointerX, pwheelEv.PointerY);
+			setPointerPosition(pwheelEv.Window, pwheelEv.PointerPosition);
 			break;
 		case GamepadAddedEvent gaddEv:
 			if (!tryFindGamepad(gaddEv.Gamepad, out _))
@@ -342,10 +340,9 @@ public sealed class InputSystem : IInputSource {
 		}
 	}
 
-	private void setPointerPosition(HostWindowId window, float x, float y) {
+	private void setPointerPosition(HostWindowId window, WindowPos position) {
 		pointerWindow = window;
-		pointerX = x;
-		pointerY = y;
+		pointerPosition = position;
 	}
 
 	private bool tryFindGamepad(GamepadId id, out int idx) {
@@ -467,7 +464,7 @@ public sealed class InputSystem : IInputSource {
 		foreach (PointerButton btn in PointerButton.Enum.Values) {
 			if (!currentPointerState.IsDown(btn))
 				continue;
-			Push(new PointerButtonEvent(tick, pointerWindow, btn, EdgeType.Release, Clicks: 0, pointerX, pointerY));
+			Push(new PointerButtonEvent(tick, pointerWindow, btn, EdgeType.Release, Clicks: 0, pointerPosition));
 		}
 	}
 

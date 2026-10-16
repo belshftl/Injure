@@ -97,7 +97,7 @@ public sealed class TextSystemTests : GpuTestBase {
 
 		using GpuTexture target = GpuRig.Target(Device, 16, 12);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
-			using (OwnedCanvas canvas = new(frame, CanvasParams.Primary(SrgbColor32.Black)))
+			using (OwnedCanvas canvas = new(frame, CanvasParams.Primary(Matrix3x2.Identity, SrgbColor32.Black)))
 				layout.Render(canvas.Canvas, Vector2.Zero);
 			frame.Submit();
 		}

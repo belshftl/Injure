@@ -339,28 +339,23 @@ public readonly struct PointerState {
 	private readonly byte buttons;
 
 	/// <summary>
-	/// The window <see cref="X"/> and <see cref="Y"/> are relative to, i.e. the window of the last
+	/// The window <see cref="Position"/> is relative to, i.e. the window of the last
 	/// pointer event; invalid if there hasn't been one, or the source couldn't attribute it to a
 	/// window.
 	/// </summary>
 	public HostWindowId Window { get; }
 
 	/// <summary>
-	/// Horizontal position in <see cref="Window"/>'s coordinates.
+	/// Position in <see cref="Window"/>'s coordinates.
 	/// </summary>
-	public float X { get; }
-
-	/// <summary>
-	/// Vertical position in <see cref="Window"/>'s coordinates.
-	/// </summary>
-	public float Y { get; }
+	public WindowPos Position { get; }
 
 	/// <summary>
 	/// Whether the pointer is currently inside <see cref="Window"/>.
 	/// </summary>
 	/// <remarks>
 	/// After the pointer moves into another window, this is <see langword="false"/> until that
-	/// window's first pointer event, since <see cref="X"/>/<see cref="Y"/> still describe the old
+	/// window's first pointer event, since <see cref="Position"/> still describes the old
 	/// window until then.
 	/// </remarks>
 	public bool InsideWindow { get; }
@@ -374,7 +369,7 @@ public readonly struct PointerState {
 	/// Creates a state with exactly the buttons in <paramref name="down"/> held down and the given
 	/// position.
 	/// </summary>
-	public PointerState(ReadOnlySpan<PointerButton> down, HostWindowId window, float x, float y, bool insideWindow) {
+	public PointerState(ReadOnlySpan<PointerButton> down, HostWindowId window, WindowPos position, bool insideWindow) {
 		foreach (PointerButton btn in down) {
 			int idx = (int)btn.Tag;
 			// PointerButton is a [ClosedEnum], and as of right now, doesn't have values numerically above 7
@@ -383,16 +378,14 @@ public readonly struct PointerState {
 			buttons |= (byte)(1u << idx);
 		}
 		Window = window;
-		X = x;
-		Y = y;
+		Position = position;
 		InsideWindow = insideWindow;
 	}
 
-	internal PointerState(byte bitset, HostWindowId window, float x, float y, bool insideWindow) {
+	internal PointerState(byte bitset, HostWindowId window, WindowPos position, bool insideWindow) {
 		buttons = bitset;
 		Window = window;
-		X = x;
-		Y = y;
+		Position = position;
 		InsideWindow = insideWindow;
 	}
 

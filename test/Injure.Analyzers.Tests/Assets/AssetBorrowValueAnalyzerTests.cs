@@ -3,7 +3,7 @@
 
 using Injure.Analyzers.Assets;
 
-namespace Injure.Analyzers.Tests;
+namespace Injure.Analyzers.Tests.Assets;
 
 public sealed class AssetBorrowValueAnalyzerTests {
 	private static string[] messages(string body) {

@@ -78,7 +78,7 @@ public sealed class InputSystemTests {
 		Assert.True(view.HistoryLost);
 		Assert.Equal(2ul, view.LostEventCount);
 		Assert.Equal(0, view.Events.Count);
-		Assert.Equal(5f, view.State.Pointer.X);
+		Assert.Equal(5f, view.State.Pointer.Position.X);
 		// the cursor is now at the end, so the next read is clean
 		input.TryHandle(Ev.PtrMove(9, 0));
 		InputView next = input.CreateViewAndAdvance(ref c);
@@ -137,16 +137,16 @@ public sealed class InputSystemTests {
 		InputCursor c = input.CreateCursor();
 		var w = HostWindowId.Allocate();
 		var p = GamepadId.Allocate();
-		input.TryHandle(HostEvent.ForPointerMove(Ev.Tm, w, new HostPointerMoveEvent(1, 2, 3, 4)));
+		input.TryHandle(HostEvent.ForPointerMove(Ev.Tm, w, new HostPointerMoveEvent(new WindowPos(1, 2), new WindowDelta(3, 4))));
 		input.TryHandle(Ev.PtrButton(PointerButton.X2, true, 5, 6, clicks: 2, window: w));
 		input.TryHandle(Ev.Wheel(0.5f, -1f, 0, -1, 7, 8, w));
 		input.TryHandle(Ev.PadAdded(p));
 		input.TryHandle(Ev.PadAxis(p, GamepadAxis.LeftTrigger, 0.25f));
 
 		List<InputEvent> evs = read(input, ref c);
-		Assert.Equal(new PointerMoveEvent(Ev.Tm, w, 1, 2, 3, 4), evs[0]);
-		Assert.Equal(new PointerButtonEvent(Ev.Tm, w, PointerButton.X2, EdgeType.Press, 2, 5, 6), evs[1]);
-		Assert.Equal(new PointerWheelEvent(Ev.Tm, w, 0.5f, -1f, 0, -1, 7, 8), evs[2]);
+		Assert.Equal(new PointerMoveEvent(Ev.Tm, w, new WindowPos(1, 2), new WindowDelta(3, 4)), evs[0]);
+		Assert.Equal(new PointerButtonEvent(Ev.Tm, w, PointerButton.X2, EdgeType.Press, 2, new WindowPos(5, 6)), evs[1]);
+		Assert.Equal(new PointerWheelEvent(Ev.Tm, w, 0.5f, -1f, 0, -1, new WindowPos(7, 8)), evs[2]);
 		Assert.Equal(new GamepadAddedEvent(Ev.Tm, p), evs[3]);
 		Assert.Equal(new GamepadAxisEvent(Ev.Tm, p, GamepadAxis.LeftTrigger, 0.25f), evs[4]);
 	}
@@ -166,7 +166,7 @@ public sealed class InputSystemTests {
 		Assert.False(s.Keyboard.IsDown(Key.W));
 		Assert.True(s.Pointer.IsDown(PointerButton.Right));
 		Assert.False(s.Pointer.IsDown(PointerButton.Left));
-		Assert.Equal((3f, 4f), (s.Pointer.X, s.Pointer.Y));
+		Assert.Equal(new WindowPos(3f, 4f), s.Pointer.Position);
 	}
 
 	[Fact]

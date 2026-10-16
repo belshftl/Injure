@@ -47,18 +47,16 @@ public readonly record struct KeyButtonActionInfo(HostWindowId Window);
 /// Where a pointer button action event happened.
 /// </summary>
 /// <param name="Window">
-/// The window <see cref="X"/>/<see cref="Y"/> are relative to; invalid if unknown.
+/// The window <see cref="Position"/> is relative to; invalid if unknown.
 /// </param>
-/// <param name="X">Horizontal position in <see cref="Window"/>'s coordinates.</param>
-/// <param name="Y">Vertical position in <see cref="Window"/>'s coordinates.</param>
+/// <param name="Position">Position in <see cref="Window"/>'s coordinates.</param>
 /// <param name="Clicks">Click count of the press (1 = single click, 2 = double click, ...).</param>
 /// <remarks>
 /// The <see langword="default"/> value is valid and is a zero-click event at (0, 0) in no window.
 /// </remarks>
 public readonly record struct PointerButtonActionInfo(
 	HostWindowId Window,
-	float X,
-	float Y,
+	WindowPos Position,
 	int Clicks
 );
 
@@ -111,8 +109,8 @@ public readonly struct ButtonActionEventInfo {
 		new(ButtonActionEventInfoKind.Key, new KeyButtonActionInfo(window), default);
 
 	/// <summary>Creates pointer information.</summary>
-	public static ButtonActionEventInfo FromPointer(HostWindowId window, float x, float y, int clicks) =>
-		new(ButtonActionEventInfoKind.Pointer, default, new PointerButtonActionInfo(window, x, y, clicks));
+	public static ButtonActionEventInfo FromPointer(HostWindowId window, WindowPos position, int clicks) =>
+		new(ButtonActionEventInfoKind.Pointer, default, new PointerButtonActionInfo(window, position, clicks));
 
 	/// <summary>
 	/// Gets the key information, if <see cref="Kind"/> is <see cref="ButtonActionEventInfoKind.Key"/>.
@@ -166,18 +164,16 @@ public readonly partial struct ImpulseAxisActionEventInfoKind {
 /// Where a pointer wheel impulse axis action event happened.
 /// </summary>
 /// <param name="Window">
-/// The window <see cref="X"/>/<see cref="Y"/> are relative to; invalid if unknown.
+/// The window <see cref="Position"/> is relative to; invalid if unknown.
 /// </param>
-/// <param name="X">Horizontal pointer position in <see cref="Window"/>'s coordinates.</param>
-/// <param name="Y">Vertical pointer position in <see cref="Window"/>'s coordinates.</param>
+/// <param name="Position">Pointer position in <see cref="Window"/>'s coordinates.</param>
 /// <param name="IntegerAmount">The scroll amount in whole wheel notches, before scaling.</param>
 /// <remarks>
 /// The <see langword="default"/> value is valid and is a zero-notch event at (0, 0) in no window.
 /// </remarks>
 public readonly record struct PointerImpulseAxisActionInfo(
 	HostWindowId Window,
-	float X,
-	float Y,
+	WindowPos Position,
 	int IntegerAmount
 );
 
@@ -214,8 +210,8 @@ public readonly struct ImpulseAxisActionEventInfo {
 	public static readonly ImpulseAxisActionEventInfo None = default;
 
 	/// <summary>Creates pointer information.</summary>
-	public static ImpulseAxisActionEventInfo FromPointer(HostWindowId window, float x, float y, int integerAmount) =>
-		new(ImpulseAxisActionEventInfoKind.Pointer, new PointerImpulseAxisActionInfo(window, x, y, integerAmount));
+	public static ImpulseAxisActionEventInfo FromPointer(HostWindowId window, WindowPos position, int integerAmount) =>
+		new(ImpulseAxisActionEventInfoKind.Pointer, new PointerImpulseAxisActionInfo(window, position, integerAmount));
 
 	/// <summary>
 	/// Gets the pointer information, if <see cref="Kind"/> is
@@ -232,8 +228,8 @@ public readonly struct ImpulseAxisActionEventInfo {
 }
 
 /// <summary>
-/// An event produced by an <see cref="ActionTracker"/>: an action changed, or pointer movement or text
-/// that is passed through for every consumer.
+/// An event produced by an <see cref="ActionTracker"/>: an action changed, or pointer movement or
+/// text that is passed through for every consumer.
 /// </summary>
 /// <param name="Tick">When the underlying input happened.</param>
 public abstract record ControlEvent(HostTick Tick);
@@ -281,15 +277,14 @@ public sealed record ImpulseAxisActionEvent(
 ) : ControlEvent(Tick);
 
 /// <summary>
-/// The pointer moved to (<see cref="X"/>, <see cref="Y"/>) in <see cref="Window"/>'s coordinates.
-/// Emitted regardless of bindings.
+/// The pointer moved to <see cref="Position"/> in <see cref="Window"/>'s coordinates. Emitted
+/// regardless of bindings.
 /// </summary>
 public sealed record PointerMoveControlEvent(
 	HostTick Tick,
 	HostWindowId Window,
-	float X,
-	float Y,
-	Vector2 Delta
+	WindowPos Position,
+	WindowDelta Delta
 ) : ControlEvent(Tick);
 
 /// <summary>

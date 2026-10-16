@@ -45,24 +45,21 @@ internal sealed record FileKinds(EquatableArray<FileKind> Kinds, EquatableArray<
 
 [Generator(LanguageNames.CSharp)]
 public sealed class AssetCatalogGenerator : IIncrementalGenerator {
-	private const string catalogAttribute = "Injure.Assets.AssetCatalogAttribute";
-	private const string fileKindAttribute = "Injure.Assets.AssetFileKindAttribute";
-
 	private static readonly (string Suffix, string MetadataName)[] builtinKinds = [
-		(".png", "Injure.Draw.Texture2d"),
-		(".jpg", "Injure.Draw.Texture2d"),
-		(".jpeg", "Injure.Draw.Texture2d"),
-		(".bmp", "Injure.Draw.Texture2d"),
-		(".tga", "Injure.Draw.Texture2d"),
-		(".tex.json", "Injure.Draw.Texture2d"),
-		(".ttf", "Injure.Draw.Text.Font"),
-		(".otf", "Injure.Draw.Text.Font"),
-		(".ttc", "Injure.Draw.Text.Font"),
+		(".png", KnownNames.Texture2d),
+		(".jpg", KnownNames.Texture2d),
+		(".jpeg", KnownNames.Texture2d),
+		(".bmp", KnownNames.Texture2d),
+		(".tga", KnownNames.Texture2d),
+		(".tex.json", KnownNames.Texture2d),
+		(".ttf", KnownNames.Font),
+		(".otf", KnownNames.Font),
+		(".ttc", KnownNames.Font),
 	];
 
 	public void Initialize(IncrementalGeneratorInitializationContext context) {
 		IncrementalValuesProvider<CatalogTarget> targets = context.SyntaxProvider.ForAttributeWithMetadataName(
-			catalogAttribute,
+			KnownNames.AssetCatalogAttribute,
 			static (node, _) => node is ClassDeclarationSyntax,
 			static (ctx, _) => toTarget(ctx)
 		).Where(static t => t is not null)!;
@@ -124,7 +121,7 @@ public sealed class AssetCatalogGenerator : IIncrementalGenerator {
 		ImmutableArray<FileKindProblem>.Builder problems = ImmutableArray.CreateBuilder<FileKindProblem>();
 		HashSet<string> declared = new(StringComparer.OrdinalIgnoreCase);
 		foreach (AttributeData attr in compilation.Assembly.GetAttributes()) {
-			if (attr.AttributeClass?.ToDisplayString() != fileKindAttribute || attr.ConstructorArguments.Length != 2)
+			if (attr.AttributeClass?.ToDisplayString() != KnownNames.AssetFileKindAttribute || attr.ConstructorArguments.Length != 2)
 				continue;
 			if (attr.ConstructorArguments[0].Value is not string suffix || attr.ConstructorArguments[1].Value is not ITypeSymbol type)
 				continue;

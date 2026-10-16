@@ -6,7 +6,7 @@ using Injure.Assets;
 using Injure.Draw;
 using Injure.Draw.Text;
 
-namespace Injure.Analyzers.Tests;
+namespace Injure.Analyzers.Tests.Assets;
 
 public sealed class AssetCatalogGeneratorTests {
 	private const string catalog = """
