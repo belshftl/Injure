@@ -44,3 +44,24 @@ fn vs_main(v: VsIn) -> VsOut {
 fn fs_main(v: VsOut) -> @location(0) vec4<f32> {
 	return textureSample(tex, smp, v.uv) * v.color;
 }
+
+// moves uv so the linear sampler's blend between two texels spans one destination pixel centered on
+// their shared edge, which makes the blend weights the texels' coverage of the pixel; at a scale of
+// 1 or below, the uv is unchanged
+fn areaWeightedUv(uv: vec2<f32>) -> vec2<f32> {
+	let size = vec2<f32>(textureDimensions(tex));
+	let texel = uv * size;
+	// destination pixels per texel along each texture axis; the max on fwidth keeps a constant uv
+	// (e.g. untextured draws) from making this infinite and the uv nan
+	let scale = max(1.0 / max(fwidth(texel), vec2(1e-6)), vec2(1.0));
+	let center = floor(texel) + 0.5;
+	let d = texel - center;
+	let plateau = 0.5 - 0.5 / scale;
+	return (center + (d - clamp(d, -plateau, plateau)) * scale) / size;
+}
+
+// mip selection uses the unadjusted uv's gradients, the same as fs_main's
+@fragment
+fn fs_area_weighted(v: VsOut) -> @location(0) vec4<f32> {
+	return textureSampleGrad(tex, smp, areaWeightedUv(v.uv), dpdx(v.uv), dpdy(v.uv)) * v.color;
+}

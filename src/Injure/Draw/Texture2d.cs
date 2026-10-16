@@ -60,14 +60,14 @@ public readonly partial struct Texture2dMipFilter {
 	public enum Case {
 		/// <summary>
 		/// For sRGB-encoded color with straight alpha, i.e. what <see cref="Canvas"/> draws with
-		/// <see cref="CanvasMaterials.Color"/>. Averages in linear light, weighted by alpha, so
+		/// <see cref="CanvasMaterial.Color"/>. Averages in linear light, weighted by alpha, so
 		/// transparent texels don't darken the edges of visible ones.
 		/// </summary>
 		Color = 1,
 
 		/// <summary>
 		/// Averages the stored values as they are. For data where that's meaningful, e.g. coverage masks
-		/// (<see cref="CanvasMaterials.Rmask"/>) and distance fields.
+		/// (<see cref="CanvasMaterial.Rmask"/>) and distance fields.
 		/// </summary>
 		Raw,
 	}

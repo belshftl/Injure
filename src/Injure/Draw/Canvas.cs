@@ -899,9 +899,11 @@ public readonly ref struct Canvas {
 	/// <see cref="TexDraw.Source"/> reaches outside it.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if <paramref name="tex"/> is the currently active render target, or if it's a
+	/// Thrown if <paramref name="tex"/> is the currently active render target, if it's a
 	/// <see cref="Versioned{T}"/> (or a slice of one) and the calling thread isn't attached to its
-	/// asset store; see <see cref="DrawableTexture"/>.
+	/// asset store (see <see cref="DrawableTexture"/>), or if the current material is
+	/// <see cref="TextureInterpretation.Sdf"/> and the sampling filter isn't
+	/// <see cref="TexFilter.Linear"/>.
 	/// </exception>
 	public void Texture(DrawableTexture tex, in TexDraw draw) {
 		// positive angles turn +X towards +Y, i.e. clockwise since +Y = down
@@ -984,14 +986,12 @@ public readonly ref struct Canvas {
 	/// override is still pushed throws <see cref="InvalidOperationException"/>.
 	/// </returns>
 	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if the transform override or the resulting parameters' target is the
+	/// Thrown if the transform override, or the resulting parameters' target or material, is the
 	/// <see langword="default"/> value.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the resulting parameters are invalid: they target a texture with an sRGB format,
-	/// their transform or effective transform isn't invertible (see <see cref="MatrixInvert"/>), or
-	/// they use <see cref="TextureInterpretation.Sdf"/> without
-	/// <see cref="CanvasMaterial.SdfParams"/>.
+	/// Thrown if the resulting parameters are invalid: they target a texture with an sRGB format, or
+	/// their transform or effective transform isn't invertible (see <see cref="MatrixInvert"/>).
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the resulting parameters target the primary output and the frame has none.

@@ -23,8 +23,9 @@ namespace Injure.Draw;
 /// <para>
 /// Slices of the same texture draw without starting a new draw call, which separate textures can't,
 /// which makes atlases faster than separate textures for many small sprites. With
-/// <see cref="TexFilter.Linear"/>, samples near a slice's edge blend with the neighboring texels,
-/// so atlases drawn that way need padding between slices; see <see cref="TexSampling"/>.
+/// <see cref="TexFilter.Linear"/> or <see cref="TexFilter.AreaWeighted"/>, samples near a slice's
+/// edge blend with the neighboring texels, so atlases drawn that way need padding between slices;
+/// see <see cref="TexSampling"/>.
 /// </para>
 /// <para>
 /// A slice only refers to its texture; it doesn't keep it alive or track its lifetime. To follow an

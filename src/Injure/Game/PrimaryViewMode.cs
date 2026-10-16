@@ -27,7 +27,8 @@ public readonly partial struct PrimaryViewMode {
 		/// <summary>
 		/// Draw coordinates are physical pixels: the view matrix is identity. For games that present a
 		/// low-resolution render target at an integer scale, which only stays sharp when the scale
-		/// is computed in physical pixels.
+		/// is computed in physical pixels. For a fractional scale, draw the render target with
+		/// <see cref="Draw.TexFilter.AreaWeighted"/>, which works in either mode.
 		/// </summary>
 		PhysicalPixels,
 	}

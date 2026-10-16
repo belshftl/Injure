@@ -18,14 +18,52 @@ public readonly partial struct TexFilter {
 	/// <summary>Raw switch tag for <see cref="TexFilter"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// Uses the texel nearest to the sampled point, keeping hard texel edges.
+		/// Uses the texel nearest to the sampled point, keeping hard texel edges. Multi-mip textures
+		/// use the nearest mip level.
 		/// </summary>
 		Nearest,
 
 		/// <summary>
-		/// Interpolates linearly between the four texels around the sampled point.
+		/// Interpolates bilinearly between the four texels around the sampled point. When shrinking a
+		/// multi-mip texture, interpolates trilinearly instead: bilinearly within the two nearest mip
+		/// levels, then linearly between those.
 		/// </summary>
 		Linear,
+
+		/// <summary>
+		/// At a scale above 1, colors each destination pixel by area: a pixel contained within one texel
+		/// gets that texel's color, and a pixel that a texel edge passes through mixes the texels it
+		/// overlaps, weighted by how much of the pixel each texel covers. At a scale of 1 or below,
+		/// equivalent to <see cref="Linear"/>.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// Implemented with a shader rather than a GPU sampler.
+		/// </para>
+		/// <para>
+		/// The scale applies per texture axis, so a draw stretched along one axis and shrunk along the
+		/// other is area-weighted along the first and linear along the second. Mip level selection is
+		/// the same as <see cref="Linear"/>'s.
+		/// </para>
+		/// <para>
+		/// Each texel edge passes through at most one row or column of pixels, so at a fractional scale,
+		/// about 1/scale of the rows and 1/scale of the columns are mixes. At an integer scale, where
+		/// texel edges are on pixel boundaries, there are no mixes, just like <see cref="Nearest"/>.
+		/// </para>
+		/// <para>
+		/// Below a scale of 2, the mixed pixels of neighboring edges can be adjacent, so a texel can
+		/// appear only in mixes, and the result may look closer to <see cref="TexFilter.Linear"/>.
+		/// </para>
+		/// <para>
+		/// The weights are exact for draws whose texture axes align with the target's axes, i.e. ones
+		/// with only translation, scaling, and flips. With rotation or skew, a pixel covers a
+		/// parallelogram of texels, whose extent along each texture axis sets the scale along it, and
+		/// the weights approximate its coverage. At 45 degrees, the weights are off by up to 1/8 of the
+		/// difference between two texels along a texel edge, and by up to about 1/5 near a texel
+		/// corner.
+		/// </para>
+		/// </remarks>
+		AreaWeighted,
 	}
 }
 
@@ -76,20 +114,33 @@ public readonly partial struct TexWrap {
 /// pixel edges is important. Make sure to use an integer scale.
 /// </para>
 /// <para>
-/// The other option, <see cref="TexFilter.Linear"/>, uses bilinear (or trilinear for multi-mip
+/// The second option, <see cref="TexFilter.Linear"/>, uses bilinear (or trilinear for multi-mip
 /// textures) filtering when scaling. As such, both kinds of scales don't distort the image but
 /// produce a somewhat more blurry result where pixel edges are mushed together. Use
 /// <see cref="TexFilter.Linear"/> for things where the exact pixels don't matter as much as the
 /// overall look, where a rotation / fractional scale / etc. is more natural: photos, painted art,
-/// smooth UI, text, etc. <see cref="TextureInterpretation.Sdf"/> textures also fall into this
-/// category, since non-linear sampling defeats the point of a signed distance field.
+/// smooth UI, text, etc. <see cref="TextureInterpretation.Sdf"/> textures require
+/// <see cref="TexFilter.Linear"/>, since other filters defeat the point of an SDF.
+/// </para>
+/// <para>
+/// The third option, <see cref="TexFilter.AreaWeighted"/>, gives a destination pixel contained
+/// within a texel that texel's color, and gives a pixel that a texel edge passes through a mix of
+/// the texels it overlaps, weighted by how much of the pixel each texel covers (hence the name
+/// "area-weighted"). If the scale is 1 or lower, it acts like plain <see cref="TexFilter.Linear"/>
+/// instead. Pixels stay evenly sized at a fractional scale, and edges move smoothly with subpixel
+/// movement rather than shimmering. Do note, though, that the result may look closer to
+/// <see cref="TexFilter.Linear"/> below a scale of 2. Use <see cref="TexFilter.AreaWeighted"/> for
+/// pixel art that can't stay at an integer scale, e.g. a low-resolution render target upscaled to
+/// the full window size.
 /// </para>
 /// <para>
 /// Linear filtering has two gotchas. The first is that without mips (see
 /// <see cref="Texture2dCreateParams.Mips"/>), shrinking a texture below about half its size still
 /// aliases. The second is that, in an atlas, samples near a region's edge blend with the
 /// neighboring region, unless regions are padded by repeating their edge texels; smaller mip levels
-/// blend across a wider band, so they need more padding.
+/// blend across a wider band, so they need more padding. <see cref="TexFilter.AreaWeighted"/> has
+/// both gotchas too; when scaling up, it only blends the pixels on a region's edge, so one texel of
+/// padding is enough.
 /// </para>
 /// <para>
 /// Use <see cref="TexWrap.Clamp"/> for ordinary sprites, and <see cref="TexWrap.Repeat"/> or
@@ -111,6 +162,11 @@ public readonly record struct TexSampling(TexFilter Filter, TexWrap Wrap) {
 	/// Linear filtering, clamping to the edge.
 	/// </summary>
 	public static readonly TexSampling Linear = new(TexFilter.Linear, TexWrap.Clamp);
+
+	/// <summary>
+	/// Area-weighted filtering, clamping to the edge.
+	/// </summary>
+	public static readonly TexSampling AreaWeighted = new(TexFilter.AreaWeighted, TexWrap.Clamp);
 
 	private static readonly int wrapCount = TexWrap.Enum.Tags.Length;
 

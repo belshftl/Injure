@@ -48,18 +48,26 @@ internal struct CanvasUniform : IEquatable<CanvasUniform> {
 /// <see cref="For(GpuDevice)"/>.
 /// </remarks>
 internal sealed class CanvasDeviceResources : IDisposable {
+#pragma warning disable CS1573 // parameter has no matching <param> tag
 	/// <summary>
 	/// What a cached pipeline depends on.
 	/// </summary>
+	/// <param name="AreaWeighted">
+	/// Selects <c>fs_area_weighted</c> rather than <c>fs_main</c> for the fs entrypoint. The SDF
+	/// shader doesn't have that, so this must be <see langword="false"/> for
+	/// <see cref="TextureInterpretation.Sdf"/>. The sampler itself must be bound separately.
+	/// </param>
 	/// <remarks>
 	/// The <see langword="default"/> value is invalid.
 	/// </remarks>
 	public readonly record struct PipelineKey(
 		TextureInterpretation Interpretation,
+		bool AreaWeighted,
 		BlendState? Blend,
 		ColorWriteMask WriteMask,
 		TextureFormat ColorTargetFormat
 	);
+#pragma warning restore CS1573 // parameter has no matching <param> tag
 
 	private readonly GpuDevice device;
 	private readonly Lock pipelinesLock = new();
@@ -120,10 +128,10 @@ internal sealed class CanvasDeviceResources : IDisposable {
 			TexWrap.Case.MirrorRepeat => AddressMode.MirrorRepeat,
 			_ => throw new UnreachableException(),
 		};
-		// textures are single-mip for now, so the mipmap filter only matters once they aren't
+		// area weighting is the linear sampler plus a shader-side uv adjustment
 		(FilterMode f, MipmapFilterMode mip) = filter.Tag switch {
 			TexFilter.Case.Nearest => (FilterMode.Nearest, MipmapFilterMode.Nearest),
-			TexFilter.Case.Linear => (FilterMode.Linear, MipmapFilterMode.Linear),
+			TexFilter.Case.Linear or TexFilter.Case.AreaWeighted => (FilterMode.Linear, MipmapFilterMode.Linear),
 			_ => throw new UnreachableException(),
 		};
 		return new GpuSamplerCreateParams(
@@ -147,6 +155,8 @@ internal sealed class CanvasDeviceResources : IDisposable {
 	}
 
 	private GpuRenderPipeline createPipeline(in PipelineKey key) {
+		if (key.AreaWeighted && key.Interpretation == TextureInterpretation.Sdf)
+			throw new InternalStateException("area-weighted pipeline requested for sdf");
 		if (!shaders.TryGetValue(key.Interpretation, out GpuShaderModule? shader)) {
 			shader = device.CreateShaderModuleWgsl(loadShader(key.Interpretation));
 			shaders.Add(key.Interpretation, shader);
@@ -158,7 +168,7 @@ internal sealed class CanvasDeviceResources : IDisposable {
 				EntryPoint: "vs_main",
 				Buffers: [
 					new VertexBufferLayout(
-						ArrayStride: (ulong)Vertex2dTextureColor.Size,
+						ArrayStride: Vertex2dTextureColor.Size,
 						StepMode: VertexStepMode.Vertex,
 						Attributes: [
 							new VertexAttribute(Format: VertexFormat.Float32x2, Offset: 0, ShaderLocation: 0),
@@ -170,7 +180,7 @@ internal sealed class CanvasDeviceResources : IDisposable {
 			),
 			Fragment: new FragmentState(
 				ShaderModule: shader,
-				EntryPoint: "fs_main",
+				EntryPoint: key.AreaWeighted ? "fs_area_weighted" : "fs_main",
 				Targets: [new ColorTargetState(Format: key.ColorTargetFormat, Blend: key.Blend, WriteMask: key.WriteMask)]
 			),
 			Primitive: new PrimitiveState(Topology: PrimitiveTopology.TriangleList, FrontFace: FrontFace.Ccw, CullMode: CullMode.None)

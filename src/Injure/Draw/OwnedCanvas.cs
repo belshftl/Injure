@@ -182,13 +182,13 @@ public sealed class OwnedCanvas : IDisposable {
 	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="baseParams"/>'s target is the <see langword="default"/> value.
+	/// Thrown if <paramref name="baseParams"/>'s target or material is the <see langword="default"/>
+	/// value.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="baseParams"/> is invalid: its target is a texture with an sRGB
-	/// format, its transform or effective transform isn't invertible (see <see cref="MatrixInvert"/>),
-	/// or it uses <see cref="TextureInterpretation.Sdf"/> without
-	/// <see cref="CanvasMaterial.SdfParams"/>.
+	/// format, or its transform or effective transform isn't invertible (see
+	/// <see cref="MatrixInvert"/>).
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="frame"/> has already been submitted or disposed, has a render pass
@@ -362,6 +362,11 @@ public sealed class OwnedCanvas : IDisposable {
 		CanvasTarget target = @params.Peek().Target;
 		if (!target.IsPrimary && tex.SameRenderTargetAs(target.RenderTarget))
 			throw new InvalidOperationException("cannot draw a render target while it is the active canvas target (i.e. draw it into itself)");
+		if (
+			@params.Peek().Material.TextureInterpretation == TextureInterpretation.Sdf
+			&& sampling.Filter != TexFilter.Linear
+		)
+			throw new InvalidOperationException($"sdf textures can only be sampled with TexFilter.Linear, as sharper sampling defeats the point of an sdf (tried to sample with {sampling.Filter})");
 		Matrix3x2 m = EffectiveTransform;
 		Span<Vertex2dTextureColor> dst = reserve(tex.Identity, tex.BindGroup, sampling, textured: true, verts.Length, indices, replace: false);
 		for (int i = 0; i < verts.Length; i++) {
@@ -407,7 +412,13 @@ public sealed class OwnedCanvas : IDisposable {
 		CanvasParams p = @params.Peek();
 		TextureInterpretation interp = textured ? p.Material.TextureInterpretation : TextureInterpretation.Color;
 		CanvasOutputState output = replace ? CanvasOutputStates.Opaque : p.OutputState;
-		CanvasDeviceResources.PipelineKey key = new(interp, output.Blend, output.WriteMask, targetFormat(in p));
+		CanvasDeviceResources.PipelineKey key = new(
+			interp,
+			sampling.Filter == TexFilter.AreaWeighted,
+			output.Blend,
+			output.WriteMask,
+			targetFormat(in p)
+		);
 		CanvasUniform uniform = uniformFor(in p, interp);
 		CanvasArena.GeometryChunk chunk = arena.ReserveGeometry(vertexCount, indices.Length);
 		if (!hasRange || key != rangeKey || !ReferenceEquals(texture, rangeTexture) || sampling != rangeSampling || chunk != rangeChunk || !uniform.Equals(rangeUniform)) {
@@ -533,6 +544,8 @@ public sealed class OwnedCanvas : IDisposable {
 	private void validate(in CanvasParams p) {
 		if (p.Target.IsDefault)
 			throw ArgumentInvalidDefaultException.For<CanvasTarget>();
+		if (p.Material.IsDefault)
+			throw ArgumentInvalidDefaultException.For<CanvasMaterial>();
 		// the view matrix is checked by the CanvasTarget factories
 		if (!MatrixInvert.IsInvertible(p.Transform))
 			throw new ArgumentException($"CanvasParams.Transform must be invertible, got {p.Transform}");
@@ -541,8 +554,6 @@ public sealed class OwnedCanvas : IDisposable {
 		TextureFormat fmt = targetFormat(in p);
 		if (fmt.IsSrgb())
 			throw new ArgumentException($"Canvas can't draw into a target with sRGB format {fmt}, since its colors are already sRGB-encoded");
-		if (p.Material.TextureInterpretation == TextureInterpretation.Sdf && p.Material.SdfParams is null)
-			throw new ArgumentException("CanvasParams.Material.SdfParams must be set if the texture interpretation of the material is SDF");
 	}
 
 	// ==========================================================================

@@ -83,7 +83,8 @@ anyhow, to v0.1:
     - [x] helper to map window coordinates to virtual coordinates
     - [x] use distinct `WindowPos`/`WindowDelta` types for window coordinates to avoid confusion with `Vector2` draw coords
     - [x] make `StandardGame` build the pixel-density view matrix for the primary target, with an opt-out
-  - [ ] sharp-bilinear upscaling as a shader
+  - [x] area-weighted upscaling (sharp-bilinear-like) as a shader, exposed as `TexFilter.AreaWeighted`
+  - [ ] a third smoke game under `smoke/` exercising `StandardGame`, HiDPI, fractional scaling of low-res render targets, and pointer hit-testing, e.g. a box with draggable corners that sets a texture's destination rect, switchable between clamp, repeat, and mirror-repeat
   - [ ] textured geometry beyond quads: textured triangles/meshes, arbitrary-corner textured quads (`Vertex2dTextureColor` has no draw call taking it yet)
   - [ ] more blend presets in `CanvasOutputStates`, e.g. additive and multiply
   - [ ] antialiasing; there's no msaa for render targets or the primary target yet, so shape edges alias and sub-pixel lines flicker

@@ -91,7 +91,7 @@ public readonly record struct CanvasParams(
 	/// </exception>
 	/// <remarks>
 	/// The other parameters are: no scissor, the identity transform,
-	/// <see cref="CanvasOutputStates.Alpha"/>, <see cref="CanvasMaterials.Color"/>, and
+	/// <see cref="CanvasOutputStates.Alpha"/>, <see cref="CanvasMaterial.Color"/>, and
 	/// <see cref="TexSampling.Nearest"/>. Use a <see langword="with"/> expression to change some of
 	/// them.
 	/// </remarks>
@@ -101,7 +101,7 @@ public readonly record struct CanvasParams(
 		Scissor: CanvasScissor.None,
 		Transform: Matrix3x2.Identity,
 		OutputState: CanvasOutputStates.Alpha,
-		Material: CanvasMaterials.Color,
+		Material: CanvasMaterial.Color,
 		Sampling: TexSampling.Nearest
 	);
 

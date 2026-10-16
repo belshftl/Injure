@@ -206,6 +206,68 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		Assert.Equal([red, blue, blue, red], Enumerable.Range(0, 4).Select(x => GpuRig.At(px, 4, (uint)x, 2)));
 	}
 
+	// the 2x1 red/blue texture stretched across 5 pixels is a scale of 2.5, so the texel edge is at
+	// x = 2.5 + offset and only pixel 2 mixes, by how much of it each texel covers
+	[Theory]
+	[InlineData(0f, 0.5f)]
+	[InlineData(0.25f, 0.25f)]
+	public void AreaWeightedMixesByCoverage(float offset, float blueCoverage) {
+		using Texture2d tex = redBlue();
+		byte[] px = render(black, canvas => {
+			canvas.Canvas.Texture(tex, new TexDraw(new RectF(offset, 0, 5, 5)) {
+				Sampling = TexSampling.AreaWeighted,
+			});
+		}, size: 5);
+		Assert.Equal(red, GpuRig.At(px, 5, 0, 2));
+		Assert.Equal(red, GpuRig.At(px, 5, 1, 2));
+		Assert.Equal(blue, GpuRig.At(px, 5, 3, 2));
+		Assert.Equal(blue, GpuRig.At(px, 5, 4, 2));
+		RawColor32 mix = GpuRig.At(px, 5, 2, 2);
+		Assert.InRange(mix.R, 255 * (1f - blueCoverage) - 3, 255 * (1f - blueCoverage) + 3);
+		Assert.InRange(mix.B, 255 * blueCoverage - 3, 255 * blueCoverage + 3);
+	}
+
+	// at an integer scale with texel edges on pixel boundaries, there's nothing to mix
+	[Fact]
+	public void AreaWeightedAtIntegerScalesMatchesNearest() {
+		using Texture2d tex = redBlue();
+		byte[] px = render(black, canvas => {
+			canvas.Canvas.Texture(tex, new TexDraw(new RectF(0, 0, 4, 1)) {
+				Sampling = TexSampling.AreaWeighted,
+			});
+		});
+		assertRow(px, 0, linear: false);
+	}
+
+	[Fact]
+	public void AreaWeightedDoesntAffectUntexturedDraws() {
+		using Texture2d tex = redBlue();
+		byte[] px = render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			using (cv.PushParams(sampling: TexSampling.AreaWeighted)) {
+				cv.Texture(tex, new RectF(0, 0, 4, 1));
+				cv.Rect(new RectF(0, 1, 4, 3), green.AssumeSrgb());
+			}
+		});
+		for (uint y = 1; y < 4; y++)
+			for (uint x = 0; x < 4; x++)
+				Assert.Equal(green, GpuRig.At(px, 4, x, y));
+	}
+
+	[Fact]
+	public void SdfTexturesRequireLinearSampling() {
+		using Texture2d tex = redBlue();
+		render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			using (cv.PushParams(material: CanvasMaterial.Sdf(new SdfParams(4f)))) {
+				TexDraw areaWeighted = new(new RectF(0, 0, 4, 4)) { Sampling = TexSampling.AreaWeighted };
+				Assert.Throws<InvalidOperationException>(() => canvas.Canvas.Texture(tex, new RectF(0, 0, 4, 4)));
+				Assert.Throws<InvalidOperationException>(() => canvas.Canvas.Texture(tex, areaWeighted));
+				cv.Texture(tex, new TexDraw(new RectF(0, 0, 4, 4)) { Sampling = TexSampling.Linear });
+			}
+		});
+	}
+
 	[Fact]
 	public void TransformsApplyPerDraw() {
 		byte[] px = render(black, canvas => {
@@ -382,6 +444,17 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		});
 		Assert.Throws<InvalidDefaultException>(() => default(CanvasTransformOverride).Matrix);
 		Assert.Throws<InvalidDefaultException>(() => default(CanvasTransformOverride).Kind);
+	}
+
+	[Fact]
+	public void DefaultMaterialsAreRejected() {
+		render(black, canvas => {
+			Assert.Throws<ArgumentInvalidDefaultException>(() => {
+				using (canvas.Canvas.PushParams(material: default(CanvasMaterial))) { }
+			});
+		});
+		Assert.Throws<InvalidDefaultException>(() => default(CanvasMaterial).TextureInterpretation);
+		Assert.Throws<InvalidDefaultException>(() => default(CanvasMaterial).SdfParams);
 	}
 
 	[Fact]
@@ -658,7 +731,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Scissor: CanvasScissor.None,
 			Transform: Matrix3x2.Identity,
 			OutputState: CanvasOutputStates.Alpha,
-			Material: CanvasMaterials.Color,
+			Material: CanvasMaterial.Color,
 			Sampling: TexSampling.Nearest
 		), p);
 		Assert.Equal(p with { ColorAttachmentOps = ColorAttachmentOps.Load }, CanvasParams.Primary(view, ColorAttachmentOps.Load));
