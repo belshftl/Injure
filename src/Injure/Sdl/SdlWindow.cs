@@ -49,6 +49,8 @@ public sealed class SdlWindow : IDisposable {
 	/// </summary>
 	public bool IsDisposed => handle == 0;
 
+	internal SdlCursorSlotSet CursorSlots { get; } = new();
+
 	/// <summary>
 	/// The window's state as of the last processed window event or immediate setter call.
 	/// </summary>
@@ -435,6 +437,36 @@ public sealed class SdlWindow : IDisposable {
 	}
 
 	// ==========================================================================
+	// cursor
+
+	/// <summary>
+	/// Creates a slot used to request which cursor this window should show while the pointer is over
+	/// it.
+	/// </summary>
+	/// <param name="band">The slot's priority band; see <see cref="SdlCursorBand"/>.</param>
+	/// <param name="rank">
+	/// The slot's priority within <paramref name="band"/>. The highest number wins, <b>not the
+	/// ordinally first number.</b>
+	/// </param>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if called from a thread other than the one that created <see cref="Sdl"/>.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this window has been disposed.
+	/// </exception>
+	/// <remarks>
+	/// See <see cref="SdlCursorSlot"/> for how slots combine into the cursor the window shows. The
+	/// priority is fixed for the slot's lifetime; to change it, create a new slot and dispose the old
+	/// one.
+	/// </remarks>
+	public SdlCursorSlot CreateCursorSlot(SdlCursorBand band, int rank = 0) {
+		CheckAccess();
+		SdlCursorSlotState state = new(band, rank);
+		CursorSlots.Add(state);
+		return new SdlCursorSlot(this, state);
+	}
+
+	// ==========================================================================
 	// state tracking
 
 	// called by SdlEventSource for every translated event that belongs to this window
@@ -517,6 +549,7 @@ public sealed class SdlWindow : IDisposable {
 			SDL.MetalDestroyView(metalView);
 		SDL.DestroyWindow(handle);
 		Sdl.UnregisterWindow(sdlWindowId);
+		CursorSlots.Clear();
 		handle = 0;
 		metalView = 0;
 		metalLayer = 0;

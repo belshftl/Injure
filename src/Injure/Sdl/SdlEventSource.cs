@@ -107,6 +107,7 @@ public sealed partial class SdlEventSource : IHostEventSource {
 	/// </remarks>
 	public SDL.Event? DangerousGetNextRaw() {
 		sdl.CheckAccess();
+		sdl.FlushCursor();
 		while (SDL.PollEvent(out SDL.Event e)) {
 			if (e.Type == wakeEventType) {
 				Volatile.Write(ref wakePending, 0);
@@ -292,6 +293,7 @@ public sealed partial class SdlEventSource : IHostEventSource {
 	/// </exception>
 	public bool WaitUntil(HostTick deadline) {
 		sdl.CheckAccess();
+		sdl.FlushCursor();
 		for (;;) {
 			HostDuration remaining = deadline - sdl.Clock.Now;
 			if (remaining < WaitGranularity)
@@ -311,6 +313,7 @@ public sealed partial class SdlEventSource : IHostEventSource {
 	/// </exception>
 	public void WaitIndefinitely() {
 		sdl.CheckAccess();
+		sdl.FlushCursor();
 		SdlException.Check(Native.SDL_WaitEvent(0));
 	}
 

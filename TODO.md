@@ -139,7 +139,8 @@ anyhow, to v0.1:
   - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
-- [ ] look at the `Layers` system and make sure it's up to date and holds up well in real usage, write tests
+- [ ] revise the `Layers` system, make sure it's up to date and holds up well in real usage, write tests
+  - [ ] integrate with `SdlWindow` cursor slots: a slot per layer ordered by stack position, ignore the slots of input-blocked layers, and decide whether layers need more than one slot
 - [ ] `Layers.Ecs` system for entities and components:
   - [ ] a notable design point i'm thinking of is that entities/components should be generic over the particular type of parent they expect, so the base classes are abstract `Entity<TParent> : IUntypedEntity where TParent : Layer` and `Component<TParent> : IUntypedComponent where TParent : IUntypedEntity`, and a particular entity is either `MyEntity : Entity<Level>` if it needs a particular type of layer or `MyEntity<TParent> : Entity<TParent> where TParent : Layer` if it's layer-agnostic
   - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad

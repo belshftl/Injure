@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -68,6 +69,11 @@ public sealed partial class SdlInstance : IDisposable {
 	private readonly int ownerThreadId;
 	private readonly Dictionary<uint, SdlWindow> windows = new();
 	private bool disposed;
+
+	// SDL_Cursor* by SdlCursor tag (Hidden's stays unused), created on first use; 0 if creation
+	// failed, in which case the default cursor shows instead
+	private readonly nint?[] cursors = new nint?[SdlCursor.Enum.Tags.Length];
+	private SdlCursor? appliedCursor; // null until the first flush
 
 	/// <summary>
 	/// The clock that SDL event timestamps are expressed in.
@@ -148,11 +154,65 @@ public sealed partial class SdlInstance : IDisposable {
 		if (windows.Count != 0)
 			throw new InvalidOperationException($"cannot dispose an SdlInstance while {windows.Count} SdlWindow(s) created from it are still alive");
 		disposed = true;
+		foreach (nint? c in cursors)
+			if (c is nint h && h != 0)
+				SDL.DestroyCursor(h);
 		Events.Shutdown();
 		Clock.Invalidate();
 		SDL.Quit();
 		Volatile.Write(ref active, 0);
 	}
+
+	internal void FlushCursor() {
+		nint focus = SDL.GetMouseFocus();
+		if (focus == 0 || !windows.TryGetValue(SDL.GetWindowID(focus), out SdlWindow? window))
+			return;
+		SdlCursor c = window.CursorSlots.Resolve();
+		if (c == appliedCursor)
+			return;
+		appliedCursor = c;
+		// the cursor is cosmetic, so ignore failures rather than making the poll fail
+		if (c == SdlCursor.Hidden) {
+			_ = SDL.HideCursor();
+			return;
+		}
+		_ = SDL.SetCursor(getCursor(c));
+		_ = SDL.ShowCursor();
+	}
+
+	private nint getCursor(SdlCursor c) {
+		int i = (int)c.Tag;
+		if (cursors[i] is not nint h) {
+			h = SDL.CreateSystemCursor(toSdl(c));
+			cursors[i] = h;
+		}
+		return h != 0 ? h : SDL.GetDefaultCursor();
+	}
+
+	private static SDL.SystemCursor toSdl(SdlCursor c) => c.Tag switch {
+		SdlCursor.Case.Default => SDL.SystemCursor.Default,
+		SdlCursor.Case.Text => SDL.SystemCursor.Text,
+		SdlCursor.Case.Wait => SDL.SystemCursor.Wait,
+		SdlCursor.Case.Crosshair => SDL.SystemCursor.Crosshair,
+		SdlCursor.Case.Progress => SDL.SystemCursor.Progress,
+		SdlCursor.Case.NwseResize => SDL.SystemCursor.NWSEResize,
+		SdlCursor.Case.NeswResize => SDL.SystemCursor.NESWResize,
+		SdlCursor.Case.EwResize => SDL.SystemCursor.EWResize,
+		SdlCursor.Case.NsResize => SDL.SystemCursor.NSResize,
+		SdlCursor.Case.Move => SDL.SystemCursor.Move,
+		SdlCursor.Case.NotAllowed => SDL.SystemCursor.NotAllowed,
+		SdlCursor.Case.Pointer => SDL.SystemCursor.Pointer,
+		SdlCursor.Case.NwResize => SDL.SystemCursor.NWResize,
+		SdlCursor.Case.NResize => SDL.SystemCursor.NResize,
+		SdlCursor.Case.NeResize => SDL.SystemCursor.NEResize,
+		SdlCursor.Case.EResize => SDL.SystemCursor.EResize,
+		SdlCursor.Case.SeResize => SDL.SystemCursor.SEResize,
+		SdlCursor.Case.SResize => SDL.SystemCursor.SResize,
+		SdlCursor.Case.SwResize => SDL.SystemCursor.SWResize,
+		SdlCursor.Case.WResize => SDL.SystemCursor.WResize,
+		SdlCursor.Case.Hidden => throw new InternalStateException("can't get an SDL_SystemCursor for SdlCursor.Hidden"),
+		_ => throw new UnreachableException(),
+	};
 
 	internal void CheckAccess() {
 		checkThread();
