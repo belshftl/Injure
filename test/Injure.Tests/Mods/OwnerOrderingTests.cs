@@ -5,7 +5,7 @@ using Injure.Mods;
 
 namespace Injure.Tests.Mods;
 
-public sealed class OwnerOrderingTests {
+public static class OwnerOrderingTests {
 	[Fact]
 	public static void LocalPriorityWorks() {
 		OwnerOrderedEntry<string>[] entries = [

@@ -15,10 +15,10 @@ namespace Injure.Draw;
 /// <para>
 /// Implicitly casts to <see cref="DrawableTexture"/>, so 
 /// <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> draws it like any texture. The natural
-/// size is the slice's size, and <see cref="TexDraw.Source"/> is relative to the slice; for
-/// example, <see cref="TexRegion.Whole"/> is the whole slice. A <see cref="TexRegion"/> reaching
-/// outside the slice is rejected when drawing, since it would sample neighboring texels of the
-/// underlying texture.
+/// size (see <see cref="TexDraw"/>) is the slice's size, and <see cref="TexDraw.Source"/> is
+/// relative to the slice; for example, <see cref="TexRegion.Whole"/> is the whole slice. A
+/// <see cref="TexRegion"/> reaching outside the slice is rejected when drawing, since it would
+/// sample neighboring texels of the underlying texture.
 /// </para>
 /// <para>
 /// Slices of the same texture draw without starting a new draw call, which separate textures can't,

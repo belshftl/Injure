@@ -10,7 +10,8 @@ namespace Injure.Draw;
 
 /// <summary>
 /// Where a texture drawn with <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> goes:
-/// anchored at a position at its natural size, or stretched into a rectangle.
+/// anchored at a position at its natural size (see <see cref="TexDraw"/>), or stretched into a
+/// rectangle.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,7 +41,8 @@ public readonly struct TexDst : IEquatable<TexDst> {
 
 	/// <summary>
 	/// Draws with <see cref="TexDraw.Origin"/> (the top-left corner by default) at
-	/// <paramref name="position"/>, at the natural size of the source region in texture pixels.
+	/// <paramref name="position"/>, at the natural size of the source region (see
+	/// <see cref="TexDraw"/>).
 	/// </summary>
 	/// <param name="position">Where the origin point goes.</param>
 	public static TexDst At(Vector2 position) => new(Kind.At, new RectF(position.X, position.Y, 0f, 0f));
@@ -63,7 +65,7 @@ public readonly struct TexDst : IEquatable<TexDst> {
 	public static implicit operator TexDst(RectF rect) => Rect(rect);
 
 	// returns where the origin point goes and the quad's size before scaling; the natural size is the
-	// source region's size in texture pixels, and the origin is normalized to the quad
+	// source region's size in texels, and the origin is normalized to the quad
 	internal (Vector2 Pivot, Vector2 Size) Resolve(float naturalWidth, float naturalHeight, Vector2 origin) => kind switch {
 		Kind.At => (new Vector2(rect.X, rect.Y), new Vector2(naturalWidth, naturalHeight)),
 		Kind.Rect => (new Vector2(rect.X + origin.X * rect.Width, rect.Y + origin.Y * rect.Height), new Vector2(rect.Width, rect.Height)),
@@ -79,7 +81,7 @@ public readonly struct TexDst : IEquatable<TexDst> {
 
 /// <summary>
 /// Which part of a texture <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> draws: all of
-/// it, a rectangle in texture pixels, or a rectangle in UV coordinates.
+/// it, a rectangle in texels, or a rectangle in UV coordinates.
 /// </summary>
 /// <remarks>
 /// The <see langword="default"/> value is valid and is <see cref="Whole"/>.
@@ -87,7 +89,7 @@ public readonly struct TexDst : IEquatable<TexDst> {
 public readonly struct TexRegion : IEquatable<TexRegion> {
 	private enum Kind : byte {
 		Whole,
-		Pixels,
+		Texels,
 		Uv,
 	}
 
@@ -105,10 +107,10 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 	public static readonly TexRegion Whole = default;
 
 	/// <summary>
-	/// A rectangle of the texture, in texture pixels.
+	/// A rectangle of the texture, in texels.
 	/// </summary>
-	/// <param name="rect">The rectangle, in texture pixels.</param>
-	public static TexRegion Pixels(RectF rect) => new(Kind.Pixels, rect);
+	/// <param name="rect">The rectangle, in texels.</param>
+	public static TexRegion Texels(RectF rect) => new(Kind.Texels, rect);
 
 	/// <summary>
 	/// A rectangle of the texture, in UV coordinates, i.e. from 0 to 1 across the texture.
@@ -116,12 +118,12 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 	/// <param name="rect">The rectangle, in UV coordinates.</param>
 	public static TexRegion Uv(RectF rect) => new(Kind.Uv, rect);
 
-	// returns the region in UV coordinates and its natural size in texture pixels
+	// returns the region in UV coordinates and its natural size in texels
 	internal (RectF Uv, float Width, float Height) Resolve(uint textureWidth, uint textureHeight) {
 		switch (kind) {
 		case Kind.Whole:
 			return (new RectF(0f, 0f, 1f, 1f), textureWidth, textureHeight);
-		case Kind.Pixels: {
+		case Kind.Texels: {
 			float invW = 1f / textureWidth;
 			float invH = 1f / textureHeight;
 			return (new RectF(rect.X * invW, rect.Y * invH, rect.Width * invW, rect.Height * invH), rect.Width, rect.Height);
@@ -136,7 +138,7 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 	// whether the region stays within a texture (or slice) of the given size
 	internal bool FitsIn(float width, float height) => kind switch {
 		Kind.Whole => true,
-		Kind.Pixels => within(rect, width, height),
+		Kind.Texels => within(rect, width, height),
 		Kind.Uv => within(rect, 1f, 1f),
 		_ => throw new UnreachableException(),
 	};
@@ -163,11 +165,18 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 /// <c>cv.Texture(tex, pos)</c> and <c>cv.Texture(tex, rect)</c>.
 /// </para>
 /// <para>
+/// A texture's <i>natural size</i> is the size of its <see cref="Source"/> region at 1 texel per
+/// drawable unit, e.g. 16x16du for a whole 16x16 texture, or 8x4du for a
+/// <see cref="TexRegion.Uv(RectF)"/> of (0, 0, 2, 1) of a 4x4 texture. For a
+/// <see cref="Texture2dSlice"/>, the whole region is the slice. <see cref="TexDst.At(Vector2)"/>
+/// draws at the natural size, and <see cref="TexDst.Rect(RectF)"/> ignores it.
+/// </para>
+/// <para>
 /// The quad is placed as described by <paramref name="Destination"/>, then scaled by
 /// <see cref="Scale"/> and rotated by <see cref="Rotation"/>, both around <see cref="Origin"/>.
 /// <see cref="FlipX"/> and <see cref="FlipY"/> mirror the texture within the quad without moving
 /// it. All of this happens before <see cref="CanvasParams.Transform"/> and
-/// <see cref="CanvasTarget.View"/>, which apply to the result like to any other draw.
+/// <see cref="CanvasTarget.Viewport"/>, which apply to the result like to any other draw.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid, since its <paramref name="Destination"/> is.
@@ -226,7 +235,7 @@ public readonly record struct TexDraw(TexDst Destination) {
 
 	/// <summary>
 	/// Draws the whole texture untinted and untransformed with its top-left corner at
-	/// <paramref name="topLeft"/>, at its natural size.
+	/// <paramref name="topLeft"/>, at its natural size (see <see cref="TexDraw"/>).
 	/// </summary>
 	public static implicit operator TexDraw(Vector2 topLeft) => new(TexDst.At(topLeft));
 

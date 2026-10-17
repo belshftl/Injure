@@ -8,7 +8,7 @@ using Injure.Primitives;
 
 namespace Injure.Tests.Draw;
 
-public sealed class VertexLayoutTests {
+public static class VertexLayoutTests {
 	[Fact]
 	public static void Vertex2dColorHasDocumentedLayout() {
 		Assert.Equal(Vertex2dColor.Size, Unsafe.SizeOf<Vertex2dColor>());

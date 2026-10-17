@@ -12,26 +12,26 @@ namespace Injure.Draw;
 
 /// <summary>
 /// Target for a <see cref="Canvas"/> to draw into (either the frame's primary output or an
-/// offscreen <see cref="RenderTarget2d"/>), plus a view matrix mapping the target's logical space
-/// to its pixels.
+/// offscreen <see cref="RenderTarget2d"/>), plus the <see cref="Draw.Viewport"/> that defines its
+/// drawable area.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Draws are transformed by <see cref="CanvasParams.Transform"/> first and by <see cref="View"/>
-/// second, i.e. the effective transform is <c>transform * view</c> (<see cref="System.Numerics"/>
-/// matrices act on row vectors, so the left operand applies first). The view matrix belongs to the
-/// target rather than to the transform, so <see cref="CanvasTransformOverride.Set(Matrix3x2)"/>
-/// replaces only the transform, and the view matrix stays. A typical view matrix for the primary
-/// output scales by the window's pixel density, so that draws are in logical units rather than
-/// physical pixels. The view matrix must be invertible (see <see cref="MatrixInvert"/>).
+/// Draws are transformed by <see cref="CanvasParams.Transform"/> into the drawable area, and
+/// <see cref="Viewport"/> maps the drawable area to the target's pixels. The viewport belongs to
+/// the target rather than to the transform, so
+/// <see cref="CanvasTransformOverride.Set(Matrix3x2)"/> only replaces the transform, and the
+/// viewport remains unchanged. Every draw is clipped to the drawable area. An example viewport for
+/// the primary output would cover the whole target at the window's pixel density, making it so
+/// that drawable units correspond to logical units rather than physical pixels.
 /// </para>
 /// <para>
-/// <see cref="RenderTarget2d"/> converts to <see cref="CanvasTarget"/> implicitly, using an
-/// identity matrix for the view matrix, since it's very uncommon that a non-identity view matrix
-/// is used for an offscreen render target.
+/// <see cref="RenderTarget2d"/> converts to <see cref="CanvasTarget"/> implicitly, using
+/// <see cref="Offscreen(RenderTarget2d)"/>, i.e. a viewport covering the whole render target at 1
+/// pixel per unit, since needing any other viewport for an offscreen render target is very rare.
 /// </para>
 /// <para>
-/// Equality compares both the render target and the view matrix; see
+/// Equality compares both the render target and the viewport; see
 /// <see cref="SameRenderTarget(CanvasTarget)"/> if you only care about the render target.
 /// </para>
 /// <para>
@@ -41,13 +41,12 @@ namespace Injure.Draw;
 public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 	private readonly RenderTarget2d? rt;
 	private readonly bool isPrimary;
-	private readonly Matrix3x2 view;
+	private readonly Viewport viewport;
 
 	/// <summary>
-	/// Matrix applied to draws after <see cref="CanvasParams.Transform"/>, mapping this target's
-	/// logical space to its pixels. Always invertible.
+	/// The target's drawable area.
 	/// </summary>
-	public Matrix3x2 View => IsDefault ? throw InvalidDefaultException.For<CanvasTarget>() : view;
+	public Viewport Viewport => IsDefault ? throw InvalidDefaultException.For<CanvasTarget>() : viewport;
 
 	/// <summary>
 	/// Whether this is the frame's primary output; see <see cref="RenderFrame.PrimaryView"/>.
@@ -73,51 +72,60 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 
 	internal bool IsDefault => rt is null && !isPrimary;
 
-	private CanvasTarget(RenderTarget2d? rt, bool isPrimary, Matrix3x2 view) {
+	private CanvasTarget(RenderTarget2d? rt, bool isPrimary, Viewport viewport) {
 		this.rt = rt;
 		this.isPrimary = isPrimary;
-		this.view = view;
+		this.viewport = viewport;
 	}
 
 	/// <summary>
 	/// Creates a target referring to the frame's primary output; see
 	/// <see cref="RenderFrame.PrimaryView"/>.
 	/// </summary>
-	/// <param name="view">
-	/// Matrix applied to draws after <see cref="CanvasParams.Transform"/>; must be
-	/// invertible (see <see cref="MatrixInvert"/>).
-	/// </param>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="view"/> isn't invertible.
+	/// <param name="viewport">The drawable area of the primary output.</param>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if <paramref name="viewport"/> is the <see langword="default"/> value.
 	/// </exception>
-	public static CanvasTarget Primary(Matrix3x2 view) {
-		MatrixInvert.ThrowIfNotInvertible(view);
-		return new CanvasTarget(null, true, view);
+	public static CanvasTarget Primary(Viewport viewport) {
+		if (viewport.IsDefault)
+			throw ArgumentInvalidDefaultException.For<Viewport>(nameof(viewport));
+		return new CanvasTarget(null, true, viewport);
+	}
+
+	/// <summary>
+	/// Creates a target referring to an offscreen render target, with a viewport covering all of it
+	/// at 1 pixel per drawable unit.
+	/// </summary>
+	/// <param name="renderTarget">Render target to draw into.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="renderTarget"/> is <see langword="null"/>.
+	/// </exception>
+	public static CanvasTarget Offscreen(RenderTarget2d renderTarget) {
+		ArgumentNullException.ThrowIfNull(renderTarget);
+		return new CanvasTarget(renderTarget, false, Viewport.Whole(new Vector2(renderTarget.Width, renderTarget.Height)));
 	}
 
 	/// <summary>
 	/// Creates a target referring to an offscreen render target.
 	/// </summary>
 	/// <param name="renderTarget">Render target to draw into.</param>
-	/// <param name="view">
-	/// Matrix applied to draws after <see cref="CanvasParams.Transform"/>; must be
-	/// invertible (see <see cref="MatrixInvert"/>).
-	/// </param>
+	/// <param name="viewport">The drawable area of the render target.</param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="renderTarget"/> is <see langword="null"/>.
 	/// </exception>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="view"/> isn't invertible.
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if <paramref name="viewport"/> is the <see langword="default"/> value.
 	/// </exception>
-	public static CanvasTarget Offscreen(RenderTarget2d renderTarget, Matrix3x2 view) {
+	public static CanvasTarget Offscreen(RenderTarget2d renderTarget, Viewport viewport) {
 		ArgumentNullException.ThrowIfNull(renderTarget);
-		MatrixInvert.ThrowIfNotInvertible(view);
-		return new CanvasTarget(renderTarget, false, view);
+		if (viewport.IsDefault)
+			throw ArgumentInvalidDefaultException.For<Viewport>(nameof(viewport));
+		return new CanvasTarget(renderTarget, false, viewport);
 	}
 
 	/// <summary>
 	/// Whether this and <paramref name="other"/> refer to the same render target, or both to the
-	/// primary output, regardless of their view matrices.
+	/// primary output, regardless of their <see cref="Viewport"/>s.
 	/// </summary>
 	/// <exception cref="InvalidDefaultException">
 	/// Thrown if this or <paramref name="other"/> is the <see langword="default"/> value.
@@ -129,19 +137,20 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 	public bool SameRenderTarget(CanvasTarget other) =>
 		IsPrimary == other.IsPrimary && ReferenceEquals(rt, other.rt);
 
-	public bool Equals(CanvasTarget other) => isPrimary == other.isPrimary && ReferenceEquals(rt, other.rt) && view.Equals(other.view);
+	public bool Equals(CanvasTarget other) => isPrimary == other.isPrimary && ReferenceEquals(rt, other.rt) && viewport.Equals(other.viewport);
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasTarget other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine(rt is null ? 0 : RuntimeHelpers.GetHashCode(rt), isPrimary, view);
+	public override int GetHashCode() => HashCode.Combine(rt is null ? 0 : RuntimeHelpers.GetHashCode(rt), isPrimary, viewport);
 	public static bool operator ==(CanvasTarget left, CanvasTarget right) => left.Equals(right);
 	public static bool operator !=(CanvasTarget left, CanvasTarget right) => !left.Equals(right);
 
 	/// <summary>
-	/// Creates a target referring to <paramref name="target"/>, with the identity view matrix.
+	/// Creates a target referring to <paramref name="target"/>; see
+	/// <see cref="Offscreen(RenderTarget2d)"/>.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="target"/> is <see langword="null"/>.
 	/// </exception>
-	public static implicit operator CanvasTarget(RenderTarget2d target) => Offscreen(target, Matrix3x2.Identity);
+	public static implicit operator CanvasTarget(RenderTarget2d target) => Offscreen(target);
 }
 
 /// <summary>
@@ -155,26 +164,36 @@ public readonly partial struct CanvasScissorKind {
 	/// <summary>Raw switch tag for <see cref="CanvasScissorKind"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// No clipping; the scissor is the whole target.
+		/// No clipping beyond the drawable area itself.
 		/// </summary>
 		None,
 
 		/// <summary>
-		/// The scissor is the given rectangle, clamped to the target.
+		/// Draws are clipped to the given rectangle, as well as to the drawable area.
 		/// </summary>
 		Set,
 	}
 }
 
 /// <summary>
-/// A scissor for <see cref="Canvas"/>, i.e. the rectangle of the target that draws are clipped to.
+/// A scissor for <see cref="Canvas"/>, i.e. a rectangle of the drawable area that draws are
+/// clipped to.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Rectangles are in target pixels, and not affected by <see cref="CanvasParams.Transform"/> or
-/// <see cref="CanvasTarget.View"/>, since the scissor is render pass state rather than geometry.
-/// <see cref="FromTransformed(RectF, Matrix3x2)"/> maps a rectangle in draw coordinates to target
-/// pixels.
+/// The rectangles are in drawable units, in the drawable area of the target's
+/// <see cref="CanvasTarget.Viewport"/>, and <b>not affected by
+/// <see cref="CanvasParams.Transform"/></b>, since the scissor is render pass state rather than
+/// geometry. <see cref="FromTransformed(RectF, Matrix3x2)"/> maps a rectangle through a transform
+/// matrix, e.g. to clip to a rectangle drawn under it. Draws are always clipped to the drawable
+/// area regardless of the scissor; a scissor can only add additional clipping confined to the
+/// drawable area.
+/// </para>
+/// <para>
+/// To clip, the scissor is mapped to target pixels with each edge rounded separately to the
+/// nearest pixel boundary, with halves rounded up (towards positive infinity), rather than
+/// rounding the position and size. This way, scissors sharing an edge map to adjacent pixel
+/// rectangles, with no gap or overlap between them.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is <see cref="None"/>.
@@ -187,78 +206,64 @@ public readonly struct CanvasScissor : IEquatable<CanvasScissor> {
 	public CanvasScissorKind Kind { get; }
 
 	/// <summary>
-	/// Scissor rectangle, in target pixels.
+	/// Scissor rectangle, in drawable units.
 	/// </summary>
 	/// <remarks>
 	/// Ignored for <see cref="CanvasScissorKind.None"/>.
 	/// </remarks>
-	public RectI Rect { get; }
+	public RectF Rect { get; }
 
-	private CanvasScissor(CanvasScissorKind kind, RectI rect) {
+	private CanvasScissor(CanvasScissorKind kind, RectF rect) {
 		Kind = kind;
 		Rect = rect;
 	}
 
 	/// <summary>
-	/// No clipping; the scissor is the whole target.
+	/// No clipping beyond the drawable area itself.
 	/// </summary>
 	public static readonly CanvasScissor None = new(CanvasScissorKind.None, default);
 
 	/// <summary>
-	/// Creates a scissor that is <paramref name="rect"/>, clamped to the target.
+	/// Creates a scissor that is <paramref name="rect"/>, clamped to the drawable area.
 	/// </summary>
-	/// <param name="rect">Scissor rectangle, in target pixels.</param>
-	public static CanvasScissor Set(RectI rect) => new(CanvasScissorKind.Set, rect);
+	/// <param name="rect">Scissor rectangle, in drawable units.</param>
+	public static CanvasScissor Set(RectF rect) => new(CanvasScissorKind.Set, rect);
 
 	// relative to the largest element; rotations by multiples of 90 degrees computed in floats leave
 	// the elements that should be 0 around 1e-7, well below this
 	private const float axisEpsilon = 1e-5f;
-	// floats can't represent every integer past 2^24 anyway, and no target is that large
-	private const float edgeLimit = 1 << 24;
 
 	/// <summary>
-	/// Maps <paramref name="rect"/> through <paramref name="transform"/> to a rectangle in target
-	/// pixels, for use as a scissor rect.
+	/// Maps <paramref name="rect"/> through <paramref name="transform"/>, which must map axis-aligned
+	/// rectangles to axis-aligned rectangles, for use as a scissor rect.
 	/// </summary>
 	/// <param name="rect">Rectangle to map, e.g. in the coordinates draws are made in.</param>
 	/// <param name="transform">
-	/// Matrix mapping <paramref name="rect"/> to an axis-aligned rect in target pixels, e.g.
-	/// <see cref="Canvas.EffectiveTransform"/>; must be invertible (see <see cref="MatrixInvert"/>).
+	/// Matrix mapping <paramref name="rect"/> to an axis-aligned rect in the drawable area, e.g.
+	/// <see cref="Canvas.CurrentTransform"/>; must be invertible (see <see cref="MatrixInvert"/>).
 	/// </param>
-	/// <returns>
-	/// The mapped rectangle, with each edge rounded to the nearest pixel boundary.
-	/// </returns>
+	/// <returns>The mapped rectangle.</returns>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="transform"/> isn't invertible, or doesn't map axis-aligned
 	/// rectangles to axis-aligned rectangles, i.e. rotates by something other than a multiple of 90
-	/// degrees, or shears.
+	/// degrees or shears.
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// Scissors are in target pixels and ignore <see cref="CanvasParams.Transform"/> and
-	/// <see cref="CanvasTarget.View"/>, so a rectangle in draw coords needs to be manually mapped to
-	/// target pixels using the aforementioned matrices. Pass in the matrix the scissor will apply
-	/// under; if the same override also changes the transform or the target, make sure to use the new
-	/// effective transform, not the current <see cref="Canvas.EffectiveTransform"/>.
-	/// </para>
-	/// <para>
-	/// Each edge is rounded separately, with halves rounded up (towards positive infinity), rather
-	/// than rounding the position and size. This way, adjacent rectangles sharing an edge map to
-	/// adjacent pixel rectangles, with no gap or overlap between them. Negative scales (flips) and
-	/// rotations by multiples of 90 degrees are allowed; the edges are reordered as needed.
+	/// Scissors ignore <see cref="CanvasParams.Transform"/>, so a rectangle in draw coordinates needs
+	/// to be mapped to the drawable area manually. Pass in the transform the scissor will apply
+	/// under; if the same override also changes the transform, make sure to use the new transform,
+	/// not the current <see cref="Canvas.CurrentTransform"/>. Negative scales (flips) and rotations
+	/// by multiples of 90 degrees are allowed; the edges are reordered as needed.
 	/// </para>
 	/// <para>
 	/// The matrix counts as axis-aligned if either both off-diagonal elements
 	/// (<see cref="Matrix3x2.M12"/> and <see cref="Matrix3x2.M21"/>) or both diagonal elements
 	/// (<see cref="Matrix3x2.M11"/> and <see cref="Matrix3x2.M22"/>) are 0, with a slight tolerance
-	/// for float error relative to the largest of the four. Edges further than 2^24 pixels from the
-	/// origin are clamped to that distance, which doesn't change the effective scissor, since it's
-	/// clamped to the target and render targets pretty much never get that huge.
+	/// for float error relative to the largest of the four.
 	/// </para>
 	/// </remarks>
-	public static RectI FromTransformed(RectF rect, Matrix3x2 transform) {
-		static int roundEdge(float v) => (int)MathF.Floor(Math.Clamp(v, -edgeLimit, edgeLimit) + 0.5f);
-
+	public static RectF FromTransformed(RectF rect, Matrix3x2 transform) {
 		MatrixInvert.ThrowIfNotInvertible(transform);
 		Matrix3x2 m = transform;
 		float tolerance = axisEpsilon * MathF.Max(
@@ -280,11 +285,7 @@ public readonly struct CanvasScissor : IEquatable<CanvasScissor> {
 		} else {
 			throw new ArgumentOutOfRangeException(nameof(transform), transform, "transform must map axis-aligned rectangles to axis-aligned rectangles");
 		}
-		int left = roundEdge(MathF.Min(x1, x2));
-		int right = roundEdge(MathF.Max(x1, x2));
-		int top = roundEdge(MathF.Min(y1, y2));
-		int bottom = roundEdge(MathF.Max(y1, y2));
-		return new RectI(left, top, right - left, bottom - top);
+		return RectF.FromLtrb(MathF.Min(x1, x2), MathF.Min(y1, y2), MathF.Max(x1, x2), MathF.Max(y1, y2));
 	}
 
 	public bool Equals(CanvasScissor other) => Kind == other.Kind && Rect.Equals(other.Rect);
@@ -298,19 +299,19 @@ public readonly struct CanvasScissor : IEquatable<CanvasScissor> {
 /// Describes how a <see cref="CanvasScissorOverride"/> is applied to the current scissor.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="None"/>.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
-[ClosedEnum]
+[ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct CanvasScissorOverrideKind {
 	/// <summary>Raw switch tag for <see cref="CanvasScissorOverrideKind"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// Removes the current scissor; the scissor becomes the whole target.
+		/// Removes the current scissor; draws are only clipped to the drawable area.
 		/// </summary>
-		None,
+		NoScissor = 1,
 
 		/// <summary>
-		/// Replaces the current scissor with the given rectangle, clamped to the target.
+		/// Replaces the current scissor with the given rectangle, clamped to the drawable area.
 		/// </summary>
 		Set,
 
@@ -326,60 +327,66 @@ public readonly partial struct CanvasScissorOverrideKind {
 /// </summary>
 /// <remarks>
 /// <para>
-/// Rectangles are in target pixels, like <see cref="CanvasScissor.Rect"/>.
+/// The rectangles are in drawable units, unaffected by the transform matrix, and cannot widen the
+/// clip beyond the drawable area; see <see cref="CanvasScissor"/> for more info.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is valid and is <see cref="None"/>.
+/// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
 public readonly struct CanvasScissorOverride : IEquatable<CanvasScissorOverride> {
+	private readonly CanvasScissorOverrideKind kind;
+	private readonly RectF rect;
+
 	/// <summary>
 	/// How <see cref="Rect"/> is applied to the current scissor.
 	/// </summary>
-	public CanvasScissorOverrideKind Kind { get; }
+	public CanvasScissorOverrideKind Kind => IsDefault ? throw InvalidDefaultException.For<CanvasScissorOverride>() : kind;
 
 	/// <summary>
-	/// Rectangle to set or intersect with, in target pixels.
+	/// Rectangle to set or intersect with, in drawable units.
 	/// </summary>
 	/// <remarks>
-	/// Ignored for <see cref="CanvasScissorOverrideKind.None"/>.
+	/// Ignored for <see cref="CanvasScissorOverrideKind.NoScissor"/>.
 	/// </remarks>
-	public RectI Rect { get; }
+	public RectF Rect => IsDefault ? throw InvalidDefaultException.For<CanvasScissorOverride>() : rect;
 
-	private CanvasScissorOverride(CanvasScissorOverrideKind kind, RectI rect) {
-		Kind = kind;
-		Rect = rect;
+	internal bool IsDefault => kind == default;
+
+	private CanvasScissorOverride(CanvasScissorOverrideKind kind, RectF rect) {
+		this.kind = kind;
+		this.rect = rect;
 	}
 
 	/// <summary>
-	/// Removes the current scissor; the scissor becomes the whole target.
+	/// Removes the current scissor, making draws only clipped to the drawable area.
 	/// </summary>
-	public static readonly CanvasScissorOverride None = new(CanvasScissorOverrideKind.None, default);
+	public static readonly CanvasScissorOverride NoScissor = new(CanvasScissorOverrideKind.NoScissor, default);
 
 	/// <summary>
 	/// Creates an override that replaces the current scissor with <paramref name="rect"/>, clamped
-	/// to the target.
+	/// to the drawable area.
 	/// </summary>
-	/// <param name="rect">Scissor rectangle, in target pixels.</param>
-	public static CanvasScissorOverride Set(RectI rect) => new(CanvasScissorOverrideKind.Set, rect);
+	/// <param name="rect">Scissor rectangle, in drawable units.</param>
+	public static CanvasScissorOverride Set(RectF rect) => new(CanvasScissorOverrideKind.Set, rect);
 
 	/// <summary>
 	/// Creates an override that intersects the current scissor with <paramref name="rect"/>.
 	/// </summary>
 	/// <param name="rect">
-	/// Rectangle to intersect the current scissor with, in target pixels.
+	/// Rectangle to intersect the current scissor with, in drawable units.
 	/// </param>
 	/// <remarks>
 	/// If the current scissor is <see cref="CanvasScissor.None"/>, this is the same as
-	/// <see cref="Set(RectI)"/>. If the rectangles don't overlap with a positive area, the new
-	/// scissor rectangle is <see cref="RectI.Empty"/>, which clips every draw (see
-	/// <see cref="RectI.TryIntersect(RectI, out RectI)"/>).
+	/// <see cref="Set(RectF)"/>. If the rectangles don't overlap with a positive area, the new
+	/// scissor rectangle is <see cref="RectF.Empty"/>, which clips every draw (see
+	/// <see cref="RectF.TryIntersect(RectF, out RectF)"/>).
 	/// </remarks>
-	public static CanvasScissorOverride Intersect(RectI rect) => new(CanvasScissorOverrideKind.Intersect, rect);
+	public static CanvasScissorOverride Intersect(RectF rect) => new(CanvasScissorOverrideKind.Intersect, rect);
 
-	public bool Equals(CanvasScissorOverride other) => Kind == other.Kind && Rect.Equals(other.Rect);
+	public bool Equals(CanvasScissorOverride other) => kind == other.kind && rect.Equals(other.rect);
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasScissorOverride other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine((int)Kind.Tag, Rect);
+	public override int GetHashCode() => HashCode.Combine((int)kind.Tag, rect);
 	public static bool operator ==(CanvasScissorOverride left, CanvasScissorOverride right) => left.Equals(right);
 	public static bool operator !=(CanvasScissorOverride left, CanvasScissorOverride right) => !left.Equals(right);
 }
@@ -388,16 +395,16 @@ public readonly struct CanvasScissorOverride : IEquatable<CanvasScissorOverride>
 /// Describes how a <see cref="CanvasTransformOverride"/> is applied to the current transform.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Set"/>.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
-[ClosedEnum(CheckZeroName = false)] // plain replacement is the simplest of the two
+[ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct CanvasTransformOverrideKind {
 	/// <summary>Raw switch tag for <see cref="CanvasTransformOverrideKind"/>.</summary>
 	public enum Case {
 		/// <summary>
 		/// Replaces the current transform with the given matrix.
 		/// </summary>
-		Set,
+		Set = 1,
 
 		/// <summary>
 		/// Applies the given matrix in the space of the current transform, i.e. the new transform is
@@ -435,21 +442,14 @@ public readonly struct CanvasTransformOverride : IEquatable<CanvasTransformOverr
 	/// <summary>
 	/// How <see cref="Matrix"/> is applied to the current transform.
 	/// </summary>
-	/// <exception cref="InvalidDefaultException">
-	/// Thrown if this is the <see langword="default"/> value.
-	/// </exception>
 	public CanvasTransformOverrideKind Kind => IsDefault ? throw InvalidDefaultException.For<CanvasTransformOverride>() : kind;
 
 	/// <summary>
 	/// Matrix to set or multiply in. Always invertible.
 	/// </summary>
-	/// <exception cref="InvalidDefaultException">
-	/// Thrown if this is the <see langword="default"/> value.
-	/// </exception>
 	public Matrix3x2 Matrix => IsDefault ? throw InvalidDefaultException.For<CanvasTransformOverride>() : matrix;
 
-	// the factories reject the zero matrix, so only the default value has it
-	internal bool IsDefault => matrix == default;
+	internal bool IsDefault => kind == default;
 
 	private CanvasTransformOverride(CanvasTransformOverrideKind kind, Matrix3x2 matrix) {
 		this.kind = kind;

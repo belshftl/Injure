@@ -6,9 +6,9 @@ using Injure.Draw;
 
 namespace Injure.Tests.Draw;
 
-public sealed class MatrixInvertTests {
+public static class MatrixInvertTests {
 	[Fact]
-	public void InvertibleMatricesInvert() {
+	public static void InvertibleMatricesInvert() {
 		Matrix3x2 m = Matrix3x2.CreateScale(2) * Matrix3x2.CreateTranslation(3, 4);
 		Assert.True(MatrixInvert.TryInvert(m, out Matrix3x2 inv));
 		Assert.Equal(new Vector2(1, 1), Vector2.Transform(new Vector2(5, 6), inv));
@@ -16,7 +16,7 @@ public sealed class MatrixInvertTests {
 	}
 
 	[Fact]
-	public void StricterThanMatrix3x2Invert() {
+	public static void StricterThanMatrix3x2Invert() {
 		// the determinant (1e40) overflows; Matrix3x2.Invert "succeeds" with all zeros
 		var huge = Matrix3x2.CreateScale(1e20f);
 		Assert.True(Matrix3x2.Invert(huge, out _));
@@ -29,7 +29,7 @@ public sealed class MatrixInvertTests {
 	}
 
 	[Fact]
-	public void ThrowUsesTheArgumentExpressionAsTheParamName() {
+	public static void ThrowIfNotInvertibleWorks() {
 		var singular = Matrix3x2.CreateScale(0);
 		ArgumentOutOfRangeException ex = Assert.Throws<ArgumentOutOfRangeException>(() => MatrixInvert.ThrowIfNotInvertible(singular));
 		Assert.Equal("singular", ex.ParamName);

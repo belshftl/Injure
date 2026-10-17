@@ -5,7 +5,7 @@ using Injure.Assets;
 
 namespace Injure.Tests.Assets;
 
-public sealed class AssetIdTests {
+public static class AssetIdTests {
 	[Theory]
 	[InlineData("injure")]
 	[InlineData("my-mod.v2_x")]

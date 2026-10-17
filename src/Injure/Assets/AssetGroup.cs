@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Collections;
+
 namespace Injure.Assets;
 
 /// <summary>
@@ -15,36 +17,56 @@ namespace Injure.Assets;
 /// members are decided at runtime.
 /// </para>
 /// <para>
-/// Residencies take a snapshot of <see cref="Members"/> when they're created, so a group whose
-/// members change afterwards doesn't affect existing residencies.
+/// The members are only reachable through <see cref="IReadOnlyList{T}"/>, which this class
+/// implements explicitly, e.g. by <see langword="foreach"/> or LINQ. That's so that the group adds
+/// no public member names of its own, which would collide with the asset properties of generated
+/// derived classes.
+/// </para>
+/// <para>
+/// Residencies take a snapshot of the members when they're created, so a group whose members change
+/// afterwards doesn't affect existing residencies.
 /// </para>
 /// </remarks>
-public abstract class AssetGroup {
+public abstract class AssetGroup : IReadOnlyList<IUntypedAsset> {
+	private readonly IReadOnlyList<IUntypedAsset> members;
+
 	/// <summary>
-	/// The assets in this group. Implementations return the same assets every time, unless the group
-	/// is meant to change.
+	/// Creates a group of <paramref name="members"/>.
 	/// </summary>
-	public abstract IReadOnlyList<IUntypedAsset> Members { get; }
+	/// <param name="members">
+	/// The assets in this group. The group keeps the list rather than copying it, so a derived class
+	/// can fill it after this constructor runs, or change it later if the group is meant to change.
+	/// </param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="members"/> is <see langword="null"/>.
+	/// </exception>
+	protected AssetGroup(IReadOnlyList<IUntypedAsset> members) {
+		ArgumentNullException.ThrowIfNull(members);
+		this.members = members;
+	}
+
+	int IReadOnlyCollection<IUntypedAsset>.Count => members.Count;
+	IUntypedAsset IReadOnlyList<IUntypedAsset>.this[int index] => members[index];
+	IEnumerator<IUntypedAsset> IEnumerable<IUntypedAsset>.GetEnumerator() => members.GetEnumerator();
+	IEnumerator IEnumerable.GetEnumerator() => members.GetEnumerator();
 }
 
 /// <summary>
 /// An <see cref="AssetGroup"/> with members given at runtime, e.g. assets listed by a level file,
 /// or several groups combined.
 /// </summary>
-public sealed class AssetSet : AssetGroup {
-	private readonly IUntypedAsset[] members;
-
-	/// <summary>
-	/// Creates a group of <paramref name="members"/>, deduplicated.
-	/// </summary>
-	/// <param name="members">The assets.</param>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="members"/> or one of its elements is <see langword="null"/>.
-	/// </exception>
-	public AssetSet(IEnumerable<IUntypedAsset> members) {
+/// <remarks>
+/// Creates a group of <paramref name="members"/>, deduplicated.
+/// </remarks>
+/// <param name="members">The assets.</param>
+/// <exception cref="ArgumentNullException">
+/// Thrown if <paramref name="members"/> or one of its elements is <see langword="null"/>.
+/// </exception>
+public sealed class AssetSet(IEnumerable<IUntypedAsset> members) : AssetGroup(dedup(members)) {
+	private static IUntypedAsset[] dedup(IEnumerable<IUntypedAsset> members) {
 		ArgumentNullException.ThrowIfNull(members);
 		// handles are canonical per asset, so reference equality finds duplicates
-		this.members = members.Select(static m => m ?? throw new ArgumentNullException(nameof(members), "asset set members must not be null"))
+		return members.Select(static m => m ?? throw new ArgumentNullException(nameof(members), "asset set members must not be null"))
 			.Distinct(ReferenceEqualityComparer.Instance)
 			.Cast<IUntypedAsset>()
 			.ToArray();
@@ -61,11 +83,8 @@ public sealed class AssetSet : AssetGroup {
 		List<IUntypedAsset> all = new();
 		foreach (AssetGroup g in groups) {
 			ArgumentNullException.ThrowIfNull(g, nameof(groups));
-			all.AddRange(g.Members);
+			all.AddRange(g);
 		}
 		return new AssetSet(all);
 	}
-
-	/// <inheritdoc/>
-	public override IReadOnlyList<IUntypedAsset> Members => members;
 }

@@ -76,9 +76,9 @@ public readonly struct StandardGameOptions {
 	public SrgbColor32 ClearColor { get; init; } = SrgbColor32.Black;
 
 	/// <summary>
-	/// Whether the primary target's view matrix should factor in HiDPI pixel density, i.e. whether
-	/// draw coordinates on the window are logical units or physical pixels. See
-	/// <see cref="StandardGame.PrimaryView"/>.
+	/// What a drawable unit on the primary target should correspond to: a logical unit (i.e. window
+	/// coordinate), a physical pixel, or a unit of a letterboxed fixed-size area. See
+	/// <see cref="StandardGame.PrimaryViewport"/>.
 	/// </summary>
 	public PrimaryViewMode PrimaryViewMode { get; init; } = PrimaryViewMode.LogicalUnits;
 
@@ -106,6 +106,8 @@ public readonly struct StandardGameOptions {
 		if (DiagnosticsSinks is not null && DiagnosticsSinks.Any(static s => s is null))
 			throw new ArgumentException("DiagnosticsSinks must not contain null", paramName);
 		Window.Validate(paramName);
+		if (PrimaryViewMode.IsDefault)
+			throw new ArgumentInvalidDefaultException("PrimaryViewMode must not be the default value", paramName);
 		if (MaxFps is double fps && (!double.IsFinite(fps) || fps <= 0.0))
 			throw new ArgumentOutOfRangeException(paramName, $"MaxFps must be positive and finite, or null, got {fps}");
 		if (MaxBufferedInputEvents <= 0)

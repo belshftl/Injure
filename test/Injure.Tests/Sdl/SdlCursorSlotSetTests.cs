@@ -5,7 +5,7 @@ using Injure.Sdl;
 
 namespace Injure.Tests.Sdl;
 
-public sealed class SdlCursorSlotSetTests {
+public static class SdlCursorSlotSetTests {
 	private static SdlCursorSlotState add(
 		SdlCursorSlotSet set,
 		SdlCursorBand band,
@@ -18,7 +18,7 @@ public sealed class SdlCursorSlotSetTests {
 	}
 
 	[Fact]
-	public void NoOpinionsResolveToDefault() {
+	public static void NoOpinionsResolveToDefault() {
 		SdlCursorSlotSet set = new();
 		Assert.Equal(SdlCursor.Default, set.Resolve());
 		add(set, SdlCursorBand.Overlay, 5, null);
@@ -26,7 +26,7 @@ public sealed class SdlCursorSlotSetTests {
 	}
 
 	[Fact]
-	public void LaterBandsWinRegardlessOfRank() {
+	public static void LaterBandsWinRegardlessOfRank() {
 		SdlCursorSlotSet set = new();
 		add(set, SdlCursorBand.Overlay, int.MinValue, SdlCursor.Crosshair);
 		add(set, SdlCursorBand.Content, int.MaxValue, SdlCursor.Pointer);
@@ -34,7 +34,7 @@ public sealed class SdlCursorSlotSetTests {
 	}
 
 	[Fact]
-	public void HigherRanksWinWithinABand() {
+	public static void HigherRanksWinWithinABand() {
 		SdlCursorSlotSet set = new();
 		add(set, SdlCursorBand.Content, 2, SdlCursor.Move);
 		add(set, SdlCursorBand.Content, 1, SdlCursor.Pointer);
@@ -42,7 +42,7 @@ public sealed class SdlCursorSlotSetTests {
 	}
 
 	[Fact]
-	public void LaterCreatedSlotsWinTies() {
+	public static void LaterCreatedSlotsWinTies() {
 		SdlCursorSlotSet set = new();
 		SdlCursorSlotState first = add(set, SdlCursorBand.Content, 0, SdlCursor.Text);
 		add(set, SdlCursorBand.Content, 0, SdlCursor.Pointer);
@@ -53,7 +53,7 @@ public sealed class SdlCursorSlotSetTests {
 	}
 
 	[Fact]
-	public void NoOpinionFallsThroughToLowerSlots() {
+	public static void NoOpinionFallsThroughToLowerSlots() {
 		SdlCursorSlotSet set = new();
 		add(set, SdlCursorBand.Content, 0, SdlCursor.NwseResize);
 		SdlCursorSlotState overlay = add(set, SdlCursorBand.Overlay, 0, SdlCursor.Default);
@@ -64,7 +64,7 @@ public sealed class SdlCursorSlotSetTests {
 	}
 
 	[Fact]
-	public void HiddenCompetesLikeAnyCursor() {
+	public static void HiddenCompetesLikeAnyCursor() {
 		SdlCursorSlotSet set = new();
 		add(set, SdlCursorBand.Content, 0, SdlCursor.Pointer);
 		SdlCursorSlotState hide = add(set, SdlCursorBand.Content, 1, SdlCursor.Hidden);

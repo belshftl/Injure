@@ -5,14 +5,14 @@ using Injure.Assets;
 
 namespace Injure.Tests.Assets;
 
-public sealed class DerivedAssetTests {
+public static class DerivedAssetTests {
 	[Fact]
 	public static void DerivedValuesAreComputedLazilyAndRecomputedOnReload() {
 		using TestStore ts = new();
 		using AssetThreadAttachment att = ts.Store.AttachCurrentThread();
 		Asset<PlainValue> a = ts.Get<PlainValue>("a.txt", "v1");
 		int computes = 0;
-		using DerivedAsset<PlainValue> upper = DerivedAsset.Create(a, v => {
+		using var upper = DerivedAsset.Create(a, v => {
 			computes++;
 			return new PlainValue(v.Text.ToUpperInvariant());
 		});
@@ -35,7 +35,7 @@ public sealed class DerivedAssetTests {
 		using AssetThreadAttachment att = ts.Store.AttachCurrentThread();
 		Asset<ResourceValue> a = ts.Get<ResourceValue>("a.txt", "v1");
 		// the derived value references its input, which must stay alive as long as it does
-		using DerivedAsset<PlainValue> wrap = DerivedAsset.Create(a, v => new PlainValue(v.Text + "!"));
+		using var wrap = DerivedAsset.Create(a, v => new PlainValue(v.Text + "!"));
 		AssetPin<PlainValue> pin = wrap.Pin();
 		ResourceValue v1 = a.Borrow().Value;
 
@@ -61,14 +61,14 @@ public sealed class DerivedAssetTests {
 		using AssetThreadAttachment att = ts.Store.AttachCurrentThread();
 		Asset<PlainValue> a = ts.Get<PlainValue>("a.txt", "a1");
 		Asset<PlainValue> b = ts.Get<PlainValue>("b.txt", "b1");
-		using DerivedAsset<PlainValue> ab = DerivedAsset.Create(a, b, (x, y) => new PlainValue(x.Text + y.Text));
-		using DerivedAsset<PlainValue> outer = DerivedAsset.Create(ab, v => new PlainValue($"[{v.Text}]"));
+		using var ab = DerivedAsset.Create(a, b, (x, y) => new PlainValue(x.Text + y.Text));
+		using var outer = DerivedAsset.Create(ab, v => new PlainValue($"[{v.Text}]"));
 		Assert.Equal("[a1b1]", outer.Borrow().Value.Text);
 		ts.Reload(b, "b2");
 		// outer's input is ab's old version, so it's stale through ab
 		Assert.Equal("[a1b2]", outer.Borrow().Value.Text);
 
-		using DerivedAsset<PlainValue> general = DerivedAsset.Create<PlainValue>(
+		using var general = DerivedAsset.Create(
 			[a, b, outer],
 			ctx => new PlainValue(ctx.Get(a).Text + ctx.Get(outer).Text)
 		);
@@ -82,7 +82,7 @@ public sealed class DerivedAssetTests {
 		using TestStore ts = new();
 		using AssetThreadAttachment att = ts.Store.AttachCurrentThread();
 		Asset<PlainValue> a = ts.Get<PlainValue>("a.txt", "ok");
-		using DerivedAsset<PlainValue> d = DerivedAsset.Create(a, v =>
+		using var d = DerivedAsset.Create(a, v =>
 			v.Text == "boom" ? throw new FormatException("bad") : new PlainValue(v.Text));
 		AssetPin<PlainValue> pin = d.Pin();
 		ts.Reload(a, "boom");
@@ -106,11 +106,11 @@ public sealed class DerivedAssetTests {
 		using AssetThreadAttachment att = ts.Store.AttachCurrentThread();
 		Asset<PlainValue> a = ts.Get<PlainValue>("a.txt", "v1");
 		BareDisposable? made = null;
-		using DerivedAsset<BareDisposable> bad = DerivedAsset.Create(a, _ => made = new BareDisposable());
+		using var bad = DerivedAsset.Create(a, _ => made = new BareDisposable());
 		Assert.Throws<InvalidOperationException>(() => bad.Borrow());
 		Assert.True(made!.Disposed);
 
-		using DerivedAsset<ResourceValue> res = DerivedAsset.Create(a, v => new ResourceValue(v.Text));
+		using var res = DerivedAsset.Create(a, v => new ResourceValue(v.Text));
 		ResourceValue r1 = res.Borrow().Value;
 		Assert.True(r1.IsAssetStoreOwned);
 		Assert.Null(r1.Custody!.AssetId);
@@ -153,10 +153,10 @@ public sealed class DerivedAssetTests {
 		using TestStore ts1 = new(), ts2 = new();
 		Asset<PlainValue> a = ts1.Get<PlainValue>("a.txt", "x");
 		Asset<PlainValue> b = ts2.Get<PlainValue>("b.txt", "y");
-		Assert.Throws<ArgumentException>(() => DerivedAsset.Create<PlainValue>([], _ => new PlainValue("")));
+		Assert.Throws<ArgumentException>(() => DerivedAsset.Create([], _ => new PlainValue("")));
 		Assert.Throws<ArgumentException>(() => DerivedAsset.Create(a, b, (x, y) => x));
 		Assert.Throws<ArgumentException>(() => {
-			using DerivedAsset<PlainValue> d = DerivedAsset.Create<PlainValue>([a], ctx => ctx.Get(b));
+			using var d = DerivedAsset.Create([a], ctx => ctx.Get(b));
 			using AssetThreadAttachment att = ts1.Store.AttachCurrentThread();
 			_ = d.Borrow();
 		});

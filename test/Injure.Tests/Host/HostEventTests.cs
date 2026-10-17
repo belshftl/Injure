@@ -6,7 +6,7 @@ using Injure.Input;
 
 namespace Injure.Tests.Host;
 
-public sealed class HostEventTests {
+public static class HostEventTests {
 	private static readonly HostTick t = HostTick.DangerousCreateFromRaw(1234);
 
 	[Fact]

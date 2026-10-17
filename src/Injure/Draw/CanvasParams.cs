@@ -12,15 +12,18 @@ namespace Injure.Draw;
 /// Parameters for <see cref="Canvas"/>.
 /// </summary>
 /// <param name="Target">
-/// What to draw into; also carries the view matrix applied after <paramref name="Transform"/>.
+/// What to draw into; also carries the <see cref="Viewport"/> that defines the drawable area.
 /// </param>
 /// <param name="ColorAttachmentOps">
 /// What to do with <paramref name="Target"/>'s contents when its render pass begins, e.g. clear it.
 /// </param>
-/// <param name="Scissor">Rectangle that draws are clipped to.</param>
+/// <param name="Scissor">
+/// Rectangle of the drawable area that draws are clipped to, in addition to being clipped to the
+/// drawable area itself.
+/// </param>
 /// <param name="Transform">
-/// Transform matrix applied to the positions of draws, before the view matrix of
-/// <paramref name="Target"/>. Must be invertible (see <see cref="MatrixInvert"/>).
+/// Transform matrix mapping draw coordinates to the drawable area, in drawable units. Must be
+/// invertible (see <see cref="MatrixInvert"/>).
 /// </param>
 /// <param name="OutputState">
 /// How draws are written to the target: blending and color write mask.
@@ -39,14 +42,15 @@ namespace Injure.Draw;
 /// begun with <see cref="LoadOp.Load"/>), rather than applying that state's
 /// <paramref name="ColorAttachmentOps"/> again. Changing <paramref name="OutputState"/>,
 /// <paramref name="Material"/>, <paramref name="Sampling"/>, or <paramref name="Scissor"/> starts a
-/// new draw call; changing <paramref name="Transform"/> or only the view matrix of
-/// <paramref name="Target"/> doesn't, since both are applied to vertices on the CPU.
+/// new draw call, and so does changing only the viewport of <paramref name="Target"/> if that
+/// changes the clip; changing <paramref name="Transform"/> doesn't, since it's applied to vertices
+/// on the CPU.
 /// </para>
 /// <para>
-/// Transform and view matrices must be invertible, as <see cref="MatrixInvert"/> defines it. The
-/// effective transform, <c>Transform * view</c>, must be invertible too; it is capable of becoming
-/// non-invertible at extreme scales even if both factors are invertible, since the product can
-/// underflow or overflow.
+/// The transform must be invertible, as <see cref="MatrixInvert"/> defines it. So must the
+/// effective transform (see <see cref="EffectiveTransform"/>), which is capable of becoming
+/// non-invertible at extreme scales even though the viewport always maps invertibly, since the
+/// product can underflow or overflow.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid, since its <paramref name="Target"/>,
@@ -63,40 +67,40 @@ public readonly record struct CanvasParams(
 	TexSampling Sampling
 ) {
 	/// <summary>
-	/// Creates parameters for drawing into the primary target with the given view matrix, clearing it
-	/// to <paramref name="clearColor"/> first.
+	/// Creates parameters for drawing into the primary target with the given viewport, clearing it to
+	/// <paramref name="clearColor"/> first.
 	/// </summary>
-	/// <param name="view">
-	/// View matrix of the primary target; see <see cref="CanvasTarget.View"/>.
+	/// <param name="viewport">
+	/// Drawable area of the primary target; see <see cref="CanvasTarget.Viewport"/>.
 	/// </param>
 	/// <param name="clearColor">Color the target is cleared to.</param>
-	/// <inheritdoc cref="Primary(Matrix3x2, ColorAttachmentOps)" path="/exception"/>
-	/// <inheritdoc cref="Primary(Matrix3x2, ColorAttachmentOps)" path="/remarks"/>
-	public static CanvasParams Primary(Matrix3x2 view, SrgbColor32 clearColor) =>
-		Primary(view, ColorAttachmentOps.Clear(clearColor.ToRawF128()));
+	/// <inheritdoc cref="Primary(Viewport, ColorAttachmentOps)" path="/exception"/>
+	/// <inheritdoc cref="Primary(Viewport, ColorAttachmentOps)" path="/remarks"/>
+	public static CanvasParams Primary(Viewport viewport, SrgbColor32 clearColor) =>
+		Primary(viewport, ColorAttachmentOps.Clear(clearColor.ToRawF128()));
 
 	/// <summary>
-	/// Creates parameters for drawing into the primary target with the given view matrix and
+	/// Creates parameters for drawing into the primary target with the given viewport and
 	/// <see cref="ColorAttachmentOps"/>.
 	/// </summary>
-	/// <param name="view">
-	/// View matrix of the primary target; see <see cref="CanvasTarget.View"/>.
+	/// <param name="viewport">
+	/// Drawable area of the primary target; see <see cref="CanvasTarget.Viewport"/>.
 	/// </param>
 	/// <param name="colorAttachmentOps">
 	/// What to do with the target's contents when its render pass begins, e.g.
 	/// <see cref="ColorAttachmentOps.Load"/> to draw over them.
 	/// </param>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="view"/> isn't invertible.
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if <paramref name="viewport"/> is the <see langword="default"/> value.
 	/// </exception>
 	/// <remarks>
 	/// The other parameters are: no scissor, the identity transform,
 	/// <see cref="CanvasOutputStates.Alpha"/>, <see cref="CanvasMaterial.Color"/>, and
-	/// <see cref="TexSampling.Nearest"/>. Use a <see langword="with"/> expression to change some of
-	/// them.
+	/// <see cref="TexSampling.Nearest"/>. A <see langword="with"/> expression can be used to change
+	/// some of them.
 	/// </remarks>
-	public static CanvasParams Primary(Matrix3x2 view, ColorAttachmentOps colorAttachmentOps) => new(
-		Target: CanvasTarget.Primary(view),
+	public static CanvasParams Primary(Viewport viewport, ColorAttachmentOps colorAttachmentOps) => new(
+		Target: CanvasTarget.Primary(viewport),
 		ColorAttachmentOps: colorAttachmentOps,
 		Scissor: CanvasScissor.None,
 		Transform: Matrix3x2.Identity,
@@ -106,12 +110,73 @@ public readonly record struct CanvasParams(
 	);
 
 	/// <summary>
-	/// <c>Transform * Target.View</c>. Maps draw coordinates to target pixels.
+	/// Creates parameters for drawing into all of <paramref name="frame"/>'s primary output at
+	/// <paramref name="pixelsPerUnit"/>, clearing it to <paramref name="clearColor"/> first.
 	/// </summary>
-	/// <exception cref="InvalidDefaultException">
-	/// Thrown if <see cref="Target"/> is the <see langword="default"/> value.
+	/// <param name="frame">Frame whose primary output to draw into.</param>
+	/// <param name="clearColor">Color the target is cleared to.</param>
+	/// <param name="pixelsPerUnit">
+	/// The side length of one drawable unit, in target pixels, e.g. 1 for physical pixels, or the
+	/// window's pixel density for logical units.
+	/// </param>
+	/// <inheritdoc cref="Primary(RenderFrame, ColorAttachmentOps, float)" path="/exception"/>
+	/// <inheritdoc cref="Primary(RenderFrame, ColorAttachmentOps, float)" path="/remarks"/>
+	public static CanvasParams Primary(
+		RenderFrame frame,
+		SrgbColor32 clearColor,
+		float pixelsPerUnit = 1f
+	) => Primary(frame, ColorAttachmentOps.Clear(clearColor.ToRawF128()), pixelsPerUnit);
+
+	/// <summary>
+	/// Creates parameters for drawing into all of <paramref name="frame"/>'s primary output at
+	/// <paramref name="pixelsPerUnit"/>, with the given <see cref="ColorAttachmentOps"/>.
+	/// </summary>
+	/// <param name="frame">Frame whose primary output to draw into.</param>
+	/// <param name="colorAttachmentOps">
+	/// What to do with the target's contents when its render pass begins, e.g.
+	/// <see cref="ColorAttachmentOps.Load"/> to draw over them.
+	/// </param>
+	/// <param name="pixelsPerUnit">
+	/// The side length of one drawable unit, in target pixels, e.g. 1 for physical pixels, or the
+	/// window's pixel density for logical units.
+	/// </param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
 	/// </exception>
-	public Matrix3x2 EffectiveTransform => Transform * Target.View;
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="pixelsPerUnit"/> isn't positive and finite.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown if <paramref name="pixelsPerUnit"/> is too small for the viewport to map to pixels
+	/// invertibly; see <see cref="Viewport.Whole(Vector2, float)"/>.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if <paramref name="frame"/> has no primary output, or has already been submitted or
+	/// disposed.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// The viewport is <see cref="Viewport.Whole(Vector2, float)"/> of the primary output's size, read
+	/// from <paramref name="frame"/> now, so the parameters belong to this frame.
+	/// </para>
+	/// <para>
+	/// The other parameters are as for <see cref="Primary(Viewport, ColorAttachmentOps)"/>.
+	/// </para>
+	/// </remarks>
+	public static CanvasParams Primary(
+		RenderFrame frame,
+		ColorAttachmentOps colorAttachmentOps,
+		float pixelsPerUnit = 1f
+	) {
+		ArgumentNullException.ThrowIfNull(frame);
+		GpuTextureViewRef view = frame.PrimaryView;
+		return Primary(Viewport.Whole(new Vector2(view.Width, view.Height), pixelsPerUnit), colorAttachmentOps);
+	}
+
+	/// <summary>
+	/// <c>Transform * Target.Viewport.ToPixelsMatrix</c>. Maps draw coordinates to target pixels.
+	/// </summary>
+	public Matrix3x2 EffectiveTransform => Transform * Target.Viewport.ToPixelsMatrix;
 
 	/// <summary>
 	/// Returns these parameters with <paramref name="ov"/> applied, as
@@ -122,8 +187,8 @@ public readonly record struct CanvasParams(
 	/// The parameters <see cref="Canvas.PushParams(in CanvasParamsOverride)"/> would push.
 	/// </returns>
 	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="ov"/>'s transform override is the <see langword="default"/>
-	/// <see cref="CanvasTransformOverride"/>.
+	/// Thrown if <paramref name="ov"/>'s transform or scissor override is the
+	/// <see langword="default"/> value.
 	/// </exception>
 	/// <remarks>
 	/// <para>
@@ -164,8 +229,10 @@ public readonly record struct CanvasParams(
 	private static CanvasScissor mergeScissor(CanvasScissor curr, CanvasScissorOverride? ov) {
 		if (ov is not CanvasScissorOverride s)
 			return curr;
+		if (s.IsDefault)
+			throw ArgumentInvalidDefaultException.For<CanvasScissorOverride>(nameof(ov));
 		return s.Kind.Tag switch {
-			CanvasScissorOverrideKind.Case.None => CanvasScissor.None,
+			CanvasScissorOverrideKind.Case.NoScissor => CanvasScissor.None,
 			CanvasScissorOverrideKind.Case.Set => CanvasScissor.Set(s.Rect),
 			CanvasScissorOverrideKind.Case.Intersect => curr.Kind.Tag switch {
 				CanvasScissorKind.Case.None => CanvasScissor.Set(s.Rect),
@@ -176,9 +243,9 @@ public readonly record struct CanvasParams(
 		};
 	}
 
-	// no overlap = RectI.Empty, so all empty intersections compare equal
-	private static RectI intersect(RectI a, RectI b) {
-		_ = a.TryIntersect(b, out RectI result);
+	// no overlap = RectF.Empty, so all empty intersections compare equal
+	private static RectF intersect(RectF a, RectF b) {
+		_ = a.TryIntersect(b, out RectF result);
 		return result;
 	}
 }

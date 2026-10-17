@@ -6,7 +6,7 @@ using static Injure.Tests.Draw.PixelConv.Util;
 
 namespace Injure.Tests.Draw.PixelConv;
 
-public sealed class FullConversionTests {
+public static class FullConversionTests {
 	private const byte srcGuard = 0xc7;
 	private const byte dstGuard = 0x97;
 	private const int prefixPad = 11;

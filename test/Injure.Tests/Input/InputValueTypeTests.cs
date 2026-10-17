@@ -7,7 +7,7 @@ using static Injure.Tests.Input.Ev;
 
 namespace Injure.Tests.Input;
 
-public sealed class InputValueTypeTests {
+public static class InputValueTypeTests {
 	// ==========================================================================
 	// state types
 	[Fact]

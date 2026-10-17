@@ -6,7 +6,7 @@ using Injure.Input;
 
 namespace Injure.Tests.Input;
 
-public sealed class InputWindowAttributionTests {
+public static class InputWindowAttributionTests {
 	private static readonly HostTick t = HostTick.DangerousCreateFromRaw(1000);
 
 	private static List<InputEvent> drain(InputSystem input, ref InputCursor cursor) {

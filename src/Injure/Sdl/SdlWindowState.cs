@@ -81,8 +81,8 @@ public readonly struct SdlWindowState {
 	/// This is the factor between window coordinates (what pointer positions and
 	/// <see cref="Width"/>/<see cref="Height"/> are in) and physical pixels (what
 	/// <see cref="PixelWidth"/>/<see cref="PixelHeight"/> and the primary target are in), and it
-	/// defines the size of a logical unit. <see cref="Draw.WindowCoords"/> takes this in as
-	/// <c>pixelDensity</c>.
+	/// defines the size of a logical unit. <see cref="Draw.Viewport.FromWindow(WindowPos, float)"/>
+	/// takes this in as <c>pixelDensity</c>.
 	/// </para>
 	/// <para>
 	/// Read from SDL (<c>SDL_GetWindowPixelDensity</c>) on window creation and on every resize, pixel

@@ -5,7 +5,7 @@ using Injure.Host;
 
 namespace Injure.Tests.Host;
 
-public sealed class HostLoopToolsTests {
+public static class HostLoopToolsTests {
 	private sealed class ManualClock(ulong startNs) : IHostClock {
 		public HostTick Now { get; set; } = HostTick.DangerousCreateFromRaw(startNs);
 	}

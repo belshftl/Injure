@@ -135,7 +135,7 @@ public sealed class MainWindow : Window {
 		if (!RenderFrame.TryBegin(device!, output, out RenderFrame? frame))
 			return false;
 		using (frame) {
-			using (OwnedCanvas oc = new(frame, CanvasParams.Primary(Matrix3x2.Identity, clear))) {
+			using (OwnedCanvas oc = new(frame, CanvasParams.Primary(frame, clear))) {
 				Canvas cv = oc.Canvas;
 				float t = (float)sw.Elapsed.TotalSeconds;
 				Vector2 c = new(frame.PrimaryView.Width / 2f, frame.PrimaryView.Height / 2f);

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Diagnostics;
 using System.Numerics;
 using Injure.Assets;
 using Injure.Assets.Builtin;
@@ -169,51 +170,56 @@ public abstract class StandardGame {
 	protected TextSystem Text => current.Text ?? throw new InvalidOperationException("the text system is not enabled (StandardGameOptions.Text)");
 
 	/// <summary>
-	/// The view matrix of the primary target, i.e. the matrix mapping draw coordinates on the window
-	/// to physical pixels, per <see cref="StandardGameOptions.PrimaryViewMode"/>.
+	/// The primary target's drawable area, per <see cref="StandardGameOptions.PrimaryViewMode"/>.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// With <see cref="PrimaryViewMode.LogicalUnits"/>, this scales by the window's
-	/// <see cref="SdlWindowState.PixelDensity"/>; with <see cref="PrimaryViewMode.PhysicalPixels"/>,
-	/// this is <see cref="Matrix3x2.Identity"/>. <see cref="CreateCanvas(RenderFrame)"/> uses it as
-	/// <see cref="CanvasTarget.View"/>.
+	/// With <see cref="PrimaryViewMode.LogicalUnits"/>, this is <see cref="Viewport.Whole(Vector2, float)"/>
+	/// of the surface at the window's <see cref="SdlWindowState.PixelDensity"/>; with
+	/// <see cref="PrimaryViewMode.PhysicalPixels"/>, it's the same but at 1 pixel per unit; with
+	/// <see cref="PrimaryViewMode.Letterbox(Vector2, bool)"/>, it's
+	/// <see cref="Viewport.Letterbox(Vector2, Vector2, bool)"/> of the content size into the surface.
+	/// The surface size is as of the last frame begin (or surface creation, before the first frame).
+	/// <see cref="CreateCanvas(RenderFrame)"/> uses this as its <see cref="CanvasTarget.Viewport"/>,
+	/// so its <see cref="Viewport.Size"/> is the size of the drawable area in drawable units.
 	/// </para>
 	/// <para>
-	/// The pixel density can change between frames (e.g. when the window moves to another
-	/// display), so read this each frame rather than caching it. Within
-	/// <see cref="OnRender(RenderFrame)"/>, it matches the view matrix of the canvases created there.
+	/// The pixel density and the surface size can change between frames (e.g. when the window moves
+	/// to another display, or is resized), so read this each frame rather than caching it. Within
+	/// <see cref="OnRender(RenderFrame)"/>, it matches the viewport of the canvases created there.
 	/// </para>
 	/// </remarks>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected Matrix3x2 PrimaryView => primaryView(current);
+	protected Viewport PrimaryViewport => primaryViewport(current);
 
 	/// <summary>
-	/// The size of the primary target in draw coordinates under <see cref="PrimaryView"/> (before
-	/// any canvas transform); <see cref="StandardGameOptions.PrimaryViewMode"/> determines whether
-	/// it's in logical units or physical pixels.
+	/// Maps a position in <see cref="Window"/>'s coordinates, e.g. a pointer position, to the primary
+	/// target's drawable area, in drawable units.
 	/// </summary>
+	/// <param name="pos">Position in window coordinates.</param>
 	/// <remarks>
-	/// <para>
-	/// This is the surface's size in physical pixels as of the last frame begin (or surface creation,
-	/// before the first frame), additionally divided by the pixel density if
-	/// <see cref="PrimaryViewMode.LogicalUnits"/>. Within <see cref="OnRender(RenderFrame)"/>, it's
-	/// the size of the frame being rendered. With fractional pixel densities, logical sizes can be
-	/// fractional.
-	/// </para>
-	/// <para>
-	/// For the same reason as <see cref="PrimaryView"/>, read this each frame rather than caching it.
-	/// </para>
+	/// This is <see cref="Viewport.FromWindow(WindowPos, float)"/> of <see cref="PrimaryViewport"/> at
+	/// the window's pixel density. The result is before any canvas transform.
 	/// </remarks>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected Vector2 PrimaryDrawSize {
-		get {
-			Session ses = current;
-			Vector2 px = new(ses.RenderOutput.Width, ses.RenderOutput.Height);
-			return options.PrimaryViewMode == PrimaryViewMode.LogicalUnits
-				? px / ses.Window.State.PixelDensity
-				: px;
-		}
+	protected Vector2 WindowToDrawable(WindowPos pos) {
+		Session ses = current;
+		return primaryViewport(ses).FromWindow(pos, ses.Window.State.PixelDensity);
+	}
+
+	/// <summary>
+	/// Maps a movement in <see cref="Window"/>'s coordinates, e.g. a pointer movement, to drawable
+	/// units of the primary target.
+	/// </summary>
+	/// <param name="delta">Movement in window coordinates.</param>
+	/// <remarks>
+	/// This is <see cref="Viewport.FromWindow(WindowDelta, float)"/> of <see cref="PrimaryViewport"/>
+	/// at the window's pixel density. The result is before any canvas transform.
+	/// </remarks>
+	/// <inheritdoc cref="Clock" path="/exception"/>
+	protected Vector2 WindowToDrawable(WindowDelta delta) {
+		Session ses = current;
+		return primaryViewport(ses).FromWindow(delta, ses.Window.State.PixelDensity);
 	}
 
 	// ==========================================================================
@@ -300,7 +306,7 @@ public abstract class StandardGame {
 
 	/// <summary>
 	/// Creates an <see cref="OwnedCanvas"/> drawing into <paramref name="frame"/> with
-	/// <see cref="PrimaryView"/> as the view matrix, clearing it to
+	/// <see cref="PrimaryViewport"/> as the viewport, clearing it to
 	/// <see cref="StandardGameOptions.ClearColor"/> first.
 	/// </summary>
 	/// <param name="frame">The frame passed to <see cref="OnRender(RenderFrame)"/>.</param>
@@ -308,23 +314,44 @@ public abstract class StandardGame {
 	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
 	/// </exception>
 	/// <remarks>
+	/// <para>
 	/// The canvas keeps its render pass open, so it must be disposed before recording passes into
 	/// <paramref name="frame"/> directly, and before <see cref="OnRender(RenderFrame)"/> returns. Draw
 	/// through its <see cref="OwnedCanvas.Canvas"/>.
+	/// </para>
+	/// <para>
+	/// With <see cref="PrimaryViewMode.Letterbox(Vector2, bool)"/>, the bars are outside of the
+	/// drawable area, so they keep the clear color. To draw into them, push a target with a
+	/// <see cref="Viewport.Whole(Vector2, float)"/> viewport.
+	/// </para>
 	/// </remarks>
 	protected OwnedCanvas CreateCanvas(RenderFrame frame) {
 		ArgumentNullException.ThrowIfNull(frame);
-		var p = CanvasParams.Primary(primaryView(current), options.ClearColor);
+		var p = CanvasParams.Primary(primaryViewport(current), options.ClearColor);
 		return new OwnedCanvas(frame, in p);
 	}
 
-	// read on demand rather than per frame, so it's also right outside OnRender (e.g. for mapping
-	// pointer events through WindowCoords); no events are polled during OnRender, so it's stable
-	// within a frame
-	private Matrix3x2 primaryView(Session ses) =>
-		options.PrimaryViewMode == PrimaryViewMode.LogicalUnits
-			? Matrix3x2.CreateScale(ses.Window.State.PixelDensity)
-			: Matrix3x2.Identity;
+	// read on demand rather than per frame, so it's also correct outside OnRender (e.g. for mapping
+	// pointer events); no events are polled during OnRender, so it's stable within a frame
+	private Viewport primaryViewport(Session ses) {
+		PrimaryViewMode mode = options.PrimaryViewMode;
+		Vector2 px = new(ses.RenderOutput.Width, ses.RenderOutput.Height);
+		switch (mode.Mode) {
+		case PrimaryViewMode.Kind.Invalid:
+			throw new InternalStateException("invalid PrimaryViewMode kind");
+		case PrimaryViewMode.Kind.LogicalUnits:
+			return Viewport.Whole(px, ses.Window.State.PixelDensity);
+		case PrimaryViewMode.Kind.PhysicalPixels:
+			return Viewport.Whole(px);
+		case PrimaryViewMode.Kind.Letterbox:
+			// nothing renders at a zero size (e.g. minimized), but the content size should stay readable
+			if (px.X == 0f || px.Y == 0f)
+				return new Viewport(Vector2.Zero, 1f, mode.ContentSize);
+			return Viewport.Letterbox(mode.ContentSize, px, mode.IntegerScale);
+		default:
+			throw new UnreachableException();
+		}
+	}
 
 	/// <summary>
 	/// Sets everything up, runs the loop until <see cref="RequestQuit()"/> is called, and tears

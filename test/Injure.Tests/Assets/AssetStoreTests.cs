@@ -6,7 +6,7 @@ using Injure.Mods;
 
 namespace Injure.Tests.Assets;
 
-public sealed class AssetStoreTests {
+public static class AssetStoreTests {
 	[Fact]
 	public static void HandlesAreCanonicalAndBorrowsLoad() {
 		using TestStore ts = new();
@@ -205,7 +205,7 @@ public sealed class AssetStoreTests {
 
 		// a subclass can add IDisposable to a type that doesn't have it
 		DisposableDerived? made = null;
-		ts.Register<PlainBase>(_ => made = new DisposableDerived());
+		_ = ts.Register<PlainBase>(_ => made = new DisposableDerived());
 		Asset<PlainBase> a = ts.Get<PlainBase>("a.txt", "x");
 		Assert.Throws<AssetLoadException>(() => a.Borrow());
 		Assert.True(made!.Disposed);
@@ -286,7 +286,7 @@ public sealed class AssetStoreTests {
 	public static void DepWatchersQueueReloads() {
 		ManualDepWatcher watcher = new();
 		using (TestStore ts = new()) {
-			ts.Store.RegisterDepWatcher(new OwnerOrderedEntry<IAssetDepWatcher<MemoryDep>>(watcher, TestStore.Ns, "watcher"));
+			_ = ts.Store.RegisterDepWatcher(new OwnerOrderedEntry<IAssetDepWatcher<MemoryDep>>(watcher, TestStore.Ns, "watcher"));
 			using AssetThreadAttachment att = ts.Store.AttachCurrentThread();
 			Asset<PlainValue> a = ts.Get<PlainValue>("a.txt", "v1");
 			_ = a.Borrow();
@@ -311,7 +311,7 @@ public sealed class AssetStoreTests {
 		using TestStore ts = new();
 		using AssetThreadAttachment att = ts.Store.AttachCurrentThread();
 		int opens = 0;
-		ts.Register("partial-reader", async info => {
+		_ = ts.Register("partial-reader", async info => {
 			Stream s = await info.OpenAsync(default);
 			opens++;
 			s.ReadByte();
@@ -320,7 +320,7 @@ public sealed class AssetStoreTests {
 			await s.DisposeAsync();
 			return AssetCreateResult<Named>.NotHandled();
 		});
-		ts.Register("whole-reader", async info => {
+		_ = ts.Register("whole-reader", async info => {
 			Stream s = await info.OpenAsync(default);
 			opens++;
 			Assert.Equal(0, s.Position);
@@ -340,13 +340,13 @@ public sealed class AssetStoreTests {
 		using AssetThreadAttachment att = ts.Store.AttachCurrentThread();
 		ts.Source.Set(TestStore.Id("other.txt"), "other");
 		// fetches a dependency, then declines: its deps must not end up on the asset
-		ts.Register("decliner", async info => {
+		_ = ts.Register("decliner", async info => {
 			await using Stream s = await info.FetchAsync(TestStore.Id("other.txt"), default);
 			Assert.Null(await info.TryFetchAsync(TestStore.Id("nope.txt"), default));
 			return AssetCreateResult<Named>.NotHandled();
 		});
 		// never opens its own data, which no source has
-		ts.Register("procedural", static info => ValueTask.FromResult(AssetCreateResult<Named>.Success(new Named(info.AssetId.Path))));
+		_ = ts.Register("procedural", static info => ValueTask.FromResult(AssetCreateResult<Named>.Success(new Named(info.AssetId.Path))));
 		Asset<Named> a = ts.Store.GetAsset<Named>(TestStore.Id("generated"));
 		AssetBorrow<Named> b = a.Borrow();
 		Assert.Equal("generated", b.Value.Text);

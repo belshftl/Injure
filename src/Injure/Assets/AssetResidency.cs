@@ -127,7 +127,7 @@ public static class AssetGroupExtensions {
 	) where TGroup : AssetGroup {
 		ArgumentNullException.ThrowIfNull(group);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
-		IUntypedAsset[] members = group.Members
+		IUntypedAsset[] members = group
 			.Select(static m => m ?? throw new ArgumentNullException(nameof(group), "asset group members must not be null"))
 			.Distinct(ReferenceEqualityComparer.Instance)
 			.Cast<IUntypedAsset>()

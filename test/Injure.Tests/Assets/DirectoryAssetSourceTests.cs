@@ -6,7 +6,7 @@ using Injure.Mods;
 
 namespace Injure.Tests.Assets;
 
-public sealed class DirectoryAssetSourceTests {
+public static class DirectoryAssetSourceTests {
 	private sealed class TempDir : IDisposable {
 		public string Path { get; } = Directory.CreateTempSubdirectory("injure-assets-").FullName;
 		public void Dispose() => Directory.Delete(Path, recursive: true);

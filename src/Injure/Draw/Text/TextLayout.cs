@@ -511,7 +511,7 @@ public sealed class TextLayout : IDisposable {
 		foreach (TextGlyph glyph in Glyphs) {
 			RectF dst = new(glyph.DstPixels.X + at.X, glyph.DstPixels.Y + at.Y, glyph.DstPixels.Width, glyph.DstPixels.Height);
 			RectF src = new(glyph.SrcPixels.X, glyph.SrcPixels.Y, glyph.SrcPixels.Width, glyph.SrcPixels.Height);
-			cv.Texture(glyph.Page.Texture, new TexDraw(dst) { Source = TexRegion.Pixels(src), Tint = glyph.Color });
+			cv.Texture(glyph.Page.Texture, new TexDraw(dst) { Source = TexRegion.Texels(src), Tint = glyph.Color });
 		}
 	}
 

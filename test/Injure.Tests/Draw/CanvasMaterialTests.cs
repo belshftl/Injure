@@ -5,19 +5,19 @@ using Injure.Draw;
 
 namespace Injure.Tests.Draw;
 
-public sealed class CanvasMaterialTests {
+public static class CanvasMaterialTests {
 	[Fact]
-	public void SdfAcceptsValidParams() {
+	public static void SdfAcceptsValidParams() {
 		SdfParams p = new(4f, EdgeValue: 0f, SoftnessPixels: 0f, OutlineWidthPixels: 2f);
-		CanvasMaterial m = CanvasMaterial.Sdf(p);
+		var m = CanvasMaterial.Sdf(p);
 		Assert.Equal(TextureInterpretation.Sdf, m.TextureInterpretation);
 		Assert.Equal(p, m.SdfParams);
 		Assert.Equal(1f, CanvasMaterial.Sdf(p with { EdgeValue = 1f }).SdfParams!.Value.EdgeValue);
 	}
 
 	[Fact]
-	public void SdfRejectsTheDefaultParams() {
-		var ex = Assert.Throws<ArgumentInvalidDefaultException>(() => CanvasMaterial.Sdf(default));
+	public static void SdfRejectsTheDefaultParams() {
+		ArgumentInvalidDefaultException ex = Assert.Throws<ArgumentInvalidDefaultException>(() => CanvasMaterial.Sdf(default));
 		Assert.Equal("params", ex.ParamName);
 	}
 
@@ -37,13 +37,13 @@ public sealed class CanvasMaterialTests {
 
 	[Theory]
 	[MemberData(nameof(InvalidParams))]
-	public void SdfRejectsOutOfRangeParams(SdfParams p) {
-		var ex = Assert.Throws<ArgumentOutOfRangeException>(() => CanvasMaterial.Sdf(p));
+	public static void SdfRejectsOutOfRangeParams(SdfParams p) {
+		ArgumentOutOfRangeException ex = Assert.Throws<ArgumentOutOfRangeException>(() => CanvasMaterial.Sdf(p));
 		Assert.Equal("params", ex.ParamName);
 	}
 
 	[Fact]
-	public void NonSdfMaterialsHaveNoSdfParams() {
+	public static void NonSdfMaterialsHaveNoSdfParams() {
 		Assert.Null(CanvasMaterial.Color.SdfParams);
 		Assert.Null(CanvasMaterial.Rmask.SdfParams);
 	}

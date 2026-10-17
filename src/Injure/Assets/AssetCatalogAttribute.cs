@@ -13,6 +13,9 @@ namespace Injure.Assets;
 /// <para>
 /// The project also has to list the directory's files as additional files, e.g.
 /// <c>&lt;AdditionalFiles Include="assets/**" /&gt;</c>; the generator only looks at their paths.
+/// The catalog doesn't load anything by itself either, so a <see cref="DirectoryAssetSource"/>
+/// over the directory has to be separately registered for the namespace via
+/// <see cref="AssetStore.RegisterSource(Mods.OwnerOrderedEntry{IAssetSource})"/>.
 /// </para>
 /// <para>
 /// The marked class becomes an <see cref="AssetGroup"/> of every asset in the directory, with a

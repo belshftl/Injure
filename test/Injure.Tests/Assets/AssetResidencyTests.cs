@@ -5,12 +5,19 @@ using Injure.Assets;
 
 namespace Injure.Tests.Assets;
 
-public sealed class AssetResidencyTests {
-	// a hand-written group, as a game would write for a scene
-	private sealed class SceneGroup(TestStore ts) : AssetGroup {
-		public Asset<ResourceValue> Hero { get; } = ts.Get<ResourceValue>("hero.txt", "hero");
-		public Asset<ResourceValue> Tree { get; } = ts.Get<ResourceValue>("tree.txt", "tree");
-		public override IReadOnlyList<IUntypedAsset> Members => [Hero, Tree];
+public static class AssetResidencyTests {
+	// the members have to exist before the base constructor runs, hence the chained ctor
+	private sealed class SceneGroup : AssetGroup {
+		public SceneGroup(TestStore ts)
+			: this(ts.Get<ResourceValue>("hero.txt", "hero"), ts.Get<ResourceValue>("tree.txt", "tree")) {}
+
+		private SceneGroup(Asset<ResourceValue> hero, Asset<ResourceValue> tree) : base([hero, tree]) {
+			Hero = hero;
+			Tree = tree;
+		}
+
+		public Asset<ResourceValue> Hero { get; }
+		public Asset<ResourceValue> Tree { get; }
 	}
 
 	private static void boundary(TestStore ts, AssetThreadAttachment att) {
@@ -132,7 +139,7 @@ public sealed class AssetResidencyTests {
 		using TestStore ts = new();
 		// no attachment: this awaits, so it can resume on another thread, and it never borrows
 		using ManualResetEventSlim release = new();
-		ts.Register<Slow>("slow", async info => {
+		_ = ts.Register("slow", async info => {
 			using StreamReader sr = new(await info.OpenAsync(TestContext.Current.CancellationToken));
 			string text = await sr.ReadToEndAsync(TestContext.Current.CancellationToken);
 			if (text == "slow")

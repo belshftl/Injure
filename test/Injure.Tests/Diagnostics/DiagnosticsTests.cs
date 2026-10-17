@@ -7,7 +7,7 @@ using Injure.Sched.Coro;
 
 namespace Injure.Tests.Diagnostics;
 
-public sealed class DiagnosticsTests {
+public static class DiagnosticsTests {
 	private sealed class RecordingSink : IDiagnosticsSink {
 		public List<DiagnosticEvent> Events { get; } = new();
 		public void Report(in DiagnosticEvent d) {

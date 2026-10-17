@@ -8,7 +8,7 @@ using WebGPU;
 namespace Injure.Tests.Gpu;
 
 // tests that don't need a GPU
-public sealed class GpuValueTests {
+public static class GpuValueTests {
 	// ==========================================================================
 	// SurfaceSource
 	[Fact]

@@ -6,7 +6,7 @@ using Injure.Host;
 
 namespace Injure.Tests.Host;
 
-public sealed class WindowCoordTypesTests {
+public static class WindowCoordTypesTests {
 	[Fact]
 	public static void PositionsAndMovementsCombineAffinely() {
 		WindowPos a = new(10, 20);
@@ -24,7 +24,7 @@ public sealed class WindowCoordTypesTests {
 	}
 
 	[Fact]
-	public static void RawRoundTripsWithoutMapping() {
+	public static void RawRoundtripsWithoutMapping() {
 		Assert.Equal(new Vector2(1.5f, -2), new WindowPos(1.5f, -2).ToRaw());
 		Assert.Equal(new WindowPos(1.5f, -2), WindowPos.FromRaw(new Vector2(1.5f, -2)));
 		Assert.Equal(new Vector2(3, 4), new WindowDelta(3, 4).ToRaw());

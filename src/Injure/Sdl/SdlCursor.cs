@@ -68,7 +68,7 @@ public readonly partial struct SdlCursor {
 		NsResize,
 
 		/// <summary>
-		/// Moving something; usually a four-pointed arrow.
+		/// Moving something; usually a four-pointed arrow along the cardinal directions.
 		/// </summary>
 		Move,
 

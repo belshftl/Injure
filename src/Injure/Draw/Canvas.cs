@@ -16,24 +16,31 @@ namespace Injure.Draw;
 /// </summary>
 /// <remarks>
 /// <para>
+/// Has a notion of a <i>drawable area</i>: the drawable area is measured in <i>drawable units</i>,
+/// abbreviated "du" when used as a unit, with the origin at its top left and +Y pointing down. The
+/// drawable area is defined by the current target's <see cref="CanvasTarget.Viewport"/>. One
+/// drawable unit is a square; its side length in target pixels is queryable via
+/// <see cref="PixelsPerUnit"/>.
+/// </para>
+/// <para>
 /// Has a stack of <see cref="CanvasParams"/> ("the params stack").
 /// <see cref="PushParams(in CanvasParamsOverride)"/> pushes an override that gets popped once the
 /// returned <see cref="CanvasParamsScope"/> is disposed, creating a "scoped parameters" model. The
 /// base of the stack cannot be popped off.
 /// </para>
 /// <para>
-/// Positions and sizes are transformed by <see cref="CanvasParams.Transform"/>, then by the current
-/// target's <see cref="CanvasTarget.View"/>, into pixels of the current target, with the origin at
-/// the top left and +Y pointing down.
+/// Positions and sizes are in <i>draw coordinates</i>, which <see cref="CanvasParams.Transform"/>
+/// maps to the drawable area. With the identity transform, draw coordinates concide with positions
+/// in the drawable area. Every draw is clipped to the drawable area, and to
+/// <see cref="CanvasParams.Scissor"/> within it.
 /// </para>
 /// <para>
 /// Draws may be batched; the exact batching behavior is unspecified. Draws are never reordered.
 /// </para>
 /// <para>
-/// Only triangles are ever drawn. Geometry for lines, line lists, line strips and loops, triangle
-/// strips, polygons, and other shapes is generated as triangles, rather than using the
-/// corresponding GPU primitives; curved shapes are approximated by polygons. There's no face
-/// culling, so winding order doesn't affect visual output.
+/// Only triangles are ever drawn; geometry for all other shapes is generated as triangles rather
+/// than using line/list/strip/etc. GPU primitives. Curved shapes are approximated by polygons.
+/// There is no face culling, so winding order doesn't affect visaul output.
 /// </para>
 /// <para>
 /// Colors are sRGB-encoded, and blending happens on the encoded values. Targets must therefore have
@@ -48,7 +55,7 @@ namespace Injure.Draw;
 /// </para>
 /// <para>
 /// Infomative: untextured draws actually use a 1x1 <see cref="TextureInterpretation.Color"/> white
-/// texture, and <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.View"/> are
+/// texture, and <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.Viewport"/> are
 /// applied on the CPU rather than in a vertex shader. Both of these allow for particular internal
 /// optimizations. The functional behavior is unchanged, and the optimizations heavily outweigh the
 /// miniscule added overhead.
@@ -79,40 +86,66 @@ public readonly ref struct Canvas {
 
 	/// <summary>
 	/// The current transform, i.e. <see cref="CanvasParams.Transform"/> of
-	/// <see cref="CurrentParams"/>. Always invertible (see <see cref="MatrixInvert"/>).
+	/// <see cref="CurrentParams"/>, mapping draw coordinates to the drawable area. Always invertible
+	/// (see <see cref="MatrixInvert"/>).
 	/// </summary>
 	/// <remarks>
-	/// Doesn't include the active target's view matrix; see <see cref="EffectiveTransform"/>.
+	/// Doesn't include the mapping from drawable units to target pixels; see
+	/// <see cref="EffectiveTransform"/>.
 	/// </remarks>
 	public Matrix3x2 CurrentTransform => o.CurrentParams.Transform;
 
 	/// <summary>
-	/// The active target's view matrix, i.e. <see cref="CanvasTarget.View"/> of
-	/// <see cref="CanvasParams.Target"/> of <see cref="CurrentParams"/>. Always invertible (see
-	/// <see cref="MatrixInvert"/>).
+	/// The active target's drawable area, i.e. <see cref="CanvasTarget.Viewport"/> of
+	/// <see cref="CanvasParams.Target"/> of <see cref="CurrentParams"/>.
 	/// </summary>
-	public Matrix3x2 CurrentView => o.CurrentParams.Target.View;
+	public Viewport CurrentViewport => o.CurrentParams.Target.Viewport;
 
 	/// <summary>
-	/// The matrix that maps draw positions to pixels of the active target, i.e.
-	/// <c>CurrentTransform * CurrentView</c>, or <see cref="CanvasParams.EffectiveTransform"/> of
-	/// <see cref="CurrentParams"/>. Always invertible (see <see cref="MatrixInvert"/>).
+	/// The matrix that maps draw coordinates to pixels of the active target, i.e.
+	/// <c>CurrentTransform * CurrentViewport.ToPixelsMatrix</c>, or
+	/// <see cref="CanvasParams.EffectiveTransform"/> of <see cref="CurrentParams"/>. Always invertible
+	/// (see <see cref="MatrixInvert"/>).
 	/// </summary>
-	/// <remarks>
-	/// Its inverse (see <see cref="Matrix3x2.Invert(Matrix3x2, out Matrix3x2)"/>) maps target pixels
-	/// back to draw positions, e.g. for hit testing.
-	/// </remarks>
 	public Matrix3x2 EffectiveTransform => o.EffectiveTransform;
 
 	/// <summary>
-	/// The drawable width in pixels of the active target.
+	/// The width of the drawable area, in drawable units.
 	/// </summary>
-	public uint TargetWidth => o.TargetWidth;
+	/// <remarks>
+	/// Unaffected by <see cref="CurrentTransform"/>. Can be fractional if the
+	/// <see cref="CurrentViewport"/> is configured that way, for example
+	/// <see cref="Game.PrimaryViewMode.LogicalUnits"/> on a fractional pixel density setup.
+	/// </remarks>
+	public float Width => CurrentViewport.Size.X;
 
 	/// <summary>
-	/// The drawable height in pixels of the active target.
+	/// The height of the drawable area, in drawable units.
 	/// </summary>
-	public uint TargetHeight => o.TargetHeight;
+	/// <inheritdoc cref="Width" path="/remarks"/>
+	public float Height => CurrentViewport.Size.Y;
+
+	/// <summary>
+	/// The side length of one drawable unit, in target pixels, i.e.
+	/// <see cref="Viewport.PixelsPerUnit"/> of <see cref="CurrentViewport"/>.
+	/// </summary>
+	public float PixelsPerUnit => CurrentViewport.PixelsPerUnit;
+
+	/// <summary>
+	/// The width of the whole active target, in pixels.
+	/// </summary>
+	/// <remarks>
+	/// <b>This is probably not what you want.</b> This is in target pixels, not drawable units, and
+	/// includes everything outside of the drawable area, such as letterbox bars. See
+	/// <see cref="Width"/>/<see cref="Height"/> for the size of the drawable area.
+	/// </remarks>
+	public uint TargetPixelWidth => o.TargetPixelWidth;
+
+	/// <summary>
+	/// The height of the whole active target, in pixels.
+	/// </summary>
+	/// <inheritdoc cref="TargetPixelWidth" path="/remarks"/>
+	public uint TargetPixelHeight => o.TargetPixelHeight;
 
 	/// <summary>
 	/// Replaces the active target's contents with <paramref name="color"/>, subject to the current
@@ -120,7 +153,7 @@ public readonly ref struct Canvas {
 	/// </summary>
 	/// <param name="color">Color to fill with.</param>
 	/// <remarks>
-	/// With a scissor set, this only affects the scissor rectangle. The current transform, output
+	/// This only affects the drawable area, or the scissor rectangle within it. The current transform, output
 	/// state, and write mask don't apply; the color replaces the target's contents on all channels,
 	/// including alpha. Unlike clearing through <see cref="ColorAttachmentOps"/>, this doesn't end the
 	/// current render pass.
@@ -212,7 +245,7 @@ public readonly ref struct Canvas {
 	/// </summary>
 	/// <param name="a">Line start point.</param>
 	/// <param name="b">Line end point.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="cap">How the line is drawn at both ends.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is not finite and positive.
@@ -238,7 +271,7 @@ public readonly ref struct Canvas {
 	/// <param name="a">Line start point.</param>
 	/// <param name="b">Line end point.</param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="cap">How the line is drawn at both ends.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is not finite and positive.
@@ -330,7 +363,7 @@ public readonly ref struct Canvas {
 	/// Triangle <c>k</c> (counting from 0) is vertices <c>k</c>, <c>k + 1</c>, <c>k + 2</c> in that
 	/// order for even <c>k</c>, and <c>k + 1</c>, <c>k</c>, <c>k + 2</c> for odd <c>k</c>, so that all
 	/// the triangles have the same winding as the first one. Degenerate triangles are allowed and, as
-	/// one would expect, cover no pixels.
+	/// one would expect, cover no drawable units.
 	/// </para>
 	/// </remarks>
 	public void TriangleStrip(ReadOnlySpan<Vertex2dColor> verts) {
@@ -360,7 +393,7 @@ public readonly ref struct Canvas {
 	/// Draws a line list with interpolated per-endpoint colors.
 	/// </summary>
 	/// <param name="verts">Points forming the lines, two per line.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="cap">How each line is drawn at both ends.</param>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="verts"/> is empty or its length is not a multiple of 2.
@@ -389,7 +422,7 @@ public readonly ref struct Canvas {
 	/// </summary>
 	/// <param name="points">Points forming the lines, two per line.</param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="cap">How each line is drawn at both ends.</param>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="points"/> is empty or its length is not a multiple of 2.
@@ -417,7 +450,7 @@ public readonly ref struct Canvas {
 	/// Draws a line strip with interpolated per-vertex colors.
 	/// </summary>
 	/// <param name="verts">Points forming the line strip.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="join">How the strip is drawn where two segments meet.</param>
 	/// <param name="cap">How the strip is drawn at its first and last points.</param>
 	/// <exception cref="ArgumentException">
@@ -455,7 +488,7 @@ public readonly ref struct Canvas {
 	/// </summary>
 	/// <param name="points">Points forming the line strip.</param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="join">How the strip is drawn where two segments meet.</param>
 	/// <param name="cap">How the strip is drawn at its first and last points.</param>
 	/// <exception cref="ArgumentException">
@@ -477,7 +510,7 @@ public readonly ref struct Canvas {
 	/// interpolated per-vertex colors.
 	/// </summary>
 	/// <param name="verts">Points forming the loop.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="join">How the loop is drawn where two segments meet.</param>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="verts"/> has fewer than 2 vertices.
@@ -509,7 +542,7 @@ public readonly ref struct Canvas {
 	/// </summary>
 	/// <param name="points">Points forming the loop.</param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="join">How the loop is drawn where two segments meet.</param>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="points"/> has fewer than 2 points.
@@ -533,14 +566,14 @@ public readonly ref struct Canvas {
 	/// </summary>
 	/// <param name="rect">Rectangle to outline.</param>
 	/// <param name="color">Outline color.</param>
-	/// <param name="thickness">Outline thickness in pixels.</param>
+	/// <param name="thickness">Outline thickness in drawable units.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
 	/// <remarks>
-	/// The outline lies inside <paramref name="rect"/>, i.e. it covers the outermost pixels of what
-	/// <see cref="Rect(RectF, SrgbColor32)"/> would fill. If the outline is at least half as thick as
-	/// the shorter side, it fills the whole rectangle.
+	/// The outline lies inside <paramref name="rect"/>, i.e. it covers the outermost drawable units
+	/// of what <see cref="Rect(RectF, SrgbColor32)"/> would fill. If the outline is at least half as
+	/// thick as the shorter side, it fills the whole rectangle.
 	/// </remarks>
 	public void RectOutline(RectF rect, SrgbColor32 color, float thickness = 1f) {
 		chkThickness(thickness);
@@ -565,11 +598,11 @@ public readonly ref struct Canvas {
 	/// <para>
 	/// Not a true circle; approximated with a regular polygon with <paramref name="segments"/> edges.
 	/// The default number of edges is computed from the radius <b>after
-	/// <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.View"/></b> such that, for any
-	/// edge of the polygon, the sagitta of the arc subtended by the edge is no more than 0.25px (or,
-	/// in simpler terms, the polygon is at most 0.25px off from a true circle), and then clamped to at
-	/// least 8 and at most 1024 edges. The polygon has a vertex at angle 0, i.e. at
-	/// <c>center + (radius, 0)</c>.
+	/// <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.Viewport"/></b>, i.e. in
+	/// target pixels, such that, for any edge of the polygon, the sagitta of the arc subtended by the
+	/// edge is no more than 0.25px (or, in simpler terms, the polygon is at most 0.25px off from a
+	/// true circle), and then clamped to at least 8 and at most 1024 edges. The polygon has a vertex
+	/// at angle 0, i.e. at <c>center + (radius, 0)</c>.
 	/// </para>
 	/// <para>
 	/// A radius of 0 draws nothing.
@@ -618,7 +651,7 @@ public readonly ref struct Canvas {
 	/// <param name="center">Center of the circle.</param>
 	/// <param name="radius">Radius of the circle.</param>
 	/// <param name="color">Outline color.</param>
-	/// <param name="thickness">Outline thickness in pixels.</param>
+	/// <param name="thickness">Outline thickness in drawable units.</param>
 	/// <param name="segments">
 	/// Number of edges of the polygon approximating the circle, or <see langword="null"/> to pick one
 	/// from the radius.
@@ -630,7 +663,7 @@ public readonly ref struct Canvas {
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// The outline lies inside the circle, i.e. it covers the outermost pixels of what
+	/// The outline lies inside the circle, i.e. it covers the outermost drawable units of what
 	/// <see cref="Circle(Vector2, float, SrgbColor32, int?)"/> with the same arguments would fill. If
 	/// the outline is at least as thick as the radius, it fills the whole circle.
 	/// </para>
@@ -652,7 +685,7 @@ public readonly ref struct Canvas {
 	/// <param name="center">Center of the ellipse.</param>
 	/// <param name="radii">Radii along the X and Y axes.</param>
 	/// <param name="color">Outline color.</param>
-	/// <param name="thickness">Outline thickness in pixels.</param>
+	/// <param name="thickness">Outline thickness in drawable units.</param>
 	/// <param name="segments">
 	/// Number of edges of the polygon approximating the ellipse, or <see langword="null"/> to pick one
 	/// from the larger radius.
@@ -720,7 +753,7 @@ public readonly ref struct Canvas {
 	/// <param name="rect">Rectangle to outline.</param>
 	/// <param name="radius">Corner radius of the outer edge.</param>
 	/// <param name="color">Outline color.</param>
-	/// <param name="thickness">Outline thickness in pixels.</param>
+	/// <param name="thickness">Outline thickness in drawable units.</param>
 	/// <param name="segments">
 	/// Number of edges approximating each corner, or <see langword="null"/> to pick one from the
 	/// radius.
@@ -816,7 +849,7 @@ public readonly ref struct Canvas {
 	/// Angle the arc covers, in radians, starting from <paramref name="startAngle"/>.
 	/// </param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in pixels.</param>
+	/// <param name="thickness">Line thickness in drawable units.</param>
 	/// <param name="cap">How the arc is drawn at both ends.</param>
 	/// <param name="segments">
 	/// Number of edges approximating the arc, or <see langword="null"/> to pick one from the radius
@@ -885,8 +918,8 @@ public readonly ref struct Canvas {
 	/// <param name="tex">Texture to draw.</param>
 	/// <param name="draw">
 	/// Where to draw it, which part of it, how it's transformed, and with what tint. A
-	/// <see cref="Vector2"/> (top-left position, natural size) or <see cref="RectF"/> (destination
-	/// rect) converts to this implicitly.
+	/// <see cref="Vector2"/> (top-left position, natural size; see <see cref="TexDraw"/>) or
+	/// <see cref="RectF"/> (destination rect) converts to this implicitly.
 	/// </param>
 	/// <exception cref="ArgumentInvalidDefaultException">
 	/// Thrown if <paramref name="tex"/> or <paramref name="draw"/>'s <see cref="TexDraw.Destination"/>
@@ -986,8 +1019,8 @@ public readonly ref struct Canvas {
 	/// override is still pushed throws <see cref="InvalidOperationException"/>.
 	/// </returns>
 	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if the transform override, or the resulting parameters' target or material, is the
-	/// <see langword="default"/> value.
+	/// Thrown if the transform or scissor override, or the resulting parameters' target or material,
+	/// is the <see langword="default"/> value.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if the resulting parameters are invalid: they target a texture with an sRGB format, or

@@ -15,14 +15,15 @@ namespace Injure.Host;
 /// <remarks>
 /// <para>
 /// Window coordinates are what the OS reports pointer positions in. The origin is the window's top
-/// left, and +Y points down. They don't map 1:1 to draw coordinates: one window coordinate spans
-/// <c>d</c> physical pixels where <c>d</c> is the window's pixel density, and draw coordinates
-/// usually go through a view matrix (e.g. scaling by the pixel density) and possibly a letterboxed
-/// virtual resolution.
+/// left, and +Y points down. They don't map 1:1 to drawable units: one window coordinate has a
+/// side length of <c>d</c> physical pixels where <c>d</c> is the window's pixel density, and
+/// drawable units go through a viewport (e.g. at the pixel density, or a letterboxed fixed
+/// resolution).
 /// </para>
 /// <para>
-/// Use <see cref="Draw.WindowCoords"/> if you want to map a pointer position to target pixels or
-/// draw coordinates; <see cref="ToRaw()"/> should only be used if you know what you're doing.
+/// Use <see cref="Draw.Viewport.FromWindow(WindowPos, float)"/> if you want to map a pointer
+/// position to drawable units; <see cref="ToRaw()"/> should only be used if you know what you're
+/// doing.
 /// </para>
 /// <para>
 /// A position and a movement map differently (a movement mustn't be translated), so movements are
@@ -67,12 +68,11 @@ public readonly struct WindowPos(float x, float y) : IEquatable<WindowPos>, IFor
 	/// Returns the components as a <see cref="Vector2"/>, still in window coordinates.
 	/// </summary>
 	/// <remarks>
-	/// <b>This is usually not what you want.</b> Window coordinates don't map 1:1 to draw
-	/// coordinates, so the result will be wrong if interpreted as a draw coordinate; it may still
+	/// <b>This is probably not what you want.</b> Window coordinates don't map 1:1 to drawable units,
+	/// so the result will be wrong if interpreted as a position in drawable units; it may still
 	/// happen to coincide depending on the setup, especially on non-HiDPI displays, but it's
-	/// incorrect. Use <see cref="Draw.WindowCoords.ToDraw(WindowPos, float, Matrix3x2)"/> to map to
-	/// draw coordinates, or <see cref="Draw.WindowCoords.ToPixels(WindowPos, float)"/> to map to
-	/// target pixels.
+	/// incorrect. Use <see cref="Draw.Viewport.FromWindow(WindowPos, float)"/> to map to drawable
+	/// units.
 	/// </remarks>
 	public Vector2 ToRaw() => new(X, Y);
 
@@ -119,12 +119,13 @@ public readonly struct WindowPos(float x, float y) : IEquatable<WindowPos>, IFor
 /// <remarks>
 /// <para>
 /// See <see cref="WindowPos"/> for what window coordinates are. Is a distinct type because, unlike
-/// a position, a movement maps to draw coordinates without a translation (if any, e.g. from a view
-/// matrix).
+/// a position, a movement maps to drawable units without a translation (if any, e.g. from a
+/// viewport's offset).
 /// </para>
 /// <para>
-/// Use <see cref="Draw.WindowCoords"/> if you want to map a pointer movement to target pixels or
-/// draw coordinates; <see cref="ToRaw()"/> should only be used if you know what you're doing.
+/// Use <see cref="Draw.Viewport.FromWindow(WindowDelta, float)"/> if you want to map a pointer
+/// movement to drawable units; <see cref="ToRaw()"/> should only be used if you know what you're
+/// doing.
 /// </para>
 /// <para>
 /// Components aren't validated to be finite, since they come as-is from the OS or another event
@@ -164,12 +165,11 @@ public readonly struct WindowDelta(float x, float y) : IEquatable<WindowDelta>, 
 	/// Returns the components as a <see cref="Vector2"/>, still in window coordinates.
 	/// </summary>
 	/// <remarks>
-	/// <b>This is usually not what you want.</b> Window coordinates don't map 1:1 to draw
-	/// coordinates, so the result will be wrong if interpreted as a movement in draw coordinates; it
-	/// may still happen to coincide depending on the setup, especially on non-HiDPI displays, but
-	/// it's incorrect. Use <see cref="Draw.WindowCoords.ToDraw(WindowDelta, float, Matrix3x2)"/> to
-	/// map to draw coordinates, or <see cref="Draw.WindowCoords.ToPixels(WindowDelta, float)"/> to
-	/// map to target pixels.
+	/// <b>This is probably not what you want.</b> Window coordinates don't map 1:1 to drawable units,
+	/// so the result will be wrong if interpreted as a movement in drawable units; it may still
+	/// happen to coincide depending on the setup, especially on non-HiDPI displays, but it's
+	/// incorrect. Use <see cref="Draw.Viewport.FromWindow(WindowDelta, float)"/> to map to drawable
+	/// units.
 	/// </remarks>
 	public Vector2 ToRaw() => new(X, Y);
 

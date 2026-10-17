@@ -25,9 +25,9 @@ public sealed class CanvasTargetTransformAnalyzerTests {
 	[Theory]
 	[InlineData("cv.PushParams(target: rt);", "target: rt")]
 	[InlineData("cv.PushParams(rt);", "rt")]
-	[InlineData("cv.PushParams(target: rt, scissor: CanvasScissorOverride.None);", "target: rt")]
+	[InlineData("cv.PushParams(target: rt, scissor: CanvasScissorOverride.NoScissor);", "target: rt")]
 	[InlineData("var o = new CanvasParamsOverride(Target: rt);", "Target: rt")]
-	[InlineData("CanvasParamsOverride o = new(Target: CanvasTarget.Primary(Matrix3x2.Identity));", "Target: CanvasTarget.Primary(Matrix3x2.Identity)")]
+	[InlineData("CanvasParamsOverride o = new(Target: CanvasTarget.Primary(Viewport.Whole(Vector2.One)));", "Target: CanvasTarget.Primary(Viewport.Whole(Vector2.One))")]
 	[InlineData("var o = new CanvasParamsOverride { Target = rt };", "Target = rt")]
 	[InlineData("var o = new CanvasParamsOverride(Target: default(CanvasTarget));", "Target: default(CanvasTarget)")]
 	public static void TargetChangesWithoutTheTransformAreReported(string body, string at) =>
@@ -42,7 +42,7 @@ public sealed class CanvasTargetTransformAnalyzerTests {
 	[InlineData("cv.PushParams(target: null);")]
 	[InlineData("cv.PushParams(target: default);")]
 	[InlineData("var o = new CanvasParamsOverride(Target: null);")]
-	[InlineData("cv.PushParams(scissor: CanvasScissorOverride.None);")]
+	[InlineData("cv.PushParams(scissor: CanvasScissorOverride.NoScissor);")]
 	[InlineData("var o = existing with { Target = rt };")]
 	[InlineData("cv.PushParams(existing);")]
 	public static void OtherOverridesAreFine(string body) => Assert.Empty(reported(body));

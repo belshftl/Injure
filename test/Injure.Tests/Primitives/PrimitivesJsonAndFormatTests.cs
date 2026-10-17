@@ -19,7 +19,7 @@ namespace Injure.Tests.Primitives;
 [JsonSerializable(typeof(SrgbColor32))]
 internal sealed partial class PrimitivesJsonContext : JsonSerializerContext;
 
-public sealed class PrimitivesJsonAndFormatTests {
+public static class PrimitivesJsonAndFormatTests {
 	private static JsonTypeInfo<T> info<T>() => (JsonTypeInfo<T>)PrimitivesJsonContext.Default.GetTypeInfo(typeof(T))!;
 	private static string ser<T>(T v) => JsonSerializer.Serialize(v, info<T>());
 	private static T de<T>(string json) => JsonSerializer.Deserialize(json, info<T>())!;

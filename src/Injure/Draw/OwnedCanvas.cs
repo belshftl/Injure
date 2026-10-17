@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Diagnostics;
 using System.Numerics;
 using Injure.Gpu;
 using Injure.Primitives;
@@ -170,6 +169,7 @@ public sealed class OwnedCanvas : IDisposable {
 	private uint setUniformOffset;
 	private object? setTexture;
 	private TexSampling? setSampling;
+	private RectI appliedScissor;
 	private CanvasArena.GeometryChunk? setChunk;
 
 	/// <summary>
@@ -281,7 +281,7 @@ public sealed class OwnedCanvas : IDisposable {
 		}
 	}
 
-	internal uint TargetWidth {
+	internal uint TargetPixelWidth {
 		get {
 			chk();
 			CanvasTarget t = @params.Peek().Target;
@@ -289,7 +289,7 @@ public sealed class OwnedCanvas : IDisposable {
 		}
 	}
 
-	internal uint TargetHeight {
+	internal uint TargetPixelHeight {
 		get {
 			chk();
 			CanvasTarget t = @params.Peek().Target;
@@ -377,7 +377,8 @@ public sealed class OwnedCanvas : IDisposable {
 
 	/// <summary>
 	/// Draws a whole-target-sized quad ignoring the transform, output state, and write mask.
-	/// <see cref="CanvasOutputStates.Opaque"/> is used. The scissor still applies.
+	/// <see cref="CanvasOutputStates.Opaque"/> is used. The scissor (including the clip to the
+	/// drawable area) still applies.
 	/// </summary>
 	internal void Clear(SrgbColor32 color) {
 		chk();
@@ -535,7 +536,8 @@ public sealed class OwnedCanvas : IDisposable {
 			closePass();
 			// returning keeps what was drawn rather than e.g. clearing the target again
 			openPass(returning ? to with { ColorAttachmentOps = ColorAttachmentOps.Load } : to);
-		} else if (from.Scissor != to.Scissor) {
+		} else if (effectiveScissor(in to) != appliedScissor) {
+			// a viewport change can move the clip without the scissor itself changing
 			closeRange();
 			applyScissor(pass, in to);
 		}
@@ -546,11 +548,11 @@ public sealed class OwnedCanvas : IDisposable {
 			throw ArgumentInvalidDefaultException.For<CanvasTarget>();
 		if (p.Material.IsDefault)
 			throw ArgumentInvalidDefaultException.For<CanvasMaterial>();
-		// the view matrix is checked by the CanvasTarget factories
+		// the viewport is checked by its constructor
 		if (!MatrixInvert.IsInvertible(p.Transform))
 			throw new ArgumentException($"CanvasParams.Transform must be invertible, got {p.Transform}");
 		if (!MatrixInvert.IsInvertible(p.EffectiveTransform))
-			throw new ArgumentException($"the effective transform (CanvasParams.Transform * CanvasTarget.View) must be invertible, got {p.EffectiveTransform}");
+			throw new ArgumentException($"the effective transform (CanvasParams.Transform * CanvasTarget.Viewport.ToPixelsMatrix) must be invertible, got {p.EffectiveTransform}");
 		TextureFormat fmt = targetFormat(in p);
 		if (fmt.IsSrgb())
 			throw new ArgumentException($"Canvas can't draw into a target with sRGB format {fmt}, since its colors are already sRGB-encoded");
@@ -559,16 +561,29 @@ public sealed class OwnedCanvas : IDisposable {
 	// ==========================================================================
 	// scissor
 	private void applyScissor(RenderPass ps, in CanvasParams p) {
+		RectI r = effectiveScissor(in p);
+		ps.SetScissorRect((uint)r.X, (uint)r.Y, (uint)r.Width, (uint)r.Height);
+		appliedScissor = r;
+	}
+
+	// the target, the drawable area, and the scissor intersected, in target pixels; no overlap gives
+	// RectI.Empty, which clips everything
+	private RectI effectiveScissor(in CanvasParams p) {
 		(uint w, uint h) = targetSize(in p);
-		RectI full = new(0, 0, (int)w, (int)h);
-		RectI effective;
-		switch (p.Scissor.Kind.Tag) {
-		case CanvasScissorKind.Case.None: effective = full; break;
-		// no overlap gives RectI.Empty, which clips everything
-		case CanvasScissorKind.Case.Set: full.TryIntersect(p.Scissor.Rect, out effective); break;
-		default: throw new UnreachableException();
+		Viewport vp = p.Target.Viewport;
+		RectF area = vp.PixelRect;
+		float left = area.Left, top = area.Top, right = area.Right, bottom = area.Bottom;
+		if (p.Scissor.Kind == CanvasScissorKind.Set) {
+			// in floats rather than through Viewport.ToPixels, since a huge scissor can map past
+			// float range, which a RectF can't hold
+			RectF s = p.Scissor.Rect;
+			left = MathF.Max(left, s.Left * vp.PixelsPerUnit + vp.PixelOffset.X);
+			top = MathF.Max(top, s.Top * vp.PixelsPerUnit + vp.PixelOffset.Y);
+			right = MathF.Min(right, s.Right * vp.PixelsPerUnit + vp.PixelOffset.X);
+			bottom = MathF.Min(bottom, s.Bottom * vp.PixelsPerUnit + vp.PixelOffset.Y);
 		}
-		ps.SetScissorRect((uint)effective.X, (uint)effective.Y, (uint)effective.Width, (uint)effective.Height);
+		new RectI(0, 0, (int)w, (int)h).TryIntersect(Viewport.RoundToPixels(left, top, right, bottom), out RectI effective);
+		return effective;
 	}
 
 	// ==========================================================================

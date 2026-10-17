@@ -242,7 +242,7 @@ public sealed class AssetCatalogGenerator : IIncrementalGenerator {
 	private sealed record Member(string Name, string Display, bool IsDir, string? GroupClass, Dir? Dir, string? RelPath, FileKind Kind);
 
 	private static readonly HashSet<string> reservedNames = new(StringComparer.Ordinal) {
-		"Members", "Equals", "GetHashCode", "GetType", "ToString", "MemberwiseClone", "Finalize",
+		"Equals", "GetHashCode", "GetType", "ToString", "MemberwiseClone", "Finalize",
 	};
 
 	private static List<Member> members(SourceProductionContext spc, CatalogTarget target, Dir dir, string className) {
@@ -314,8 +314,6 @@ public sealed class AssetCatalogGenerator : IIncrementalGenerator {
 			sb.Append(indent).Append("partial class ").Append(className).Append(" : ").Append(assetGroup).AppendLine(" {");
 		else
 			sb.Append(indent).Append("public sealed class ").Append(className).Append(" : ").Append(assetGroup).AppendLine(" {");
-		sb.Append(inner).Append("private readonly ").Append(untypedAsset).AppendLine("[] _ij__catalogMembers;");
-
 		sb.Append(inner).AppendLine("/// <summary>");
 		sb.Append(inner).Append("/// Gets the handles of the assets in <c>").Append(xml(where)).AppendLine("</c> from <paramref name=\"store\"/>.");
 		sb.Append(inner).AppendLine("/// </summary>");
@@ -325,14 +323,20 @@ public sealed class AssetCatalogGenerator : IIncrementalGenerator {
 			sb.Append(inner).AppendLine("/// Thrown if <paramref name=\"store\"/> is <see langword=\"null\"/>.");
 			sb.Append(inner).AppendLine("/// </exception>");
 		}
-		sb.Append(inner).Append(isRoot ? "public " : "internal ").Append(className).Append('(').Append(assetStore).AppendLine(" store) {");
+		// AssetGroup keeps the list it's given, so the chained constructor hands it an empty one and
+		// fills it once the properties exist
+		string list = "global::System.Collections.Generic.List<" + untypedAsset + ">";
+		sb.Append(inner).Append(isRoot ? "public " : "internal ").Append(className).Append('(').Append(assetStore)
+			.Append(" store) : this(store, new ").Append(list).AppendLine("()) {}");
+		sb.AppendLine();
+		sb.Append(inner).Append("private ").Append(className).Append('(').Append(assetStore).Append(" store, ").Append(list)
+			.AppendLine(" all) : base(all) {");
 		if (isRoot)
 			sb.Append(inner).AppendLine("\tglobal::System.ArgumentNullException.ThrowIfNull(store);");
-		sb.Append(inner).Append("\tglobal::System.Collections.Generic.List<").Append(untypedAsset).AppendLine("> all = new();");
 		foreach (Member m in ms) {
 			if (m.IsDir) {
 				sb.Append(inner).Append('\t').Append(m.Name).Append(" = new ").Append(m.GroupClass).AppendLine("(store);");
-				sb.Append(inner).Append("\tall.AddRange(").Append(m.Name).AppendLine(".Members);");
+				sb.Append(inner).Append("\tall.AddRange(").Append(m.Name).AppendLine(");");
 			} else {
 				sb.Append(inner).Append('\t').Append(m.Name).Append(" = store.GetAsset<").Append(m.Kind.TypeName).Append(">(new global::Injure.Assets.AssetId(")
 					.Append(SymbolDisplay.FormatLiteral(target.AssetNamespace, true)).Append(", ")
@@ -340,7 +344,6 @@ public sealed class AssetCatalogGenerator : IIncrementalGenerator {
 				sb.Append(inner).Append("\tall.Add(").Append(m.Name).AppendLine(");");
 			}
 		}
-		sb.Append(inner).AppendLine("\t_ij__catalogMembers = all.ToArray();");
 		sb.Append(inner).AppendLine("}");
 
 		foreach (Member m in ms) {
@@ -357,8 +360,6 @@ public sealed class AssetCatalogGenerator : IIncrementalGenerator {
 			}
 		}
 
-		sb.Append(inner).AppendLine("/// <inheritdoc/>");
-		sb.Append(inner).Append("public override global::System.Collections.Generic.IReadOnlyList<").Append(untypedAsset).AppendLine("> Members => _ij__catalogMembers;");
 
 		foreach (Member m in ms) {
 			if (!m.IsDir)

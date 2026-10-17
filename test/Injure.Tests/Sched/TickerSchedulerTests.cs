@@ -6,7 +6,7 @@ using Injure.Sched.Tickers;
 
 namespace Injure.Tests.Sched;
 
-public sealed class TickerSchedulerTests {
+public static class TickerSchedulerTests {
 	private sealed class ManualClock(ulong startNs) : IHostClock {
 		public HostTick Now { get; private set; } = HostTick.DangerousCreateFromRaw(startNs);
 		public void Advance(HostDuration d) => Now += d;

@@ -8,7 +8,7 @@ using Injure.Primitives;
 
 namespace Injure.Tests.Primitives;
 
-public sealed class ColorTypeTests {
+public static class ColorTypeTests {
 	[Fact]
 	public static void ConversionsBetweenByteTypesKeepTheBytes() {
 		RawColor32 raw = new(0xcb, 0xa6, 0xf7, 0x80);

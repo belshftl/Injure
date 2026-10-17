@@ -34,12 +34,12 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 	public readonly int Y;
 
 	/// <summary>
-	/// Width of the rectangle.
+	/// Width of the rectangle. Always non-negative; may be zero.
 	/// </summary>
 	public readonly int Width;
 
 	/// <summary>
-	/// Height of the rectangle.
+	/// Height of the rectangle. Always non-negative; may be zero.
 	/// </summary>
 	public readonly int Height;
 

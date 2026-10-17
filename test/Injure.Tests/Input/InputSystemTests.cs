@@ -6,7 +6,7 @@ using Injure.Input;
 
 namespace Injure.Tests.Input;
 
-public sealed class InputSystemTests {
+public static class InputSystemTests {
 	private static List<InputEvent> read(InputSystem input, ref InputCursor cursor) {
 		List<InputEvent> result = new();
 		foreach (InputEvent ev in input.CreateViewAndAdvance(ref cursor).Events)

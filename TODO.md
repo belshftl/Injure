@@ -84,6 +84,7 @@ anyhow, to v0.1:
     - [x] use distinct `WindowPos`/`WindowDelta` types for window coordinates to avoid confusion with `Vector2` draw coords
     - [x] make `StandardGame` build the pixel-density view matrix for the primary target, with an opt-out
   - [x] area-weighted upscaling (sharp-bilinear-like) as a shader, exposed as `TexFilter.AreaWeighted`
+  - [x] replace view matrices with a uniform scale + transform + drawable area size, named something like `Viewport`, and introduce the concept of drawable units; also make scissors work in drawable units
   - [ ] a third smoke game under `smoke/` exercising `StandardGame`, HiDPI, fractional scaling of low-res render targets, and pointer hit-testing, e.g. a box with draggable corners that sets a texture's destination rect, switchable between clamp, repeat, and mirror-repeat
   - [ ] textured geometry beyond quads: textured triangles/meshes, arbitrary-corner textured quads (`Vertex2dTextureColor` has no draw call taking it yet)
   - [ ] more blend presets in `CanvasOutputStates`, e.g. additive and multiply
@@ -96,6 +97,15 @@ anyhow, to v0.1:
   - [ ] revisit the pixel converter, pt 1: revisit the api (though i'm not sure if it actually needs a redesign or if it's fine as is)
   - [ ] revisit the pixel converter, pt 2: write benchmarks, it's probably the part of the whole library that benefits the most from having benchmarks
   - [ ] revisit the pixel converter, pt 3: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement
+- [ ] add more to the regular analyzer:
+  - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
+  - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
+- [ ] switch over the codebase to the new `InvalidDefaultException`
+  - [ ] switch over `[ClosedEnum]`/`[ClosedFlags]`
+  - [ ] for `[ClosedEnum]`/`[ClosedFlags]`, probably reserve and add a `RawTag`/`RawMask` that never throws, for use in `Equals`/`GetHashCode` implementations; right now, a lot of `GetHashCode`s throw on e.g. invalid `default` values when they shouldn't
+  - [ ] fix said `Equals`/`GetHashCode`s
+  - [ ] switch over the rest
+- [ ] properly document owner-ordering; it's basically ubiquitous in the mod infrastructure, but it's very poorly documented
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`
   - [ ] primary docs for `Draw`, `docs/draw/`
@@ -124,7 +134,6 @@ anyhow, to v0.1:
   - [x] tests for `Injure.Analyzers` (none exist yet), in a new `Injure.Analyzers.Tests`
   - [ ] some proper system to allow mods to override assets, either just for an asset id or both for a whole asset id and for a particular `Asset<T>`; i'm uncertain right now
   - [ ] dedicated docs
-- [ ] switch over the codebase to the new `InvalidDefaultException`
 - [ ] fix remaining abbreviations with out-of-date abbreviation style in the codebase
 - [ ] remove remaining `AggressiveInlining` markers for cases where the gain hasn't been actually confirmed
 - [ ] switch over the codebase to use collection expressions where applicable
@@ -135,9 +144,6 @@ anyhow, to v0.1:
   - [ ] maybe look into supporting more input devices like steering wheels, flight sticks, guitar/drum controllers, dance pads, etc
   - [ ] consider supporting a case like "write a custom 'driver' for an input device that sends input data over ipc (say, a socket) to the game"; we don't need to include any ipc/socket/etc machinery, just some way for such a hypothetical game/mod to turn the decoded input events into a real custom input device
   - [ ] support built-in serialization/deserialization for bindings (probably to json); this is something every game will be forced to reinvent if it's not built-in
-- [ ] add more to the regular analyzer:
-  - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
-  - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
 - [ ] revise the `Layers` system, make sure it's up to date and holds up well in real usage, write tests
   - [ ] integrate with `SdlWindow` cursor slots: a slot per layer ordered by stack position, ignore the slots of input-blocked layers, and decide whether layers need more than one slot

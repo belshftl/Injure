@@ -11,7 +11,8 @@ namespace Injure.Primitives;
 
 /// <summary>
 /// Half-open rectangle represented by 4 <see langword="float"/> components: X, Y, width, height.
-/// Width/height cannot be negative but may be zero. All four components are non-NaN and finite.
+/// Width/height cannot be negative but may be zero. All four components are finite ("finite"
+/// includes non-NaN).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,22 +26,22 @@ namespace Injure.Primitives;
 [JsonConverter(typeof(RectFJsonConverter))]
 public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// <summary>
-	/// X coordinate of the rectangle's left edge.
+	/// X coordinate of the rectangle's left edge. Always finite.
 	/// </summary>
 	public readonly float X;
 
 	/// <summary>
-	/// Y coordinate of the rectangle's top edge.
+	/// Y coordinate of the rectangle's top edge. Always finite.
 	/// </summary>
 	public readonly float Y;
 
 	/// <summary>
-	/// Width of the rectangle.
+	/// Width of the rectangle. Always finite and non-negative; may be zero.
 	/// </summary>
 	public readonly float Width;
 
 	/// <summary>
-	/// Height of the rectangle.
+	/// Height of the rectangle. Always finite and non-negative; may be zero.
 	/// </summary>
 	public readonly float Height;
 
@@ -52,9 +53,8 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// <param name="width">Finite non-negative width of the rectangle.</param>
 	/// <param name="height">Finite non-negative height of the rectangle.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if any argument is not finite, <paramref name="width"/> or
-	/// <paramref name="height"/> is negative, or the derived right/bottom
-	/// edge is not finite.
+	/// Thrown if any argument is not finite, <paramref name="width"/> or <paramref name="height"/>
+	/// is negative, or the derived right/bottom edge is not finite.
 	/// </exception>
 	public RectF(float x, float y, float width, float height) {
 		if (!float.IsFinite(x))

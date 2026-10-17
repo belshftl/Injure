@@ -6,7 +6,7 @@ using Injure.Input;
 
 namespace Injure.Tests.Input;
 
-public sealed class InputRegressionTests {
+public static class InputRegressionTests {
 	[Fact]
 	public static void StateAxisDeadzoneIsApplied() {
 		ActionId a = new ActionRegistry().Register("t::axis");

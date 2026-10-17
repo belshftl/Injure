@@ -8,7 +8,7 @@ namespace Injure.Draw;
 
 /// <summary>
 /// Invertibility checks and inversion for <see cref="Matrix3x2"/>, using the definition of
-/// "invertible" that <see cref="Draw"/> APIs require of transform and view matrices.
+/// "invertible" that <see cref="Draw"/> APIs require of transform matrices.
 /// </summary>
 /// <remarks>
 /// <para>

@@ -6,7 +6,7 @@ using Injure.Input;
 
 namespace Injure.Tests.Input;
 
-public sealed class ActionRegistryAndMapTests {
+public static class ActionRegistryAndMapTests {
 	// ==========================================================================
 	// registry
 	[Theory]

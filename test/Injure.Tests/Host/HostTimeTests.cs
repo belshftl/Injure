@@ -5,7 +5,7 @@ using Injure.Host;
 
 namespace Injure.Tests.Host;
 
-public sealed class HostTimeTests {
+public static class HostTimeTests {
 	private static HostTick tick(ulong ns) => HostTick.DangerousCreateFromRaw(ns);
 	private static HostDuration dur(long ns) => HostDuration.FromNs(ns);
 

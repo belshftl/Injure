@@ -58,9 +58,9 @@ public sealed class AssetCatalogGeneratorTests {
 		Assert.Equal("textures/bg_01.png", ((Asset<Texture2d>)prop(textures, "Bg01")).AssetId.Path);
 
 		// groups include their subdirectories, and the catalog is the group of everything
-		Assert.Equal(2, ((AssetGroup)textures).Members.Count);
-		Assert.Equal(5, ((AssetGroup)assets).Members.Count);
-		Assert.Contains(hero, ((AssetGroup)assets).Members);
+		Assert.Equal(2, ((IReadOnlyList<IUntypedAsset>)textures).Count);
+		Assert.Equal(5, ((IReadOnlyList<IUntypedAsset>)assets).Count);
+		Assert.Contains(hero, (AssetGroup)assets);
 	}
 
 	[Fact]
@@ -110,7 +110,7 @@ public sealed class AssetCatalogGeneratorTests {
 			"assets/player.tex.json",
 			"assets/hud.png",
 			"assets/hud/icon.png",
-			"assets/members.png",
+			"assets/equals.png",
 			"assets/x/a.png",
 			"assets/x-group.png",
 			"assets/fine.png",
@@ -125,7 +125,19 @@ public sealed class AssetCatalogGeneratorTests {
 		foreach (string gone in (string[])["Player", "Hud", "X", "XGroup"])
 			Assert.False(hasProp(t, gone), gone);
 		Assert.True(hasProp(t, "Fine"));
-		Assert.Single(((AssetGroup)assets).Members);
+		Assert.Single((AssetGroup)assets);
+	}
+
+	// AssetGroup implements its member list explicitly, so it reserves no names of its own
+	[Fact]
+	public static void MembersIsAnOrdinaryAssetName() {
+		Gen.Result r = Gen.Run(catalog, ["assets/members.png", "assets/count.png"]);
+		Assert.Empty(r.WithId("IJ0201"));
+		using AssetStore store = new();
+		object assets = construct(r, store);
+		Assert.IsType<Asset<Texture2d>>(prop(assets, "Members"));
+		Assert.IsType<Asset<Texture2d>>(prop(assets, "Count"));
+		Assert.Equal(2, ((IReadOnlyList<IUntypedAsset>)assets).Count);
 	}
 
 	[Fact]
@@ -136,7 +148,7 @@ public sealed class AssetCatalogGeneratorTests {
 		Assert.Equal(Microsoft.CodeAnalysis.DiagnosticSeverity.Info, unknown.Severity);
 		Assert.Contains("2 file(s)", unknown.GetMessage());
 		using AssetStore store = new();
-		Assert.Single(((AssetGroup)construct(r, store)).Members);
+		Assert.Single((AssetGroup)construct(r, store));
 	}
 
 	[Fact]

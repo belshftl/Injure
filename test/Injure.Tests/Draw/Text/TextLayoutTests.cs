@@ -5,7 +5,7 @@ using Injure.Draw.Text;
 
 namespace Injure.Tests.Draw.Text;
 
-public sealed class TextLayoutTests {
+public static class TextLayoutTests {
 	[Fact]
 	public static void SkipLeadingWsWorks() {
 		ParagraphCluster[] clusters = [
