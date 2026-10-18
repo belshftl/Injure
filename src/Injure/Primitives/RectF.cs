@@ -46,7 +46,7 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	public readonly float Height;
 
 	/// <summary>
-	/// Initializes a new rectangle from a position and size.
+	/// Creates a new <see cref="RectF"/> from a position and size.
 	/// </summary>
 	/// <param name="x">Finite X coordinate of the rectangle's left edge.</param>
 	/// <param name="y">Finite Y coordinate of the rectangle's top edge.</param>
@@ -75,6 +75,41 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 		Width = width;
 		Height = height;
 	}
+
+	/// <summary>
+	/// Creates a new <see cref="RectF"/> from a position and size.
+	/// </summary>
+	/// <param name="xy">Finite X and Y coordinates of the rectangle's top-left corner.</param>
+	/// <param name="width">Finite non-negative width of the rectangle.</param>
+	/// <param name="height">Finite non-negative height of the rectangle.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if any argument is not finite or has a non-finite component, <paramref name="width"/>
+	/// or <paramref name="height"/> is negative, or the derived right/bottom edge is not finite.
+	/// </exception>
+	public RectF(Vector2 xy, float width, float height) : this(xy.X, xy.Y, width, height) {}
+
+	/// <summary>
+	/// Creates a new <see cref="RectF"/> from a position and size.
+	/// </summary>
+	/// <param name="xy">Finite X and Y coordinates of the rectangle's top-left corner.</param>
+	/// <param name="size">Finite non-negative width and height of the rectangle.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if any argument has a non-finite component, <paramref name="size"/> has a negative
+	/// component, or the derived right/bottom edge is not finite.
+	/// </exception>
+	public RectF(Vector2 xy, Vector2 size) : this(xy.X, xy.Y, size.X, size.Y) {}
+
+	/// <summary>
+	/// Creates a new <see cref="RectF"/> from a position and size.
+	/// </summary>
+	/// <param name="x">Finite X coordinate of the rectangle's left edge.</param>
+	/// <param name="y">Finite Y coordinate of the rectangle's top edge.</param>
+	/// <param name="size">Finite non-negative width and height of the rectangle.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if any argument is not finite or has a non-finite component, <paramref name="size"/>
+	/// has a negative component, or the derived right/bottom edge is not finite.
+	/// </exception>
+	public RectF(float x, float y, Vector2 size) : this(x, y, size.X, size.Y) {}
 
 	/// <summary>
 	/// A rectangle at the origin with zero width and zero height.
@@ -125,6 +160,26 @@ public readonly struct RectF : IEquatable<RectF>, IFormattable {
 	/// The rectangle's center point.
 	/// </summary>
 	public Vector2 Center => new(CenterX, CenterY);
+
+	/// <summary>
+	/// The rectangle's top-left corner. Alias of <see cref="Position"/>.
+	/// </summary>
+	public Vector2 TopLeft => Position;
+
+	/// <summary>
+	/// The rectangle's top-right corner.
+	/// </summary>
+	public Vector2 TopRight => new(Position.X + Width, Position.Y);
+
+	/// <summary>
+	/// The rectangle's bottom-left corner.
+	/// </summary>
+	public Vector2 BottomLeft => new(Position.X, Position.Y + Height);
+
+	/// <summary>
+	/// The rectangle's bottom-right corner.
+	/// </summary>
+	public Vector2 BottomRight => new(Position.X + Width, Position.Y + Height);
 
 	/// <summary>
 	/// Whether the rectangle's dimensions are zero.

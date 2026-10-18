@@ -8,7 +8,9 @@ namespace Injure.Gpu;
 /// </summary>
 public static class SamplerStates {
 	/// <summary>
-	/// Nearest filtering, clamping coordinates to the edge.
+	/// <see cref="AddressMode.ClampToEdge"/> for the address mode on all three axes (U/V/W),
+	/// <see cref="FilterMode.Nearest"/> for the mag/min filters, and
+	/// <see cref="MipmapFilterMode.Nearest"/> for the mipmap filter.
 	/// </summary>
 	public static readonly GpuSamplerCreateParams NearestClamp = new(
 		AddressModeU: AddressMode.ClampToEdge,
@@ -20,7 +22,9 @@ public static class SamplerStates {
 	);
 
 	/// <summary>
-	/// Linear filtering (including between mip levels), clamping coordinates to the edge.
+	/// <see cref="AddressMode.ClampToEdge"/> for the address mode on all three axes (U/V/W),
+	/// <see cref="FilterMode.Linear"/> for the mag/min filters, and
+	/// <see cref="MipmapFilterMode.Linear"/> for the mipmap filter.
 	/// </summary>
 	public static readonly GpuSamplerCreateParams LinearClamp = new(
 		AddressModeU: AddressMode.ClampToEdge,
@@ -32,7 +36,9 @@ public static class SamplerStates {
 	);
 
 	/// <summary>
-	/// Nearest filtering, repeating the texture.
+	/// <see cref="AddressMode.Repeat"/> for the address mode on all three axes (U/V/W),
+	/// <see cref="FilterMode.Nearest"/> for the mag/min filters, and
+	/// <see cref="MipmapFilterMode.Nearest"/> for the mipmap filter.
 	/// </summary>
 	public static readonly GpuSamplerCreateParams NearestRepeat = new(
 		AddressModeU: AddressMode.Repeat,
@@ -44,7 +50,9 @@ public static class SamplerStates {
 	);
 
 	/// <summary>
-	/// Linear filtering (including between mip levels), repeating the texture.
+	/// <see cref="AddressMode.Repeat"/> for the address mode on all three axes (U/V/W),
+	/// <see cref="FilterMode.Linear"/> for the mag/min filters, and
+	/// <see cref="MipmapFilterMode.Linear"/> for the mipmap filter.
 	/// </summary>
 	public static readonly GpuSamplerCreateParams LinearRepeat = new(
 		AddressModeU: AddressMode.Repeat,

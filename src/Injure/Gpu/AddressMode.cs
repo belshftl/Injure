@@ -7,7 +7,7 @@ using WebGPU;
 namespace Injure.Gpu;
 
 /// <summary>
-/// How a sampler handles texture coordinates outside [0, 1].
+/// How a sampler handles texture coordinates outside [0.0, 1.0].
 /// </summary>
 /// <remarks>
 /// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
@@ -23,17 +23,18 @@ public readonly partial struct AddressMode {
 		Undefined = 0,
 
 		/// <summary>
-		/// Clamps coordinates to the edge texels.
+		/// Texture coordinates are clamped to [0.0, 1.0].
 		/// </summary>
 		ClampToEdge = 1,
 
 		/// <summary>
-		/// Repeats the texture.
+		/// Texture coordinates wrap to the other side of the texture.
 		/// </summary>
 		Repeat = 2,
 
 		/// <summary>
-		/// Repeats the texture, mirroring every other repetition.
+		/// Texture coordinates wrap to the other side of the texture, and the texture is additionally
+		/// flipped if the coordinate, rounded to a whole number towards negative infinity, is odd.
 		/// </summary>
 		MirrorRepeat = 3,
 	}

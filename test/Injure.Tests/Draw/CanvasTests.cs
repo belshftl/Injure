@@ -193,7 +193,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	[Fact]
 	public void WrapModesHandleUvsOutsideTheTexture() {
 		// u from 0 to 2 across 4 pixels samples texel centers 0, 1, 2, 3
-		static TexDraw row(int y, TexWrap wrap) => new(new RectF(0, y, 4, 1)) {
+		static TexDraw row(int y, TexAddressing wrap) => new(new RectF(0, y, 4, 1)) {
 			Source = TexRegion.Uv(new RectF(0, 0, 2, 1)),
 			Sampling = new TexSampling(TexFilter.Nearest, wrap),
 		};
@@ -201,9 +201,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		using Texture2d tex = redBlue();
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			cv.Texture(tex, row(0, TexWrap.Clamp));
-			cv.Texture(tex, row(1, TexWrap.Repeat));
-			cv.Texture(tex, row(2, TexWrap.MirrorRepeat));
+			cv.Texture(tex, row(0, TexAddressing.Clamp));
+			cv.Texture(tex, row(1, TexAddressing.Repeat));
+			cv.Texture(tex, row(2, TexAddressing.MirrorRepeat));
 		});
 		Assert.Equal([red, blue, blue, blue], Enumerable.Range(0, 4).Select(x => GpuRig.At(px, 4, (uint)x, 0)));
 		Assert.Equal([red, blue, red, blue], Enumerable.Range(0, 4).Select(x => GpuRig.At(px, 4, (uint)x, 1)));

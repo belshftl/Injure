@@ -67,7 +67,7 @@ public sealed class GpuSamplerRef : GpuSamplerHandle {
 /// Parameters used to create a <see cref="GpuSampler"/>.
 /// </summary>
 /// <param name="AddressModeU">Address mode for the U axis.</param>
-/// <param name="AddressModeV">Address mode for the V axis.</param>
+/// <param name="AddressModeV">Address mode for the V axis, if applicable.</param>
 /// <param name="AddressModeW">Address mode for the W axis, if applicable.</param>
 /// <param name="MagFilter">
 /// Magnification filter (behavior when the sampled area is smaller than or equal to one texel).

@@ -17,7 +17,7 @@ internal enum DrawableTextureKind {
 }
 
 /// <summary>
-/// A texture that <see cref="Canvas"/> can draw: either a <see cref="Texture2d"/>, a
+/// Something a <see cref="Canvas"/> can draw as a texture. Either a <see cref="Texture2d"/>, a
 /// <see cref="RenderTarget2d"/>'s color texture, the current value of a <see cref="Versioned{T}"/>
 /// of <see cref="Texture2d"/> (an <see cref="Asset{T}"/> or a <see cref="DerivedAsset{T}"/>), or a
 /// <see cref="Texture2dSlice"/> of one of those.

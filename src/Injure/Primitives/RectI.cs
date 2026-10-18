@@ -44,7 +44,7 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 	public readonly int Height;
 
 	/// <summary>
-	/// Initializes a new rectangle from a position and size.
+	/// Creates a new <see cref="RectI"/> from a position and size.
 	/// </summary>
 	/// <param name="x">X coordinate of the rectangle's left edge.</param>
 	/// <param name="y">Y coordinate of the rectangle's top edge.</param>
@@ -64,6 +64,38 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 		Width = width;
 		Height = height;
 	}
+
+	/// <summary>
+	/// Creates a new <see cref="RectI"/> from a position and size.
+	/// </summary>
+	/// <param name="xy">X and Y coordinates of the rectangle's top-left corner.</param>
+	/// <param name="width">Non-negative width of the rectangle.</param>
+	/// <param name="height">Non-negative height of the rectangle.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="width"/> or <paramref name="height"/> is negative.
+	/// </exception>
+	public RectI(Vector2Int xy, int width, int height) : this(xy.X, xy.Y, width, height) {}
+
+	/// <summary>
+	/// Creates a new <see cref="RectI"/> from a position and size.
+	/// </summary>
+	/// <param name="xy">X and Y coordinates of the rectangle's top-left corner.</param>
+	/// <param name="size">Non-negative width and height of the rectangle.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="size"/> has a negative component.
+	/// </exception>
+	public RectI(Vector2Int xy, Vector2Int size) : this(xy.X, xy.Y, size.X, size.Y) {}
+
+	/// <summary>
+	/// Creates a new <see cref="RectI"/> from a position and size.
+	/// </summary>
+	/// <param name="x">X coordinate of the rectangle's left edge.</param>
+	/// <param name="y">Y coordinate of the rectangle's top edge.</param>
+	/// <param name="size">Non-negative width and height of the rectangle.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="size"/> has a negative component.
+	/// </exception>
+	public RectI(int x, int y, Vector2Int size) : this(x, y, size.X, size.Y) {}
 
 	/// <summary>
 	/// A rectangle at the origin with zero width and zero height.
@@ -111,9 +143,29 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 	public int CenterY => Y + Height / 2;
 
 	/// <summary>
-	/// The rectangle's center point.
+	/// The rectangle's center point, with its components rounded down.
 	/// </summary>
 	public Vector2Int Center => new(CenterX, CenterY);
+
+	/// <summary>
+	/// The rectangle's top-left corner. Alias of <see cref="Position"/>.
+	/// </summary>
+	public Vector2Int TopLeft => Position;
+
+	/// <summary>
+	/// The rectangle's top-right corner.
+	/// </summary>
+	public Vector2Int TopRight => new(Position.X + Width, Position.Y);
+
+	/// <summary>
+	/// The rectangle's bottom-left corner.
+	/// </summary>
+	public Vector2Int BottomLeft => new(Position.X, Position.Y + Height);
+
+	/// <summary>
+	/// The rectangle's bottom-right corner.
+	/// </summary>
+	public Vector2Int BottomRight => new(Position.X + Width, Position.Y + Height);
 
 	/// <summary>
 	/// Whether the rectangle's dimensions are zero.

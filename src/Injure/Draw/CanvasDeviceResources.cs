@@ -104,9 +104,9 @@ internal sealed class CanvasDeviceResources : IDisposable {
 		]);
 		PipelineLayout = device.CreatePipelineLayout([UniformLayout, DrawDeviceResources.For(device).ColorTexture2dViewLayout, SamplerLayout]);
 		foreach (TexFilter filter in TexFilter.Enum.Values) {
-			foreach (TexWrap wrap in TexWrap.Enum.Values) {
-				int i = new TexSampling(filter, wrap).Index;
-				samplers[i] = device.CreateSampler(samplerParams(filter, wrap));
+			foreach (TexAddressing addr in TexAddressing.Enum.Values) {
+				int i = new TexSampling(filter, addr).Index;
+				samplers[i] = device.CreateSampler(samplerParams(filter, addr));
 				samplerBindGroups[i] = device.CreateBindGroup(SamplerLayout, [new GpuBindGroupEntry(Binding: 0, new GpuSamplerBindingResource(samplers[i]))]);
 			}
 		}
@@ -121,11 +121,11 @@ internal sealed class CanvasDeviceResources : IDisposable {
 
 	public GpuBindGroup GetSamplerBindGroup(TexSampling sampling) => samplerBindGroups[sampling.Index];
 
-	private static GpuSamplerCreateParams samplerParams(TexFilter filter, TexWrap wrap) {
-		AddressMode address = wrap.Tag switch {
-			TexWrap.Case.Clamp => AddressMode.ClampToEdge,
-			TexWrap.Case.Repeat => AddressMode.Repeat,
-			TexWrap.Case.MirrorRepeat => AddressMode.MirrorRepeat,
+	private static GpuSamplerCreateParams samplerParams(TexFilter filter, TexAddressing addr) {
+		AddressMode address = addr.Tag switch {
+			TexAddressing.Case.Clamp => AddressMode.ClampToEdge,
+			TexAddressing.Case.Repeat => AddressMode.Repeat,
+			TexAddressing.Case.MirrorRepeat => AddressMode.MirrorRepeat,
 			_ => throw new UnreachableException(),
 		};
 		// area weighting is the linear sampler plus a shader-side uv adjustment

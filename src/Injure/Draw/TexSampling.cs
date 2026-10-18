@@ -11,7 +11,13 @@ namespace Injure.Draw;
 /// when to use which.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Separate mag/min/mipmap filters are unsupported at the <see cref="Draw"/> layer, and require
+/// raw <see cref="Gpu"/> usage.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is valid and is <see cref="Nearest"/>.
+/// </para>
 /// </remarks>
 [ClosedEnum(CheckZeroName = false)] // nearest is the plain "no filtering" choice, so it's an alright default
 public readonly partial struct TexFilter {
@@ -68,15 +74,21 @@ public readonly partial struct TexFilter {
 }
 
 /// <summary>
-/// How texture coordinates outside of [0, 1] map onto a texture; see <see cref="TexSampling"/> for
-/// when to use which.
+/// How texture UV coordinates outside of [0, 1] are handled. See <see cref="TexSampling"/> for
+/// when to use which; if you're not sure which one you want, it's most likely <see cref="Clamp"/>.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Per-axis address modes are unsupported at the <see cref="Draw"/> layer, and require raw
+/// <see cref="Gpu"/> usage.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is valid and is <see cref="Clamp"/>.
+/// </para>
 /// </remarks>
 [ClosedEnum(CheckZeroName = false)] // clamp is what a sprite drawn within [0, 1] expects
-public readonly partial struct TexWrap {
-	/// <summary>Raw switch tag for <see cref="TexWrap"/>.</summary>
+public readonly partial struct TexAddressing {
+	/// <summary>Raw switch tag for <see cref="TexAddressing"/>.</summary>
 	public enum Case {
 		/// <summary>
 		/// Clamps coordinates to the edge, repeating the edge texels outwards.
@@ -96,10 +108,11 @@ public readonly partial struct TexWrap {
 }
 
 /// <summary>
-/// How <see cref="Canvas"/> samples a texture: the filter, and what happens outside of the texture.
+/// Texture sampling filter + address mode. The address mode is <see cref="TexAddressing.Clamp"/>
+/// unless explicitly set, since that's what you want most of the time.
 /// </summary>
 /// <param name="Filter">How the texture is filtered between texel centers.</param>
-/// <param name="Wrap">How texture coordinates outside of [0, 1] map onto the texture.</param>
+/// <param name="Addressing">How texture UV coordinates outside of [0, 1] are handled.</param>
 /// <remarks>
 /// <para>
 /// The primary thing sampler choice affects is how the texture is scaled. Since there's no such
@@ -143,34 +156,34 @@ public readonly partial struct TexWrap {
 /// padding is enough.
 /// </para>
 /// <para>
-/// Use <see cref="TexWrap.Clamp"/> for ordinary sprites, and <see cref="TexWrap.Repeat"/> or
-/// <see cref="TexWrap.MirrorRepeat"/> for tiling a texture with a <see cref="TexRegion.Uv(RectF)"/>
-/// region that extends beyond [0, 1]. Wrapping applies to the whole texture, so it can't tile one
-/// <see cref="Texture2dSlice"/> of an atlas.
+/// Use <see cref="TexAddressing.Clamp"/> for ordinary sprites, and
+/// <see cref="TexAddressing.Repeat"/> or <see cref="TexAddressing.MirrorRepeat"/> for tiling a
+/// texture with a <see cref="TexRegion.Uv(RectF)"/> region that extends beyond [0, 1]. It applies
+/// to the whole underlying texture, so it can't tile one <see cref="Texture2dSlice"/> of an atlas.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is <see cref="Nearest"/>.
 /// </para>
 /// </remarks>
-public readonly record struct TexSampling(TexFilter Filter, TexWrap Wrap) {
+public readonly record struct TexSampling(TexFilter Filter, TexAddressing Addressing) {
 	/// <summary>
-	/// Nearest filtering, clamping to the edge.
+	/// <see cref="TexFilter.Nearest"/> + <see cref="TexAddressing.Clamp"/>.
 	/// </summary>
 	public static readonly TexSampling Nearest = default;
 
 	/// <summary>
-	/// Linear filtering, clamping to the edge.
+	/// <see cref="TexFilter.Linear"/> + <see cref="TexAddressing.Clamp"/>.
 	/// </summary>
-	public static readonly TexSampling Linear = new(TexFilter.Linear, TexWrap.Clamp);
+	public static readonly TexSampling Linear = new(TexFilter.Linear, TexAddressing.Clamp);
 
 	/// <summary>
-	/// Area-weighted filtering, clamping to the edge.
+	/// <see cref="TexFilter.AreaWeighted"/> + <see cref="TexAddressing.Clamp"/>.
 	/// </summary>
-	public static readonly TexSampling AreaWeighted = new(TexFilter.AreaWeighted, TexWrap.Clamp);
+	public static readonly TexSampling AreaWeighted = new(TexFilter.AreaWeighted, TexAddressing.Clamp);
 
-	private static readonly int wrapCount = TexWrap.Enum.Tags.Length;
+	private static readonly int wrapCount = TexAddressing.Enum.Tags.Length;
 
 	// dense index over all values, for per-value caches; tags are 0-based and contiguous
-	internal int Index => (int)Filter.Tag * wrapCount + (int)Wrap.Tag;
+	internal int Index => (int)Filter.Tag * wrapCount + (int)Addressing.Tag;
 	internal static readonly int IndexCount = TexFilter.Enum.Tags.Length * wrapCount;
 }
