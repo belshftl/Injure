@@ -889,6 +889,7 @@ public sealed class AssetStore : IDisposable {
 	/// </exception>
 	public Asset<T> GetAsset<T>(AssetId id) where T : class {
 		CheckDisposed();
+		ArgumentInvalidDefaultException.ThrowIfDefault(id);
 		AssetKey key = new(id, typeof(T));
 		if (!slots.TryGetValue(key, out IAssetSlot? s)) {
 			IAssetSlot @new = new AssetSlot<T>(Interlocked.Increment(ref nextSlotId), this, id);

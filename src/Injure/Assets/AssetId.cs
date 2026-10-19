@@ -330,7 +330,10 @@ public sealed class AssetIdJsonConverter : JsonConverter<AssetId> {
 	/// <summary>
 	/// Writes an <see cref="AssetId"/> as a JSON string value using <see cref="AssetId.ToString()"/>.
 	/// </summary>
-	public override void Write(Utf8JsonWriter writer, AssetId val, JsonSerializerOptions options) => writer.WriteStringValue(val.ToString());
+	public override void Write(Utf8JsonWriter writer, AssetId val, JsonSerializerOptions options) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(val);
+		writer.WriteStringValue(val.ToString());
+	}
 }
 
 /// <summary>

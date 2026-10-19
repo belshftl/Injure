@@ -65,9 +65,6 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 	/// <see cref="Slice(RectI)"/>.
 	/// </param>
 	/// <param name="rect">Rectangle of <paramref name="texture"/> in texels.</param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="texture"/> is the <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="rect"/> has a negative position or a non-positive size, or if
 	/// <paramref name="rect"/> doesn't fit in <paramref name="texture"/>. Fitting is checked here for
@@ -75,8 +72,7 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 	/// since the size of an asset isn't known without borrowing it.
 	/// </exception>
 	public Texture2dSlice(DrawableTexture texture, RectI rect) {
-		if (texture.IsDefault)
-			throw ArgumentInvalidDefaultException.For<DrawableTexture>(nameof(texture));
+		ArgumentInvalidDefaultException.ThrowIfDefault(texture);
 		if (rect.X < 0 || rect.Y < 0 || rect.Width <= 0 || rect.Height <= 0)
 			throw new ArgumentException($"slice rect must have a non-negative position and a positive size, got {rect}", nameof(rect));
 		if (texture.SliceRect is RectI outer) {
@@ -120,9 +116,6 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 	/// Thrown if <paramref name="cellSize"/>, <paramref name="columns"/>, or <paramref name="rows"/>
 	/// isn't positive, or <paramref name="margin"/> or <paramref name="spacing"/> is negative.
 	/// </exception>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="texture"/> is the <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if the grid doesn't fit in <paramref name="texture"/>, as checked by
 	/// <see cref="Texture2dSlice(DrawableTexture, RectI)"/>.
@@ -134,8 +127,7 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rows);
 		ArgumentOutOfRangeException.ThrowIfNegative(margin);
 		ArgumentOutOfRangeException.ThrowIfNegative(spacing);
-		if (texture.IsDefault)
-			throw ArgumentInvalidDefaultException.For<DrawableTexture>(nameof(texture));
+		ArgumentInvalidDefaultException.ThrowIfDefault(texture);
 		// check the bottom right cell first to report a non-fitting grid before allocating
 		_ = new Texture2dSlice(texture, cell(columns - 1, rows - 1));
 		var cells = new Texture2dSlice[checked(columns * rows)];

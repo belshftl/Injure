@@ -921,10 +921,6 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <see cref="Vector2"/> (top-left position, natural size; see <see cref="TexDraw"/>) or
 	/// <see cref="RectF"/> (destination rect) converts to this implicitly.
 	/// </param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="tex"/> or <paramref name="draw"/>'s <see cref="TexDraw.Destination"/>
-	/// is the <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="draw"/>'s <see cref="TexDraw.Origin"/>, <see cref="TexDraw.Scale"/>,
 	/// or <see cref="TexDraw.Rotation"/> isn't finite, or if <paramref name="tex"/> is a
@@ -944,10 +940,8 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 			new(v.X * cos - v.Y * sin, v.X * sin + v.Y * cos);
 
 		OwnedCanvas oc = o;
-		if (tex.IsDefault)
-			throw ArgumentInvalidDefaultException.For<DrawableTexture>(nameof(tex));
-		if (draw.Destination.IsDefault)
-			throw ArgumentInvalidDefaultException.For<TexDst>(nameof(draw));
+		ArgumentInvalidDefaultException.ThrowIfDefault(tex);
+		ArgumentInvalidDefaultException.ThrowIfDefault(draw);
 		if (!float.IsFinite(draw.Origin.X) || !float.IsFinite(draw.Origin.Y) || !float.IsFinite(draw.Scale.X) || !float.IsFinite(draw.Scale.Y) || !float.IsFinite(draw.Rotation))
 			throw new ArgumentException("texture draw origin, scale, and rotation must be finite", nameof(draw));
 		ResolvedDrawableTexture r = tex.Resolve();
@@ -1019,8 +1013,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// override is still pushed throws <see cref="InvalidOperationException"/>.
 	/// </returns>
 	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if the transform or scissor override, or the resulting parameters' target or material,
-	/// is the <see langword="default"/> value.
+	/// Thrown if the resulting parameters' target or material is the <see langword="default"/> value.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if the resulting parameters are invalid: they target a texture with an sRGB format, or
@@ -1064,7 +1057,14 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 		CanvasOutputState? outputState = null,
 		CanvasMaterial? material = null,
 		TexSampling? sampling = null
-	) => o.PushParams(new CanvasParamsOverride(target, colorAttachmentOps, scissor, transform, outputState, material, sampling));
+	) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(target);
+		ArgumentInvalidDefaultException.ThrowIfDefault(colorAttachmentOps);
+		ArgumentInvalidDefaultException.ThrowIfDefault(scissor);
+		ArgumentInvalidDefaultException.ThrowIfDefault(transform);
+		ArgumentInvalidDefaultException.ThrowIfDefault(material);
+		return o.PushParams(new CanvasParamsOverride(target, colorAttachmentOps, scissor, transform, outputState, material, sampling));
+	}
 
 	/// <summary>
 	/// Pushes a temporary parameter override onto the parameter stack, or does nothing and returns a

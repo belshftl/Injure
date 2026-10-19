@@ -201,17 +201,18 @@ public sealed class Texture2d : IAssetStoreDisposable {
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if the width or height is 0.
 	/// </exception>
-	/// <exception cref="ArgumentException">
+	/// <exception cref="ArgumentInvalidDefaultException">
 	/// Thrown if the format or mip filter is the invalid <see langword="default"/> value.
 	/// </exception>
 	public Texture2d(GpuDevice device, in Texture2dCreateParams @params) {
 		ArgumentNullException.ThrowIfNull(device);
+		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Width);
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Height);
 		if (@params.Format == default(Texture2dFormat))
-			throw new ArgumentException("format must not be the default value", nameof(@params));
+			throw ArgumentInvalidDefaultException.For<Texture2dFormat>(nameof(@params));
 		if (@params.Mips == default(Texture2dMipFilter))
-			throw new ArgumentException("mip filter must not be the default value", nameof(@params));
+			throw ArgumentInvalidDefaultException.For<Texture2dMipFilter>(nameof(@params));
 
 		this.device = device;
 		Texture2dFormat fmt = @params.Format ?? Texture2dFormat.Rgba32Unorm;
@@ -278,6 +279,7 @@ public sealed class Texture2d : IAssetStoreDisposable {
 	/// </exception>
 	public void Upload(int x, int y, ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt, int width, int height, PixelConvertOptions opts = default) {
 		chk();
+		ArgumentInvalidDefaultException.ThrowIfDefault(srcFmt);
 		ArgumentOutOfRangeException.ThrowIfNegative(x);
 		ArgumentOutOfRangeException.ThrowIfNegative(y);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(srcStride);

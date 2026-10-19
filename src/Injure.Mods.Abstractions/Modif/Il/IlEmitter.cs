@@ -39,7 +39,10 @@ public readonly ref struct IlEmitter : IHasInvalidDefault {
 	/// <summary>
 	/// Marks the current fragment position as the target of a previously defined label.
 	/// </summary>
-	public void MarkLabel(IlLabel label) => builder.MarkLabel(label);
+	public void MarkLabel(IlLabel label) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(label);
+		builder.MarkLabel(label);
+	}
 
 	// ======================================================================================
 	// non-instruction emission methods
@@ -319,8 +322,10 @@ public readonly ref struct IlEmitter : IHasInvalidDefault {
 	/// other way to emit <c>switch</c>.
 	/// </para>
 	/// </remarks>
-	public void RawBranch(ILOpCode opCode, IlLabel target) =>
+	public void RawBranch(ILOpCode opCode, IlLabel target) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(target);
 		builder.Emit(IlInstructionSpec.RawBranch(opCode, target));
+	}
 
 	// ======================================================================================
 	// nop and basic control flow
@@ -451,17 +456,22 @@ public readonly ref struct IlEmitter : IHasInvalidDefault {
 	/// <summary>
 	/// Emits the <c>ldloc</c> canonical instruction.
 	/// </summary>
-	public void Ldloc(IlLocal local) => RawNonbranch(ILOpCode.Ldloc, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Ldloc(IlLocal local) => RawNonbranch(ILOpCode.Ldloc, new IlLocalOperand(localIndex(local)));
 
 	/// <summary>
 	/// Emits the <c>ldloca</c> canonical instruction.
 	/// </summary>
-	public void Ldloca(IlLocal local) => RawNonbranch(ILOpCode.Ldloca, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Ldloca(IlLocal local) => RawNonbranch(ILOpCode.Ldloca, new IlLocalOperand(localIndex(local)));
 
 	/// <summary>
 	/// Emits the <c>stloc</c> canonical instruction.
 	/// </summary>
-	public void Stloc(IlLocal local) => RawNonbranch(ILOpCode.Stloc, new IlLocalOperand(builder.ValidateLocal(local)));
+	public void Stloc(IlLocal local) => RawNonbranch(ILOpCode.Stloc, new IlLocalOperand(localIndex(local)));
+
+	private int localIndex(IlLocal local) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(local);
+		return builder.ValidateLocal(local);
+	}
 
 	// ======================================================================================
 	// fields
@@ -840,7 +850,10 @@ public readonly ref struct IlEmitter : IHasInvalidDefault {
 	/// <remarks>
 	/// This is the only way to emit <c>switch</c>; raw-emit APIs do not support it.
 	/// </remarks>
-	public void Switch(ReadOnlySpan<IlLabel> targets) => builder.Emit(IlInstructionSpec.Switch(targets));
+	public void Switch(ReadOnlySpan<IlLabel> targets) {
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(targets, nameof(targets));
+		builder.Emit(IlInstructionSpec.Switch(targets));
+	}
 
 	// ======================================================================================
 	// helper methods

@@ -135,6 +135,11 @@ public sealed class ActionStateSnapshot {
 		ReadOnlySpan<StateAxis2dActionStateEntry> stateAxes2d,
 		ReadOnlySpan<ImpulseAxisActionStateEntry> impulseAxes
 	) {
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(buttons, nameof(buttons));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(stateAxes, nameof(stateAxes));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(stateAxes2d, nameof(stateAxes2d));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(impulseAxes, nameof(impulseAxes));
+
 		static ImmutableDictionary<ActionId, TValue> copy<TEntry, TValue>(
 			ReadOnlySpan<TEntry> entries,
 			Func<TEntry, ActionId> getAction,

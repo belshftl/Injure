@@ -9,18 +9,18 @@ namespace Injure.Mods.Abstractions.ManifestReader;
 /// <summary>
 /// A position in a JSON source text.
 /// </summary>
-/// <param name="Line">The line, starting at 1.</param>
+/// <param name="Line">The line, starting at 0.</param>
 /// <param name="Column">The column, starting at 1.</param>
 /// <param name="Offset">The offset in chars from the start of the text, starting at 0.</param>
 /// <remarks>
-/// The <see langword="default"/> value is invalid, since lines and columns start at 1.
+/// The <see langword="default"/> value is invalid, since columns start at 1.
 /// </remarks>
 public readonly record struct JsonSourceLocation(
 	int Line,
 	int Column,
 	int Offset
 ) : IHasInvalidDefault {
-	bool IHasInvalidDefault.IsDefault => Line == 0;
+	bool IHasInvalidDefault.IsDefault => Column == 0;
 }
 
 /// <summary>
@@ -37,7 +37,7 @@ public readonly record struct JsonSourceSpan(
 ) : IHasInvalidDefault {
 	public static JsonSourceSpan Point(JsonSourceLocation location) => new(location, location);
 
-	bool IHasInvalidDefault.IsDefault => Start.Line == 0;
+	bool IHasInvalidDefault.IsDefault => Start.Column == 0;
 }
 
 public sealed class SourceText(string sourceName, string text) {
@@ -68,6 +68,7 @@ public sealed class SourceText(string sourceName, string text) {
 	public string FormatDiagnostic(ManifestReadException ex) => FormatDiagnostic(ex.JsonNodePath, ex.Message, ex.Span);
 
 	public string FormatDiagnostic(string jsonNodePath, string message, JsonSourceSpan span) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(span);
 		int lineNo = span.Start.Line + 1;
 		int lineIdx = Math.Clamp(span.Start.Line, 0, lineStarts.Length - 1);
 		int lineStart = lineStarts[lineIdx];

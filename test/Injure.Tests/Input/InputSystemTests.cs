@@ -63,9 +63,9 @@ public static class InputSystemTests {
 		InputSystem b = new(16);
 		InputCursor fromB = b.CreateCursor();
 		Assert.Throws<ArgumentException>(() => a.CreateViewAndAdvance(ref fromB));
-		Assert.Throws<ArgumentException>(() => a.CreateView(default, out _));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => a.CreateView(default, out _));
 		InputCursor def = default;
-		Assert.Throws<ArgumentException>(() => a.AdvanceToCurrent(ref def));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => a.AdvanceToCurrent(ref def));
 	}
 
 	[Fact]

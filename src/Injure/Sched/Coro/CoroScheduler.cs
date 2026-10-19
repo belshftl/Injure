@@ -459,6 +459,7 @@ public sealed class CoroScheduler : IDisposable {
 	/// completes.
 	/// </remarks>
 	public void Tick(double dt, double rawDt, CoroUpdatePhase phase) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(phase);
 		if (ticking)
 			throw new InvalidOperationException("Tick() is not reentrant and cannot be called while a previous call is in progress");
 		ticking = true;

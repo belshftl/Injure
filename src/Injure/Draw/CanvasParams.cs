@@ -90,24 +90,24 @@ public readonly record struct CanvasParams(
 	/// What to do with the target's contents when its render pass begins, e.g.
 	/// <see cref="ColorAttachmentOps.Load"/> to draw over them.
 	/// </param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="viewport"/> is the <see langword="default"/> value.
-	/// </exception>
 	/// <remarks>
 	/// The other parameters are: no scissor, the identity transform,
 	/// <see cref="CanvasOutputStates.Alpha"/>, <see cref="CanvasMaterial.Color"/>, and
 	/// <see cref="TexSampling.Nearest"/>. A <see langword="with"/> expression can be used to change
 	/// some of them.
 	/// </remarks>
-	public static CanvasParams Primary(Viewport viewport, ColorAttachmentOps colorAttachmentOps) => new(
-		Target: CanvasTarget.Primary(viewport),
-		ColorAttachmentOps: colorAttachmentOps,
-		Scissor: CanvasScissor.None,
-		Transform: Matrix3x2.Identity,
-		OutputState: CanvasOutputStates.Alpha,
-		Material: CanvasMaterial.Color,
-		Sampling: TexSampling.Nearest
-	);
+	public static CanvasParams Primary(Viewport viewport, ColorAttachmentOps colorAttachmentOps) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(colorAttachmentOps);
+		return new(
+			Target: CanvasTarget.Primary(viewport),
+			ColorAttachmentOps: colorAttachmentOps,
+			Scissor: CanvasScissor.None,
+			Transform: Matrix3x2.Identity,
+			OutputState: CanvasOutputStates.Alpha,
+			Material: CanvasMaterial.Color,
+			Sampling: TexSampling.Nearest
+		);
+	}
 
 	/// <summary>
 	/// Creates parameters for drawing into all of <paramref name="frame"/>'s primary output at
@@ -169,6 +169,7 @@ public readonly record struct CanvasParams(
 		float pixelsPerUnit = 1f
 	) {
 		ArgumentNullException.ThrowIfNull(frame);
+		ArgumentInvalidDefaultException.ThrowIfDefault(colorAttachmentOps);
 		GpuTextureViewRef view = frame.PrimaryView;
 		return Primary(Viewport.Whole(new Vector2(view.Width, view.Height), pixelsPerUnit), colorAttachmentOps);
 	}

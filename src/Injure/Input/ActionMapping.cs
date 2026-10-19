@@ -57,6 +57,12 @@ public sealed class ActionMapSnapshot {
 		StateAxisMergePolicy stateAxisMergePolicy,
 		StateAxis2dMergePolicy stateAxis2dMergePolicy
 	) {
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(buttonBindings, nameof(buttonBindings));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(stateAxisBindings, nameof(stateAxisBindings));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(stateAxis2dBindings, nameof(stateAxis2dBindings));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(impulseAxisBindings, nameof(impulseAxisBindings));
+		ArgumentInvalidDefaultException.ThrowIfDefault(stateAxisMergePolicy);
+		ArgumentInvalidDefaultException.ThrowIfDefault(stateAxis2dMergePolicy);
 		this.buttonBindings = validate(buttonBindings, b => (b.Action, b.Source), "button");
 		this.stateAxisBindings = validate(stateAxisBindings, b => (b.Action, b.Source), "state axis");
 		this.stateAxis2dBindings = validate(stateAxis2dBindings, b => (b.Action, b.Source), "2D state axis");
@@ -106,12 +112,24 @@ public sealed class ActionMapBuilder {
 	/// <summary>
 	/// How several bindings of the same 1D state axis action are combined.
 	/// </summary>
-	public StateAxisMergePolicy StateAxisMergePolicy { get; set; } = StateAxisMergePolicy.MaxAbs;
+	public StateAxisMergePolicy StateAxisMergePolicy {
+		get;
+		set {
+			ArgumentInvalidDefaultException.ThrowIfDefault(value);
+			field = value;
+		}
+	} = StateAxisMergePolicy.MaxAbs;
 
 	/// <summary>
 	/// How several bindings of the same 2D state axis action are combined.
 	/// </summary>
-	public StateAxis2dMergePolicy StateAxis2dMergePolicy { get; set; } = StateAxis2dMergePolicy.MaxMagnitude;
+	public StateAxis2dMergePolicy StateAxis2dMergePolicy {
+		get;
+		set {
+			ArgumentInvalidDefaultException.ThrowIfDefault(value);
+			field = value;
+		}
+	} = StateAxis2dMergePolicy.MaxMagnitude;
 
 	/// <summary>
 	/// Creates a builder that starts out with the contents of <paramref name="snapshot"/>.
@@ -140,6 +158,7 @@ public sealed class ActionMapBuilder {
 	/// </exception>
 	public void BindButton(ActionId action, InputButtonSource source) {
 		ensureValid(action);
+		ArgumentInvalidDefaultException.ThrowIfDefault(source);
 		foreach (ButtonBinding b in buttonBindings)
 			if (b.Action == action && b.Source == source)
 				throw new ArgumentException("duplicate button binding");
@@ -154,6 +173,7 @@ public sealed class ActionMapBuilder {
 	/// </exception>
 	public void BindStateAxis(ActionId action, InputStateAxisSource source, AxisDeadzone deadzone, float scale = 1f) {
 		ensureValid(action);
+		ArgumentInvalidDefaultException.ThrowIfDefault(source);
 		foreach (StateAxisBinding b in stateAxisBindings)
 			if (b.Action == action && b.Source == source)
 				throw new ArgumentException("duplicate state axis binding");
@@ -168,6 +188,7 @@ public sealed class ActionMapBuilder {
 	/// </exception>
 	public void BindStateAxis2d(ActionId action, InputStateAxis2dSource source, Axis2dDeadzone deadzone) {
 		ensureValid(action);
+		ArgumentInvalidDefaultException.ThrowIfDefault(source);
 		foreach (StateAxis2dBinding b in stateAxis2dBindings)
 			if (b.Action == action && b.Source == source)
 				throw new ArgumentException("duplicate 2D state axis binding");
@@ -182,6 +203,7 @@ public sealed class ActionMapBuilder {
 	/// </exception>
 	public void BindStateAxis2d(ActionId action, InputStateAxis2dSource source, Axis2dDeadzone deadzone, Vector2 scale) {
 		ensureValid(action);
+		ArgumentInvalidDefaultException.ThrowIfDefault(source);
 		foreach (StateAxis2dBinding b in stateAxis2dBindings)
 			if (b.Action == action && b.Source == source)
 				throw new ArgumentException("duplicate 2D state axis binding");
@@ -196,6 +218,7 @@ public sealed class ActionMapBuilder {
 	/// </exception>
 	public void BindImpulseAxis(ActionId action, InputImpulseAxisSource source, float scale = 1f) {
 		ensureValid(action);
+		ArgumentInvalidDefaultException.ThrowIfDefault(source);
 		foreach (ImpulseAxisBinding b in impulseAxisBindings)
 			if (b.Action == action && b.Source == source)
 				throw new ArgumentException("duplicate impulse axis binding");

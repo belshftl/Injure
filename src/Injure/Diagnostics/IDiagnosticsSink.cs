@@ -63,6 +63,7 @@ public static class DiagnosticsSinkExtensions {
 		/// </exception>
 		public void ReportAll(in DiagnosticEvent d) {
 			ArgumentNullException.ThrowIfNull(sinks);
+			ArgumentInvalidDefaultException.ThrowIfDefault(d);
 			List<Exception>? exceptions = null;
 			foreach (IDiagnosticsSink sink in sinks)
 				try {
@@ -100,6 +101,7 @@ public static class DiagnosticsSinkExtensions {
 		public IOwnerDiagnostics ForOwner(string ownerId, ReloadGeneration? generation = null) {
 			ArgumentNullException.ThrowIfNull(sink);
 			ModMetadataValidation.ValidateOwnerIdOrThrow(ownerId);
+			ArgumentInvalidDefaultException.ThrowIfDefault(generation);
 			if (generation is ReloadGeneration g && g.OwnerId != ownerId)
 				throw new ArgumentException("the reload generation belongs to a different owner", nameof(generation));
 			return new OwnerDiagnostics(ownerId, sink, generation);

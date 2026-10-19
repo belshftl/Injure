@@ -25,7 +25,7 @@ namespace Injure.Diagnostics;
 public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput, DiagnosticSeverity? minimumSeverity = null) : IDiagnosticsSink {
 	private readonly TextWriter output = output ?? throw new ArgumentNullException(nameof(output));
 	private readonly bool colorOutput = colorOutput;
-	private readonly int minimum = (int)(minimumSeverity ?? DiagnosticSeverity.Debug).Tag;
+	private readonly int minimum = minimumOf(minimumSeverity);
 	private readonly Lock outputLock = new(); // XXX: might have contention under very high-volume logging, fine for now
 
 	/// <summary>
@@ -47,7 +47,13 @@ public sealed class DefaultDiagnosticsSink(TextWriter output, bool colorOutput, 
 	private const string resetColor = "\x1b[0m";
 
 	/// <inheritdoc/>
+	private static int minimumOf(DiagnosticSeverity? minimumSeverity) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(minimumSeverity, nameof(minimumSeverity));
+		return (int)(minimumSeverity ?? DiagnosticSeverity.Debug).Tag;
+	}
+
 	public void Report(in DiagnosticEvent d) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(d);
 		if ((int)d.Severity.Tag < minimum)
 			return;
 		DateTimeOffset now = DateTimeOffset.Now;

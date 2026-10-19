@@ -623,6 +623,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 	public void RequestReload(string ownerId) => RequestReload(ownerId, ReloadRequestKind.Any);
 
 	public void RequestReload(string ownerId, ReloadRequestKind kind) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(kind);
 		requirePhase(RuntimePhase.Active, nameof(RequestReload));
 		if (!activeGraph.Mods.TryGetValue(ownerId, out ResolvedMod mod))
 			throw new InvalidOperationException($"unknown mod '{ownerId}'");
@@ -633,6 +634,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 	}
 
 	public void RequestDisable(string ownerId, DisableRequestKind kind) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(kind);
 		requirePhase(RuntimePhase.Active, nameof(RequestDisable));
 		if (!activeGraph.Mods.TryGetValue(ownerId, out ResolvedMod mod))
 			throw new InvalidOperationException($"unknown mod '{ownerId}'");
@@ -643,6 +645,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 	}
 
 	public void RequestEnable(string ownerId, EnableRequestKind kind) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(kind);
 		requirePhase(RuntimePhase.Active, nameof(RequestEnable));
 		if (!discovered.TryGetValue(ownerId, out DiscoveredMod mod))
 			throw new InvalidOperationException($"unknown mod '{ownerId}'");

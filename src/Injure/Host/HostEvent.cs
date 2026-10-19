@@ -360,6 +360,7 @@ public readonly struct HostEvent : IHasInvalidDefault {
 	/// <paramref name="window"/> is invalid.
 	/// </exception>
 	public static HostEvent ForWindow(HostEventKind kind, HostTick tick, HostWindowId window) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(kind);
 		return kind.Tag switch {
 			HostEventKind.Case.WindowCloseRequested
 				or HostEventKind.Case.WindowShown
@@ -417,8 +418,10 @@ public readonly struct HostEvent : IHasInvalidDefault {
 	/// <summary>
 	/// Creates a <see cref="HostEventKind.Key"/> event.
 	/// </summary>
-	public static HostEvent ForKey(HostTick tick, HostWindowId window, in HostKeyEvent key) =>
-		new(HostEventKind.Key, tick, window, new Payload { Key = key });
+	public static HostEvent ForKey(HostTick tick, HostWindowId window, in HostKeyEvent key) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(key);
+		return new(HostEventKind.Key, tick, window, new Payload { Key = key });
+	}
 
 	/// <summary>
 	/// Creates a <see cref="HostEventKind.TextInput"/> event.
@@ -440,8 +443,10 @@ public readonly struct HostEvent : IHasInvalidDefault {
 	/// <summary>
 	/// Creates a <see cref="HostEventKind.PointerButton"/> event.
 	/// </summary>
-	public static HostEvent ForPointerButton(HostTick tick, HostWindowId window, in HostPointerButtonEvent button) =>
-		new(HostEventKind.PointerButton, tick, window, new Payload { PointerButton = button });
+	public static HostEvent ForPointerButton(HostTick tick, HostWindowId window, in HostPointerButtonEvent button) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(button);
+		return new(HostEventKind.PointerButton, tick, window, new Payload { PointerButton = button });
+	}
 
 	/// <summary>
 	/// Creates a <see cref="HostEventKind.PointerWheel"/> event.
@@ -464,14 +469,18 @@ public readonly struct HostEvent : IHasInvalidDefault {
 	/// <summary>
 	/// Creates a <see cref="HostEventKind.GamepadAxis"/> event.
 	/// </summary>
-	public static HostEvent ForGamepadAxis(HostTick tick, in HostGamepadAxisEvent axis) =>
-		new(HostEventKind.GamepadAxis, tick, default, new Payload { GamepadAxis = axis });
+	public static HostEvent ForGamepadAxis(HostTick tick, in HostGamepadAxisEvent axis) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(axis);
+		return new(HostEventKind.GamepadAxis, tick, default, new Payload { GamepadAxis = axis });
+	}
 
 	/// <summary>
 	/// Creates a <see cref="HostEventKind.GamepadButton"/> event.
 	/// </summary>
-	public static HostEvent ForGamepadButton(HostTick tick, in HostGamepadButtonEvent button) =>
-		new(HostEventKind.GamepadButton, tick, default, new Payload { GamepadButton = button });
+	public static HostEvent ForGamepadButton(HostTick tick, in HostGamepadButtonEvent button) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(button);
+		return new(HostEventKind.GamepadButton, tick, default, new Payload { GamepadButton = button });
+	}
 
 	private static HostWindowId requireWindow(HostWindowId window) =>
 		window.IsValid ? window : throw new ArgumentException("window events need a valid window ID", nameof(window));

@@ -116,12 +116,8 @@ public readonly struct DrawableTexture : IEquatable<DrawableTexture>, IHasInvali
 	/// <summary>
 	/// Creates a source referring to the part of a texture that <paramref name="slice"/> covers.
 	/// </summary>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="slice"/> is the <see langword="default"/> value.
-	/// </exception>
 	public static implicit operator DrawableTexture(Texture2dSlice slice) {
-		if (slice.IsDefault)
-			throw ArgumentInvalidDefaultException.For<Texture2dSlice>(nameof(slice));
+		ArgumentInvalidDefaultException.ThrowIfDefault(slice);
 		return new DrawableTexture(slice.Texture, slice.Rect);
 	}
 

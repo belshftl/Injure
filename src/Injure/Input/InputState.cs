@@ -275,6 +275,7 @@ public readonly struct GamepadStateSet : IReadOnlyList<GamepadStateEntry> {
 	/// Thrown if <paramref name="gamepads"/> contains a gamepad ID more than once.
 	/// </exception>
 	public GamepadStateSet(ReadOnlySpan<GamepadStateEntry> gamepads) {
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(gamepads, nameof(gamepads));
 		entriesBacking = gamepads.ToArray();
 		if (entriesBacking.Length != entriesBacking.DistinctBy(static e => e.Id).Count())
 			throw new ArgumentException("entry list must not have duplicate gamepad IDs", nameof(gamepads));

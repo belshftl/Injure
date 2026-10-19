@@ -24,5 +24,10 @@ public readonly record struct ReloadGeneration(string OwnerId, ulong Value) : IH
 
 public sealed class ReloadGenerationExpiredException(ReloadGeneration? generation)
 	: InvalidOperationException($"object belongs to expired reload generation {generation?.ToString() ?? "<unknown>"}") {
-	public ReloadGeneration? Generation { get; } = generation;
+	public ReloadGeneration? Generation { get; } = chk(generation);
+
+	private static ReloadGeneration? chk(ReloadGeneration? generation) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(generation);
+		return generation;
+	}
 }

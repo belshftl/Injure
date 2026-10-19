@@ -81,12 +81,8 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefau
 	/// <see cref="RenderFrame.PrimaryView"/>.
 	/// </summary>
 	/// <param name="viewport">The drawable area of the primary output.</param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="viewport"/> is the <see langword="default"/> value.
-	/// </exception>
 	public static CanvasTarget Primary(Viewport viewport) {
-		if (viewport.IsDefault)
-			throw ArgumentInvalidDefaultException.For<Viewport>(nameof(viewport));
+		ArgumentInvalidDefaultException.ThrowIfDefault(viewport);
 		return new CanvasTarget(null, true, viewport);
 	}
 
@@ -111,13 +107,9 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefau
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="renderTarget"/> is <see langword="null"/>.
 	/// </exception>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="viewport"/> is the <see langword="default"/> value.
-	/// </exception>
 	public static CanvasTarget Offscreen(RenderTarget2d renderTarget, Viewport viewport) {
 		ArgumentNullException.ThrowIfNull(renderTarget);
-		if (viewport.IsDefault)
-			throw ArgumentInvalidDefaultException.For<Viewport>(nameof(viewport));
+		ArgumentInvalidDefaultException.ThrowIfDefault(viewport);
 		return new CanvasTarget(renderTarget, false, viewport);
 	}
 
@@ -129,8 +121,10 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefau
 	/// Changing between targets for which this is <see langword="true"/> doesn't end the render
 	/// pass; see <see cref="CanvasParams"/>.
 	/// </remarks>
-	public bool SameRenderTarget(CanvasTarget other) =>
-		IsPrimary == other.IsPrimary && ReferenceEquals(rt, other.rt);
+	public bool SameRenderTarget(CanvasTarget other) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(other);
+		return IsPrimary == other.IsPrimary && ReferenceEquals(rt, other.rt);
+	}
 
 	public bool Equals(CanvasTarget other) => isPrimary == other.isPrimary && ReferenceEquals(rt, other.rt) && viewport.Equals(other.viewport);
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasTarget other && Equals(other);
@@ -590,9 +584,6 @@ public readonly struct CanvasMaterial : IEquatable<CanvasMaterial>, IHasInvalidD
 	/// Creates a material that interprets textures as signed distance fields.
 	/// </summary>
 	/// <param name="params">How to decode the distance field.</param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="params"/> is the <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="params"/> breaks one of the constraints <see cref="SdfParams"/>
 	/// documents.
@@ -604,8 +595,7 @@ public readonly struct CanvasMaterial : IEquatable<CanvasMaterial>, IHasInvalidD
 	/// <see cref="TexDraw.Sampling"/>.
 	/// </remarks>
 	public static CanvasMaterial Sdf(SdfParams @params) {
-		if (@params == default)
-			throw ArgumentInvalidDefaultException.For<SdfParams>(nameof(@params));
+		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
 		if (!float.IsFinite(@params.DistanceRangeTexels) || @params.DistanceRangeTexels <= 0f)
 			throw new ArgumentOutOfRangeException(nameof(@params), @params, "SdfParams.DistanceRangeTexels must be positive and finite");
 		if (!(@params.EdgeValue >= 0f && @params.EdgeValue <= 1f))

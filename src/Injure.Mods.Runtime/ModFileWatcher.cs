@@ -40,6 +40,7 @@ public sealed class ModFileWatcher : IDisposable {
 	}
 
 	public void Watch(ModWatchSpec spec) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(spec);
 		ArgumentException.ThrowIfNullOrWhiteSpace(spec.OwnerId);
 		ArgumentException.ThrowIfNullOrWhiteSpace(spec.ManifestPath);
 
@@ -93,6 +94,7 @@ public sealed class ModFileWatcher : IDisposable {
 		ArgumentNullException.ThrowIfNull(specs);
 
 		ModWatchSpec[] snapshot = specs.ToArray();
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault<ModWatchSpec>(snapshot, nameof(specs));
 		string[] oldOwners;
 		lock (@lock) {
 			ObjectDisposedException.ThrowIf(disposed, this);

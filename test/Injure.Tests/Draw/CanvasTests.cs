@@ -623,8 +623,8 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		Assert.Equal(1u, single.MipLevelCount);
 		Assert.Null(single.MipFilter);
 		Assert.Throws<InvalidOperationException>(single.GenerateMips);
-		Assert.Throws<ArgumentException>(() => new Texture2d(Device, new Texture2dCreateParams(4, 4, Mips: default(Texture2dMipFilter))));
-		Assert.Throws<ArgumentException>(() => new Texture2d(Device, new Texture2dCreateParams(4, 4, Format: default(Texture2dFormat))));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2d(Device, new Texture2dCreateParams(4, 4, Mips: default(Texture2dMipFilter))));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2d(Device, new Texture2dCreateParams(4, 4, Format: default(Texture2dFormat))));
 	}
 
 	[Fact]

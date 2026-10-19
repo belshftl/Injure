@@ -82,6 +82,31 @@ public sealed class ArgumentInvalidDefaultException : ArgumentException {
 			throwFor<T>(paramName);
 	}
 
+	/// <summary>
+	/// Throws an <see cref="ArgumentInvalidDefaultException"/> if <paramref name="value"/> isn't
+	/// <see langword="null"/> but is the default value of <typeparamref name="T"/>.
+	/// </summary>
+	/// <param name="value">The argument to check.</param>
+	/// <param name="paramName">
+	/// The name of the parameter <paramref name="value"/> was passed as; the argument expression
+	/// unless set.
+	/// </param>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if <paramref name="value"/> is the default value of <typeparamref name="T"/>.
+	/// </exception>
+	public static void ThrowIfDefault<T>(T? value, [CallerArgumentExpression(nameof(value))] string? paramName = null)
+		where T : struct, IHasInvalidDefault {
+		if (value is T v && v.IsDefault)
+			throwFor<T>(paramName);
+	}
+
+	// checks every element, naming the first default one as `paramName[index]`
+	internal static void ThrowIfAnyDefault<T>(ReadOnlySpan<T> values, string paramName) where T : struct, IHasInvalidDefault {
+		for (int i = 0; i < values.Length; i++)
+			if (values[i].IsDefault)
+				throwFor<T>($"{paramName}[{i}]");
+	}
+
 	[DoesNotReturn]
 	private static void throwFor<T>(string? paramName) where T : struct, allows ref struct =>
 		throw new ArgumentInvalidDefaultException(InvalidDefaultException.MessageFor(typeof(T).ToString()), paramName);

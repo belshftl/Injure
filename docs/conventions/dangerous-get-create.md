@@ -17,7 +17,6 @@ These members exist because the alternative is worse. Being able to reach the na
 ## When a member is "dangerous"
 
 A member gets the prefix if, and only if, it lets the caller break an invariant that Injure otherwise enforces. In practice, that happens in one of these ways:
-
 - **Outliving a lifetime.** The member hands out something that stays usable, or at least reachable, after the lifetime it belongs to has ended.
   - `Gpu*Handle.DangerousGetNative()` returns the native WebGPU object, which dangles once the owning wrapper is disposed. Nothing stops the caller from releasing it through the bindings either, even if it was obtained through a non-owning `*Ref`.
   - `GpuBuffer.DangerousGetMappedPointer()` returns a pointer into mapped memory, which dangles once the buffer is unmapped or disposed.
@@ -44,7 +43,6 @@ Members that are merely low-level are not dangerous as long as Injure still enfo
 ## The caller's contract
 
 When using a `DangerousGet*` member, the caller must not:
-
 - release, destroy, or otherwise end the lifetime of the returned value, unless the member's docs say otherwise;
 - use the returned value after the lifetime it belongs to has ended (the owner is disposed, the asset is revoked, the buffer is unmapped, the device is lost, etc.);
 - change state that Injure tracks through the returned value, e.g. reconfiguring a WebGPU surface behind a `SurfaceRenderOutput`'s back;
@@ -69,14 +67,12 @@ A dangerous member whose signature includes a foreign type is **not** stable API
 ## Documentation requirements
 
 Every dangerous member's doc comment has:
-
 - a statement of what it bypasses, typically in the `<summary>`;
 - a statement of when its result becomes invalid (for `DangerousGet*`) or what the input must satisfy (for `DangerousCreate*`), including which of those requirements Injure checks;
 - for members with foreign types in their signature, a statement that the type is not a stable API;
 - a reference to this document.
 
 For example:
-
 ```csharp
 /// <summary>
 /// Returns the underlying <see cref="WGPUBuffer"/>, bypassing ownership/lifetime. Dangles once

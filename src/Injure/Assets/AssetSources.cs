@@ -109,7 +109,7 @@ public sealed class DirectoryAssetSource(string matchNamespace, string root, Fil
 /// </remarks>
 public sealed class EmbeddedAssetSource(Assembly assembly, HashSet<AssetId> ids) : IAssetSource {
 	private readonly Assembly assembly = assembly ?? throw new ArgumentNullException(nameof(assembly));
-	private readonly HashSet<AssetId> ids = ids ?? throw new ArgumentNullException(nameof(ids));
+	private readonly HashSet<AssetId> ids = chkIds(ids);
 
 	public ValueTask<AssetSourceResult> TrySourceAsync(AssetSourceInfo info, IAssetDepCollector coll, CancellationToken ct = default) {
 		ct.ThrowIfCancellationRequested();
@@ -120,5 +120,12 @@ public sealed class EmbeddedAssetSource(Assembly assembly, HashSet<AssetId> ids)
 			throw new FileNotFoundException("failed to open embedded asset stream", info.AssetId.Path);
 		coll.Add(new EmbeddedAssetDep(assembly, info.AssetId.Path));
 		return ValueTask.FromResult(AssetSourceResult.Success(stream));
+	}
+
+	private static HashSet<AssetId> chkIds(HashSet<AssetId> ids) {
+		ArgumentNullException.ThrowIfNull(ids);
+		foreach (AssetId id in ids)
+			ArgumentInvalidDefaultException.ThrowIfDefault(id, nameof(ids));
+		return ids;
 	}
 }

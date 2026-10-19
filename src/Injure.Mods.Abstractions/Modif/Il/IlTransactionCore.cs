@@ -173,7 +173,7 @@ internal sealed class IlTransactionCore {
 	public IlMatches MatchAll(ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenanceConstraint) {
 		EnsureAuthoringOpen();
 		validatePattern(pattern, nameof(pattern));
-		validateProvenanceConstraint(provenanceConstraint, nameof(provenanceConstraint));
+		validateProvenanceConstraint(provenanceConstraint, "provenance"); // the public parameters' name
 		List<IlRange> matches = new();
 		int lastStart = snapshot.Instructions.Length - pattern.Length;
 		for (int start = 0; start <= lastStart; ) {
@@ -194,7 +194,7 @@ internal sealed class IlTransactionCore {
 	public IlMatch MatchNext(int startBoundary, ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenanceConstraint) {
 		EnsureAuthoringOpen();
 		validatePattern(pattern, nameof(pattern));
-		validateProvenanceConstraint(provenanceConstraint, nameof(provenanceConstraint));
+		validateProvenanceConstraint(provenanceConstraint, "provenance"); // the public parameters' name
 		if ((uint)startBoundary > (uint)snapshot.Instructions.Length)
 			throw new ArgumentOutOfRangeException(nameof(startBoundary));
 		int lastStart = snapshot.Instructions.Length - pattern.Length;
@@ -211,7 +211,7 @@ internal sealed class IlTransactionCore {
 	public IlMatch MatchPrev(int endBoundary, ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenanceConstraint) {
 		EnsureAuthoringOpen();
 		validatePattern(pattern, nameof(pattern));
-		validateProvenanceConstraint(provenanceConstraint, nameof(provenanceConstraint));
+		validateProvenanceConstraint(provenanceConstraint, "provenance"); // the public parameters' name
 		if ((uint)endBoundary > (uint)snapshot.Instructions.Length)
 			throw new ArgumentOutOfRangeException(nameof(endBoundary));
 		for (int start = endBoundary - pattern.Length; start >= 0; start--)
@@ -472,13 +472,10 @@ internal sealed class IlTransactionCore {
 	private static void validatePattern(ReadOnlySpan<IlPatternElement> pattern, string paramName) {
 		if (pattern.IsEmpty)
 			throw new ArgumentException("pattern must not be empty", paramName);
-		for (int i = 0; i < pattern.Length; i++)
-			if (!pattern[i].IsValid)
-				throw new ArgumentInvalidDefaultException($"pattern element {i} is the invalid default value", paramName);
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(pattern, paramName);
 	}
 
 	private static void validateProvenanceConstraint(IlProvenanceConstr constraint, string paramName) {
-		if (constraint.Kind == IlProvenanceConstr.ConstraintKind.UninitializedValue)
-			throw ArgumentInvalidDefaultException.For<IlProvenanceConstr>(paramName);
+		ArgumentInvalidDefaultException.ThrowIfDefault(constraint, paramName);
 	}
 }

@@ -1,6 +1,6 @@
 # mods/canonical-short-form-normative.md
 
-This document provides a normative, formal definition of canonical/short forms and shortening.
+This document provides a normative definition of canonical/short forms and shortening.
 
 **Most should refer to [`mods/canonical-short-form.md`](/docs/mods/canonical-short-form.md) instead**; it is an informative document explaining the subject in less formal terms, with examples.
 

@@ -182,8 +182,7 @@ public sealed class OwnedCanvas : IDisposable {
 	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="baseParams"/>'s target or material is the <see langword="default"/>
-	/// value.
+	/// Thrown if <paramref name="baseParams"/>'s material is the <see langword="default"/> value.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="baseParams"/> is invalid: its target is a texture with an sRGB
@@ -196,6 +195,7 @@ public sealed class OwnedCanvas : IDisposable {
 	/// </exception>
 	public OwnedCanvas(RenderFrame frame, in CanvasParams baseParams) {
 		ArgumentNullException.ThrowIfNull(frame);
+		ArgumentInvalidDefaultException.ThrowIfDefault(baseParams);
 		this.frame = frame;
 		res = CanvasDeviceResources.For(frame.Device);
 		validate(baseParams);

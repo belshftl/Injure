@@ -104,6 +104,7 @@ public sealed class SdlWindow : IDisposable {
 	public static SdlWindow Create(SdlInstance sdl, in SdlWindowOptions options) {
 		ArgumentNullException.ThrowIfNull(sdl);
 		sdl.CheckAccess();
+		ArgumentInvalidDefaultException.ThrowIfDefault(options);
 		options.Validate(nameof(options));
 
 		uint props = SDL.CreateProperties();

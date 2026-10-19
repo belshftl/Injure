@@ -163,6 +163,7 @@ public sealed class InputSystem : IInputSource {
 	}
 
 	private void validateCursor(InputCursor cursor) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(cursor);
 		if (!cursor.BelongsTo(cursorSourceToken))
 			throw new ArgumentException("input cursor was not created by this input source", nameof(cursor));
 	}
@@ -186,6 +187,7 @@ public sealed class InputSystem : IInputSource {
 	/// axes to 0, so consumers never see input stay active on a gamepad that is gone.
 	/// </remarks>
 	public bool TryHandle(in HostEvent ev) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(ev);
 		switch (ev.Kind.Tag) {
 		case HostEventKind.Case.Key: {
 			HostKeyEvent k = ev.Key;

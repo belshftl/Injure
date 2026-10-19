@@ -84,7 +84,6 @@ This does not apply to rarely used names, where the reader is likely to have for
 ### Layout
 
 `<summary>` and `<remarks>` have a heavy preference for putting the opening tag, the contents and the closing tag on separate lines:
-
 ```csharp
 /// <summary>
 /// Uses the passed <see cref="IlEmitter"/> to emit a transaction-local instruction fragment.
@@ -106,7 +105,6 @@ Tags appear in this order: `<summary>`, `<typeparam>`, `<param>`, `<returns>`, `
 ### Properties
 
 A property's `<summary>` describes what the property is, not what accessing it does, so it isn't phrased as "Gets ..." or "Sets ...":
-
 ```csharp
 /// <summary>
 /// The number of elements currently stored in the ring.
@@ -119,7 +117,6 @@ rather than "Gets the number of elements currently stored in the ring." Methods 
 ### Exceptions
 
 Each `<exception>` describes the condition under which it is thrown, phrased as "Thrown if ...":
-
 ```csharp
 /// <exception cref="ArgumentException">
 /// Thrown if <paramref name="scope"/> belongs to a different scheduler.
@@ -130,24 +127,20 @@ Do **not** document throwing `InternalStateException` (`<exception cref="Interna
 
 ### Default values of structs
 
-Every struct, regardless of accessibility, documents whether its `default` value is a logically valid value of that type. This is the last paragraph of the type-level `<remarks>`, in one of two forms:
+(This section is duplicated from [`invalid-default-values.md`](/docs/invalid-default-values.md).)
 
-```csharp
-/// The <see langword="default"/> value is invalid.
-```
+Every single struct in Injure documents whether its `default` value is valid, as the last paragraph of its `<remarks>`, as one of the following (square brackets denote a placeholder):
+- `/// The <see langword="default"/> value is invalid.[ anything]`
+- `/// The <see langword="default"/> value is valid[anything other than just a period]`
 
-```csharp
-/// The <see langword="default"/> value is valid and is version <c>0.0.0</c>.
-```
+This applies regardless of accessibility; even one-off private record structs get it.
 
-A valid default value has to say what it represents; "The `default` value is valid." on its own is not enough. Further sentences may follow in the same paragraph, e.g. to explain why the default is invalid or what to use instead.
-
-The dev analyzer reports structs that don't follow this as `IJDEV0200`.
-
-A struct whose `default` value is invalid implements `IHasInvalidDefault` (explicitly, so `IsDefault` is only reachable through the interface), and a struct whose `default` value is valid doesn't. The dev analyzer reports structs whose doc comment and interface disagree as `IJDEV0201`. A struct with an instance field of such a type has an invalid `default` value too, and has to implement the interface as well (`IJ0102`/`IJDEV0102`).
+A struct implements `IHasInvalidDefault` if and only if it documents its `default` value as invalid.
 
 ### Internal/private types and members
 
 Internal/private types and members can also have doc comments. Unlike public-API accessible ones, there is not a strict need to document, but the usual convention is to document `internal` members/types unless the behavior is obvious, and to document `private` members/types if there is some kind of important information that is difficult to derive from just reading the code of the member/type in question and its surrounding code.
 
 Additionally, public-API types and members nearly always have a `<summary>` if they have a doc comment at all (not counting `inheritdoc` ones); exemptions can be made for e.g. enum members whose role is obvious from just the name but have additional notes/remarks. Internal/private types are exempt from this, and may have e.g. purely a `<remarks>` or purely a `<returns>` or purely one or more `<exception>`s; that pattern is common for if the general purpose/behavior is evident but some supplementary info or edge case(s) need to be noted.
+
+Also see the section above; all structs must have a `<remarks>` documenting the validity of the `default` value.

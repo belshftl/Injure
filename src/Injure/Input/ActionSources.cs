@@ -201,6 +201,9 @@ public readonly struct DigitalAxisSource : IEquatable<DigitalAxisSource>, IHasIn
 	/// Thrown if <paramref name="negative"/> and <paramref name="positive"/> are the same input.
 	/// </exception>
 	public DigitalAxisSource(InputButtonSource negative, InputButtonSource positive, SocdPolicy socd) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(negative);
+		ArgumentInvalidDefaultException.ThrowIfDefault(positive);
+		ArgumentInvalidDefaultException.ThrowIfDefault(socd);
 		if (negative == positive)
 			throw new ArgumentException("negative and positive sources must be different");
 		Negative = negative;
@@ -439,6 +442,12 @@ public readonly struct DigitalAxis2dSource : IEquatable<DigitalAxis2dSource>, IH
 		SocdPolicy xSocd,
 		SocdPolicy ySocd
 	) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(left);
+		ArgumentInvalidDefaultException.ThrowIfDefault(right);
+		ArgumentInvalidDefaultException.ThrowIfDefault(up);
+		ArgumentInvalidDefaultException.ThrowIfDefault(down);
+		ArgumentInvalidDefaultException.ThrowIfDefault(xSocd);
+		ArgumentInvalidDefaultException.ThrowIfDefault(ySocd);
 		if (left == right)
 			throw new ArgumentException("left and right sources must be different");
 		if (up == down)
@@ -480,12 +489,12 @@ public readonly struct StateAxis2dPairSource(InputStateAxisSource x, InputStateA
 	/// <summary>
 	/// The input for the X dimension.
 	/// </summary>
-	public InputStateAxisSource X { get; } = x;
+	public InputStateAxisSource X { get; } = chk(x, nameof(x));
 
 	/// <summary>
 	/// The input for the Y dimension.
 	/// </summary>
-	public InputStateAxisSource Y { get; } = y;
+	public InputStateAxisSource Y { get; } = chk(y, nameof(y));
 
 	/// <summary>Whether this and <paramref name="other"/> are the same value.</summary>
 	public bool Equals(StateAxis2dPairSource other) => X == other.X && Y == other.Y;
@@ -502,6 +511,11 @@ public readonly struct StateAxis2dPairSource(InputStateAxisSource x, InputStateA
 	public static bool operator !=(StateAxis2dPairSource left, StateAxis2dPairSource right) => !left.Equals(right);
 
 	bool IHasInvalidDefault.IsDefault => X == default;
+
+	private static InputStateAxisSource chk(InputStateAxisSource source, string paramName) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(source, paramName);
+		return source;
+	}
 }
 
 /// <summary>
@@ -573,8 +587,10 @@ public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSourc
 	/// <summary>
 	/// Creates a source for a gamepad stick, reading whichever gamepad has it most deflected.
 	/// </summary>
-	public static InputStateAxis2dSource GamepadStick(GamepadStick stick) =>
-		new(InputStateAxis2dSourceKind.GamepadStick, stick, default, default);
+	public static InputStateAxis2dSource GamepadStick(GamepadStick stick) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(stick);
+		return new(InputStateAxis2dSourceKind.GamepadStick, stick, default, default);
+	}
 
 	/// <summary>
 	/// Creates a source for four button-like inputs; see <see cref="DigitalAxis2dSource"/>.
@@ -700,8 +716,10 @@ public readonly struct InputImpulseAxisSource : IEquatable<InputImpulseAxisSourc
 	/// <summary>
 	/// Creates a source for a pointer wheel dimension.
 	/// </summary>
-	public static InputImpulseAxisSource PointerWheel(PointerWheelAxis axis) =>
-		new(InputImpulseAxisSourceKind.PointerWheel, axis);
+	public static InputImpulseAxisSource PointerWheel(PointerWheelAxis axis) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(axis);
+		return new(InputImpulseAxisSourceKind.PointerWheel, axis);
+	}
 
 	/// <summary>Whether this and <paramref name="other"/> are the same value.</summary>
 	public bool Equals(InputImpulseAxisSource other) => Kind == other.Kind && wheelAxis == other.wheelAxis;

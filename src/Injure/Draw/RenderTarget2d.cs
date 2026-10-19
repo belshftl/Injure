@@ -197,6 +197,7 @@ public sealed class RenderTarget2d : IDisposable {
 	/// </exception>
 	public RenderTarget2d(GpuDevice device, in RenderTarget2dCreateParams @params) {
 		this.device = device ?? throw new ArgumentNullException(nameof(device));
+		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Width);
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Height);
 		if (formatHasDepth(@params.ColorFormat) || formatHasStencil(@params.ColorFormat))

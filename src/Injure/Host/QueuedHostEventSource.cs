@@ -60,15 +60,11 @@ public sealed class QueuedHostEventSource : INotifyingHostEventSource, IDisposab
 	/// <summary>
 	/// Adds an event to the queue. Callable from any thread.
 	/// </summary>
-	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="ev"/> is <see langword="default"/>.
-	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this source has been disposed.
 	/// </exception>
 	public void Post(in HostEvent ev) {
-		if (ev.Kind == default)
-			throw new ArgumentException("cannot post a default HostEvent", nameof(ev));
+		ArgumentInvalidDefaultException.ThrowIfDefault(ev);
 		ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
 		queue.Enqueue(ev);
 		signal.Set();

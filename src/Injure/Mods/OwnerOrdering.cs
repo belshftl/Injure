@@ -157,11 +157,15 @@ public readonly struct OwnerOrderingConstraint : IHasInvalidDefault {
 	public static OwnerOrderingConstraint HardEntry(string ownerId, string localId) =>
 		Hard(OwnerOrderingConstraintTarget.Entry(ownerId, localId));
 
-	public static OwnerOrderingConstraint Soft(OwnerOrderingConstraintTarget target) =>
-		new(target, OwnerOrderingConstraintKind.Soft);
+	public static OwnerOrderingConstraint Soft(OwnerOrderingConstraintTarget target) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(target);
+		return new(target, OwnerOrderingConstraintKind.Soft);
+	}
 
-	public static OwnerOrderingConstraint Hard(OwnerOrderingConstraintTarget target) =>
-		new(target, OwnerOrderingConstraintKind.Hard);
+	public static OwnerOrderingConstraint Hard(OwnerOrderingConstraintTarget target) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(target);
+		return new(target, OwnerOrderingConstraintKind.Hard);
+	}
 
 	private static void validateTarget(OwnerOrderingConstraintTarget target) {
 		ModMetadataValidation.ValidateOwnerIdOrThrow(target.OwnerId);
@@ -219,6 +223,7 @@ public sealed class OwnerOrderedEntry<T> {
 		HashSet<OwnerOrderingConstraintTarget> seen = new();
 		List<OwnerOrderingConstraint> list = new();
 		foreach (OwnerOrderingConstraint constraint in constraints) {
+			ArgumentInvalidDefaultException.ThrowIfDefault(constraint, paramName);
 			if (!seen.Add(constraint.Target))
 				throw new ArgumentException($"constraint list contains duplicate target '{constraint.Target}'", paramName);
 			list.Add(constraint);
