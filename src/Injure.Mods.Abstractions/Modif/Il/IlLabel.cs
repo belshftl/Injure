@@ -25,7 +25,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// </para>
 /// </remarks>
 [DontCache("IlLabel objects are only valid within the same IL manipulator transaction that minted them")]
-public readonly struct IlLabel : IEquatable<IlLabel> {
+public readonly struct IlLabel : IEquatable<IlLabel>, IHasInvalidDefault {
 	internal ulong TransactionId { get; }
 	internal int LabelId { get; }
 
@@ -39,4 +39,6 @@ public readonly struct IlLabel : IEquatable<IlLabel> {
 	public override int GetHashCode() => HashCode.Combine(TransactionId, LabelId);
 	public static bool operator ==(IlLabel left, IlLabel right) => left.Equals(right);
 	public static bool operator !=(IlLabel left, IlLabel right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => TransactionId == 0;
 }

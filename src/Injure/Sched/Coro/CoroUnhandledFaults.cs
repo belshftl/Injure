@@ -6,6 +6,9 @@ using Injure.Mods;
 
 namespace Injure.Sched.Coro;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Ignore"/>.
+/// </remarks>
 [ClosedEnum]
 public readonly partial struct CoroUnhandledFaultMode {
 	public enum Case {

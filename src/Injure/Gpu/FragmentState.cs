@@ -18,4 +18,6 @@ public readonly record struct FragmentState(
 	GpuShaderModuleHandle ShaderModule,
 	string EntryPoint,
 	ImmutableArray<ColorTargetState> Targets
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

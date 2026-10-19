@@ -266,10 +266,12 @@ public readonly record struct GpuTextureViewCreateParams(
 	uint? MipLevelCount = null,
 	uint BaseArrayLayer = 0,
 	uint? ArrayLayerCount = null
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Creates parameters for a view of the whole texture, with the format and dimension derived
 	/// from it.
 	/// </summary>
 	public GpuTextureViewCreateParams() : this(null, null, TextureAspect.All) {}
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

@@ -28,7 +28,7 @@ namespace Injure.Draw;
 /// The <see langword="default"/> value is invalid, since its <see cref="PixelsPerUnit"/> is 0.
 /// </para>
 /// </remarks>
-public readonly struct Viewport : IEquatable<Viewport> {
+public readonly struct Viewport : IEquatable<Viewport>, IHasInvalidDefault {
 	/// <summary>
 	/// The side length of one drawable unit, in target pixels. Always positive and finite.
 	/// </summary>
@@ -162,19 +162,19 @@ public readonly struct Viewport : IEquatable<Viewport> {
 	/// <summary>
 	/// The drawable area, in target pixels.
 	/// </summary>
-	public RectF PixelRect => new(PixelOffset.X, PixelOffset.Y, Size.X * PixelsPerUnit, Size.Y * PixelsPerUnit);
+	public RectF PixelRect => new(PixelOffset.X, PixelOffset.Y, Size.X * ppu, Size.Y * ppu);
 
 	/// <summary>
 	/// The matrix mapping positions in the drawable area, in drawable units, to target pixels. Always
 	/// invertible (see <see cref="MatrixInvert"/>).
 	/// </summary>
-	public Matrix3x2 ToPixelsMatrix => Matrix3x2.CreateScale(PixelsPerUnit) * Matrix3x2.CreateTranslation(PixelOffset);
+	public Matrix3x2 ToPixelsMatrix => Matrix3x2.CreateScale(ppu) * Matrix3x2.CreateTranslation(PixelOffset);
 
 	/// <summary>
 	/// Maps a position in the drawable area, in drawable units, to target pixels.
 	/// </summary>
 	/// <param name="pos">Position in drawable units.</param>
-	public Vector2 ToPixels(Vector2 pos) => pos * PixelsPerUnit + PixelOffset;
+	public Vector2 ToPixels(Vector2 pos) => pos * ppu + PixelOffset;
 
 	/// <summary>
 	/// Maps a position in target pixels to the drawable area, in drawable units.
@@ -184,7 +184,7 @@ public readonly struct Viewport : IEquatable<Viewport> {
 	/// Positions outside of the drawable area, e.g. in letterbox bars, map to positions outside of
 	/// [0, <see cref="Size"/>).
 	/// </remarks>
-	public Vector2 FromPixels(Vector2 pixelPos) => (pixelPos - PixelOffset) / PixelsPerUnit;
+	public Vector2 FromPixels(Vector2 pixelPos) => (pixelPos - PixelOffset) / ppu;
 
 	/// <summary>
 	/// Maps a rectangle in the drawable area, in drawable units, to target pixels.
@@ -192,7 +192,7 @@ public readonly struct Viewport : IEquatable<Viewport> {
 	/// <param name="rect">Rectangle in drawable units.</param>
 	public RectF ToPixels(RectF rect) {
 		Vector2 p = ToPixels(rect.Position);
-		return new RectF(p.X, p.Y, rect.Width * PixelsPerUnit, rect.Height * PixelsPerUnit);
+		return new RectF(p.X, p.Y, rect.Width * ppu, rect.Height * ppu);
 	}
 
 	/// <summary>
@@ -236,10 +236,11 @@ public readonly struct Viewport : IEquatable<Viewport> {
 	/// </exception>
 	public Vector2 FromWindow(WindowDelta delta, float pixelDensity) {
 		chkDensity(pixelDensity);
-		return delta.ToRaw() * pixelDensity / PixelsPerUnit;
+		return delta.ToRaw() * pixelDensity / ppu;
 	}
 
-	internal bool IsDefault => PixelsPerUnit == 0f;
+	// mapping through the default value would divide by or multiply with 0
+	private float ppu => IsDefault ? throw InvalidDefaultException.For<Viewport>() : PixelsPerUnit;
 
 	// rounds each edge separately to a pixel boundary, halves up, so adjacent rectangles stay
 	// adjacent; edges past 2^24 are clamped, which doesn't matter because render targets never get
@@ -269,4 +270,7 @@ public readonly struct Viewport : IEquatable<Viewport> {
 	public override int GetHashCode() => HashCode.Combine(PixelOffset, PixelsPerUnit, Size);
 	public static bool operator ==(Viewport left, Viewport right) => left.Equals(right);
 	public static bool operator !=(Viewport left, Viewport right) => !left.Equals(right);
+
+	internal bool IsDefault => PixelsPerUnit == 0f;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }

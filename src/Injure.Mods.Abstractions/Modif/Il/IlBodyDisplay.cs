@@ -32,8 +32,18 @@ internal static class IlBodyDisplay {
 	// when removal/mutation edits become a thing
 	private static readonly string[] ownerPalette = ["34", "35", "36", "94", "95", "96"];
 
-	private readonly record struct Segment(string Text, string? Style);
-	private readonly record struct Block(int Start, int End, string Header);
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct Segment(string Text, string? Style) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Text is null;
+	}
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct Block(int Start, int End, string Header) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Header is null;
+	}
 
 	public static string Format(IlMethodBody body, in IlFormatOptions options) =>
 		Format(IlBodyView.FromBody(body), in options);

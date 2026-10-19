@@ -13,7 +13,8 @@ namespace Injure.Input;
 /// Also stamped with what registry minted it, so IDs from different registries never compare equal.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is invalid.
+/// The <see langword="default"/> value is valid and is no ID: it refers to no action, and
+/// <see cref="IsValid"/> is <see langword="false"/> for it.
 /// </para>
 /// </remarks>
 public readonly struct ActionId : IEquatable<ActionId> {

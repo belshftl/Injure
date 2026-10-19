@@ -11,6 +11,9 @@ namespace Injure.Mods.Abstractions.Modif.Il.Metadata;
 internal static class SrmMethodBodyDecoder {
 	private const int noBranchTarget = -1;
 
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
 	private readonly record struct PendingInstruction(
 		int Offset,
 		ILOpCode OpCode,
@@ -18,9 +21,14 @@ internal static class SrmMethodBodyDecoder {
 		IlInstructionPrefixes? Prefixes,
 		int BranchTargetOffset,
 		int[]? SwitchTargetOffsets
-	);
+	) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Operand is null;
+	}
 
-	private struct PrefixState {
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid; start from <see cref="Empty"/> instead.
+	/// </remarks>
+	private struct PrefixState : IHasInvalidDefault {
 		public int StartOffset;
 		public IlPrefixFlags Flags;
 		public IlTypeRef? ConstrainedType;
@@ -32,6 +40,8 @@ internal static class SrmMethodBodyDecoder {
 
 		public readonly IlInstructionPrefixes? Build() =>
 			Flags == IlPrefixFlags.None ? null : new IlInstructionPrefixes(Flags, ConstrainedType, Alignment, SkipChecks);
+
+		bool IHasInvalidDefault.IsDefault => StartOffset == 0 && Flags == default && ConstrainedType is null && Alignment == 0 && SkipChecks == default;
 	}
 
 	public static IlMethodBody Decode(

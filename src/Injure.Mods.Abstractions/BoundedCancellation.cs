@@ -35,7 +35,7 @@ public interface IUntypedBoundedCt {
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct BoundedCt<L> : IUntypedBoundedCt where L : struct, IModLifetimeIdentity {
+public readonly struct BoundedCt<L> : IUntypedBoundedCt, IHasInvalidDefault where L : struct, IModLifetimeIdentity {
 	private readonly CancellationToken token;
 
 	internal BoundedCt(ReloadGeneration generation, CancellationToken token) {
@@ -70,6 +70,8 @@ public readonly struct BoundedCt<L> : IUntypedBoundedCt where L : struct, IModLi
 	/// Returns the underlying <see cref="Token"/>.
 	/// </summary>
 	public static implicit operator CancellationToken(BoundedCt<L> token) => token.Token;
+
+	bool IHasInvalidDefault.IsDefault => !token.CanBeCanceled;
 }
 
 internal sealed class BoundedCtsCore(ReloadGeneration generation, CancellationTokenSource cts) : IDisposable {

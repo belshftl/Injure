@@ -15,13 +15,18 @@ internal static unsafe partial class Native {
 		Wakeup = 5,
 	}
 
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
 	[StructLayout(LayoutKind.Sequential)]
-	internal readonly struct Event {
+	internal readonly struct Event : IHasInvalidDefault {
 		public readonly EventKind Kind;
 		// [+ 4 bytes of padding here on targets with 64 bit wide pointers]
 		public readonly nuint Module;
 		public readonly uint Token;
 		public readonly int Hresult;
+
+		bool IHasInvalidDefault.IsDefault => Kind == 0;
 	} // aligned to 8 bytes on 64 bit and 4 bytes on 32 bit
 
 	private const string clrprof = "ijclrprof";

@@ -14,7 +14,7 @@ namespace Injure.Game;
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct PrimaryViewMode : IEquatable<PrimaryViewMode> {
+public readonly struct PrimaryViewMode : IEquatable<PrimaryViewMode>, IHasInvalidDefault {
 	internal enum Kind : byte {
 		Invalid,
 		LogicalUnits,
@@ -90,11 +90,12 @@ public readonly struct PrimaryViewMode : IEquatable<PrimaryViewMode> {
 		return new PrimaryViewMode(Kind.Letterbox, contentSize, integerScale);
 	}
 
-	internal bool IsDefault => Mode == Kind.Invalid;
-
 	public bool Equals(PrimaryViewMode other) => Mode == other.Mode && ContentSize == other.ContentSize && IntegerScale == other.IntegerScale;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is PrimaryViewMode other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Mode, ContentSize, IntegerScale);
 	public static bool operator ==(PrimaryViewMode left, PrimaryViewMode right) => left.Equals(right);
 	public static bool operator !=(PrimaryViewMode left, PrimaryViewMode right) => !left.Equals(right);
+
+	internal bool IsDefault => Mode == Kind.Invalid;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }

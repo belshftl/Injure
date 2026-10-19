@@ -18,7 +18,7 @@ public delegate T DeriveFunc<T>(DeriveCtx ctx) where T : class;
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly ref struct DeriveCtx {
+public readonly ref struct DeriveCtx : IHasInvalidDefault {
 	private readonly Versioned[]? inputs;
 	private readonly AssetStore.AssetVersion[]? inputVersions;
 
@@ -46,4 +46,6 @@ public readonly ref struct DeriveCtx {
 				return ((AssetStore.AssetVersion<TInput>)inputVersions![i]).Value;
 		throw new ArgumentException("not a input of the derived value being computed", nameof(input));
 	}
+
+	bool IHasInvalidDefault.IsDefault => inputs is null;
 }

@@ -10,12 +10,13 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
-	internal IlTransactionCore Core => field ?? throw InvalidDefaultException.For<IlCtx<L>>();
+public readonly ref struct IlCtx<L> : IHasInvalidDefault where L : struct, IModLifetimeIdentity {
+	private readonly IlTransactionCore? core;
+	internal IlTransactionCore Core => core ?? throw InvalidDefaultException.For<IlCtx<L>>();
 
 	internal IlCtx(IlTransactionCore core) {
 		InternalStateException.ThrowIfNull(core);
-		Core = core;
+		this.core = core;
 	}
 
 	/// <summary>
@@ -141,4 +142,6 @@ public readonly ref struct IlCtx<L> where L : struct, IModLifetimeIdentity {
 	/// </exception>
 	public IlMatch MatchNext(ReadOnlySpan<IlPatternElement> pattern, IlProvenanceConstr provenance) =>
 		Core.MatchNext(0, pattern, provenance);
+
+	bool IHasInvalidDefault.IsDefault => core is null;
 }

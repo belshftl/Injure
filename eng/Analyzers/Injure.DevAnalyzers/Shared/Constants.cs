@@ -58,6 +58,7 @@ internal static class Constants {
 		public static readonly FrozenSet<string> ReservedMemberNames = new HashSet<string>(StringComparer.Ordinal) {
 			"Case",
 			"Tag",
+			"RawTag",
 			"Enum",
 			"Equals",
 			"GetHashCode",
@@ -84,6 +85,7 @@ internal static class Constants {
 		public static readonly FrozenSet<string> ReservedMemberNames = new HashSet<string>(StringComparer.Ordinal) {
 			"Bits",
 			"Mask",
+			"RawMask",
 			"HasAny",
 			"HasAll",
 			"HasNone",

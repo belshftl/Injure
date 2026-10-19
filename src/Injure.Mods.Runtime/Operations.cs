@@ -5,6 +5,9 @@ using Injure.DevAnalyzers.Attributes;
 
 namespace Injure.Mods.Runtime;
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct ReloadRequestKind {
 	public enum Case {
@@ -14,6 +17,9 @@ public readonly partial struct ReloadRequestKind {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct DisableRequestKind {
 	public enum Case {
@@ -23,6 +29,9 @@ public readonly partial struct DisableRequestKind {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct EnableRequestKind {
 	public enum Case {

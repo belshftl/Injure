@@ -7,11 +7,18 @@ namespace Injure.Mods.Runtime.Modif.Profiler;
 /// A method identity, using specific metadata that both sides of the boundary agree on.
 /// </summary>
 /// <remarks>
+/// <para>
 /// A <c>MethodDef</c> token is stable for a module's lifetime and can be obtained from <c>MetadataToken</c> on
 /// <see cref="System.Reflection.MethodBase"/>, so there's no need for e.g. a translation table.
 /// <c>FunctionID</c> would not be sufficient, since it's per-instantiation for generic methods, whereas ReJIT
 /// operates on the definition and covers every instantiation at once.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-internal readonly record struct MethodIdentity(ModuleId Module, int MethodDefToken) {
+internal readonly record struct MethodIdentity(ModuleId Module, int MethodDefToken) : IHasInvalidDefault {
 	public override string ToString() => $"{Module}!0x{MethodDefToken:x8}";
+
+	bool IHasInvalidDefault.IsDefault => MethodDefToken == 0;
 }

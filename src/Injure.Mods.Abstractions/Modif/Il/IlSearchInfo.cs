@@ -30,9 +30,14 @@ internal static class IlSearchDirectionExtensions {
 /// What a failed pattern search was looking for and where it started.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This is info for failure messages and should never be constructed on a successful search.
 /// Formatting a pattern allocates a multi-line string, so the pattern and provenance constraint info
 /// are carried to be lazily formatted later.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 internal readonly ref struct IlPatternSearchInfo(
 	int startInstrBoundary,
@@ -40,12 +45,14 @@ internal readonly ref struct IlPatternSearchInfo(
 	ReadOnlySpan<IlPatternElement> pattern,
 	IlProvenanceConstr provenance,
 	IlFormatInfo formatInfo
-) {
+) : IHasInvalidDefault {
 	public int StartInstructionBoundary { get; } = startInstrBoundary;
 	public IlSearchDirection Direction { get; } = direction;
 	public ReadOnlySpan<IlPatternElement> Pattern { get; } = pattern;
 	public IlProvenanceConstr Provenance { get; } = provenance;
 	public IlFormatInfo FormatInfo { get; } = formatInfo;
+
+	bool IHasInvalidDefault.IsDefault => Provenance.Kind == IlProvenanceConstr.ConstraintKind.UninitializedValue;
 }
 
 /// <summary>

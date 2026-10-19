@@ -14,7 +14,8 @@ namespace Injure.Host;
 /// different event sources do not collide. IDs are never reused within a process.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is invalid.
+/// The <see langword="default"/> value is valid and is no ID: it refers to no window, and
+/// <see cref="IsValid"/> is <see langword="false"/> for it.
 /// </para>
 /// </remarks>
 public readonly struct HostWindowId : IEquatable<HostWindowId> {

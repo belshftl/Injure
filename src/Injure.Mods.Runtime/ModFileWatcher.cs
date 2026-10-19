@@ -5,11 +5,16 @@ using Injure.Io;
 
 namespace Injure.Mods.Runtime;
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 public readonly record struct ModFileChange(
 	string OwnerId,
 	bool Reloadable,
 	string Path
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => OwnerId is null;
+}
 
 public sealed class ModFileWatcher : IDisposable {
 	private sealed class WatchedOwner(bool reloadable) {

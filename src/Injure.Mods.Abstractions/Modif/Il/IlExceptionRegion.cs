@@ -52,6 +52,9 @@ internal enum IlExceptionRegionKind : byte {
 /// Regions are not yet mutable through the authoring API. A manipulator can currently add instructions inside an
 /// existing region but cannot create, remove, or retarget one. An exception region authoring API is planned.
 /// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 /// <param name="Kind">Which handler kind this region declares.</param>
 /// <param name="TryStart">First boundary of the protected region.</param>
@@ -74,4 +77,6 @@ internal readonly record struct IlExceptionRegion(
 	IlAnchorId HandlerEnd,
 	IlAnchorId? FilterStart,
 	IlTypeRef? CatchType
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

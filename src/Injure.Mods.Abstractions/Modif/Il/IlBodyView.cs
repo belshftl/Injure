@@ -38,6 +38,9 @@ internal enum IlRowStatus : byte {
 /// <param name="Prefixes">The prefixes, if any.</param>
 /// <param name="Provenance">The provenance the row has, or would have once committed.</param>
 /// <param name="IsBaseline">Whether the instruction was decoded from metadata rather than emitted.</param>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct IlBodyRow(
 	IlRowStatus Status,
 	int Index,
@@ -47,7 +50,7 @@ internal readonly record struct IlBodyRow(
 	IlInstructionPrefixes? Prefixes,
 	InternalIlProvenance Provenance,
 	bool IsBaseline
-) {
+) : IHasInvalidDefault {
 	public static IlBodyRow FromExisting(IlInstruction instr, int index) => new(
 		IlRowStatus.Existing,
 		index,
@@ -58,6 +61,8 @@ internal readonly record struct IlBodyRow(
 		instr.Provenance,
 		instr.OriginalOffset != IlInstruction.NoOriginalOffset
 	);
+
+	bool IHasInvalidDefault.IsDefault => Operand is null;
 }
 
 /// <summary>

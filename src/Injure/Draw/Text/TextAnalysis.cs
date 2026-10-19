@@ -41,6 +41,9 @@ internal static unsafe partial class Unibreak {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty span starting at 0.
+/// </remarks>
 internal readonly record struct GraphemeSpan(
 	int Start,
 	int Length

@@ -97,13 +97,16 @@ internal sealed class DetourChain {
 		nameof(DetourDispatch.UnwindBypass), BindingFlags.Static | BindingFlags.NonPublic
 	)!;
 
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
 	private readonly record struct Shape(
 		string OwnerId,
 		string LocalId,
 		MethodInfo Impl,
 		Type NextType,
 		Type[] Parameters
-	) {
+	) : IHasInvalidDefault {
 		public static Shape Validate(DetourRegistration detour, Type returnType, Type[] parameters, bool byrefReceiver) {
 			if (detour.Impl is not MethodInfo impl || !impl.IsStatic)
 				throw new ArgumentException($"detour impl '{detour}' must be a static method", nameof(detour));
@@ -189,9 +192,16 @@ internal sealed class DetourChain {
 						nameof(detour)
 					);
 		}
+
+		bool IHasInvalidDefault.IsDefault => Impl is null;
 	}
 
-	private readonly record struct Writeback(LocalBuilder Pointer, LocalBuilder Box, Type Pointee);
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct Writeback(LocalBuilder Pointer, LocalBuilder Box, Type Pointee) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Pointer is null;
+	}
 
 	private readonly List<object> retained = new();
 

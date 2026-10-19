@@ -8,12 +8,17 @@ using Injure.Mods.Abstractions;
 
 namespace Injure.Mods.Runtime;
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct NativeLibraryResolution(
 	string ProviderOwnerId,
 	string LibraryID,
 	string RuntimeIdentifier,
 	string FullPath
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => FullPath is null;
+}
 
 internal enum NativeImportPhase {
 	Load,

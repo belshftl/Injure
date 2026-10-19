@@ -68,4 +68,6 @@ public readonly record struct SdfParams(
 	float SoftnessPixels = 1.0f,
 	float OutlineWidthPixels = 0.0f,
 	SrgbColor32 OutlineColor = default
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

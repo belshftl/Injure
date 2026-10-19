@@ -7,8 +7,9 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// Pipeline policy configuration.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is the default / recommended settings, that being validate once at the end,
-/// attribute a validation failure by re-running, and fail the whole transformation if any manipulator throws.
+/// The <see langword="default"/> value is valid and is the recommended settings: validate once at the
+/// end, attribute a validation failure by re-running, and fail the whole transformation if any
+/// manipulator throws.
 /// </remarks>
 internal readonly struct IlPipelineOptions {
 	/// <summary>
@@ -56,7 +57,12 @@ internal readonly struct IlPipelineOptions {
 /// Whether any manipulator committed an edit. If <see langword="false"/>, the caller can skip
 /// encoding and ReJIT entirely.
 /// </param>
-internal readonly record struct IlPipelineResult(IlMethodBody Body, bool Modified);
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+internal readonly record struct IlPipelineResult(IlMethodBody Body, bool Modified) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Body is null;
+}
 
 /// <summary>
 /// Runs an ordered set of IL manipulators over one method body.

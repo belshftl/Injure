@@ -19,7 +19,7 @@ public readonly record struct VertexAttribute(
 	VertexFormat Format,
 	ulong Offset,
 	uint ShaderLocation
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Converts this value to a native WebGPU <see cref="WGPUVertexAttribute"/>.
 	/// </summary>
@@ -28,4 +28,6 @@ public readonly record struct VertexAttribute(
 		offset: Offset,
 		shaderLocation: ShaderLocation
 	);
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

@@ -5,6 +5,9 @@ using Injure.DevAnalyzers.Attributes;
 
 namespace Injure.Sched.Coro;
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct CoroStatus {
 	public enum Case {
@@ -16,6 +19,9 @@ public readonly partial struct CoroStatus {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct CoroCancellationReason {
 	public enum Case {
@@ -27,6 +33,9 @@ public readonly partial struct CoroCancellationReason {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct CoroUpdatePhase {
 	public enum Case {

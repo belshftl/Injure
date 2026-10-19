@@ -43,14 +43,13 @@ internal enum DrawableTextureKind {
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct DrawableTexture : IEquatable<DrawableTexture> {
+public readonly struct DrawableTexture : IEquatable<DrawableTexture>, IHasInvalidDefault {
 	private readonly object val;
 	internal DrawableTextureKind Kind { get; }
 	/// <remarks>
 	/// In texels of the whole texture. <see langword="null"/> if this isn't a slice.
 	/// </remarks>
 	internal RectI? SliceRect { get; }
-	internal bool IsDefault => val is null;
 
 	private DrawableTexture(object val, DrawableTextureKind kind) {
 		ArgumentNullException.ThrowIfNull(val);
@@ -138,6 +137,9 @@ public readonly struct DrawableTexture : IEquatable<DrawableTexture> {
 		DrawableTextureKind.Texture2dAsset => new ResolvedDrawableTexture(((Versioned<Texture2d>)val).Borrow()),
 		_ => throw new UnreachableException(),
 	};
+
+	internal bool IsDefault => val is null;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }
 
 internal enum ResolvedDrawableTextureKind {
@@ -153,10 +155,13 @@ internal enum ResolvedDrawableTextureKind {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-internal readonly ref struct ResolvedDrawableTexture {
+internal readonly ref struct ResolvedDrawableTexture : IHasInvalidDefault {
 	private readonly Texture2d? texture = null;
 	private readonly RenderTarget2d? renderTarget = null;
+	// like the other payloads, only meaningful for its own kind
+#pragma warning disable IJDEV0100
 	private readonly AssetBorrow<Texture2d> borrow = default;
+#pragma warning restore IJDEV0100
 
 	public ResolvedDrawableTextureKind Kind { get; }
 
@@ -204,4 +209,6 @@ internal readonly ref struct ResolvedDrawableTexture {
 	// comparing color textures only is enough since every render target has its own one
 	public bool SameRenderTargetAs(RenderTarget2d rt) =>
 		Kind == ResolvedDrawableTextureKind.RenderTarget2d && renderTarget!.ColorTexture.SameTexture(rt.ColorTexture);
+
+	bool IHasInvalidDefault.IsDefault => Kind == ResolvedDrawableTextureKind.Texture2d && texture is null;
 }

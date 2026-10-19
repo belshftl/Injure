@@ -603,30 +603,35 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 	/// <para>
 	/// <see cref="Reset()"/> is supported and is also O(1).
 	/// </para>
+	/// <para>
+	/// The <see langword="default"/> value is invalid.
+	/// </para>
 	/// </remarks>
-	public struct Enumerator : IEnumerator<T> {
-		private readonly Ring<T> ringbuf;
+	public struct Enumerator : IEnumerator<T>, IHasInvalidDefault {
+		private readonly Ring<T> ring;
 		private readonly ulong version;
 		private int idx;
 		private int physicalIdx;
 
-		internal Enumerator(Ring<T> ringbuf) {
-			this.ringbuf = ringbuf;
-			version = ringbuf.version;
+		internal Enumerator(Ring<T> ring) {
+			this.ring = ring;
+			version = ring.version;
 			idx = -1;
-			physicalIdx = ringbuf.decr(ringbuf.head);
+			physicalIdx = ring.decr(ring.head);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private readonly void throwIfVerChanged() {
-			if (version != ringbuf.version)
+			if (ring is null)
+				throw InvalidDefaultException.For<Enumerator>();
+			if (version != ring.version)
 				throw new InvalidOperationException("collection was modified during enumeration");
 		}
 
 		public readonly T Current {
 			get {
 				throwIfVerChanged();
-				return ringbuf.buf[physicalIdx];
+				return ring.buf[physicalIdx];
 			}
 		}
 
@@ -634,19 +639,19 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 
 		public bool MoveNext() {
 			throwIfVerChanged();
-			if (idx == ringbuf.count)
+			if (idx == ring.count)
 				return false;
 			idx++;
-			if (idx == ringbuf.count)
+			if (idx == ring.count)
 				return false;
-			physicalIdx = ringbuf.incr(physicalIdx);
+			physicalIdx = ring.incr(physicalIdx);
 			return true;
 		}
 
 		public void Reset() {
 			throwIfVerChanged();
 			idx = -1;
-			physicalIdx = ringbuf.decr(ringbuf.head);
+			physicalIdx = ring.decr(ring.head);
 		}
 
 		/// <summary>
@@ -654,22 +659,29 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 		/// </summary>
 		public readonly void Dispose() {
 		}
+
+		readonly bool IHasInvalidDefault.IsDefault => ring is null;
 	}
 
 	/// <summary>
 	/// Enumerable for <see langword="foreach"/> enumeration of a <see cref="Ring{T}"/>
 	/// in reverse (newest to oldest) order.
 	/// </summary>
-	public readonly struct ReverseEnumerable : IEnumerable<T> {
-		private readonly Ring<T> ringbuf;
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	public readonly struct ReverseEnumerable : IEnumerable<T>, IHasInvalidDefault {
+		private readonly Ring<T> ring;
 
-		internal ReverseEnumerable(Ring<T> ringbuf) {
-			this.ringbuf = ringbuf;
+		internal ReverseEnumerable(Ring<T> ring) {
+			this.ring = ring;
 		}
 
-		public ReverseEnumerator GetEnumerator() => new(ringbuf);
+		public ReverseEnumerator GetEnumerator() => new(ring ?? throw InvalidDefaultException.For<ReverseEnumerable>());
 		IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+		bool IHasInvalidDefault.IsDefault => ring is null;
 	}
 
 	/// <summary>
@@ -686,30 +698,35 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 	/// <para>
 	/// <see cref="Reset()"/> is supported and is also O(1).
 	/// </para>
+	/// <para>
+	/// The <see langword="default"/> value is invalid.
+	/// </para>
 	/// </remarks>
-	public struct ReverseEnumerator : IEnumerator<T> {
-		private readonly Ring<T> ringbuf;
+	public struct ReverseEnumerator : IEnumerator<T>, IHasInvalidDefault {
+		private readonly Ring<T> ring;
 		private readonly ulong version;
 		private int idx;
 		private int physicalIdx;
 
-		internal ReverseEnumerator(Ring<T> ringbuf) {
-			this.ringbuf = ringbuf;
-			version = ringbuf.version;
-			idx = ringbuf.count;
-			physicalIdx = ringbuf.physicalIndex(ringbuf.count);
+		internal ReverseEnumerator(Ring<T> ring) {
+			this.ring = ring;
+			version = ring.version;
+			idx = ring.count;
+			physicalIdx = ring.physicalIndex(ring.count);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private readonly void throwIfVerChanged() {
-			if (version != ringbuf.version)
+			if (ring is null)
+				throw InvalidDefaultException.For<ReverseEnumerator>();
+			if (version != ring.version)
 				throw new InvalidOperationException("collection was modified during enumeration");
 		}
 
 		public readonly T Current {
 			get {
 				throwIfVerChanged();
-				return ringbuf.buf[physicalIdx];
+				return ring.buf[physicalIdx];
 			}
 		}
 
@@ -722,14 +739,14 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 			idx--;
 			if (idx < 0)
 				return false;
-			physicalIdx = ringbuf.decr(physicalIdx);
+			physicalIdx = ring.decr(physicalIdx);
 			return true;
 		}
 
 		public void Reset() {
 			throwIfVerChanged();
-			idx = ringbuf.count;
-			physicalIdx = ringbuf.physicalIndex(ringbuf.count);
+			idx = ring.count;
+			physicalIdx = ring.physicalIndex(ring.count);
 		}
 
 		/// <summary>
@@ -737,16 +754,18 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 		/// </summary>
 		public readonly void Dispose() {
 		}
+
+		readonly bool IHasInvalidDefault.IsDefault => ring is null;
 	}
 
 	// ==========================================================================
 	// debug view
-	private sealed class RingDebuggerTypeProxy<TItem>(Ring<TItem> ringbuf) {
+	private sealed class RingDebuggerTypeProxy<TItem>(Ring<TItem> ring) {
 		[DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
-		public TItem[] Items => ringbuf.ToArray();
+		public TItem[] Items => ring.ToArray();
 
-		public int Count => ringbuf.Count;
-		public int Capacity => ringbuf.Capacity;
+		public int Count => ring.Count;
+		public int Capacity => ring.Capacity;
 	}
 }
 
@@ -765,6 +784,9 @@ public sealed class Ring<T> : IReadOnlyList<T> {
 /// <para>
 /// The view is shallowly read-only; reference types may still be mutated independently, etc.
 /// </para>
+/// </remarks>
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty view.
 /// </remarks>
 public readonly ref struct RingView<T> {
 	private readonly Ring<T> owner;
@@ -925,6 +947,9 @@ public readonly ref struct RingView<T> {
 	/// <para>
 	/// Any successful mutation of the originating <see cref="Ring{T}"/> causes invalidation.
 	/// </para>
+	/// <para>
+	/// The <see langword="default"/> value is valid and enumerates nothing.
+	/// </para>
 	/// </remarks>
 	public ref struct Enumerator {
 		private readonly RingView<T> view;
@@ -957,6 +982,9 @@ public readonly ref struct RingView<T> {
 	/// Enumerable for <see langword="foreach"/> enumeration of a <see cref="RingView{T}"/>
 	/// in reverse (newest to oldest) order.
 	/// </summary>
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and enumerates nothing.
+	/// </remarks>
 	public readonly ref struct ReverseEnumerable {
 		private readonly RingView<T> view;
 		internal ReverseEnumerable(RingView<T> view) {
@@ -976,6 +1004,9 @@ public readonly ref struct RingView<T> {
 	/// </para>
 	/// <para>
 	/// Any successful mutation of the originating <see cref="Ring{T}"/> causes invalidation.
+	/// </para>
+	/// <para>
+	/// The <see langword="default"/> value is valid and enumerates nothing.
 	/// </para>
 	/// </remarks>
 	public ref struct ReverseEnumerator {

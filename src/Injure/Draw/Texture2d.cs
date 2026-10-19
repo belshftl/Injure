@@ -403,4 +403,6 @@ public readonly record struct Texture2dCreateParams(
 	uint Height,
 	Texture2dFormat? Format = null,
 	Texture2dMipFilter? Mips = null
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

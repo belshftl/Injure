@@ -66,7 +66,9 @@ internal sealed class CanvasDeviceResources : IDisposable {
 		BlendState? Blend,
 		ColorWriteMask WriteMask,
 		TextureFormat ColorTargetFormat
-	);
+	) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Interpretation == default;
+	}
 #pragma warning restore CS1573 // parameter has no matching <param> tag
 
 	private readonly GpuDevice device;

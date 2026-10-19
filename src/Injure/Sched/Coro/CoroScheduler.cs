@@ -827,20 +827,19 @@ public sealed class CoroScheduler : IDisposable {
 			}
 
 			CoroStackFrame frame = inst.StackPeek();
-			bool moved;
-			CoroYield yielded;
+			CoroYield? yielded = null;
 			try {
-				moved = frame.Iterator.MoveNext();
-				yielded = moved ? frame.Iterator.Current : default;
+				if (frame.Iterator.MoveNext())
+					yielded = frame.Iterator.Current;
 			} catch (Exception ex) {
 				instFault(inst, ex);
 				return;
 			}
-			if (!moved) {
+			if (yielded is not CoroYield y) {
 				inst.StackPopAndDispose();
 				continue;
 			}
-			if (yielded.Value.MatchWithUninit(
+			if (y.Value.MatchWithUninit(
 				child => {
 					inst.StackPush(
 						child,
@@ -859,7 +858,7 @@ public sealed class CoroScheduler : IDisposable {
 					return true;
 				},
 				() => {
-					instFault(inst, new InvalidOperationException("coroutine yielded a default CoroYield value, which is invalid"));
+					instFault(inst, new InvalidDefaultException("coroutine yielded the default CoroYield value, which is invalid"));
 					return true;
 				}
 			))

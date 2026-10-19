@@ -107,4 +107,6 @@ public readonly record struct GpuSamplerCreateParams(
 	float LodMaxClamp = 32f,
 	CompareFunction Compare = default,
 	ushort MaxAnisotropy = 1
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

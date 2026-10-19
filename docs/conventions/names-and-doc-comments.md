@@ -144,6 +144,8 @@ A valid default value has to say what it represents; "The `default` value is val
 
 The dev analyzer reports structs that don't follow this as `IJDEV0200`.
 
+A struct whose `default` value is invalid implements `IHasInvalidDefault` (explicitly, so `IsDefault` is only reachable through the interface), and a struct whose `default` value is valid doesn't. The dev analyzer reports structs whose doc comment and interface disagree as `IJDEV0201`. A struct with an instance field of such a type has an invalid `default` value too, and has to implement the interface as well (`IJ0102`/`IJDEV0102`).
+
 ### Internal/private types and members
 
 Internal/private types and members can also have doc comments. Unlike public-API accessible ones, there is not a strict need to document, but the usual convention is to document `internal` members/types unless the behavior is obvious, and to document `private` members/types if there is some kind of important information that is difficult to derive from just reading the code of the member/type in question and its surrounding code.

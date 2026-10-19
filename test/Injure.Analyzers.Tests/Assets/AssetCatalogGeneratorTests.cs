@@ -22,11 +22,8 @@ public sealed class AssetCatalogGeneratorTests {
 
 	private static bool hasProp(Type t, string name) => t.GetProperty(name, BindingFlags.Public | BindingFlags.Instance) is not null;
 
-	private static object construct(Gen.Result r, AssetStore store) {
-		Assert.Empty(r.CompileErrors);
-		Type t = r.Assembly!.GetType("Game.GameAssets")!;
-		return Activator.CreateInstance(t, store)!;
-	}
+	private static object construct(Gen.Result r, AssetStore store) =>
+		Activator.CreateInstance(r.Assembly.GetType("Game.GameAssets")!, store)!;
 
 	[Fact]
 	public static void DirsBecomeNestedGroupsWithTypedAssets() {
@@ -118,7 +115,7 @@ public sealed class AssetCatalogGeneratorTests {
 		Microsoft.CodeAnalysis.Diagnostic[] collisions = r.WithId("IJ0201");
 		Assert.Equal(4, collisions.Length);
 		Assert.All(collisions, static d => Assert.Equal(Microsoft.CodeAnalysis.DiagnosticSeverity.Error, d.Severity));
-		Assert.Contains(collisions, static d => d.GetMessage().Contains("'player.png', 'player.tex.json'"));
+		Assert.Contains(collisions, static d => Gen.MessageArgs(d)[1..] is ["'player.png', 'player.tex.json'", "Player"]);
 		using AssetStore store = new();
 		object assets = construct(r, store);
 		Type t = assets.GetType();
@@ -146,7 +143,7 @@ public sealed class AssetCatalogGeneratorTests {
 		Assert.Single(r.WithId("IJ0202"));
 		Microsoft.CodeAnalysis.Diagnostic unknown = Assert.Single(r.WithId("IJ0203"));
 		Assert.Equal(Microsoft.CodeAnalysis.DiagnosticSeverity.Info, unknown.Severity);
-		Assert.Contains("2 file(s)", unknown.GetMessage());
+		Assert.Equal(["2", "assets"], Gen.MessageArgs(unknown)[..2]);
 		using AssetStore store = new();
 		Assert.Single((AssetGroup)construct(r, store));
 	}

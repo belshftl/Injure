@@ -5,6 +5,9 @@ using Injure.DevAnalyzers.Attributes;
 
 namespace Injure.Mods.Abstractions;
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct ModRelationshipKind {
 	public enum Case {
@@ -16,6 +19,9 @@ public readonly partial struct ModRelationshipKind {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 [ClosedEnumMirror(typeof(ModAssemblyHotReloadLevel))]
 public readonly partial struct ModReloadability {
@@ -26,6 +32,9 @@ public readonly partial struct ModReloadability {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct ModAssetManagementKind {
 	public enum Case {
@@ -36,27 +45,45 @@ public readonly partial struct ModAssetManagementKind {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and targets no particular game version or build.
+/// </remarks>
 public readonly record struct GameCompatibilityManifest {
 	public required Semver? TargetVersion { get; init; }
 	public required Guid? TargetBuildMvid { get; init; }
 }
 
-public readonly record struct ModRelationshipManifest {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly record struct ModRelationshipManifest : IHasInvalidDefault {
 	public required string OwnerId { get; init; }
 	public required ModRelationshipKind Kind { get; init; }
 	public required Semver? Version { get; init; }
 	public required string? Description { get; init; }
+
+	bool IHasInvalidDefault.IsDefault => Kind == default;
 }
 
-public readonly record struct ModAssetsManifest {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly record struct ModAssetsManifest : IHasInvalidDefault {
 	public required ModAssetManagementKind ManagementKind { get; init; }
 	public required string? Root { get; init; }
+
+	bool IHasInvalidDefault.IsDefault => ManagementKind == default;
 }
 
-public readonly record struct ModNativeLibraryManifest {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly record struct ModNativeLibraryManifest : IHasInvalidDefault {
 	public required string Id { get; init; }
 	public required string Path { get; init; }
 	public required string RuntimeIdentifier { get; init; }
+
+	bool IHasInvalidDefault.IsDefault => Id is null;
 }
 
 public abstract record ModManifest {

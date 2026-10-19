@@ -3,12 +3,17 @@
 
 namespace Injure.Sched.Coro;
 
-public readonly struct CoroTraceFrame {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct CoroTraceFrame : IHasInvalidDefault {
 	public required string DebugName { get; init; }
 	public required string EnumeratorTypeName { get; init; }
 	public required string SourceFile { get; init; }
 	public required int SourceLine { get; init; }
 	public required string SourceMember { get; init; }
+
+	bool IHasInvalidDefault.IsDefault => DebugName is null;
 }
 
 public sealed class CoroTrace {

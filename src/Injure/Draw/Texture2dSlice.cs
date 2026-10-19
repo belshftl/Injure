@@ -36,7 +36,7 @@ namespace Injure.Draw;
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct Texture2dSlice : IEquatable<Texture2dSlice> {
+public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidDefault {
 	/// <summary>
 	/// The whole texture this slice is part of.
 	/// </summary>
@@ -56,8 +56,6 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice> {
 	/// Height of the slice in texels.
 	/// </summary>
 	public int Height => Rect.Height;
-
-	internal bool IsDefault => Texture.IsDefault;
 
 	/// <summary>
 	/// Creates a slice covering <paramref name="rect"/> of <paramref name="texture"/>.
@@ -196,4 +194,7 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice> {
 	public override int GetHashCode() => HashCode.Combine(Texture, Rect);
 	public static bool operator ==(Texture2dSlice left, Texture2dSlice right) => left.Equals(right);
 	public static bool operator !=(Texture2dSlice left, Texture2dSlice right) => !left.Equals(right);
+
+	internal bool IsDefault => Texture.IsDefault;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }

@@ -8,26 +8,64 @@ using Injure.Mods.Runtime.Modif;
 
 namespace Injure.Mods.Runtime;
 
-internal readonly record struct ModSource(string RootDirectory, string ManifestPath);
-internal readonly record struct DiscoveredMod(ModSource Source, ModManifest Manifest);
-internal readonly record struct ResolvedMod(ModManifest Manifest, ModSource Source);
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+internal readonly record struct ModSource(string RootDirectory, string ManifestPath) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => RootDirectory is null;
+}
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+internal readonly record struct DiscoveredMod(ModSource Source, ModManifest Manifest) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Manifest is null;
+}
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+internal readonly record struct ResolvedMod(ModManifest Manifest, ModSource Source) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Manifest is null;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct ResolvedModGraph(
 	IReadOnlyDictionary<string, ResolvedMod> Mods,
 	IReadOnlyDictionary<string, string[]> OutgoingOrderEdges,
 	IReadOnlyDictionary<string, string[]> ReloadDependentsByTarget,
 	ModWavePlan Waves,
 	IReadOnlyList<ResolvedMod> ModsInDeterministicOrder
-);
+) : IHasInvalidDefault {
+	public static readonly ResolvedModGraph Empty = new(
+		new Dictionary<string, ResolvedMod>(),
+		new Dictionary<string, string[]>(),
+		new Dictionary<string, string[]>(),
+		new ModWavePlan([]),
+		[]
+	);
 
-internal readonly record struct ModWavePlan(IReadOnlyList<IReadOnlyList<string>> Waves);
+	bool IHasInvalidDefault.IsDefault => Mods is null;
+}
+
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+internal readonly record struct ModWavePlan(IReadOnlyList<IReadOnlyList<string>> Waves) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Waves is null;
+}
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct StagedMod(
 	ModSource Source,
 	ModManifest Manifest,
 	string StagedRoot,
 	ReloadGeneration Generation,
 	string? EntryAssemblyPath
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Manifest is null;
+}
 
 internal interface ILoadedMod : IStrongRefDroppable {
 	StagedMod Staged { get; }
@@ -148,6 +186,9 @@ internal enum ModOperationResultKind {
 	RollbackSucceeded,
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct ModOperationResult(
 	ModOperationResultKind Kind,
 	IReadOnlySet<string> ReloadedOwners,
@@ -156,7 +197,7 @@ internal readonly record struct ModOperationResult(
 	IReadOnlySet<string> UnloadedOwners,
 	ExceptionSnapshot? Failure,
 	IReadOnlyList<PendingAlcUnload> PendingUnloads
-) {
+) : IHasInvalidDefault {
 	public static ModOperationResult Succeeded(
 		IReadOnlySet<string> reloadedOwners,
 		IReadOnlySet<string> enabledOwners,
@@ -185,4 +226,6 @@ internal readonly record struct ModOperationResult(
 		failure,
 		pendingUnloads
 	);
+
+	bool IHasInvalidDefault.IsDefault => ReloadedOwners is null;
 }

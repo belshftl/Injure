@@ -50,7 +50,7 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 			shape.Members.Select(static m => new BitInfo(m.Field.Name, m.Value)).ToImmutableArray(),
 			shape.Mirrors.Select(m => new MirrorInfo(
 				m.Enum.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-				// foreign types must stay out of public API, see IJDEV0100
+				// foreign types must stay out of public API, see IJDEV0103
 				ForeignTypes.IsForeign(m.Enum, ctx.SemanticModel.Compilation) ? "internal" : "public"
 			)).ToImmutableArray()
 		);
@@ -67,7 +67,10 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		SourceGen.OpenScopes(sb, info.Symbol);
 
 		SourceGen.AppendGeneratedCodeAttribute(sb, nameof(ClosedFlagsGenerator));
-		sb.Append('\t').Append(Util.GetTypeHeader(info.Symbol)).Append(" : global::System.IEquatable<").Append(targetType).AppendLine("> {");
+		sb.Append('\t').Append(Util.GetTypeHeader(info.Symbol)).Append(" : global::System.IEquatable<").Append(targetType).Append('>');
+		if (info.DefaultIsInvalid)
+			sb.Append(", global::Injure.IHasInvalidDefault");
+		sb.AppendLine(" {");
 		sb.Append("\t\tprivate readonly Bits ").Append(Constants.ClosedFlags.BackingFieldName).AppendLine(";");
 
 		sb.Append("\t\tprivate ").Append(targetType).AppendLine("(Bits mask) {");
@@ -88,13 +91,23 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		sb.Append("\t\t/// Gets the declared flags represented by this ").Append(targetType).AppendLine(" value.");
 		sb.AppendLine("\t\t/// </summary>");
 		sb.AppendLine("\t\t/// <exception cref=\"global::System.InvalidOperationException\">");
-		sb.AppendLine("\t\t/// This value is not valid.");
+		sb.AppendLine("\t\t/// Thrown if this value has undeclared bits set.");
 		sb.AppendLine("\t\t/// </exception>");
 		sb.AppendLine("\t\t/// <remarks>");
 		sb.AppendLine("\t\t/// Never returns an undeclared <see cref=\"Bits\"/> value; either returns a value with its set bits");
-		sb.AppendLine("\t\t/// all being declared values or throws.");
+		sb.AppendLine("\t\t/// all being declared values or throws. Use <see cref=\"RawMask\"/> where throwing isn't acceptable.");
 		sb.AppendLine("\t\t/// </remarks>");
 		sb.Append("\t\tpublic Bits Mask => ").Append(Constants.ClosedFlags.ValidateMethodName).Append('(').Append(Constants.ClosedFlags.BackingFieldName).AppendLine(");");
+
+		sb.AppendLine("\t\t/// <summary>");
+		sb.Append("\t\t/// Gets the raw mask of this ").Append(targetType).AppendLine(" value, without checking it.");
+		sb.AppendLine("\t\t/// </summary>");
+		sb.AppendLine("\t\t/// <remarks>");
+		sb.AppendLine("\t\t/// May have undeclared bits set, or be 0 for an invalid <see langword=\"default\"/> value. Meant for");
+		sb.AppendLine("\t\t/// code that must not throw, such as <c>Equals</c>, <c>GetHashCode</c>, and <c>ToString</c>; use");
+		sb.AppendLine("\t\t/// <see cref=\"Mask\"/> otherwise.");
+		sb.AppendLine("\t\t/// </remarks>");
+		sb.Append("\t\tpublic Bits RawMask => ").Append(Constants.ClosedFlags.BackingFieldName).AppendLine(";");
 
 		sb.Append("\t\tpublic const Bits ").Append(Constants.ClosedFlags.AllBitsConstName).Append(" = ");
 		for (int i = 0; i < info.Bits.Length; i++) {
@@ -112,11 +125,10 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		).Append(Constants.ClosedFlags.ValidateMethodName).AppendLine("(Bits mask) {");
 		if (info.DefaultIsInvalid) {
 			sb.AppendLine("\t\t\tif (mask == (Bits)0)");
-			sb.Append("\t\t\t\tthrow new global::System.InvalidOperationException(")
-				.Append(SymbolDisplay.FormatLiteral("default(" + info.Symbol.Name + ") is not a valid " + info.Symbol.Name + " value", true)).AppendLine(");");
+			sb.Append("\t\t\t\tthrow global::Injure.InvalidDefaultException.For<").Append(targetType).AppendLine(">();");
 		}
 		sb.Append("\t\t\tif (!").Append(Constants.ClosedFlags.IsDefinedMethodName).AppendLine("(mask))");
-		sb.Append("\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("Invalid " + info.Symbol.Name + " value: ", true))
+		sb.Append("\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("invalid " + info.Symbol.Name + " value: ", true))
 			.AppendLine(" + mask.ToString());");
 		sb.AppendLine("\t\t\treturn mask;");
 		sb.AppendLine("\t\t}");
@@ -124,6 +136,9 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		sb.Append("\t\tpublic bool HasAny(").Append(targetType).AppendLine(" flags) => (Mask & flags.Mask) != 0;");
 		sb.Append("\t\tpublic bool HasAll(").Append(targetType).AppendLine(" flags) => (Mask & flags.Mask) == flags.Mask;");
 		sb.Append("\t\tpublic bool HasNone(").Append(targetType).AppendLine(" flags) => (Mask & flags.Mask) == 0;");
+
+		if (info.DefaultIsInvalid)
+			sb.Append("\t\tbool global::Injure.IHasInvalidDefault.IsDefault => ").Append(Constants.ClosedFlags.BackingFieldName).AppendLine(" == (Bits)0;");
 
 		sb.Append("\t\tpublic bool Equals(").Append(targetType).Append(" other) => ").Append(Constants.ClosedFlags.BackingFieldName).Append(" == other.")
 			.Append(Constants.ClosedFlags.BackingFieldName).AppendLine(";");
@@ -150,9 +165,15 @@ public sealed class ClosedFlagsGenerator : IIncrementalGenerator {
 		}
 
 		sb.AppendLine("\t\t/// <summary>");
-		sb.AppendLine("\t\t/// Returns the declared mask value for this value.");
+		sb.AppendLine("\t\t/// Returns the declared flag names for this value, or the type name and the raw mask (e.g.");
+		sb.Append("\t\t/// <c>").Append(info.Symbol.Name).AppendLine("(0)</c>) for an invalid value. Never throws.");
 		sb.AppendLine("\t\t/// </summary>");
-		sb.AppendLine("\t\tpublic override string ToString() => Mask.ToString();");
+		string valid = Constants.ClosedFlags.IsDefinedMethodName + "(" + Constants.ClosedFlags.BackingFieldName + ")";
+		if (info.DefaultIsInvalid)
+			valid += " && " + Constants.ClosedFlags.BackingFieldName + " != (Bits)0";
+		sb.Append("\t\tpublic override string ToString() => ").Append(valid).Append(" ? ").Append(Constants.ClosedFlags.BackingFieldName)
+			.Append(".ToString() : ").Append(SymbolDisplay.FormatLiteral(info.Symbol.Name + "(", true)).Append(" + ").Append(Constants.ClosedFlags.BackingFieldName)
+			.AppendLine(".ToString(\"D\") + \")\";");
 
 		emitFlagsHelper(sb, info, targetType);
 

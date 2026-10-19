@@ -7,7 +7,14 @@ using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Mods.Abstractions;
 
-public readonly struct BoundedScopeFailure {
+/// <summary>
+/// One item's failure that happened during bounded scope invalidation. Reported through
+/// <see cref="BoundedScopeException.Failures"/>.
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct BoundedScopeFailure : IHasInvalidDefault {
 	public ReloadGeneration Generation { get; }
 	public int Index { get; }
 	public string Operation { get; }
@@ -35,6 +42,8 @@ public readonly struct BoundedScopeFailure {
 		string itemTypeName,
 		Exception ex
 	) => new(generation, index, operation, itemTypeName, ExceptionSnapshot.FromException(ex));
+
+	bool IHasInvalidDefault.IsDefault => Operation is null;
 }
 
 public sealed class BoundedScopeException : Exception {

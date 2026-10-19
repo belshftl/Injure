@@ -85,6 +85,9 @@ public sealed class IlPrimitiveTypeRef : IlTypeRef {
 /// <summary>
 /// Specifies how a named type is encoded in signatures.
 /// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Unknown"/>.
+/// </remarks>
 [ClosedEnum]
 public readonly partial struct IlNamedTypeKind {
 	/// <summary>Raw switch tag for <see cref="IlNamedTypeKind"/>.</summary>
@@ -167,6 +170,9 @@ public sealed class IlNamedTypeRef : IlTypeRef {
 /// <summary>
 /// Specifies whether a generic parameter belongs to a type or method.
 /// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct IlGenericParameterKind {
 	/// <summary>Raw switch tag for <see cref="IlGenericParameterKind"/>.</summary>

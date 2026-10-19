@@ -16,5 +16,14 @@ internal static class Documentation {
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true
 	);
+
+	public static readonly DiagnosticDescriptor StructDefaultValueDocMismatch = new(
+		id: "IJDEV0201",
+		title: "Struct's default value docs disagree with IHasInvalidDefault",
+		messageFormat: "Struct '{0}' {1}",
+		category: "Documentation",
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true
+	);
 #pragma warning restore RS2008 // enable analyzer release tracking
 }

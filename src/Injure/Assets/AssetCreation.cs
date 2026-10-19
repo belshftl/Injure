@@ -63,7 +63,9 @@ public readonly record struct AssetSourceResult(
 /// </remarks>
 public readonly record struct AssetSourceInfo(
 	AssetId AssetId
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Provides raw source streams for requested asset IDs.
@@ -176,7 +178,9 @@ public readonly record struct AssetCreateInfo(
 	Func<CancellationToken, ValueTask<Stream>> OpenAsync,
 	Func<AssetId, CancellationToken, ValueTask<Stream>> FetchAsync,
 	Func<AssetId, CancellationToken, ValueTask<Stream?>> TryFetchAsync
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Creates asset values of one type from their data.
@@ -221,7 +225,9 @@ public interface IAssetCreator<T> where T : class {
 public readonly record struct AssetFinalizeInfo<TPrepared>(
 	AssetId AssetId,
 	TPrepared Prepared
-) where TPrepared : AssetPreparedData;
+) : IHasInvalidDefault where TPrepared : AssetPreparedData {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Result returned by the prepare stage of a staged asset creator.

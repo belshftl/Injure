@@ -23,7 +23,7 @@ namespace Injure.Mods.Abstractions.Tests.Modif.Il;
 /// </para>
 /// <para>
 /// The comparison is semantic rather than byte-for-byte since things like prefix order and compact
-/// form choice is not preserved.
+/// encoding choice is not preserved.
 /// </para>
 /// </remarks>
 public sealed class IlMethodBodyRoundtripTests {
@@ -110,8 +110,8 @@ public sealed class IlMethodBodyRoundtripTests {
 	/// </summary>
 	/// <remarks>
 	/// Anchor IDs are comparable across the two decodes because the decoder assigns them by position,
-	/// so equal instruction counts imply equal anchor numbering. That is what lets branch and
-	/// exception-region targets be compared directly rather than through a boundary mapping.
+	/// so equal instruction counts imply equal anchor numbering; that's also what lets branch and
+	/// exception-region targets be compared directly.
 	/// </remarks>
 	internal static void AssertSemanticallyEqual(IlMethodBody expected, IlMethodBody actual) {
 		Assert.Equal(expected.Instructions.Count, actual.Instructions.Count);
@@ -164,8 +164,8 @@ public sealed class IlMethodBodyRoundtripTests {
 }
 
 /// <summary>
-/// An <see cref="IIlTokenResolver"/> that maps decoded references back to the handles they came
-/// from, so encoder output can be decoded again through the same metadata.
+/// <see cref="IIlTokenResolver"/> that maps decoded references back to the handles they came from,
+/// so encoder output can be decoded again through the same metadata.
 /// </summary>
 /// <remarks>
 /// <para>

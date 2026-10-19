@@ -239,7 +239,9 @@ public readonly struct GamepadState {
 public readonly record struct GamepadStateEntry(
 	GamepadId Id,
 	GamepadState State
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// The states of all connected gamepads, in the order they were connected.

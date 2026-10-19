@@ -5,6 +5,9 @@ using Injure.Host;
 
 namespace Injure.Sched.Tickers;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has every tick and duration at 0.
+/// </remarks>
 public readonly record struct TickCallbackTimingInfo(
 	HostTick ScheduledAt,
 	HostTick ActualAt,
@@ -15,6 +18,10 @@ public readonly record struct TickCallbackTimingInfo(
 	HostDuration Late
 );
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is no deadline, i.e.
+/// <see cref="HasDeadline"/> is <see langword="false"/>.
+/// </remarks>
 public readonly struct TickDeadline {
 	private readonly IHostClock? clock;
 	private readonly HostTick deadlineAt;

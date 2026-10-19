@@ -17,7 +17,7 @@ namespace Injure.Assets;
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly ref struct AssetBorrow<T> where T : class {
+public readonly ref struct AssetBorrow<T> : IHasInvalidDefault where T : class {
 	private readonly VersionSlot<T>? slot;
 	private readonly AssetStore.AssetVersion<T>? version;
 	private readonly AssetThreadAttachment? attachment;
@@ -71,4 +71,6 @@ public readonly ref struct AssetBorrow<T> where T : class {
 			throw new InvalidOperationException($"{version.Describe()} was borrowed before an asset reload boundary of the borrowing thread, and used after it");
 		return version;
 	}
+
+	bool IHasInvalidDefault.IsDefault => version is null;
 }

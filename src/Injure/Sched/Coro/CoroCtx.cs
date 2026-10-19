@@ -3,7 +3,10 @@
 
 namespace Injure.Sched.Coro;
 
-public readonly struct CoroCtx {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct CoroCtx : IHasInvalidDefault {
 	public CoroScheduler Scheduler { get; }
 	public CoroHandle Handle { get; }
 	public CoroScope Scope { get; }
@@ -29,4 +32,6 @@ public readonly struct CoroCtx {
 		Phase = phase;
 		Tick = tick;
 	}
+
+	bool IHasInvalidDefault.IsDefault => Scheduler is null;
 }

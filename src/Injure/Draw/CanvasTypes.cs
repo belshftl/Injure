@@ -38,7 +38,7 @@ namespace Injure.Draw;
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
+public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefault {
 	private readonly RenderTarget2d? rt;
 	private readonly bool isPrimary;
 	private readonly Viewport viewport;
@@ -69,8 +69,6 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 	public RenderTarget2d RenderTarget => IsPrimary
 		? throw new InvalidOperationException("primary target has no RenderTarget2d")
 		: rt;
-
-	internal bool IsDefault => rt is null && !isPrimary;
 
 	private CanvasTarget(RenderTarget2d? rt, bool isPrimary, Viewport viewport) {
 		this.rt = rt;
@@ -127,9 +125,6 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 	/// Whether this and <paramref name="other"/> refer to the same render target, or both to the
 	/// primary output, regardless of their <see cref="Viewport"/>s.
 	/// </summary>
-	/// <exception cref="InvalidDefaultException">
-	/// Thrown if this or <paramref name="other"/> is the <see langword="default"/> value.
-	/// </exception>
 	/// <remarks>
 	/// Changing between targets for which this is <see langword="true"/> doesn't end the render
 	/// pass; see <see cref="CanvasParams"/>.
@@ -151,6 +146,9 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget> {
 	/// Thrown if <paramref name="target"/> is <see langword="null"/>.
 	/// </exception>
 	public static implicit operator CanvasTarget(RenderTarget2d target) => Offscreen(target);
+
+	internal bool IsDefault => rt is null && !isPrimary;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }
 
 /// <summary>
@@ -290,7 +288,7 @@ public readonly struct CanvasScissor : IEquatable<CanvasScissor> {
 
 	public bool Equals(CanvasScissor other) => Kind == other.Kind && Rect.Equals(other.Rect);
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasScissor other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine((int)Kind.Tag, Rect);
+	public override int GetHashCode() => HashCode.Combine(Kind.RawTag, Rect);
 	public static bool operator ==(CanvasScissor left, CanvasScissor right) => left.Equals(right);
 	public static bool operator !=(CanvasScissor left, CanvasScissor right) => !left.Equals(right);
 }
@@ -334,7 +332,7 @@ public readonly partial struct CanvasScissorOverrideKind {
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct CanvasScissorOverride : IEquatable<CanvasScissorOverride> {
+public readonly struct CanvasScissorOverride : IEquatable<CanvasScissorOverride>, IHasInvalidDefault {
 	private readonly CanvasScissorOverrideKind kind;
 	private readonly RectF rect;
 
@@ -350,8 +348,6 @@ public readonly struct CanvasScissorOverride : IEquatable<CanvasScissorOverride>
 	/// Ignored for <see cref="CanvasScissorOverrideKind.NoScissor"/>.
 	/// </remarks>
 	public RectF Rect => IsDefault ? throw InvalidDefaultException.For<CanvasScissorOverride>() : rect;
-
-	internal bool IsDefault => kind == default;
 
 	private CanvasScissorOverride(CanvasScissorOverrideKind kind, RectF rect) {
 		this.kind = kind;
@@ -386,9 +382,12 @@ public readonly struct CanvasScissorOverride : IEquatable<CanvasScissorOverride>
 
 	public bool Equals(CanvasScissorOverride other) => kind == other.kind && rect.Equals(other.rect);
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasScissorOverride other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine((int)kind.Tag, rect);
+	public override int GetHashCode() => HashCode.Combine(kind.RawTag, rect);
 	public static bool operator ==(CanvasScissorOverride left, CanvasScissorOverride right) => left.Equals(right);
 	public static bool operator !=(CanvasScissorOverride left, CanvasScissorOverride right) => !left.Equals(right);
+
+	internal bool IsDefault => kind == default;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }
 
 /// <summary>
@@ -435,7 +434,7 @@ public readonly partial struct CanvasTransformOverrideKind {
 /// <see cref="Multiply(Matrix3x2)"/> instead.
 /// </para>
 /// </remarks>
-public readonly struct CanvasTransformOverride : IEquatable<CanvasTransformOverride> {
+public readonly struct CanvasTransformOverride : IEquatable<CanvasTransformOverride>, IHasInvalidDefault {
 	private readonly CanvasTransformOverrideKind kind;
 	private readonly Matrix3x2 matrix;
 
@@ -448,8 +447,6 @@ public readonly struct CanvasTransformOverride : IEquatable<CanvasTransformOverr
 	/// Matrix to set or multiply in. Always invertible.
 	/// </summary>
 	public Matrix3x2 Matrix => IsDefault ? throw InvalidDefaultException.For<CanvasTransformOverride>() : matrix;
-
-	internal bool IsDefault => kind == default;
 
 	private CanvasTransformOverride(CanvasTransformOverrideKind kind, Matrix3x2 matrix) {
 		this.kind = kind;
@@ -488,9 +485,12 @@ public readonly struct CanvasTransformOverride : IEquatable<CanvasTransformOverr
 
 	public bool Equals(CanvasTransformOverride other) => kind == other.kind && matrix.Equals(other.matrix);
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasTransformOverride other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine((int)kind.Tag, matrix);
+	public override int GetHashCode() => HashCode.Combine(kind.RawTag, matrix);
 	public static bool operator ==(CanvasTransformOverride left, CanvasTransformOverride right) => left.Equals(right);
 	public static bool operator !=(CanvasTransformOverride left, CanvasTransformOverride right) => !left.Equals(right);
+
+	internal bool IsDefault => kind == default;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }
 
 /// <summary>
@@ -561,7 +561,7 @@ public static class CanvasOutputStates {
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct CanvasMaterial : IEquatable<CanvasMaterial> {
+public readonly struct CanvasMaterial : IEquatable<CanvasMaterial>, IHasInvalidDefault {
 	private readonly TextureInterpretation textureInterpretation;
 	private readonly SdfParams? sdfParams;
 
@@ -630,11 +630,12 @@ public readonly struct CanvasMaterial : IEquatable<CanvasMaterial> {
 	public SdfParams? SdfParams =>
 		IsDefault ? throw InvalidDefaultException.For<CanvasMaterial>() : sdfParams;
 
-	internal bool IsDefault => textureInterpretation == default;
-
 	public bool Equals(CanvasMaterial other) => textureInterpretation == other.textureInterpretation && sdfParams == other.sdfParams;
 	public override bool Equals([NotNullWhen(true)] object? obj) => obj is CanvasMaterial other && Equals(other);
-	public override int GetHashCode() => HashCode.Combine((int)textureInterpretation.Tag, sdfParams);
+	public override int GetHashCode() => HashCode.Combine(textureInterpretation.RawTag, sdfParams);
 	public static bool operator ==(CanvasMaterial left, CanvasMaterial right) => left.Equals(right);
 	public static bool operator !=(CanvasMaterial left, CanvasMaterial right) => !left.Equals(right);
+
+	internal bool IsDefault => textureInterpretation == default;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }

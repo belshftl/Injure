@@ -20,14 +20,15 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly ref struct IlEmitter {
-	private IlFragmentBuilder builder => field ?? throw InvalidDefaultException.For<IlEmitter>();
+public readonly ref struct IlEmitter : IHasInvalidDefault {
+	private readonly IlFragmentBuilder? builderOrNull;
+	private IlFragmentBuilder builder => builderOrNull ?? throw InvalidDefaultException.For<IlEmitter>();
 	private readonly IlOwnerInfo ownerInfo;
 	private readonly IIlCallDispatch? callDispatch;
 
 	internal IlEmitter(IlFragmentBuilder builder, IlOwnerInfo ownerInfo, IIlCallDispatch? callDispatch) {
 		InternalStateException.ThrowIfNull(builder);
-		this.builder = builder;
+		builderOrNull = builder;
 		this.ownerInfo = ownerInfo;
 		this.callDispatch = callDispatch;
 	}
@@ -848,4 +849,6 @@ public readonly ref struct IlEmitter {
 			throw new ArgumentOutOfRangeException(nameof(index));
 		return index;
 	}
+
+	bool IHasInvalidDefault.IsDefault => builderOrNull is null;
 }

@@ -23,7 +23,7 @@ public readonly record struct ColorAttachmentOps(
 	LoadOp LoadOp,
 	StoreOp StoreOp,
 	RawColorF128 ClearValue
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Keeps the existing contents and stores the rendered ones.
 	/// </summary>
@@ -33,4 +33,6 @@ public readonly record struct ColorAttachmentOps(
 	/// Clears to <paramref name="color"/> and stores the rendered contents.
 	/// </summary>
 	public static ColorAttachmentOps Clear(RawColorF128 color) => new(LoadOp.Clear, StoreOp.Store, color);
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

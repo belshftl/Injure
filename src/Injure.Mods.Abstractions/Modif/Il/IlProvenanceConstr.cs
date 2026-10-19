@@ -16,7 +16,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// care about provenance; most of the time, you do, even if you don't realize it.
 /// </para>
 /// </remarks>
-public readonly struct IlProvenanceConstr {
+public readonly struct IlProvenanceConstr : IHasInvalidDefault {
 	internal enum ConstraintKind {
 		UninitializedValue = 0,
 		Any,
@@ -66,4 +66,6 @@ public readonly struct IlProvenanceConstr {
 	/// a successful uniform match.
 	/// </remarks>
 	public static IlProvenanceConstr AllUniform { get; } = new(ConstraintKind.AllUniform, null);
+
+	bool IHasInvalidDefault.IsDefault => Kind == ConstraintKind.UninitializedValue;
 }

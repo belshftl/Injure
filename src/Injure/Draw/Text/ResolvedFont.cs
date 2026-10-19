@@ -13,6 +13,9 @@ using static FreeTypeSharp.FT_Render_Mode_;
 
 namespace Injure.Draw.Text;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has every metric at 0.
+/// </remarks>
 public readonly record struct FontLineMetrics(
 	float Ascent,
 	float Descent,
@@ -20,6 +23,9 @@ public readonly record struct FontLineMetrics(
 	float Height
 );
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Normal"/>.
+/// </remarks>
 [ClosedEnum]
 public readonly partial struct FontRasterMode {
 	public enum Case {
@@ -28,6 +34,9 @@ public readonly partial struct FontRasterMode {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Default"/>.
+/// </remarks>
 [ClosedEnum]
 public readonly partial struct FontHinting {
 	public enum Case {
@@ -38,26 +47,41 @@ public readonly partial struct FontHinting {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid, since its pixel size is 0.
+/// </remarks>
 public readonly record struct FontOptions(
 	int PixelSize,
 	FontRasterMode RasterMode = default,
 	FontHinting Hinting = default,
 	bool UseEmbeddedBitmaps = true
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct ResolvedFontKey(
 	FontSourceKind SourceKind,
 	ulong Id,
 	int FaceIndex,
 	FontOptions Options
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 // identifies one ResolvedFontState, so caches keyed by it never mix up font versions; the state
 // purges its cache entries when it's disposed
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct FontCacheToken(
 	ResolvedFontKey Key,
 	ulong StateId
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 internal interface IResolvedFont : IDisposable {
 	// the returned state is only valid until the current thread's next asset reload boundary
@@ -159,6 +183,9 @@ internal sealed unsafe class LoadedFontFace : IAssetStoreDisposable {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is FreeType's default load flags and normal render mode.
+/// </remarks>
 internal readonly record struct FontBackendOptions(
 	FT_LOAD LoadFlags,
 	FT_Render_Mode_ RenderMode

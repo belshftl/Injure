@@ -68,25 +68,33 @@ public readonly record struct ImpulseAxisActionState(float Amount);
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Action"/> is.
 /// </remarks>
-public readonly record struct ButtonActionStateEntry(ActionId Action, ButtonActionState State);
+public readonly record struct ButtonActionStateEntry(ActionId Action, ButtonActionState State) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>An action and its <see cref="StateAxisActionState"/>.</summary>
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Action"/> is.
 /// </remarks>
-public readonly record struct StateAxisActionStateEntry(ActionId Action, StateAxisActionState State);
+public readonly record struct StateAxisActionStateEntry(ActionId Action, StateAxisActionState State) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>An action and its <see cref="StateAxis2dActionState"/>.</summary>
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Action"/> is.
 /// </remarks>
-public readonly record struct StateAxis2dActionStateEntry(ActionId Action, StateAxis2dActionState State);
+public readonly record struct StateAxis2dActionStateEntry(ActionId Action, StateAxis2dActionState State) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>An action and its <see cref="ImpulseAxisActionState"/>.</summary>
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Action"/> is.
 /// </remarks>
-public readonly record struct ImpulseAxisActionStateEntry(ActionId Action, ImpulseAxisActionState State);
+public readonly record struct ImpulseAxisActionStateEntry(ActionId Action, ImpulseAxisActionState State) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// An immutable copy of action states, e.g. from <see cref="ActionStateView.ToSnapshot()"/>, for

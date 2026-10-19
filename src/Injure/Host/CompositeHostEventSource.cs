@@ -96,7 +96,10 @@ public sealed class CompositeHostEventSource : IHostEventSource, IDisposable {
 		}
 		ev = pending[best];
 		hasPending[best] = false;
+		// drops the event's references; hasPending guards the slot until it's refilled
+#pragma warning disable IJDEV0100
 		pending[best] = default;
+#pragma warning restore IJDEV0100
 		return true;
 	}
 

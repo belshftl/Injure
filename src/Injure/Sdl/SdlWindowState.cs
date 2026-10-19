@@ -20,7 +20,7 @@ namespace Injure.Sdl;
 /// <see cref="SdlWindow.State"/>.
 /// </para>
 /// </remarks>
-public readonly struct SdlWindowState {
+public readonly struct SdlWindowState : IHasInvalidDefault {
 	/// <summary>
 	/// Window title.
 	/// </summary>
@@ -129,4 +129,6 @@ public readonly struct SdlWindowState {
 	/// When this state last changed, on <see cref="SdlInstance.Clock"/>.
 	/// </summary>
 	public HostTick UpdatedAt { get; internal init; }
+
+	bool IHasInvalidDefault.IsDefault => Title is null;
 }

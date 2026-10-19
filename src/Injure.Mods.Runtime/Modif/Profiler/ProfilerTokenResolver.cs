@@ -32,11 +32,24 @@ namespace Injure.Mods.Runtime.Modif.Profiler;
 internal sealed class ProfilerTokenResolver : IIlTokenResolver {
 	// ==========================================================================================
 	// keys
-	private readonly record struct TypeRowKey(int Scope, string Namespace, string Name);
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct TypeRowKey(int Scope, string Namespace, string Name) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Name is null;
+	}
 
-	private readonly record struct MemberRowKey(int Parent, string Name, BlobKey Signature);
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct MemberRowKey(int Parent, string Name, BlobKey Signature) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Name is null;
+	}
 
-	private readonly struct BlobKey(byte[] bytes) : IEquatable<BlobKey> {
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly struct BlobKey(byte[] bytes) : IEquatable<BlobKey>, IHasInvalidDefault {
 		private readonly byte[] bytes = bytes;
 		private readonly int hash = hashOf(bytes);
 
@@ -49,6 +62,8 @@ internal sealed class ProfilerTokenResolver : IIlTokenResolver {
 			hash.AddBytes(bytes);
 			return hash.ToHashCode();
 		}
+
+		bool IHasInvalidDefault.IsDefault => bytes is null;
 	}
 
 	private sealed class TypeArrayComparer : IEqualityComparer<ImmutableArray<IlTypeRef>> {

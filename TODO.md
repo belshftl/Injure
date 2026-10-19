@@ -97,14 +97,15 @@ anyhow, to v0.1:
   - [ ] revisit the pixel converter, pt 1: revisit the api (though i'm not sure if it actually needs a redesign or if it's fine as is)
   - [ ] revisit the pixel converter, pt 2: write benchmarks, it's probably the part of the whole library that benefits the most from having benchmarks
   - [ ] revisit the pixel converter, pt 3: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement
-- [ ] add more to the regular analyzer:
-  - [ ] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
-  - [ ] devise some infrastructure for default-is-invalid structs, standardize, document
-- [ ] switch over the codebase to the new `InvalidDefaultException`
-  - [ ] switch over `[ClosedEnum]`/`[ClosedFlags]`
-  - [ ] for `[ClosedEnum]`/`[ClosedFlags]`, probably reserve and add a `RawTag`/`RawMask` that never throws, for use in `Equals`/`GetHashCode` implementations; right now, a lot of `GetHashCode`s throw on e.g. invalid `default` values when they shouldn't
-  - [ ] fix said `Equals`/`GetHashCode`s
-  - [ ] switch over the rest
+- [x] add more to the regular analyzer:
+  - [x] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
+  - [x] devise some infrastructure for default-is-invalid structs
+- [ ] switch over the codebase to the new default-is-invalid infrastructure
+  - [x] switch over `[ClosedEnum]`/`[ClosedFlags]`
+  - [x] for `[ClosedEnum]`/`[ClosedFlags]`, probably reserve and add a `RawTag`/`RawMask` that never throws, for use in `Equals`/`GetHashCode` implementations; right now, a lot of `GetHashCode`s throw on e.g. invalid `default` values when they shouldn't
+  - [x] fix said `Equals`/`GetHashCode`s
+  - [ ] use `ArgumentInvalidDefaultException` for arguments that are invalid `default` values
+  - [ ] write `docs/invalid-default-values.md`, including the convention that members of `IHasInvalidDefault` types may throw `InvalidDefaultException` without documenting it, except `IsDefault`, `Equals`, `GetHashCode`, `==`, `!=`, and `ToString`, which never throw
 - [ ] properly document owner-ordering; it's basically ubiquitous in the mod infrastructure, but it's very poorly documented
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`

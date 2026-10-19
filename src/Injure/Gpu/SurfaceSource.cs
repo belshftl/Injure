@@ -53,7 +53,7 @@ public readonly partial struct SurfaceSourceKind {
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct SurfaceSource {
+public readonly struct SurfaceSource : IHasInvalidDefault {
 	private readonly nint handle0;
 	private readonly nint handle1;
 	private readonly ulong xlibWindow;
@@ -141,6 +141,8 @@ public readonly struct SurfaceSource {
 
 	// the platform structs live in this stack frame, so the chain never outlives them
 	internal unsafe WGPUSurface CreateWgpuSurface(WGPUInstance instance) {
+		if (Kind == default)
+			throw InvalidDefaultException.For<SurfaceSource>();
 		WGPUSurfaceDescriptor desc = default;
 		switch (Kind.Tag) {
 		case SurfaceSourceKind.Case.MetalLayer: {
@@ -182,4 +184,6 @@ public readonly struct SurfaceSource {
 			throw new UnreachableException();
 		}
 	}
+
+	bool IHasInvalidDefault.IsDefault => Kind == default;
 }

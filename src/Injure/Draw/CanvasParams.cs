@@ -65,7 +65,7 @@ public readonly record struct CanvasParams(
 	CanvasOutputState OutputState,
 	CanvasMaterial Material,
 	TexSampling Sampling
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Creates parameters for drawing into the primary target with the given viewport, clearing it to
 	/// <paramref name="clearColor"/> first.
@@ -248,6 +248,12 @@ public readonly record struct CanvasParams(
 		_ = a.TryIntersect(b, out RectF result);
 		return result;
 	}
+
+	// prevent the generated ToString from printing EffectiveTransform, which throws on default
+	public override string ToString() =>
+		$"CanvasParams {{ Target = {Target}, ColorAttachmentOps = {ColorAttachmentOps}, Scissor = {Scissor}, Transform = {Transform}, OutputState = {OutputState}, Material = {Material}, Sampling = {Sampling} }}";
+
+	bool IHasInvalidDefault.IsDefault => Target.IsDefault;
 }
 
 /// <summary>

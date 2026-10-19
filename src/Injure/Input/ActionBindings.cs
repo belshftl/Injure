@@ -16,7 +16,9 @@ namespace Injure.Input;
 public readonly record struct ButtonBinding(
 	ActionId Action,
 	InputButtonSource Source
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Binds a 1D state axis action to an input: the binding's value is the input's value with
@@ -36,7 +38,9 @@ public readonly record struct StateAxisBinding(
 	InputStateAxisSource Source,
 	AxisDeadzone Deadzone,
 	float Scale
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Binds a 2D state axis action to an input: the binding's value is the input's value with
@@ -57,7 +61,9 @@ public readonly record struct StateAxis2dBinding(
 	InputStateAxis2dSource Source,
 	Axis2dDeadzone Deadzone,
 	Vector2 Scale
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Binds an impulse axis action to an impulse input: each impulse adds its amount multiplied by
@@ -70,7 +76,9 @@ public readonly record struct ImpulseAxisBinding(
 	ActionId Action,
 	InputImpulseAxisSource Source,
 	float Scale
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// How the values of several bindings of the same 1D state axis action are combined.

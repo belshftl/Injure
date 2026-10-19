@@ -19,7 +19,7 @@ namespace Injure.Input;
 /// The <see langword="default"/> value is invalid; every source rejects it.
 /// </para>
 /// </remarks>
-public readonly struct InputCursor : IEquatable<InputCursor> {
+public readonly struct InputCursor : IEquatable<InputCursor>, IHasInvalidDefault {
 	private readonly object? sourceToken;
 	internal readonly ulong Seq;
 
@@ -46,4 +46,6 @@ public readonly struct InputCursor : IEquatable<InputCursor> {
 	public static bool operator ==(InputCursor left, InputCursor right) => left.Equals(right);
 	/// <summary>Equivalent to the negation of <see cref="Equals(InputCursor)"/>.</summary>
 	public static bool operator !=(InputCursor left, InputCursor right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => sourceToken is null;
 }

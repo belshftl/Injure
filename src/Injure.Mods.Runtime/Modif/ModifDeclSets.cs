@@ -15,24 +15,34 @@ namespace Injure.Mods.Runtime.Modif;
 /// <summary>
 /// One detour declaration. Not to be confused with <see cref="IDetourDecl{L}"/>.
 /// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct DetourDeclDesc(
 	MethodBase Target,
 	int LocalOrder,
 	IReadOnlyList<OwnerOrderingConstraint>? Before,
 	IReadOnlyList<OwnerOrderingConstraint>? After,
 	DetourRegistration Registration
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Target is null;
+}
 
 /// <summary>
 /// One patch declaration. Not to be confused with <see cref="IPatchDecl{L}"/>.
 /// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct PatchDeclDesc(
 	MethodBase Target,
 	int LocalOrder,
 	IReadOnlyList<OwnerOrderingConstraint>? Before,
 	IReadOnlyList<OwnerOrderingConstraint>? After,
 	IlManipulatorRegistration Registration
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Target is null;
+}
 
 internal sealed class DetourDeclSet : IStrongRefDroppable {
 	public string OwnerId { get; }

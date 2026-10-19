@@ -5,7 +5,6 @@ using System.Runtime.ExceptionServices;
 using Injure.Diagnostics;
 using Injure.Draw;
 using Injure.Input;
-using Injure.Mods.CodeAnalysis;
 using Injure.Sched.Tickers;
 
 namespace Injure.Layers;
@@ -23,6 +22,10 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input, IDia
 		public LayerTagSet Tags;
 	}
 
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and doesn't allow updates and has no active
+	/// features.
+	/// </remarks>
 	private readonly struct ResolvedPassState(bool updateAllowed, LayerFeatures activeFeatures) {
 		public readonly bool UpdateAllowed = updateAllowed;
 		public readonly LayerFeatures ActiveFeatures = activeFeatures;
@@ -98,13 +101,21 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input, IDia
 		Replace,
 	}
 
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
 	private readonly record struct PendingOp(
 		PendingOpKind Kind,
 		Layer? Layer,
 		Layer? NewLayer,
 		TickerHandle? Ticker
-	);
+	) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => this == default;
+	}
 
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
 	private readonly record struct WarmingOp(
 		WarmingOpKind Kind,
 		Layer Layer,
@@ -112,7 +123,9 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input, IDia
 		TickerHandle Ticker,
 		CancellationTokenSource Cts,
 		Task Task
-	);
+	) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Layer is null;
+	}
 
 	// ==========================================================================
 	// fields

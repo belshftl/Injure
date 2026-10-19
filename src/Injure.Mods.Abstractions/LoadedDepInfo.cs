@@ -12,10 +12,15 @@ namespace Injure.Mods.Abstractions;
 /// Lifetime identity of the mod this object was handed out to, i.e. the dependent mod.
 /// </typeparam>
 /// <remarks>
+/// <para>
 /// For a code mod, prefer <see cref="LoadedCodeDepInfo{L, LDep}"/>, which also gives access to its
 /// exports, or <see cref="UntypedLoadedCodeDepInfo{L}"/>.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-public readonly struct LoadedDepInfo<L> where L : struct, IModLifetimeIdentity {
+public readonly struct LoadedDepInfo<L> : IHasInvalidDefault where L : struct, IModLifetimeIdentity {
 	/// <summary>
 	/// The dependency's owner ID.
 	/// </summary>
@@ -42,6 +47,8 @@ public readonly struct LoadedDepInfo<L> where L : struct, IModLifetimeIdentity {
 		Generation = generation;
 		Scope = scope;
 	}
+
+	bool IHasInvalidDefault.IsDefault => OwnerId is null;
 }
 
 /// <summary>
@@ -60,8 +67,11 @@ public readonly struct LoadedDepInfo<L> where L : struct, IModLifetimeIdentity {
 /// There is intentionally no untyped way to access exports, as using a mod's exports requires a
 /// compile-time reference to its contract assembly anyway.
 /// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-public readonly struct UntypedLoadedCodeDepInfo<L> where L : struct, IModLifetimeIdentity {
+public readonly struct UntypedLoadedCodeDepInfo<L> : IHasInvalidDefault where L : struct, IModLifetimeIdentity {
 	/// <summary>
 	/// The dependency's lifetime identity type. Implements <see cref="IModLifetimeIdentity"/>.
 	/// </summary>
@@ -92,6 +102,8 @@ public readonly struct UntypedLoadedCodeDepInfo<L> where L : struct, IModLifetim
 		Scope = scope;
 		Assembly = assembly;
 	}
+
+	bool IHasInvalidDefault.IsDefault => OwnerId is null;
 }
 
 /// <summary>
@@ -101,7 +113,10 @@ public readonly struct UntypedLoadedCodeDepInfo<L> where L : struct, IModLifetim
 /// Lifetime identity of the mod this object was handed out to, i.e. the dependent mod.
 /// </typeparam>
 /// <typeparam name="LDep">Lifetime identity of the dependency.</typeparam>
-public readonly struct LoadedCodeDepInfo<L, LDep> where L : struct, IModLifetimeIdentity where LDep : struct, IModLifetimeIdentity {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct LoadedCodeDepInfo<L, LDep> : IHasInvalidDefault where L : struct, IModLifetimeIdentity where LDep : struct, IModLifetimeIdentity {
 	/// <inheritdoc cref="LoadedDepInfo{L}.OwnerId"/>
 	public string OwnerId { get; }
 
@@ -137,4 +152,6 @@ public readonly struct LoadedCodeDepInfo<L, LDep> where L : struct, IModLifetime
 		Exports = exports;
 		Assembly = assembly;
 	}
+
+	bool IHasInvalidDefault.IsDefault => OwnerId is null;
 }

@@ -22,7 +22,7 @@ namespace Injure.Draw;
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct TexDst : IEquatable<TexDst> {
+public readonly struct TexDst : IEquatable<TexDst>, IHasInvalidDefault {
 	private enum Kind : byte {
 		Invalid,
 		At,
@@ -36,8 +36,6 @@ public readonly struct TexDst : IEquatable<TexDst> {
 		this.kind = kind;
 		this.rect = rect;
 	}
-
-	internal bool IsDefault => kind == Kind.Invalid;
 
 	/// <summary>
 	/// Draws with <see cref="TexDraw.Origin"/> (the top-left corner by default) at
@@ -77,6 +75,9 @@ public readonly struct TexDst : IEquatable<TexDst> {
 	public override int GetHashCode() => HashCode.Combine(kind, rect);
 	public static bool operator ==(TexDst left, TexDst right) => left.Equals(right);
 	public static bool operator !=(TexDst left, TexDst right) => !left.Equals(right);
+
+	internal bool IsDefault => kind == Kind.Invalid;
+	bool IHasInvalidDefault.IsDefault => IsDefault;
 }
 
 /// <summary>
@@ -182,7 +183,7 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 /// The <see langword="default"/> value is invalid, since its <paramref name="Destination"/> is.
 /// </para>
 /// </remarks>
-public readonly record struct TexDraw(TexDst Destination) {
+public readonly record struct TexDraw(TexDst Destination) : IHasInvalidDefault {
 	/// <summary>
 	/// Which part of the texture to draw; <see cref="TexRegion.Whole"/> unless set.
 	/// </summary>
@@ -243,4 +244,6 @@ public readonly record struct TexDraw(TexDst Destination) {
 	/// Draws the whole texture untinted and untransformed, stretched into <paramref name="dst"/>.
 	/// </summary>
 	public static implicit operator TexDraw(RectF dst) => new(TexDst.Rect(dst));
+
+	bool IHasInvalidDefault.IsDefault => Destination.IsDefault;
 }

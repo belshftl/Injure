@@ -19,7 +19,7 @@ public readonly record struct MultisampleState(
 	uint Count = 1,
 	uint Mask = uint.MaxValue,
 	bool AlphaToCoverageEnabled = false
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Creates a single-sampled state with all samples enabled and alpha-to-coverage disabled.
 	/// </summary>
@@ -33,4 +33,6 @@ public readonly record struct MultisampleState(
 		mask = Mask,
 		alphaToCoverageEnabled = AlphaToCoverageEnabled ? WGPUBool.True : WGPUBool.False,
 	};
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

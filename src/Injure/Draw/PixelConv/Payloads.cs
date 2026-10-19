@@ -6,6 +6,9 @@ using System.Runtime.Intrinsics;
 
 namespace Injure.Draw.PixelConv;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has every field at 0.
+/// </remarks>
 internal readonly struct Copy32SetAlphaPayload(byte byteIndex, byte a8unorm, Vector128<byte> keep128, Vector128<byte> fill128) {
 	public readonly byte AlphaByteIndex = byteIndex;
 	public readonly byte Alpha8UNorm = a8unorm;
@@ -16,6 +19,9 @@ internal readonly struct Copy32SetAlphaPayload(byte byteIndex, byte a8unorm, Vec
 	public readonly Vector256<byte> FillMask256 = Vector256.Create(fill128, fill128);
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has every field at 0.
+/// </remarks>
 internal readonly struct Copy64SetAlphaPayload(byte byteOffsetInPixel, byte byte0, byte byte1, ushort a16unorm, Vector128<byte> keep128, Vector128<byte> fill128) {
 	public readonly byte AlphaByteOffsetInPixel = byteOffsetInPixel;
 	public readonly byte AlphaByte0 = byte0;
@@ -28,6 +34,9 @@ internal readonly struct Copy64SetAlphaPayload(byte byteOffsetInPixel, byte byte
 	public readonly Vector256<byte> FillMask256 = Vector256.Create(fill128, fill128);
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has every field at 0.
+/// </remarks>
 internal readonly struct Shuffle32Payload(Vector128<byte> shuf128, Vector128<byte> fill128, bool hasFill) {
 	public readonly Vector128<byte> ShufMask128 = shuf128;
 	public readonly Vector128<byte> FillMask128 = fill128;
@@ -36,6 +45,9 @@ internal readonly struct Shuffle32Payload(Vector128<byte> shuf128, Vector128<byt
 	public readonly bool HasFill = hasFill;
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has every field at 0.
+/// </remarks>
 internal readonly struct Expand24To32Payload(byte a8unorm, Vector128<byte> shuf128, Vector128<byte> fill128) {
 	public readonly byte Alpha8UNorm = a8unorm;
 	public readonly Vector128<byte> ShufMask128 = shuf128;
@@ -44,11 +56,18 @@ internal readonly struct Expand24To32Payload(byte a8unorm, Vector128<byte> shuf1
 	public readonly Vector256<byte> FillMask256 = Vector256.Create(fill128, fill128);
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has every field at 0.
+/// </remarks>
 internal readonly struct Contract32To24Payload(Vector128<byte> shuf128) {
 	public readonly Vector128<byte> ShufMask128 = shuf128;
 	public readonly Vector256<byte> ShufMask256 = Vector256.Create(shuf128, shuf128);
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid; every payload type's <see langword="default"/>
+/// value is valid and has every field at 0, so this represents the union of all of those.
+/// </remarks>
 [StructLayout(LayoutKind.Explicit)]
 internal struct PayloadUnion {
 	[FieldOffset(0)] public Copy32SetAlphaPayload Copy32SetAlpha;

@@ -6,7 +6,10 @@ using Injure.Mods.Abstractions;
 namespace Injure.Mods.Runtime;
 
 internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
-	private struct OwnedDisposable {
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private struct OwnedDisposable : IHasInvalidDefault {
 		private IDisposable? disposable;
 		private IAsyncDisposable? asyncDisposable;
 		private readonly string? typeName;
@@ -21,7 +24,7 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 			typeName = ad.GetType().FullName ?? ad.GetType().Name;
 		}
 
-		public readonly string TypeName => typeName ?? throw new InternalStateException("badly constructed OwnedDisposable (accidental `default`)?");
+		public readonly string TypeName => typeName ?? throw InvalidDefaultException.For<OwnedDisposable>();
 
 		public async ValueTask DisposeAsync() {
 			IDisposable? d = disposable;
@@ -32,8 +35,10 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 				await ad.DisposeAsync().ConfigureAwait(false);
 				return;
 			}
-			(d ?? throw new InternalStateException("badly constructed OwnedDisposable (accidental `default`)?")).Dispose();
+			(d ?? throw InvalidDefaultException.For<OwnedDisposable>()).Dispose();
 		}
+
+		bool IHasInvalidDefault.IsDefault => typeName is null;
 	}
 
 	private readonly Lock @lock = new();
@@ -239,7 +244,10 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 							lock (failureLock)
 								addFailure(failure);
 						} finally {
+							// drops the references once disposed; the slot is never read again
+#pragma warning disable IJDEV0100
 							items[i] = default;
+#pragma warning restore IJDEV0100
 						}
 					}
 				}
@@ -255,7 +263,10 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 			} catch (Exception ex) {
 				addFailure(BoundedScopeFailure.FromException(Generation, i, "dispose ordered-disposal IDisposable item", typeName, ex));
 			} finally {
+				// drops the references once disposed; the slot is never read again
+#pragma warning disable IJDEV0100
 				items[i] = default;
+#pragma warning restore IJDEV0100
 			}
 		}
 	}

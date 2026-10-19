@@ -9,7 +9,8 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// Identifies an instruction within a method body.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is invalid.
+/// The <see langword="default"/> value is valid and is no ID: it refers to no instruction, and
+/// <see cref="IsValid"/> is <see langword="false"/> for it.
 /// </remarks>
 public readonly struct IlInstructionId : IEquatable<IlInstructionId> {
 	/// <summary>

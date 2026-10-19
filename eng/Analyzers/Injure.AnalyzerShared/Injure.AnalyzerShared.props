@@ -1,0 +1,10 @@
+<Project>
+	<!--
+		source shared between Injure.Analyzers and Injure.DevAnalyzers
+		embedded into each of them as source rather than compiled into a separate assembly to avoid
+		having to ship and load an extra assembly
+	-->
+	<ItemGroup>
+		<Compile Include="$(MSBuildThisFileDirectory)**/*.cs" Exclude="$(MSBuildThisFileDirectory)bin/**;$(MSBuildThisFileDirectory)obj/**" Link="AnalyzerShared/%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+</Project>

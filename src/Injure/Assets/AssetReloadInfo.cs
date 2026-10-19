@@ -66,7 +66,7 @@ public readonly record struct AssetDepSnapshot(
 	string? AssemblyQualifiedTypeName,
 	string? AssemblyName,
 	string? DebugDescription
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Returns a human-readable best-effort description string.
 	/// </summary>
@@ -101,6 +101,8 @@ public readonly record struct AssetDepSnapshot(
 			return fallback;
 		}
 	}
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }
 
 /// <summary>
@@ -139,7 +141,7 @@ public sealed record AssetReloadFailure(
 public readonly record struct AssetReloadReport(
 	int AppliedCount,
 	ImmutableArray<AssetReloadFailure> Failures
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Throws if this report contains any reload failures.
 	/// </summary>
@@ -152,4 +154,6 @@ public readonly record struct AssetReloadReport(
 		if (!Failures.IsDefaultOrEmpty)
 			throw new AggregateException(Failures.Select(static f => f.ExceptionSnapshot.ToException()));
 	}
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

@@ -9,6 +9,9 @@ using Injure.Primitives;
 
 namespace Injure.Draw.Text;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="None"/>.
+/// </remarks>
 [ClosedEnum]
 public readonly partial struct TextWrapMode {
 	public enum Case {
@@ -17,6 +20,9 @@ public readonly partial struct TextWrapMode {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Left"/>.
+/// </remarks>
 [ClosedEnum(CheckZeroName = false)] // left is the natural alignment from not adding an X offset so it's an alright "default"/"neutral"
 public readonly partial struct TextHorizontalAlign {
 	public enum Case {
@@ -26,6 +32,9 @@ public readonly partial struct TextHorizontalAlign {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Clip"/>.
+/// </remarks>
 [ClosedEnum(CheckZeroName = false)] // clip is kind of the plain default one may expect for "max lines"
 public readonly partial struct TextOverflowMode {
 	public enum Case {
@@ -40,23 +49,40 @@ internal enum LineBreakKind {
 	Hard,
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="LineBreakKind.None"/> at
+/// position 0.
+/// </remarks>
 internal readonly record struct LineBreakOpportunity(
 	int Position,
 	LineBreakKind Kind
 );
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct LogicalBidiRun(
 	int Start,
 	int Length,
 	Direction Direction
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Direction == default;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct VisualBidiRun(
 	int Start,
 	int Length,
 	Direction Direction
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Direction == default;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty cluster starting at 0.
+/// </remarks>
 internal readonly record struct ParagraphCluster(
 	int GlyphStart,
 	int GlyphCount,
@@ -81,19 +107,31 @@ internal sealed class ParagraphRun {
 	public int SourceLimit => Item.SourceStart + Item.Text.Length;
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty line starting at 0.
+/// </remarks>
 internal readonly record struct LogicalLine(
 	int Start,
 	int Limit
 );
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct PlannedGlyph(
 	IResolvedFont Font,
 	uint GlyphId,
 	uint Cluster,
 	float X,
 	float Y
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Font is null;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty line, starting at 0, with every
+/// metric at 0.
+/// </remarks>
 public readonly record struct TextLine(
 	int GlyphStart,
 	int GlyphCount,
@@ -454,6 +492,9 @@ internal static class TextLayouter {
 		paraRun.SourceStart < limit && paraRun.SourceLimit > start;
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct TextGlyph(
 	GlyphAtlasPage Page,
 	RectI SrcPixels,
@@ -461,8 +502,14 @@ internal readonly record struct TextGlyph(
 	SrgbColor32 Color,
 	uint GlyphId,
 	uint Cluster
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Page is null;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an all-zero measurement, i.e. a measurement
+/// of nothing.
+/// </remarks>
 public readonly record struct TextMeasurement(
 	float Width,
 	float Height,

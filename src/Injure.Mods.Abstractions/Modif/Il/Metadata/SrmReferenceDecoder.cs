@@ -7,6 +7,9 @@ using System.Reflection.Metadata.Ecma335;
 
 namespace Injure.Mods.Abstractions.Modif.Il.Metadata;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is the only value.
+/// </remarks>
 internal readonly struct IlGenericContext;
 
 internal sealed class SrmReferenceDecoder : ISignatureTypeProvider<IlTypeRef, IlGenericContext> {

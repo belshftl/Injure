@@ -1060,7 +1060,10 @@ public sealed unsafe class GpuDevice : IDisposable {
 
 		bool haveFrag = false;
 		VertexState vert = @params.Vertex;
+		// only read if haveFrag is set
+#pragma warning disable IJDEV0100
 		FragmentState frag = @params.Fragment ?? default;
+#pragma warning restore IJDEV0100
 		PrimitiveState prim = @params.Primitive ?? new PrimitiveState();
 		MultisampleState ms = @params.Multisample ?? new MultisampleState();
 

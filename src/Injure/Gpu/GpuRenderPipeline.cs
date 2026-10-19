@@ -90,4 +90,6 @@ public readonly record struct GpuRenderPipelineCreateParams(
 	PrimitiveState? Primitive = null,
 	DepthStencilState? DepthStencil = null,
 	MultisampleState? Multisample = null
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

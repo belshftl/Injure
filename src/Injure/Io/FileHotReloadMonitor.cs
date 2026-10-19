@@ -15,8 +15,11 @@ public sealed class FileHotReloadMonitorOptions {
 }
 
 public sealed class FileHotReloadMonitor : IDisposable {
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and is <see cref="Missing"/>.
+	/// </remarks>
 	private readonly record struct FileFingerprint(bool Exists, long Length, ulong Hash) {
-		public static FileFingerprint Missing => new(Exists: false, Length: 0, Hash: 0);
+		public static readonly FileFingerprint Missing = new(Exists: false, Length: 0, Hash: 0);
 		public bool ContentEquals(FileFingerprint other) {
 			if (!Exists || !other.Exists)
 				return Exists == other.Exists;

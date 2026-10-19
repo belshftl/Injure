@@ -81,7 +81,7 @@ public readonly record struct DiagnosticEvent(
 	DiagnosticSeverity Severity,
 	string Message,
 	ReloadGeneration? Generation = null
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Throws if this <see cref="DiagnosticEvent"/> is invalid/malformed.
 	/// </summary>
@@ -93,8 +93,11 @@ public readonly record struct DiagnosticEvent(
 	/// Thrown if <see cref="SourceOwnerId"/> is not a valid owner ID, or if <see cref="Generation"/>
 	/// is non-null and has a mismatched owner ID.
 	/// </exception>
+	/// <exception cref="InvalidDefaultException">
+	/// Thrown if <see cref="Severity"/> is the <see langword="default"/> value.
+	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if <see cref="Severity"/> is not a validly constructed closed-enum value.
+	/// Thrown if <see cref="Severity"/> is otherwise not a validly constructed closed-enum value.
 	/// </exception>
 	public void Validate() {
 		ModMetadataValidation.ValidateOwnerIdOrThrow(SourceOwnerId);
@@ -106,4 +109,6 @@ public readonly record struct DiagnosticEvent(
 		}
 		_ = Severity.Tag;
 	}
+
+	bool IHasInvalidDefault.IsDefault => SourceOwnerId is null;
 }

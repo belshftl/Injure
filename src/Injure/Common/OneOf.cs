@@ -6,12 +6,40 @@ using System.Diagnostics.CodeAnalysis;
 namespace Injure.Common;
 
 public static class OneOf {
+	/// <summary>
+	/// A value marked as the first case of a <see cref="OneOf{T1, T2}"/>, which it converts to
+	/// implicitly.
+	/// </summary>
+	/// <param name="Value">The value.</param>
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and holds the <see langword="default"/> value of
+	/// <typeparamref name="T"/>.
+	/// </remarks>
 	public readonly record struct FirstCase<T>(T Value);
+
+	/// <summary>
+	/// A value marked as the second case of a <see cref="OneOf{T1, T2}"/>, which it converts to
+	/// implicitly.
+	/// </summary>
+	/// <param name="Value">The value.</param>
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and holds the <see langword="default"/> value of
+	/// <typeparamref name="T"/>.
+	/// </remarks>
 	public readonly record struct SecondCase<T>(T Value);
+
 	public static FirstCase<T> First<T>(T value) => new(value);
 	public static SecondCase<T> Second<T>(T value) => new(value);
 }
 
+/// <summary>
+/// Holds a value of one of two types: a <typeparamref name="T1"/> (the first case) or a
+/// <typeparamref name="T2"/> (the second case).
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="OneOfCase.Uninitialized"/>,
+/// holding neither case; <see cref="IsInitialized"/> is <see langword="false"/> for it.
+/// </remarks>
 public readonly struct OneOf<T1, T2> : IEquatable<OneOf<T1, T2>> {
 	public enum OneOfCase {
 		Uninitialized,

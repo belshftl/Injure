@@ -5,6 +5,10 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Injure.Sched.Coro;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Invalid"/>, which refers to no
+/// coroutine.
+/// </remarks>
 public readonly struct CoroHandle(int slot, int generation) : IEquatable<CoroHandle> {
 	public static readonly CoroHandle Invalid = default;
 	public int Slot { get; } = slot;

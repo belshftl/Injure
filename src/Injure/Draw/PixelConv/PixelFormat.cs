@@ -17,6 +17,9 @@ namespace Injure.Draw.PixelConv;
 /// Only storage is described; higher-level semantics such as premultiplied alpha,
 /// transfer function, or colorspace are not encoded.
 /// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct PixelFormat {
@@ -159,6 +162,9 @@ internal enum PixelByteOrder : byte {
 	BigEndian,
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly struct PixelFormatDesc(
 	PixelFormatFamily family,
 	PixelNumericKind numericKind,
@@ -180,7 +186,7 @@ internal readonly struct PixelFormatDesc(
 	sbyte gIndex,
 	sbyte bIndex,
 	sbyte aIndex
-) {
+) : IHasInvalidDefault {
 	public readonly PixelFormatFamily Family = family;
 	public readonly PixelNumericKind NumericKind = numericKind;
 	public readonly PixelByteOrder ByteOrder = byteOrder;
@@ -205,4 +211,6 @@ internal readonly struct PixelFormatDesc(
 	public readonly sbyte GIndex = gIndex;
 	public readonly sbyte BIndex = bIndex;
 	public readonly sbyte AIndex = aIndex;
+
+	bool IHasInvalidDefault.IsDefault => BytesPerPixel == 0;
 }

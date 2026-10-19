@@ -8,6 +8,9 @@ namespace Injure.Draw.PixelConv;
 /// <summary>
 /// Describes the broad execution strategy that was chosen for a conversion plan.
 /// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct PlanExecutionPath {
 	/// <summary>Raw switch tag for <see cref="PlanExecutionPath"/>.</summary>
@@ -37,8 +40,13 @@ public readonly partial struct PlanExecutionPath {
 /// Describes the backend selected for a conversion.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Informational only; backend selection is not a stable API and may vary
 /// by runtime, hardware, library version, or even the input.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is valid and is <see cref="None"/>.
+/// </para>
 /// </remarks>
 [ClosedEnum]
 public readonly partial struct PlanBackend {
@@ -81,10 +89,15 @@ public readonly partial struct PlanBackend {
 /// will execute.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Informational only; backend selection is not a stable API and may vary
 /// by runtime, hardware, library version, or even the input.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-public readonly struct PlanInfo {
+public readonly struct PlanInfo : IHasInvalidDefault {
 	/// <summary>
 	/// Broad execution strategy that was selected for this plan.
 	/// </summary>
@@ -99,4 +112,6 @@ public readonly struct PlanInfo {
 		ExecutionPath = executionPath;
 		Backend = backend;
 	}
+
+	bool IHasInvalidDefault.IsDefault => ExecutionPath == default;
 }

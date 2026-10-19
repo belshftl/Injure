@@ -34,7 +34,7 @@ public sealed class ActionRegistry {
 	/// <remarks>
 	/// The <see langword="default"/> value is invalid.
 	/// </remarks>
-	public readonly ref struct BatchRegistrar {
+	public readonly ref struct BatchRegistrar : IHasInvalidDefault {
 		private readonly ActionRegistry owner;
 		private readonly string? ns;
 		private readonly List<string> sids;
@@ -61,6 +61,8 @@ public sealed class ActionRegistry {
 		/// registry has run out of IDs.
 		/// </exception>
 		public ActionId Register(string sidOrLocalName) {
+			if (owner is null)
+				throw InvalidDefaultException.For<BatchRegistrar>();
 			string sid = ns is null ? sidOrLocalName : ns + "::" + sidOrLocalName;
 			ValidateSidOrThrow(sid);
 
@@ -83,6 +85,8 @@ public sealed class ActionRegistry {
 			owner.actions.Set(CollectionsMarshal.AsSpan(sids), CollectionsMarshal.AsSpan(ids));
 			owner.nextId += (uint)ids.Count;
 		}
+
+		bool IHasInvalidDefault.IsDefault => owner is null;
 	}
 
 	/// <summary>

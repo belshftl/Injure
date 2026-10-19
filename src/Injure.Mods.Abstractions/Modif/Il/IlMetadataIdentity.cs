@@ -15,7 +15,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct IlModuleIdentity : IEquatable<IlModuleIdentity> {
+public readonly struct IlModuleIdentity : IEquatable<IlModuleIdentity>, IHasInvalidDefault {
 	/// <summary>
 	/// The module version identifier.
 	/// </summary>
@@ -36,6 +36,8 @@ public readonly struct IlModuleIdentity : IEquatable<IlModuleIdentity> {
 	public override int GetHashCode() => HashCode.Combine(Mvid, Name);
 	public static bool operator ==(IlModuleIdentity left, IlModuleIdentity right) => left.Equals(right);
 	public static bool operator !=(IlModuleIdentity left, IlModuleIdentity right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => Name is null;
 }
 
 /// <summary>
@@ -44,7 +46,7 @@ public readonly struct IlModuleIdentity : IEquatable<IlModuleIdentity> {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct IlAssemblyIdentity : IEquatable<IlAssemblyIdentity> {
+public readonly struct IlAssemblyIdentity : IEquatable<IlAssemblyIdentity>, IHasInvalidDefault {
 	/// <summary>
 	/// The simple assembly name.
 	/// </summary>
@@ -103,6 +105,8 @@ public readonly struct IlAssemblyIdentity : IEquatable<IlAssemblyIdentity> {
 	}
 	public static bool operator ==(IlAssemblyIdentity left, IlAssemblyIdentity right) => left.Equals(right);
 	public static bool operator !=(IlAssemblyIdentity left, IlAssemblyIdentity right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => Name is null;
 }
 
 internal static class IlAssemblyIdentityFactory {

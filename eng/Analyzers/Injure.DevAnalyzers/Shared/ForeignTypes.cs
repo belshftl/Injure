@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis;
 namespace Injure.DevAnalyzers.Shared;
 
 // decides which assemblies' types count as foreign, i.e. must not appear in Injure's public API
-// (IJDEV0100), which also decides the accessibility of generated mirror conversions
+// (IJDEV0103), which also decides the accessibility of generated mirror conversions
 internal static class ForeignTypes {
 	private static readonly ImmutableHashSet<string> whitelist = ImmutableHashSet.Create(
 		StringComparer.Ordinal,

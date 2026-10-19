@@ -34,6 +34,10 @@ public sealed class FrozenSnapshotBijectiveMap<TLeft, TRight>
 	: IReadOnlyBijectiveMap<TLeft, TRight> where TLeft : notnull where TRight : notnull {
 	// ==========================================================================
 	// abstraction over l/r pairs
+
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and has no pairs.
+	/// </remarks>
 	private readonly ref struct PairSource {
 		private enum Kind : byte {
 			PairSpan,
@@ -209,10 +213,15 @@ public sealed class FrozenSnapshotBijectiveMap<TLeft, TRight>
 	/// Enumerates the pairs of one snapshot.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// The snapshot is captured when the enumerator is created, so subsequent mutations of the map
 	/// neither invalidate the enumerator nor affect what it yields.
+	/// </para>
+	/// <para>
+	/// The <see langword="default"/> value is invalid.
+	/// </para>
 	/// </remarks>
-	public struct Enumerator : IEnumerator<(TLeft Left, TRight Right)> {
+	public struct Enumerator : IEnumerator<(TLeft Left, TRight Right)>, IHasInvalidDefault {
 		private readonly FrozenDictionary<TLeft, TRight> ltr;
 		private FrozenDictionary<TLeft, TRight>.Enumerator inner;
 
@@ -223,20 +232,34 @@ public sealed class FrozenSnapshotBijectiveMap<TLeft, TRight>
 
 		public readonly (TLeft Left, TRight Right) Current {
 			get {
+				chk();
 				KeyValuePair<TLeft, TRight> kvp = inner.Current;
 				return (kvp.Key, kvp.Value);
 			}
 		}
 		readonly object IEnumerator.Current => Current;
 
-		public bool MoveNext() => inner.MoveNext();
+		public bool MoveNext() {
+			chk();
+			return inner.MoveNext();
+		}
 
-		public void Reset() => inner = ltr.GetEnumerator();
+		public void Reset() {
+			chk();
+			inner = ltr.GetEnumerator();
+		}
 
 		/// <summary>
 		/// Does nothing.
 		/// </summary>
 		public readonly void Dispose() {
+		}
+
+		readonly bool IHasInvalidDefault.IsDefault => ltr is null;
+
+		private readonly void chk() {
+			if (ltr is null)
+				throw InvalidDefaultException.For<Enumerator>();
 		}
 	}
 

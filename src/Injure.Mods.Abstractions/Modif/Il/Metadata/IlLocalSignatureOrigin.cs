@@ -11,15 +11,19 @@ namespace Injure.Mods.Abstractions.Modif.Il.Metadata;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A resolver may use this to skip re-encoding a locals signature when the hint names the module it
-/// is emitting into and the locals list is unchanged. It is never part of equality and must never
-/// change the resolved result: a resolver that ignores it entirely stays correct.
+/// A resolver may use this to skip re-encoding a locals signature if the hint names the module
+/// it's emitting into and the locals list is unchanged. Never part of equality, and must never
+/// change the resolved result in a correct resolver. A resolver can ignore this entirely and still
+/// be correct.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value carries no hint.
+/// The <see langword="default"/> value is valid and carries no hint.
 /// </para>
 /// </remarks>
+// a default Module only ever has a RowId of 0, i.e. no hint, which is IsValid checks
+#pragma warning disable IJDEV0102
 internal readonly record struct IlLocalSignatureOrigin(IlModuleIdentity Module, int RowId) {
+#pragma warning restore IJDEV0102
 	public bool IsValid => RowId > 0;
 	public StandaloneSignatureHandle Handle => IsValid
 		? MetadataTokens.StandaloneSignatureHandle(RowId)

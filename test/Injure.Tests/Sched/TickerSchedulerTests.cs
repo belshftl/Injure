@@ -71,4 +71,18 @@ public static class TickerSchedulerTests {
 		Assert.Throws<ArgumentOutOfRangeException>(() => sched.Add(new TickerSpec(new TickerTiming(HostDuration.Zero), TickerOptions.Default)));
 		Assert.Throws<ArgumentOutOfRangeException>(() => sched.Add(new TickerSpec(new TickerTiming(-ms10), TickerOptions.Default)));
 	}
+
+	[Fact]
+	public static void OptionsConstructedWithNewHaveTheParameterDefaults() {
+		TickerSchedulerOptions options = new();
+		Assert.Equal(64, options.BatchCallLimit);
+		Assert.Equal(8, options.EventPollInterval);
+	}
+
+	[Fact]
+	public static void DefaultOptionsAreRejected() =>
+		Assert.Equal(
+			"options",
+			Assert.Throws<ArgumentInvalidDefaultException>(static () => new TickerScheduler(new ManualClock(0), default)).ParamName
+		);
 }

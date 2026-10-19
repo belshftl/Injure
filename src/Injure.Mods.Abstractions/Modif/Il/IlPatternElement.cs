@@ -17,7 +17,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct IlPatternElement {
+public readonly struct IlPatternElement : IHasInvalidDefault {
 	internal enum PatternKind : byte {
 		UninitializedValue,
 		Any,
@@ -37,4 +37,6 @@ public readonly struct IlPatternElement {
 		OpCodeValue = IlOpCodeInfo.Canonicalize(opCode);
 		Operand = operand ?? IlNoneOperand.Instance;
 	}
+
+	bool IHasInvalidDefault.IsDefault => !IsValid;
 }

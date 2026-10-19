@@ -9,6 +9,9 @@ using Injure.Sched.Tickers;
 
 namespace Injure.Layers;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="None"/>.
+/// </remarks>
 [ClosedFlags]
 public readonly partial struct LayerFeatures {
 	[Flags]
@@ -19,6 +22,9 @@ public readonly partial struct LayerFeatures {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="None"/>.
+/// </remarks>
 [ClosedFlags]
 public readonly partial struct LayerBlockMask {
 	[Flags]
@@ -30,6 +36,9 @@ public readonly partial struct LayerBlockMask {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and blocks nothing.
+/// </remarks>
 public readonly record struct LayerBlockRule(LayerBlockMask Blocked, LayerTagSet MatchTags);
 
 /// <summary>

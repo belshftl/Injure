@@ -36,8 +36,11 @@ internal enum PlanKind : byte {
 /// Plan creation is cheap and largely involves validation, path/backend selection,
 /// and precomputing things such as SIMD masks.
 /// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-public readonly unsafe struct PixelConversionPlan {
+public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
 	internal readonly PlanKind Kind;
 	internal readonly Kernel Kernel;
 
@@ -225,4 +228,6 @@ public readonly unsafe struct PixelConversionPlan {
 		Convert(src, srcStride, dst, dstStride, width, height);
 		return dst;
 	}
+
+	bool IHasInvalidDefault.IsDefault => SourceFormat == default;
 }

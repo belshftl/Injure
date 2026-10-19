@@ -14,7 +14,7 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 [DontCache("IlLocal objects are only valid within the same IL manipulator transaction that minted them")]
-public readonly struct IlLocal : IEquatable<IlLocal> {
+public readonly struct IlLocal : IEquatable<IlLocal>, IHasInvalidDefault {
 	/// <summary>
 	/// The index that will be emitted for this local. Final at declaration; once the transaction
 	/// commits, later manipulators see an ordinary local at this index. It never changes; locals are
@@ -34,4 +34,6 @@ public readonly struct IlLocal : IEquatable<IlLocal> {
 	public override int GetHashCode() => HashCode.Combine(TransactionId, Index);
 	public static bool operator ==(IlLocal left, IlLocal right) => left.Equals(right);
 	public static bool operator !=(IlLocal left, IlLocal right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => TransactionId == 0;
 }

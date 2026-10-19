@@ -39,7 +39,12 @@ internal sealed class IlTransactionCore {
 		public bool Marked;
 	}
 
-	private readonly record struct Insertion(int Boundary, int Sequence, IlFragment Fragment);
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct Insertion(int Boundary, int Sequence, IlFragment Fragment) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Fragment.Nodes is null;
+	}
 
 	private static ulong nextTransactionId;
 	private readonly IlMethodBody working;

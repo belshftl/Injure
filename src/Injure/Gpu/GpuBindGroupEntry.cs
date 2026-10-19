@@ -14,7 +14,9 @@ namespace Injure.Gpu;
 public readonly record struct GpuBindGroupEntry(
 	uint Binding,
 	GpuBindingResource Resource
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Base type for bindable resources used by

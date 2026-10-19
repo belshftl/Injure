@@ -48,7 +48,9 @@ public readonly partial struct GpuErrorKind {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly record struct GpuError(GpuErrorKind Kind, string Message);
+public readonly record struct GpuError(GpuErrorKind Kind, string Message) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Handles an error WebGPU reports on <paramref name="device"/>; see

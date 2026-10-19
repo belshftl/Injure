@@ -21,7 +21,7 @@ public readonly record struct DepthAttachmentOps(
 	LoadOp LoadOp,
 	StoreOp StoreOp,
 	float ClearValue
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Keeps the existing depth values and stores the rendered ones.
 	/// </summary>
@@ -39,6 +39,8 @@ public readonly record struct DepthAttachmentOps(
 		StoreOp: StoreOp.Store,
 		ClearValue: value
 	);
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }
 
 /// <summary>
@@ -63,7 +65,7 @@ public readonly record struct StencilAttachmentOps(
 	LoadOp LoadOp,
 	StoreOp StoreOp,
 	uint ClearValue
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Keeps the existing stencil values and stores the rendered ones.
 	/// </summary>
@@ -81,4 +83,6 @@ public readonly record struct StencilAttachmentOps(
 		StoreOp: StoreOp.Store,
 		ClearValue: value
 	);
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

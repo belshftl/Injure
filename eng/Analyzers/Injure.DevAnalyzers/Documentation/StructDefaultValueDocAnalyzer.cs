@@ -21,17 +21,24 @@ public sealed class StructDefaultValueDocAnalyzer : DiagnosticAnalyzer {
 
 	private static readonly Regex whitespace = new(@"\s+", RegexOptions.CultureInvariant);
 
+	private const string interfaceName = "Injure.IHasInvalidDefault";
+
 	public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
-		Diagnostics.Documentation.StructDefaultValueUndocumented
+		Diagnostics.Documentation.StructDefaultValueUndocumented,
+		Diagnostics.Documentation.StructDefaultValueDocMismatch
 	);
 
 	public override void Initialize(AnalysisContext context) {
 		context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 		context.EnableConcurrentExecution();
-		context.RegisterSymbolAction(analyze, SymbolKind.NamedType);
+		context.RegisterCompilationStartAction(static start => {
+				INamedTypeSymbol? iface = start.Compilation.GetTypeByMetadataName(interfaceName);
+				start.RegisterSymbolAction(ctx => analyze(ctx, iface), SymbolKind.NamedType);
+			}
+		);
 	}
 
-	private static void analyze(SymbolAnalysisContext ctx) {
+	private static void analyze(SymbolAnalysisContext ctx, INamedTypeSymbol? iface) {
 		var sym = (INamedTypeSymbol)ctx.Symbol;
 		if (sym.TypeKind != TypeKind.Struct || sym.IsImplicitlyDeclared)
 			return;
@@ -40,38 +47,53 @@ public sealed class StructDefaultValueDocAnalyzer : DiagnosticAnalyzer {
 		if (loc.SourceTree is not SyntaxTree tree || tree.Options.DocumentationMode == DocumentationMode.None)
 			return;
 
-		string? problem = check(sym.GetDocumentationCommentXml(expandIncludes: true, cancellationToken: ctx.CancellationToken));
+		(string? problem, bool? saysInvalid) = check(sym.GetDocumentationCommentXml(expandIncludes: true, cancellationToken: ctx.CancellationToken));
 		if (problem is not null)
 			ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.Documentation.StructDefaultValueUndocumented, loc, sym.Name, problem));
+
+		// without the interface (e.g. a project not referencing Injure) there is nothing to compare to
+		if (saysInvalid is not bool invalid || iface is null)
+			return;
+		bool implements = sym.AllInterfaces.Contains(iface, SymbolEqualityComparer.Default);
+		if (invalid != implements)
+			ctx.ReportDiagnostic(Diagnostic.Create(
+				Diagnostics.Documentation.StructDefaultValueDocMismatch,
+				loc,
+				sym.Name,
+				invalid
+					? "says its default value is invalid, but doesn't implement IHasInvalidDefault"
+					: "implements IHasInvalidDefault, but says its default value is valid"
+			));
 	}
 
-	// returns the problem for the diagnostic message, or null if the doc comment is fine
-	private static string? check(string? xml) {
+	// returns the problem for the diagnostic message (null if the doc comment is fine), and whether
+	// the doc comment says the default value is invalid (null if it doesn't say either way)
+	private static (string? Problem, bool? SaysInvalid) check(string? xml) {
 		if (string.IsNullOrWhiteSpace(xml))
-			return "has no doc comment";
+			return ("has no doc comment", null);
 		XElement root;
 		try {
 			root = XElement.Parse(xml, LoadOptions.PreserveWhitespace);
 		} catch (XmlException) {
-			return null; // malformed XML is already reported by the compiler
+			return (null, null); // malformed XML is already reported by the compiler
 		}
 		if (root.Elements("inheritdoc").Any())
-			return null;
+			return (null, null);
 		XElement? remarks = root.Elements("remarks").LastOrDefault();
 		if (remarks is null)
-			return "has no <remarks>";
+			return ("has no <remarks>", null);
 
 		string para = whitespace.Replace(render(lastParagraph(remarks)), " ").Trim();
 		const string notDocumented = "does not document its default value in the last paragraph of its <remarks>";
 		if (!para.StartsWith(prefix, StringComparison.Ordinal))
-			return notDocumented;
+			return (notDocumented, null);
 		string rest = para[prefix.Length..];
 		if (startsWithWord(rest, "invalid"))
-			return null;
+			return (null, true);
 		if (!startsWithWord(rest, "valid"))
-			return notDocumented;
+			return (notDocumented, null);
 		string explanation = rest["valid".Length..].Trim();
-		return explanation.Length == 0 || explanation == "." ? "says its default value is valid but not what the default value is" : null;
+		return (explanation.Length == 0 || explanation == "." ? "says its default value is valid but not what the default value is" : null, false);
 	}
 
 	// the last <para>, or the trailing run of non-<para> content after it if there is any

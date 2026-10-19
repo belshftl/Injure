@@ -19,7 +19,7 @@ public readonly record struct ColorTargetState(
 	TextureFormat Format,
 	BlendState? Blend,
 	ColorWriteMask WriteMask
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Converts this value to a native WebGPU <see cref="WGPUColorTargetState"/>.
 	/// </summary>
@@ -39,4 +39,6 @@ public readonly record struct ColorTargetState(
 		}
 		return ret;
 	}
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

@@ -25,6 +25,9 @@ public sealed class OwnerOrderingException(string message) : Exception(message);
 /// its target to be present. Soft constraints are otherwise enforced identically to hard constraints;
 /// self-references, cycles, or other unsatisfisable conditions still cause ordering to fail.
 /// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct OwnerOrderingConstraintKind {
@@ -48,8 +51,13 @@ public readonly partial struct OwnerOrderingConstraintKind {
 /// Specifies whether an ordering constraint targets an entire owner or one exact entry.
 /// </summary>
 /// <remarks>
+/// <para>
 /// An owner target orders the source entry's entire owner relative to the target owner.
 /// An entry target orders only the source entry relative to the exact target entry.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct OwnerOrderingConstraintTargetKind {
@@ -69,7 +77,7 @@ public readonly partial struct OwnerOrderingConstraintTargetKind {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct OwnerOrderingConstraintTarget : IEquatable<OwnerOrderingConstraintTarget> {
+public readonly struct OwnerOrderingConstraintTarget : IEquatable<OwnerOrderingConstraintTarget>, IHasInvalidDefault {
 	/// <summary>
 	/// Whether this value targets an entire owner or one exact entry.
 	/// </summary>
@@ -113,10 +121,21 @@ public readonly struct OwnerOrderingConstraintTarget : IEquatable<OwnerOrderingC
 	public static bool operator ==(OwnerOrderingConstraintTarget left, OwnerOrderingConstraintTarget right) => left.Equals(right);
 	public static bool operator !=(OwnerOrderingConstraintTarget left, OwnerOrderingConstraintTarget right) => !left.Equals(right);
 
-	public override string ToString() => Kind == OwnerOrderingConstraintTargetKind.Entry ? $"{OwnerId}::{LocalId}" : OwnerId;
+	public override string ToString() => OwnerId is null
+		? "default(OwnerOrderingConstraintTarget)"
+		: Kind == OwnerOrderingConstraintTargetKind.Entry ? $"{OwnerId}::{LocalId}" : OwnerId;
+
+	bool IHasInvalidDefault.IsDefault => OwnerId is null;
 }
 
-public readonly struct OwnerOrderingConstraint {
+/// <summary>
+/// An owner-ordering constraint: a target to order an entry relative to, and whether the
+/// constraint is soft or hard (see <see cref="OwnerOrderingConstraintKind"/>).
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct OwnerOrderingConstraint : IHasInvalidDefault {
 	public OwnerOrderingConstraintTarget Target { get; }
 	public OwnerOrderingConstraintKind Kind { get; }
 
@@ -151,6 +170,8 @@ public readonly struct OwnerOrderingConstraint {
 		else if (target.LocalId is not null)
 			throw new ArgumentException("an owner target cannot have a local ID", nameof(target));
 	}
+
+	bool IHasInvalidDefault.IsDefault => Kind == default;
 }
 
 public sealed class OwnerOrderedEntry<T> {
@@ -550,8 +571,19 @@ public static class OwnerOrderedSorter {
 /// </para>
 /// </remarks>
 public sealed class UnsafeOwnerOrderedRegistry<T> {
-	private readonly record struct AddedEntry(ulong ID, string OwnerId, string LocalId, bool CreatedOwnerSet);
-	private readonly record struct RemovedEntry(ulong ID, OwnerOrderedEntry<T> Entry, bool RemovedLocalId, bool RemovedOwnerSet);
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct AddedEntry(ulong ID, string OwnerId, string LocalId, bool CreatedOwnerSet) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => OwnerId is null;
+	}
+
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct RemovedEntry(ulong ID, OwnerOrderedEntry<T> Entry, bool RemovedLocalId, bool RemovedOwnerSet) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Entry is null;
+	}
 
 	private readonly Dictionary<ulong, OwnerOrderedEntry<T>> entries = new();
 	private readonly Dictionary<string, HashSet<string>> localIdsByOwner = new(StringComparer.Ordinal);

@@ -10,6 +10,10 @@ using static FreeTypeSharp.FT;
 
 namespace Injure.Draw.Text;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has a <see cref="MaxWidth"/> of 0, unlike
+/// <c>new TextLayoutOptions()</c>.
+/// </remarks>
 public readonly record struct TextLayoutOptions(
 	float MaxWidth = float.PositiveInfinity,
 	TextWrapMode WrapMode = default,
@@ -18,19 +22,24 @@ public readonly record struct TextLayoutOptions(
 	public TextLayoutOptions() : this(float.PositiveInfinity) {}
 };
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid, since its font options are.
+/// </remarks>
 public readonly record struct TextStyle(
 	FontOptions FontOptions,
 	SrgbColor32 Color,
 	TextLayoutOptions LayoutOptions,
 	string Locale = "und",
 	string? LanguageBcp47 = null
-) {
+) : IHasInvalidDefault {
 	public TextStyle(int fontSize, SrgbColor32 color, TextLayoutOptions? layoutOptions = null) : this(
 		new FontOptions(fontSize),
 		color,
 		layoutOptions ?? new TextLayoutOptions()
 	) {
 	}
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 };
 
 public sealed class TextCacheOptions {

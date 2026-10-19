@@ -7,19 +7,30 @@ using Buffer = HarfBuzzSharp.Buffer;
 
 namespace Injure.Draw.Text;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and specifies no properties.
+/// </remarks>
 internal readonly record struct TextSegmentProperties(
 	Direction? Direction = null,
 	Script? Script = null,
 	string? LanguageBcp47 = null
 );
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct TextItem(
 	int SourceStart,
 	string Text,
 	TextSegmentProperties Properties,
 	bool GuessSegmentProperties = false
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Text is null;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is glyph 0 with no offset or advance.
+/// </remarks>
 internal readonly record struct ShapedGlyph(
 	uint GlyphId,
 	uint Cluster,
@@ -31,6 +42,9 @@ internal readonly record struct ShapedGlyph(
 	public static readonly int Size = Unsafe.SizeOf<ShapedGlyph>();
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty cluster starting at 0.
+/// </remarks>
 internal readonly record struct ShapedCluster(
 	int GlyphStart,
 	int GlyphCount,
@@ -63,12 +77,17 @@ internal sealed class DefaultTextItemizer : ITextItemizer {
 }
 
 internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimatedCost) : IDisposable {
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
 	private readonly record struct Key(
 		FontCacheToken FontCacheToken,
 		string Text,
 		TextSegmentProperties Properties,
 		bool GuessSegmentProperties
-	);
+	) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Text is null;
+	}
 
 	private sealed class Entry {
 		public required ShapedRun Shaped;

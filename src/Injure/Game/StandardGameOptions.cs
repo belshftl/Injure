@@ -16,7 +16,7 @@ namespace Injure.Game;
 /// The <see langword="default"/> value is invalid, as <see cref="GameOwnerId"/>,
 /// <see cref="Window"/>, and <see cref="MaxFps"/> are required.
 /// </remarks>
-public readonly struct StandardGameOptions {
+public readonly struct StandardGameOptions : IHasInvalidDefault {
 	/// <summary>
 	/// The game's owner ID.
 	/// </summary>
@@ -113,4 +113,6 @@ public readonly struct StandardGameOptions {
 		if (MaxBufferedInputEvents <= 0)
 			throw new ArgumentOutOfRangeException(paramName, $"MaxBufferedInputEvents must be positive, got {MaxBufferedInputEvents}");
 	}
+
+	bool IHasInvalidDefault.IsDefault => GameOwnerId is null;
 }

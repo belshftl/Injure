@@ -5,7 +5,10 @@ using Injure.Mods;
 
 namespace Injure.Sched.Coro;
 
-public readonly struct CoroInfo {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct CoroInfo : IHasInvalidDefault {
 	public required CoroHandle Handle { get; init; }
 	public required string? Name { get; init; }
 	public required string? OwnerId { get; init; }
@@ -18,4 +21,6 @@ public readonly struct CoroInfo {
 	public required string? CurrentWaitDebugDescription { get; init; }
 	public required ExceptionSnapshot? Fault { get; init; }
 	public required CoroCancellationReason? CancellationReason { get; init; }
+
+	bool IHasInvalidDefault.IsDefault => Status == default;
 }

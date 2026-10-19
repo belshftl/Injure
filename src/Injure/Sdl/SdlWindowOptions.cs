@@ -93,7 +93,7 @@ public readonly struct SdlWindowPosition : IEquatable<SdlWindowPosition> {
 /// The <see langword="default"/> value is invalid, since it has a <see langword="null"/> title and
 /// a zero size.
 /// </remarks>
-public readonly struct SdlWindowOptions {
+public readonly struct SdlWindowOptions : IHasInvalidDefault {
 	/// <summary>
 	/// Window title.
 	/// </summary>
@@ -142,4 +142,6 @@ public readonly struct SdlWindowOptions {
 		if (Fullscreen && Mode != SdlWindowMode.Normal)
 			throw new ArgumentException("fullscreen windows must use SdlWindowMode.Normal", paramName);
 	}
+
+	bool IHasInvalidDefault.IsDefault => Title is null;
 }

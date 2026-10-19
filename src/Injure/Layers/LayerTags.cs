@@ -7,7 +7,10 @@ using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Layers;
 
-public readonly struct LayerTag : IEquatable<LayerTag> {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct LayerTag : IEquatable<LayerTag>, IHasInvalidDefault {
 	internal readonly ulong RegistryId; // IDs start at 1 so `default` isn't a valid tag
 	internal readonly ulong Id; // IDs start at 1 so `default` isn't a valid tag
 	internal LayerTag(ulong registryId, ulong id) {
@@ -20,10 +23,20 @@ public readonly struct LayerTag : IEquatable<LayerTag> {
 	public override int GetHashCode() => HashCode.Combine(RegistryId, Id);
 	public static bool operator ==(LayerTag left, LayerTag right) => left.Equals(right);
 	public static bool operator !=(LayerTag left, LayerTag right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => Id == 0;
 }
 
-internal readonly record struct TagKey(ulong NamespaceId, string Name);
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+internal readonly record struct TagKey(ulong NamespaceId, string Name) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Name is null;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Empty"/>.
+/// </remarks>
 public readonly struct LayerTagSet {
 	private readonly LayerTag[]? items;
 

@@ -33,7 +33,7 @@ public readonly record struct DepthStencilState(
 	int DepthBias = 0,
 	float DepthBiasSlopeScale = 0f,
 	float DepthBiasClamp = 0f
-) {
+) : IHasInvalidDefault {
 	/// <summary>
 	/// Converts this value to a native WebGPU <see cref="WGPUDepthStencilState"/>.
 	/// </summary>
@@ -49,4 +49,6 @@ public readonly record struct DepthStencilState(
 		depthBiasSlopeScale = DepthBiasSlopeScale,
 		depthBiasClamp = DepthBiasClamp,
 	};
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

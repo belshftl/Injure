@@ -89,7 +89,9 @@ public readonly partial struct HostEventKind {
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Edge"/> is.
 /// </remarks>
-public readonly record struct HostKeyEvent(Key Key, EdgeType Edge, bool Repeat);
+public readonly record struct HostKeyEvent(Key Key, EdgeType Edge, bool Repeat) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Payload of <see cref="HostEventKind.PointerMove"/>.
@@ -111,7 +113,9 @@ public readonly record struct HostPointerMoveEvent(WindowPos Position, WindowDel
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Edge"/> is.
 /// </remarks>
-public readonly record struct HostPointerButtonEvent(PointerButton Button, EdgeType Edge, int Clicks, WindowPos Position);
+public readonly record struct HostPointerButtonEvent(PointerButton Button, EdgeType Edge, int Clicks, WindowPos Position) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Payload of <see cref="HostEventKind.PointerWheel"/>. Positive <see cref="Y"/> scrolls away
@@ -134,7 +138,9 @@ public readonly record struct HostPointerWheelEvent(float X, float Y, int Intege
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Gamepad"/> is.
 /// </remarks>
-public readonly record struct HostGamepadAxisEvent(GamepadId Gamepad, GamepadAxis Axis, float Value);
+public readonly record struct HostGamepadAxisEvent(GamepadId Gamepad, GamepadAxis Axis, float Value) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Payload of <see cref="HostEventKind.GamepadButton"/>.
@@ -142,7 +148,9 @@ public readonly record struct HostGamepadAxisEvent(GamepadId Gamepad, GamepadAxi
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Gamepad"/> is.
 /// </remarks>
-public readonly record struct HostGamepadButtonEvent(GamepadId Gamepad, GamepadButton Button, EdgeType Edge);
+public readonly record struct HostGamepadButtonEvent(GamepadId Gamepad, GamepadButton Button, EdgeType Edge) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// An event from an <see cref="IHostEventSource"/>: window, input, and application lifecycle
@@ -167,7 +175,7 @@ public readonly record struct HostGamepadButtonEvent(GamepadId Gamepad, GamepadB
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct HostEvent {
+public readonly struct HostEvent : IHasInvalidDefault {
 	/// <remarks>
 	/// The <see langword="default"/> value is valid and is <c>(0, 0)</c>.
 	/// </remarks>
@@ -183,6 +191,9 @@ public readonly struct HostEvent {
 	/// </remarks>
 	[StructLayout(LayoutKind.Explicit)]
 	private struct Payload {
+		// the payload types' own default values are invalid, but a zeroed payload is only ever read
+		// as the (empty) payload of kinds that have none
+#pragma warning disable IJDEV0102
 		[FieldOffset(0)] public IntPair Ints;
 		[FieldOffset(0)] public float Scale;
 		[FieldOffset(0)] public HostKeyEvent Key;
@@ -192,6 +203,7 @@ public readonly struct HostEvent {
 		[FieldOffset(0)] public GamepadId Gamepad;
 		[FieldOffset(0)] public HostGamepadAxisEvent GamepadAxis;
 		[FieldOffset(0)] public HostGamepadButtonEvent GamepadButton;
+#pragma warning restore IJDEV0102
 	}
 
 	private readonly Payload payload;
@@ -325,6 +337,8 @@ public readonly struct HostEvent {
 	public HostGamepadButtonEvent GamepadButton => require(Kind == HostEventKind.GamepadButton).payload.GamepadButton;
 
 	private HostEvent require(bool ok) {
+		if (Kind == default)
+			throw InvalidDefaultException.For<HostEvent>();
 		if (!ok)
 			throw new InvalidOperationException($"this payload is not available on a {Kind} event");
 		return this;
@@ -463,4 +477,6 @@ public readonly struct HostEvent {
 		window.IsValid ? window : throw new ArgumentException("window events need a valid window ID", nameof(window));
 
 	public override string ToString() => $"{Kind} @ {Tick}" + (Window.IsValid ? $" on {Window}" : "");
+
+	bool IHasInvalidDefault.IsDefault => Kind == default;
 }

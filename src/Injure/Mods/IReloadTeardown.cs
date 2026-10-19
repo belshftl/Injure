@@ -6,6 +6,9 @@ using Injure.Mods.CodeAnalysis;
 
 namespace Injure.Mods;
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct ReloadTeardownReason {
 	public enum Case {
@@ -19,11 +22,16 @@ public readonly partial struct ReloadTeardownReason {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 public readonly record struct ReloadTeardownCtx(
 	string OwnerId,
 	ReloadGeneration OldGeneration,
 	ReloadTeardownReason Reason
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Represents state that must be torn down when a reload generation ends.

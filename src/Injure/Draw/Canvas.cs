@@ -39,7 +39,7 @@ namespace Injure.Draw;
 /// </para>
 /// <para>
 /// Only triangles are ever drawn; geometry for all other shapes is generated as triangles rather
-/// than using line/list/strip/etc. GPU primitives. Curved shapes are approximated by polygons.
+/// than using line/list/strip/etc GPU primitives. Curved shapes are approximated by polygons.
 /// There is no face culling, so winding order doesn't affect visaul output.
 /// </para>
 /// <para>
@@ -64,7 +64,7 @@ namespace Injure.Draw;
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly ref struct Canvas {
+public readonly ref struct Canvas : IHasInvalidDefault {
 	private const int maxStackIndices = 512; // 2048 bytes
 
 	private readonly OwnedCanvas? ownedCanvas;
@@ -600,9 +600,9 @@ public readonly ref struct Canvas {
 	/// The default number of edges is computed from the radius <b>after
 	/// <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.Viewport"/></b>, i.e. in
 	/// target pixels, such that, for any edge of the polygon, the sagitta of the arc subtended by the
-	/// edge is no more than 0.25px (or, in simpler terms, the polygon is at most 0.25px off from a
-	/// true circle), and then clamped to at least 8 and at most 1024 edges. The polygon has a vertex
-	/// at angle 0, i.e. at <c>center + (radius, 0)</c>.
+	/// edge is no more than 0.25 <b>target pixels</b> (or, in simpler terms, the polygon is at most
+	/// 0.25px off from a true circle), and then clamped to at least 8 and at most 1024 edges. The
+	/// polygon has a vertex at angle 0, i.e. at <c>center + (radius, 0)</c>.
 	/// </para>
 	/// <para>
 	/// A radius of 0 draws nothing.
@@ -1722,4 +1722,6 @@ public readonly ref struct Canvas {
 		idx[ic++] = endPos;
 		idx[ic++] = endNeg;
 	}
+
+	bool IHasInvalidDefault.IsDefault => ownedCanvas is null;
 }

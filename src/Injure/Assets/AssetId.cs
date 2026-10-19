@@ -26,7 +26,7 @@ namespace Injure.Assets;
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(AssetIdJsonConverter))]
-public readonly struct AssetId : IEquatable<AssetId>, ISpanParsable<AssetId> {
+public readonly struct AssetId : IEquatable<AssetId>, ISpanParsable<AssetId>, IHasInvalidDefault {
 	// both are never null for a valid value
 	private readonly string? ns;
 	private readonly string? path;
@@ -70,9 +70,10 @@ public readonly struct AssetId : IEquatable<AssetId>, ISpanParsable<AssetId> {
 	public static bool operator !=(AssetId left, AssetId right) => !left.Equals(right);
 
 	/// <summary>
-	/// Returns the canonical <c>ns::path</c> string form.
+	/// Returns the canonical <c>ns::path</c> string form, or <c>default(AssetId)</c> for the
+	/// <see langword="default"/> value.
 	/// </summary>
-	public override string ToString() => $"{Namespace}::{Path}";
+	public override string ToString() => ns is null ? "default(AssetId)" : $"{ns}::{path}";
 
 #pragma warning disable CS1573 // parameter has no matching <param> tag (silenced because it seems to be a false-positive with inheritdoc)
 
@@ -313,6 +314,8 @@ public readonly struct AssetId : IEquatable<AssetId>, ISpanParsable<AssetId> {
 		if (!ValidatePath(s, out string? err))
 			throw new ArgumentException(err);
 	}
+
+	bool IHasInvalidDefault.IsDefault => ns is null;
 }
 
 /// <summary>
@@ -338,4 +341,6 @@ public sealed class AssetIdJsonConverter : JsonConverter<AssetId> {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly record struct AssetKey(AssetId AssetId, Type AssetType);
+public readonly record struct AssetKey(AssetId AssetId, Type AssetType) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

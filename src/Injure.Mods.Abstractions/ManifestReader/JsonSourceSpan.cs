@@ -6,17 +6,38 @@ using System.Text;
 
 namespace Injure.Mods.Abstractions.ManifestReader;
 
+/// <summary>
+/// A position in a JSON source text.
+/// </summary>
+/// <param name="Line">The line, starting at 1.</param>
+/// <param name="Column">The column, starting at 1.</param>
+/// <param name="Offset">The offset in chars from the start of the text, starting at 0.</param>
+/// <remarks>
+/// The <see langword="default"/> value is invalid, since lines and columns start at 1.
+/// </remarks>
 public readonly record struct JsonSourceLocation(
 	int Line,
 	int Column,
 	int Offset
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Line == 0;
+}
 
+/// <summary>
+/// A range of a JSON source text, from <paramref name="Start"/> to <paramref name="End"/>.
+/// </summary>
+/// <param name="Start">Where the range starts.</param>
+/// <param name="End">Where the range ends.</param>
+/// <remarks>
+/// The <see langword="default"/> value is invalid, since its locations are.
+/// </remarks>
 public readonly record struct JsonSourceSpan(
 	JsonSourceLocation Start,
 	JsonSourceLocation End
-) {
+) : IHasInvalidDefault {
 	public static JsonSourceSpan Point(JsonSourceLocation location) => new(location, location);
+
+	bool IHasInvalidDefault.IsDefault => Start.Line == 0;
 }
 
 public sealed class SourceText(string sourceName, string text) {

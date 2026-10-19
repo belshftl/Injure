@@ -21,7 +21,10 @@ using Injure.Mods.Runtime.Modif.Profiler;
 
 namespace Injure.Mods.Runtime;
 
-public readonly struct ModApiFactoryCtx {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct ModApiFactoryCtx : IHasInvalidDefault {
 	internal ModApiFactoryCtx(string forOwnerId, IUntypedBoundedScope ownerScope) {
 		ForOwnerId = forOwnerId;
 		OwnerScope = ownerScope;
@@ -29,6 +32,8 @@ public readonly struct ModApiFactoryCtx {
 
 	public string ForOwnerId { get; }
 	public IUntypedBoundedScope OwnerScope { get; }
+
+	bool IHasInvalidDefault.IsDefault => ForOwnerId is null;
 }
 
 public sealed record ModRuntimeOptions<TGameApi> {
@@ -47,13 +52,21 @@ public sealed record ModRuntimeOptions<TGameApi> {
 	public int MaxScopeTeardownParallelism { get; init; } = 8;
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 public readonly record struct ModWatchSpec(
 	string OwnerId,
 	bool Reloadable,
 	string ManifestPath,
 	string? EntryAssemblyPath
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => OwnerId is null;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct RuntimePhase {
 	public enum Case {
@@ -80,7 +93,12 @@ public readonly partial struct RuntimePhase {
 public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoProvider {
 	// ==========================================================================
 	// bookkeeping
-	private readonly record struct ActiveDependent(string OwnerId, bool IsHard);
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct ActiveDependent(string OwnerId, bool IsHard) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => OwnerId is null;
+	}
 
 	private sealed class BoundaryPlan {
 		public required ReloadBoundaryKind Boundary { get; init; }
@@ -147,6 +165,9 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 		Enable,
 	}
 
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
 	private readonly record struct PendingOp(
 		ulong Seq,
 		OpKind Kind,
@@ -154,7 +175,9 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 		ReloadRequestKind? ReloadKind = null,
 		DisableRequestKind? DisableKind = null,
 		EnableRequestKind? EnableKind = null
-	);
+	) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => OwnerId is null;
+	}
 
 	private enum ReloadBoundaryKind {
 		Safe,
@@ -200,7 +223,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 	private readonly GameModAssemblyResolver gameModResolver;
 	private RuntimePhase phase = RuntimePhase.Empty;
 	private Dictionary<string, DiscoveredMod> discovered = new();
-	private ResolvedModGraph activeGraph;
+	private ResolvedModGraph activeGraph = ResolvedModGraph.Empty;
 	private IReadOnlyList<StagedMod> staged = Array.Empty<StagedMod>();
 	private readonly NativeLibraryRegistry nativeLibs = new(RuntimeInformation.RuntimeIdentifier);
 	private ModContractsAlc? contractsAlc;
@@ -214,7 +237,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 	private readonly Dictionary<string, (DetourDeclSet Detours, PatchDeclSet Patches)> appliedModifsByOwner = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, ulong> nextGenerationByOwner = new(StringComparer.Ordinal);
 	private LoadedCodeMod<TGameApi>[]? modifPassCode;
-	private ResolvedModGraph modifPassGraph;
+	private ResolvedModGraph modifPassGraph = ResolvedModGraph.Empty;
 
 	private readonly Lock opLock = new();
 	private readonly List<PendingOp> pendingOps = new();
@@ -857,7 +880,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 
 	private void clearRuntimeStateAfterShutdown() {
 		discovered = new Dictionary<string, DiscoveredMod>();
-		activeGraph = default;
+		activeGraph = ResolvedModGraph.Empty;
 		staged = Array.Empty<StagedMod>();
 		activeCode.Clear();
 		activeContent.Clear();
@@ -1485,7 +1508,7 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 			modifOrchestrator.ApplyPending();
 		} finally {
 			modifPassCode = null;
-			modifPassGraph = default;
+			modifPassGraph = ResolvedModGraph.Empty;
 		}
 	}
 

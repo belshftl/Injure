@@ -10,11 +10,14 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// One instruction as declared by a manipulator, before labels and metadata references are
 /// resolved.
 /// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct IlInstructionSpec(
 	ILOpCode OpCode,
 	IlOperand Operand,
 	IlLabel[]? Labels
-) {
+) : IHasInvalidDefault {
 	public static IlInstructionSpec RawNonbranch(ILOpCode opCode, IlOperand? operand = null) {
 		if (IlOpCodeInfo.IsBranch(opCode) || opCode == ILOpCode.Switch)
 			throw new ArgumentException("use RawBranch for raw branch emission and Switch for switch", nameof(opCode));
@@ -63,17 +66,24 @@ internal readonly record struct IlInstructionSpec(
 		if (index is int i && (uint)i > ushort.MaxValue)
 			throw new ArgumentOutOfRangeException(nameof(operand), i, $"index operand of {opCode} doesn't fit into a 16-bit unsigned integer");
 	}
+
+	bool IHasInvalidDefault.IsDefault => Operand is null;
 }
 
 internal abstract record IlFragmentNode;
 internal sealed record IlFragmentInstructionNode(IlInstructionSpec Spec) : IlFragmentNode;
 internal sealed record IlFragmentLabelNode(int LabelId) : IlFragmentNode;
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct IlFragment(
 	IlFragmentNode[] Nodes,
 	int[] ReferencedLabels,
 	int[] MarkedLabels
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Nodes is null;
+}
 
 /// <summary>
 /// Accumulates the instructions and label marks of one emitted fragment.

@@ -95,7 +95,7 @@ public WGPUBuffer DangerousGetNative() { /* ... */ }
 
 Dangerous members bypass the "don't expose non-BCL/Injure types in public API" rule: the return type of a `DangerousGet*` method and the parameter types of a `DangerousCreate*` method may be foreign.
 
-The analyzer only looks at the name, so the prefix has to be honest. Don't add it to a member just to silence `IJDEV0100`; if a member exposes a foreign type without bypassing anything, the foreign type should be wrapped instead.
+The analyzer only looks at the name, so the prefix has to be honest. Don't add it to a member just to silence `IJDEV0103`; if a member exposes a foreign type without bypassing anything, the foreign type should be wrapped instead.
 
 ---
 

@@ -12,8 +12,8 @@ namespace Injure.Mods.Abstractions.Modif.Il.Metadata;
 /// Method body encoding policy.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is the default / recommended settings; the flags primarily exist
-/// for debugging/testing purposes.
+/// The <see langword="default"/> value is valid and is the recommended settings; the flags are for
+/// debugging/testing purposes.
 /// </remarks>
 internal readonly struct IlEncodingOptions {
 	/// <summary>
@@ -136,6 +136,9 @@ internal static class SrmMethodBodyEncoder {
 	private const int clauseFinally = 0x0002;
 	private const int clauseFault = 0x0004;
 
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and is <c>nop</c> with no operand.
+	/// </remarks>
 	private readonly record struct EmittedForm(ILOpCode OpCode, int OperandSize);
 
 	/// <summary>

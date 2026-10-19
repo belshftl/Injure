@@ -116,7 +116,9 @@ public sealed class AssetStore : IDisposable {
 	/// <remarks>
 	/// The <see langword="default"/> value is invalid.
 	/// </remarks>
-	private readonly record struct Retired(AssetVersion Version, ulong Epoch);
+	private readonly record struct Retired(AssetVersion Version, ulong Epoch) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => this == default;
+	}
 
 	internal interface IDerivedSlot {
 		// marks the slot disposed and takes its current version out, for store disposal

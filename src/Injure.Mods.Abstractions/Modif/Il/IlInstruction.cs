@@ -24,8 +24,11 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// reference only becomes a token at encode time, and the encoder rejects an unresolvable one with
 /// <see cref="IlEncodingException"/>.
 /// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-internal readonly struct IlInstruction : IEquatable<IlInstruction> {
+internal readonly struct IlInstruction : IEquatable<IlInstruction>, IHasInvalidDefault {
 	public const int NoOriginalOffset = -1;
 
 	public IlInstructionId Id { get; }
@@ -75,4 +78,6 @@ internal readonly struct IlInstruction : IEquatable<IlInstruction> {
 		string prefix = Prefixes is null ? "" : Prefixes + " ";
 		return ReferenceEquals(Operand, IlNoneOperand.Instance) ? $"{Id}: {prefix}{OpCode}" : $"{Id}: {prefix}{OpCode} {Operand}";
 	}
+
+	bool IHasInvalidDefault.IsDefault => Operand is null;
 }

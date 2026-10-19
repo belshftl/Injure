@@ -96,6 +96,10 @@ internal enum IlPrefixKind : byte {
 	No,
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and describes an undefined opcode, i.e.
+/// <see cref="IsDefined"/> is <see langword="false"/>.
+/// </remarks>
 internal readonly struct IlOpCodeDescriptor(
 	ILOpCode canonical,
 	IlOperandEncoding encoding,

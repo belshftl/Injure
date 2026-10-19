@@ -7,6 +7,9 @@ using Injure.Host;
 
 namespace Injure.Layers;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has every time at 0 and empty input/control views.
+/// </remarks>
 public readonly ref struct LayerTickCtx(TickCallbackTimingInfo tickInfo, double dt, double rawDt, double time, double rawTime, ulong tickNum, InputView input, ControlView controls) {
 	public TickCallbackTimingInfo TickInfo { get; } = tickInfo;
 	public HostTick Tick => TickInfo.ActualAt;

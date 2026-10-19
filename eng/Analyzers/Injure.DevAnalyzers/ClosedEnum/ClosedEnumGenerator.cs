@@ -50,7 +50,7 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 			shape.Members.Select(static m => new CaseInfo(m.Field.Name, m.Value == 0)).ToImmutableArray(),
 			shape.Mirrors.Select(m => new MirrorInfo(
 				m.Enum.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-				// foreign types must stay out of public API, see IJDEV0100
+				// foreign types must stay out of public API, see IJDEV0103
 				ForeignTypes.IsForeign(m.Enum, ctx.SemanticModel.Compilation) ? "internal" : "public"
 			)).ToImmutableArray()
 		);
@@ -67,7 +67,10 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		SourceGen.OpenScopes(sb, info.Symbol);
 
 		SourceGen.AppendGeneratedCodeAttribute(sb, nameof(ClosedEnumGenerator));
-		sb.Append('\t').Append(Util.GetTypeHeader(info.Symbol)).Append(" : global::System.IEquatable<").Append(targetType).AppendLine("> {");
+		sb.Append('\t').Append(Util.GetTypeHeader(info.Symbol)).Append(" : global::System.IEquatable<").Append(targetType).Append('>');
+		if (info.DefaultIsInvalid)
+			sb.Append(", global::Injure.IHasInvalidDefault");
+		sb.AppendLine(" {");
 		sb.Append("\t\tprivate readonly Case ").Append(Constants.ClosedEnum.BackingFieldName).AppendLine(";");
 
 		sb.Append("\t\tprivate ").Append(targetType).AppendLine("(Case tag) {");
@@ -88,25 +91,35 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		sb.Append("\t\t/// Gets the declared case represented by this ").Append(targetType).AppendLine(" value.");
 		sb.AppendLine("\t\t/// </summary>");
 		sb.AppendLine("\t\t/// <exception cref=\"global::System.InvalidOperationException\">");
-		sb.AppendLine("\t\t/// This value is not valid.");
+		sb.AppendLine("\t\t/// Thrown if this value is an undeclared case.");
 		sb.AppendLine("\t\t/// </exception>");
 		sb.AppendLine("\t\t/// <remarks>");
 		sb.AppendLine("\t\t/// Never returns an undeclared <see cref=\"Case\"/> value; either returns a declared case or throws.");
-		sb.AppendLine("\t\t/// As such, the fallback/default arm of an exhaustive switch is unreachable control flow.");
+		sb.AppendLine("\t\t/// As such, the fallback/default arm of an exhaustive switch is unreachable control flow. Use");
+		sb.AppendLine("\t\t/// <see cref=\"RawTag\"/> where throwing isn't acceptable.");
 		sb.AppendLine("\t\t/// </remarks>");
 		sb.AppendLine("\t\tpublic Case Tag {");
 		sb.AppendLine("\t\t\tget {");
 		if (info.DefaultIsInvalid) {
 			sb.Append("\t\t\t\tif (").Append(Constants.ClosedEnum.BackingFieldName).AppendLine(" == (Case)0)");
-			sb.Append("\t\t\t\t\tthrow new global::System.InvalidOperationException(")
-				.Append(SymbolDisplay.FormatLiteral("default(" + info.Symbol.Name + ") is not a valid " + info.Symbol.Name + " value", true)).AppendLine(");");
+			sb.Append("\t\t\t\t\tthrow global::Injure.InvalidDefaultException.For<").Append(targetType).AppendLine(">();");
 		}
 		sb.Append("\t\t\t\tif (!").Append(Constants.ClosedEnum.IsDefinedMethodName).Append('(').Append(Constants.ClosedEnum.BackingFieldName).AppendLine("))");
-		sb.Append("\t\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("Invalid " + info.Symbol.Name + " value: ", true)).Append(" + ")
+		sb.Append("\t\t\t\t\tthrow new global::System.InvalidOperationException(").Append(SymbolDisplay.FormatLiteral("invalid " + info.Symbol.Name + " value: ", true)).Append(" + ")
 			.Append(Constants.ClosedEnum.BackingFieldName).AppendLine(".ToString());");
 		sb.Append("\t\t\t\treturn ").Append(Constants.ClosedEnum.BackingFieldName).AppendLine(";");
 		sb.AppendLine("\t\t\t}");
 		sb.AppendLine("\t\t}");
+
+		sb.AppendLine("\t\t/// <summary>");
+		sb.Append("\t\t/// Gets the raw tag of this ").Append(targetType).AppendLine(" value, without checking it.");
+		sb.AppendLine("\t\t/// </summary>");
+		sb.AppendLine("\t\t/// <remarks>");
+		sb.AppendLine("\t\t/// May be an undeclared value, e.g. 0 for an invalid <see langword=\"default\"/> value. Meant for code");
+		sb.AppendLine("\t\t/// that must not throw, such as <c>Equals</c>, <c>GetHashCode</c>, and <c>ToString</c>; use");
+		sb.AppendLine("\t\t/// <see cref=\"Tag\"/> otherwise.");
+		sb.AppendLine("\t\t/// </remarks>");
+		sb.Append("\t\tpublic Case RawTag => ").Append(Constants.ClosedEnum.BackingFieldName).AppendLine(";");
 
 		sb.Append(
 			"\t\t[global::System.Runtime.CompilerServices.MethodImplAttribute(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)] private static bool "
@@ -117,6 +130,9 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 			sb.Append("Case.").Append(Util.EscapeIdentifier(info.Cases[i].Name));
 		}
 		sb.AppendLine(";");
+
+		if (info.DefaultIsInvalid)
+			sb.Append("\t\tbool global::Injure.IHasInvalidDefault.IsDefault => ").Append(Constants.ClosedEnum.BackingFieldName).AppendLine(" == (Case)0;");
 
 		sb.Append("\t\tpublic bool Equals(").Append(targetType).Append(" other) => ").Append(Constants.ClosedEnum.BackingFieldName).Append(" == other.")
 			.Append(Constants.ClosedEnum.BackingFieldName).AppendLine(";");
@@ -135,9 +151,12 @@ public sealed class ClosedEnumGenerator : IIncrementalGenerator {
 		}
 
 		sb.AppendLine("\t\t/// <summary>");
-		sb.AppendLine("\t\t/// Returns the declared case name for this value.");
+		sb.AppendLine("\t\t/// Returns the declared case name for this value, or the type name and the raw tag (e.g.");
+		sb.Append("\t\t/// <c>").Append(info.Symbol.Name).AppendLine("(0)</c>) for an invalid value. Never throws.");
 		sb.AppendLine("\t\t/// </summary>");
-		sb.AppendLine("\t\tpublic override string ToString() => Tag.ToString();");
+		sb.Append("\t\tpublic override string ToString() => ").Append(Constants.ClosedEnum.IsDefinedMethodName).Append('(').Append(Constants.ClosedEnum.BackingFieldName)
+			.Append(") ? ").Append(Constants.ClosedEnum.BackingFieldName).Append(".ToString() : ").Append(SymbolDisplay.FormatLiteral(info.Symbol.Name + "(", true))
+			.Append(" + ").Append(Constants.ClosedEnum.BackingFieldName).AppendLine(".ToString(\"D\") + \")\";");
 
 		emitEnumHelper(sb, info, targetType);
 

@@ -7,7 +7,12 @@ using System.Numerics;
 namespace Injure.Draw.Text;
 
 public sealed class LiveText : IDisposable {
-	private readonly record struct Request(FontFallbackChain Fonts, string Text, TextStyle Style);
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct Request(FontFallbackChain Fonts, string Text, TextStyle Style) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Text is null;
+	}
 
 	private readonly TextSystem owner;
 	private Request req;

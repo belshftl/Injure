@@ -93,7 +93,8 @@ public enum MethodConstraints {
 }
 
 /// <summary>
-/// Specifies what kinds of methods another attribute can be applied to.
+/// Restricts what kinds of methods another attribute can be applied to, enforced by the
+/// <c>Injure.Analyzers</c> analyzer.
 /// </summary>
 /// <remarks>
 /// Informally speaking, this is similar to <see cref="AttributeUsageAttribute"/>, except with

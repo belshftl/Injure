@@ -86,7 +86,7 @@ public sealed class GpuDeviceTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	[Fact]
 	public void DefaultSurfaceSourceIsRejected() {
 		_ = Device;
-		Assert.Throws<InvalidOperationException>(static () =>
+		Assert.Throws<InvalidDefaultException>(static () =>
 			new GpuDevice(new GpuDeviceOptions { RequiredFeatures = GpuFeatures.None, CompatibleHost = new DefaultHost() })
 		);
 	}

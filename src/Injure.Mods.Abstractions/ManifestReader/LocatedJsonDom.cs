@@ -5,6 +5,12 @@ using Injure.DevAnalyzers.Attributes;
 
 namespace Injure.Mods.Abstractions.ManifestReader;
 
+/// <summary>
+/// The kind of a JSON value.
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is valid and is <see cref="Null"/>.
+/// </remarks>
 [ClosedEnum]
 public readonly partial struct JKind {
 	public enum Case {

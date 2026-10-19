@@ -28,7 +28,10 @@ internal enum FontSourceKind {
 	Asset,
 }
 
-public readonly struct FontSpec {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+public readonly struct FontSpec : IHasInvalidDefault {
 	private readonly Font? direct;
 	private readonly Asset<Font>? asset;
 
@@ -60,6 +63,8 @@ public readonly struct FontSpec {
 
 	public static implicit operator FontSpec(Font font) => new(font);
 	public static implicit operator FontSpec(Asset<Font> font) => new(font);
+
+	bool IHasInvalidDefault.IsDefault => direct is null && asset is null;
 }
 
 public static class FontSpecExtensions {

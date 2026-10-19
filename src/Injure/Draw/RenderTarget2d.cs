@@ -366,4 +366,6 @@ public readonly record struct RenderTarget2dCreateParams(
 	uint Height,
 	TextureFormat ColorFormat,
 	TextureFormat? DepthStencilFormat = null
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

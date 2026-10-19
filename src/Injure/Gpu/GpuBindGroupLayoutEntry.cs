@@ -16,7 +16,9 @@ public readonly record struct GpuBindGroupLayoutEntry(
 	uint Binding,
 	ShaderStage Visibility,
 	GpuBindingLayout Layout
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Base type for binding layout descriptions used by

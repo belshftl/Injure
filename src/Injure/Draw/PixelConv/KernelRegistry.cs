@@ -7,7 +7,10 @@ namespace Injure.Draw.PixelConv;
 
 using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte*, byte*, nuint, void>;
 
-internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, Kernel sse2, Kernel advSimd, Kernel scalar, bool sentinel = false) {
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, Kernel sse2, Kernel advSimd, Kernel scalar, bool sentinel = false) : IHasInvalidDefault {
 	public readonly Kernel Avx2 = avx2;
 	public readonly Kernel Ssse3 = ssse3;
 	public readonly Kernel Sse2 = sse2;
@@ -78,6 +81,8 @@ internal readonly unsafe struct KernelFallbackChain(Kernel avx2, Kernel ssse3, K
 			throw new InvalidOperationException("can't select this plan backend");
 		}
 	}
+
+	bool IHasInvalidDefault.IsDefault => Scalar == null;
 }
 
 internal static unsafe class KernelRegistry {

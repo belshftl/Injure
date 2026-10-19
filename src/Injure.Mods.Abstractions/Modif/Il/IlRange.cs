@@ -8,6 +8,9 @@ namespace Injure.Mods.Abstractions.Modif.Il;
 /// <summary>
 /// Half-open instruction range.
 /// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty range starting at 0.
+/// </remarks>
 internal readonly struct IlRange : IEquatable<IlRange> {
 	public int Start { get; }
 	public int End { get; }

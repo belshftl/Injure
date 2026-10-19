@@ -5,7 +5,10 @@ using Injure.Common;
 
 namespace Injure.Sched.Coro;
 
-public readonly struct CoroYield {
+/// <remarks>
+/// The <see langword="default"/> value is invalid; yielding it faults the coroutine.
+/// </remarks>
+public readonly struct CoroYield : IHasInvalidDefault {
 	private readonly OneOf<IEnumerator<CoroYield>, CoroWait> inner;
 	private CoroYield(IEnumerator<CoroYield> coro) {
 		inner = OneOf.First(coro);
@@ -21,4 +24,6 @@ public readonly struct CoroYield {
 	// is a visibly-unrelated struct, for some reason
 	// public static implicit operator CoroYield(IEnumerator<CoroYield> coro) => new(coro);
 	public static CoroYield Coroutine(IEnumerator<CoroYield> coro) => new(coro);
+
+	bool IHasInvalidDefault.IsDefault => !inner.IsInitialized;
 }

@@ -39,7 +39,7 @@ public readonly partial struct InputButtonSourceKind {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
+public readonly struct InputButtonSource : IEquatable<InputButtonSource>, IHasInvalidDefault {
 	private readonly Key key;
 	private readonly GamepadButton gamepadButton;
 	private readonly PointerButton pointerButton;
@@ -55,7 +55,7 @@ public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
 	/// </exception>
 	public Key KeyValue => Kind == InputButtonSourceKind.Key
 		? key
-		: throw new InvalidOperationException("input button source does not contain a key");
+		: throw wrongKind("input button source does not contain a key");
 
 	/// <summary>
 	/// The gamepad button, if <see cref="Kind"/> is <see cref="InputButtonSourceKind.GamepadButton"/>.
@@ -65,7 +65,7 @@ public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
 	/// </exception>
 	public GamepadButton GamepadButtonValue => Kind == InputButtonSourceKind.GamepadButton
 		? gamepadButton
-		: throw new InvalidOperationException("input button source does not contain a gamepad button");
+		: throw wrongKind("input button source does not contain a gamepad button");
 
 	/// <summary>
 	/// The pointer button, if <see cref="Kind"/> is <see cref="InputButtonSourceKind.PointerButton"/>.
@@ -75,7 +75,10 @@ public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
 	/// </exception>
 	public PointerButton PointerButtonValue => Kind == InputButtonSourceKind.PointerButton
 		? pointerButton
-		: throw new InvalidOperationException("input button source does not contain a pointer button");
+		: throw wrongKind("input button source does not contain a pointer button");
+
+	private Exception wrongKind(string message) =>
+		Kind == default ? InvalidDefaultException.For<InputButtonSource>() : new InvalidOperationException(message);
 
 	private InputButtonSource(InputButtonSourceKind kind, Key key, PointerButton pointerButton, GamepadButton gamepadButton) {
 		Kind = kind;
@@ -153,6 +156,8 @@ public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
 	public static bool operator ==(InputButtonSource left, InputButtonSource right) => left.Equals(right);
 	/// <summary>Equivalent to the negation of <see cref="Equals(InputButtonSource)"/>.</summary>
 	public static bool operator !=(InputButtonSource left, InputButtonSource right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => Kind == default;
 }
 
 /// <summary>
@@ -163,7 +168,7 @@ public readonly struct InputButtonSource : IEquatable<InputButtonSource> {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct DigitalAxisSource : IEquatable<DigitalAxisSource> {
+public readonly struct DigitalAxisSource : IEquatable<DigitalAxisSource>, IHasInvalidDefault {
 	/// <summary>
 	/// The input that drives the axis to -1.
 	/// </summary>
@@ -216,6 +221,8 @@ public readonly struct DigitalAxisSource : IEquatable<DigitalAxisSource> {
 	public static bool operator ==(DigitalAxisSource left, DigitalAxisSource right) => left.Equals(right);
 	/// <summary>Equivalent to the negation of <see cref="Equals(DigitalAxisSource)"/>.</summary>
 	public static bool operator !=(DigitalAxisSource left, DigitalAxisSource right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => Socd == default;
 }
 
 /// <summary>
@@ -246,7 +253,7 @@ public readonly partial struct InputStateAxisSourceKind {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource> {
+public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource>, IHasInvalidDefault {
 	private readonly GamepadAxis gamepadAxis;
 	private readonly DigitalAxisSource digital;
 
@@ -261,7 +268,7 @@ public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource> {
 	/// </exception>
 	public GamepadAxis GamepadAxisValue => Kind == InputStateAxisSourceKind.GamepadAxis
 		? gamepadAxis
-		: throw new InvalidOperationException("input state-axis source does not contain a gamepad axis");
+		: throw wrongKind("input state-axis source does not contain a gamepad axis");
 
 	/// <summary>
 	/// The digital axis, if <see cref="Kind"/> is <see cref="InputStateAxisSourceKind.DigitalPair"/>.
@@ -271,7 +278,10 @@ public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource> {
 	/// </exception>
 	public DigitalAxisSource DigitalValue => Kind == InputStateAxisSourceKind.DigitalPair
 		? digital
-		: throw new InvalidOperationException("input state-axis source does not contain a digital pair");
+		: throw wrongKind("input state-axis source does not contain a digital pair");
+
+	private Exception wrongKind(string message) =>
+		Kind == default ? InvalidDefaultException.For<InputStateAxisSource>() : new InvalidOperationException(message);
 
 	private InputStateAxisSource(InputStateAxisSourceKind kind, GamepadAxis gamepadAxis, DigitalAxisSource digital) {
 		Kind = kind;
@@ -279,11 +289,15 @@ public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource> {
 		this.digital = digital;
 	}
 
+	// same as InputStateAxis2dSource, the payload of the other kind is left at the possibly-invalid
+	// deafault value, but only Equals/GetHashCode ever read that
+#pragma warning disable IJDEV0100
 	/// <summary>
 	/// Creates a source for a gamepad axis, reading whichever gamepad has it most deflected.
 	/// </summary>
 	public static InputStateAxisSource GamepadAxis(GamepadAxis axis) =>
 		new(InputStateAxisSourceKind.GamepadAxis, axis, default);
+#pragma warning restore IJDEV0100
 
 	/// <summary>
 	/// Creates a source for a pair of button-like inputs; see <see cref="DigitalAxisSource"/>.
@@ -311,6 +325,8 @@ public readonly struct InputStateAxisSource : IEquatable<InputStateAxisSource> {
 	public static bool operator ==(InputStateAxisSource left, InputStateAxisSource right) => left.Equals(right);
 	/// <summary>Equivalent to the negation of <see cref="Equals(InputStateAxisSource)"/>.</summary>
 	public static bool operator !=(InputStateAxisSource left, InputStateAxisSource right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => Kind == default;
 }
 
 /// <summary>
@@ -366,7 +382,7 @@ public readonly partial struct GamepadStick {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct DigitalAxis2dSource : IEquatable<DigitalAxis2dSource> {
+public readonly struct DigitalAxis2dSource : IEquatable<DigitalAxis2dSource>, IHasInvalidDefault {
 	/// <summary>
 	/// The input that drives X to -1.
 	/// </summary>
@@ -450,6 +466,8 @@ public readonly struct DigitalAxis2dSource : IEquatable<DigitalAxis2dSource> {
 	public static bool operator ==(DigitalAxis2dSource left, DigitalAxis2dSource right) => left.Equals(right);
 	/// <summary>Equivalent to the negation of <see cref="Equals(DigitalAxis2dSource)"/>.</summary>
 	public static bool operator !=(DigitalAxis2dSource left, DigitalAxis2dSource right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => XSocd == default;
 }
 
 /// <summary>
@@ -458,7 +476,7 @@ public readonly struct DigitalAxis2dSource : IEquatable<DigitalAxis2dSource> {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct StateAxis2dPairSource(InputStateAxisSource x, InputStateAxisSource y) : IEquatable<StateAxis2dPairSource> {
+public readonly struct StateAxis2dPairSource(InputStateAxisSource x, InputStateAxisSource y) : IEquatable<StateAxis2dPairSource>, IHasInvalidDefault {
 	/// <summary>
 	/// The input for the X dimension.
 	/// </summary>
@@ -482,6 +500,8 @@ public readonly struct StateAxis2dPairSource(InputStateAxisSource x, InputStateA
 	public static bool operator ==(StateAxis2dPairSource left, StateAxis2dPairSource right) => left.Equals(right);
 	/// <summary>Equivalent to the negation of <see cref="Equals(StateAxis2dPairSource)"/>.</summary>
 	public static bool operator !=(StateAxis2dPairSource left, StateAxis2dPairSource right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => X == default;
 }
 
 /// <summary>
@@ -491,7 +511,7 @@ public readonly struct StateAxis2dPairSource(InputStateAxisSource x, InputStateA
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSource> {
+public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSource>, IHasInvalidDefault {
 	private readonly GamepadStick stick;
 	private readonly DigitalAxis2dSource digital;
 	private readonly StateAxis2dPairSource pair;
@@ -507,7 +527,7 @@ public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSourc
 	/// </exception>
 	public GamepadStick GamepadStickValue => Kind == InputStateAxis2dSourceKind.GamepadStick
 		? stick
-		: throw new InvalidOperationException("2D state-axis source does not contain a gamepad stick");
+		: throw wrongKind("2D state-axis source does not contain a gamepad stick");
 
 	/// <summary>
 	/// The digital axis, if <see cref="Kind"/> is
@@ -518,7 +538,7 @@ public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSourc
 	/// </exception>
 	public DigitalAxis2dSource DigitalValue => Kind == InputStateAxis2dSourceKind.DigitalButtons
 		? digital
-		: throw new InvalidOperationException("2D state-axis source does not contain digital buttons");
+		: throw wrongKind("2D state-axis source does not contain digital buttons");
 
 	/// <summary>
 	/// The axis pair, if <see cref="Kind"/> is <see cref="InputStateAxis2dSourceKind.Pair"/>.
@@ -528,7 +548,10 @@ public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSourc
 	/// </exception>
 	public StateAxis2dPairSource PairValue => Kind == InputStateAxis2dSourceKind.Pair
 		? pair
-		: throw new InvalidOperationException("2D state-axis source does not contain an axis pair");
+		: throw wrongKind("2D state-axis source does not contain an axis pair");
+
+	private Exception wrongKind(string message) =>
+		Kind == default ? InvalidDefaultException.For<InputStateAxis2dSource>() : new InvalidOperationException(message);
 
 	private InputStateAxis2dSource(
 		InputStateAxis2dSourceKind kind,
@@ -542,6 +565,11 @@ public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSourc
 		this.pair = pair;
 	}
 
+	// each factory sets the payload of its own kind and leaves the others at their possibly-invalid
+	// default values; the *Value accessors only return the payload matching Kind, so said values are
+	// only read by Equsl/GetHashCode, which only ever compare the unused payloads with each other
+	// without throwing
+#pragma warning disable IJDEV0100
 	/// <summary>
 	/// Creates a source for a gamepad stick, reading whichever gamepad has it most deflected.
 	/// </summary>
@@ -577,6 +605,7 @@ public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSourc
 	/// </summary>
 	public static InputStateAxis2dSource Pair(InputStateAxisSource x, InputStateAxisSource y) =>
 		new(InputStateAxis2dSourceKind.Pair, default, default, new StateAxis2dPairSource(x, y));
+#pragma warning restore IJDEV0100
 
 	/// <summary>Whether this and <paramref name="other"/> are the same value.</summary>
 	public bool Equals(InputStateAxis2dSource other) => Kind == other.Kind && stick == other.stick && digital.Equals(other.digital) && pair.Equals(other.pair);
@@ -593,6 +622,8 @@ public readonly struct InputStateAxis2dSource : IEquatable<InputStateAxis2dSourc
 	public static bool operator ==(InputStateAxis2dSource left, InputStateAxis2dSource right) => left.Equals(right);
 	/// <summary>Equivalent to the negation of <see cref="Equals(InputStateAxis2dSource)"/>.</summary>
 	public static bool operator !=(InputStateAxis2dSource left, InputStateAxis2dSource right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => Kind == default;
 }
 
 /// <summary>
@@ -641,7 +672,7 @@ public readonly partial struct InputImpulseAxisSourceKind {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly struct InputImpulseAxisSource : IEquatable<InputImpulseAxisSource> {
+public readonly struct InputImpulseAxisSource : IEquatable<InputImpulseAxisSource>, IHasInvalidDefault {
 	private readonly PointerWheelAxis wheelAxis;
 
 	/// <summary>Which kind of input this is.</summary>
@@ -656,7 +687,10 @@ public readonly struct InputImpulseAxisSource : IEquatable<InputImpulseAxisSourc
 	/// </exception>
 	public PointerWheelAxis PointerWheelAxisValue => Kind == InputImpulseAxisSourceKind.PointerWheel
 		? wheelAxis
-		: throw new InvalidOperationException("input impulse-axis source does not contain a pointer wheel axis");
+		: throw wrongKind("input impulse-axis source does not contain a pointer wheel axis");
+
+	private Exception wrongKind(string message) =>
+		Kind == default ? InvalidDefaultException.For<InputImpulseAxisSource>() : new InvalidOperationException(message);
 
 	private InputImpulseAxisSource(InputImpulseAxisSourceKind kind, PointerWheelAxis wheelAxis) {
 		Kind = kind;
@@ -684,4 +718,6 @@ public readonly struct InputImpulseAxisSource : IEquatable<InputImpulseAxisSourc
 	public static bool operator ==(InputImpulseAxisSource left, InputImpulseAxisSource right) => left.Equals(right);
 	/// <summary>Equivalent to the negation of <see cref="Equals(InputImpulseAxisSource)"/>.</summary>
 	public static bool operator !=(InputImpulseAxisSource left, InputImpulseAxisSource right) => !left.Equals(right);
+
+	bool IHasInvalidDefault.IsDefault => Kind == default;
 }

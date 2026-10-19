@@ -37,11 +37,19 @@ internal sealed class GlyphAtlasPage : IDisposable {
 	public void Dispose() => Texture.Dispose();
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct GlyphAtlasKey(
 	FontCacheToken FontCacheToken,
 	uint GlyphId
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct GlyphAtlasEntry(
 	GlyphAtlasPage Page,
 	RectI SrcPixels,
@@ -49,7 +57,9 @@ internal readonly record struct GlyphAtlasEntry(
 	int BitmapTop,
 	int Width,
 	int Height
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Page is null;
+}
 
 internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, int pageWidth = 1024, int pageHeight = 1024, int padding = 1, int maxPages = 16) : IDisposable {
 	private readonly GpuDevice gpuDevice = gpuDevice;

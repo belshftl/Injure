@@ -21,7 +21,9 @@ public readonly record struct RenderPassColorAttachment(
 	GpuTextureViewHandle View,
 	ColorAttachmentOps Ops,
 	GpuTextureViewHandle? ResolveTarget = null
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// The depth/stencil attachment of a render pass, see
@@ -43,4 +45,6 @@ public readonly record struct RenderPassDepthStencilAttachment(
 	GpuTextureViewHandle View,
 	DepthAttachmentOps? DepthOps = null,
 	StencilAttachmentOps? StencilOps = null
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

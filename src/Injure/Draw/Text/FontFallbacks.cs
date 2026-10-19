@@ -77,6 +77,9 @@ internal sealed class ResolvedFontFallbackChain {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct FallbackProbeKey(
 	int FallbackChainId,
 	ulong FallbackChainHash,
@@ -84,7 +87,9 @@ internal readonly record struct FallbackProbeKey(
 	Direction Direction,
 	Script? Script,
 	string? LanguageBcp47
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Text is null;
+}
 
 internal sealed class FallbackProbeCache(TextSystem text, int maxEntries, int maxEstimatedCost) {
 	private sealed class Entry {
@@ -152,11 +157,16 @@ internal sealed class FallbackProbeCache(TextSystem text, int maxEntries, int ma
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
 internal readonly record struct ResolvedItem(
 	IResolvedFont Font,
 	TextItem Item,
 	ShapedRun ShapedRun
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Font is null;
+}
 
 internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache probeCache) {
 	private readonly ShapeCache shapeCache = shapeCache;

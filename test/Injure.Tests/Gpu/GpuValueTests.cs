@@ -44,7 +44,7 @@ public static class GpuValueTests {
 
 	[Fact]
 	public static void DefaultSurfaceSourceCantCreateSurface() =>
-		Assert.Throws<InvalidOperationException>(static () => default(SurfaceSource).CreateWgpuSurface(default));
+		Assert.Throws<InvalidDefaultException>(static () => default(SurfaceSource).CreateWgpuSurface(default));
 
 	// ==========================================================================
 	// features

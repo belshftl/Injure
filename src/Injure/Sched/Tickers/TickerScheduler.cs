@@ -7,6 +7,9 @@ using Injure.Host;
 
 namespace Injure.Sched.Tickers;
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and has no samples.
+/// </remarks>
 internal struct EwmaDuration {
 	private long valNs;
 	private bool initialized;
@@ -39,7 +42,12 @@ internal sealed class TickerSubscription(TickerCallback callback) {
 	public ulong OverrunCount;
 }
 
-internal readonly record struct DueTickerCall(TickerSubscription Subscription, TickCallbackTimingInfo Info);
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+internal readonly record struct DueTickerCall(TickerSubscription Subscription, TickCallbackTimingInfo Info) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => Subscription is null;
+}
 
 internal sealed class ScheduledTicker {
 	private readonly TickerOptions options;
@@ -190,6 +198,9 @@ internal sealed class ScheduledTicker {
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is valid and stands for <see cref="Default480Hz"/>.
+/// </remarks>
 public readonly record struct TickerBudgetOptions(
 	HostDuration TargetLoopPeriod,
 	HostDuration ReservedLoopSlack,
@@ -259,12 +270,21 @@ public readonly record struct TickerBudgetOptions(
 	}
 }
 
+/// <remarks>
+/// The <see langword="default"/> value is invalid, since its <see cref="BatchCallLimit"/> is 0;
+/// <c>new TickerSchedulerOptions()</c> isn't the <see langword="default"/> value, and has the
+/// parameters' defaults.
+/// </remarks>
 public readonly record struct TickerSchedulerOptions(
 	int BatchCallLimit = 64,
 	int EventPollInterval = 8,
 	HostDuration MaxBatchDuration = default,
 	TickerBudgetOptions Budget = default
-);
+) : IHasInvalidDefault {
+	public TickerSchedulerOptions() : this(BatchCallLimit: 64) {}
+
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 public sealed class TickerScheduler(IHostClock clock, in TickerSchedulerOptions options) : ITickerRegistry {
 	private enum TickerSlotState {
@@ -292,16 +312,21 @@ public sealed class TickerScheduler(IHostClock clock, in TickerSchedulerOptions 
 		Retime,
 	}
 
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
 	private readonly record struct TickerCommand(
 		TickerCommandKind Kind,
 		TickerHandle Handle,
-		TickerTiming Timing = default,
-		TickerRetimingMode RetimingMode = default
-	);
+		TickerTiming? Timing = null, // Retime only
+		TickerRetimingMode? RetimingMode = null // Retime only
+	) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Handle is null;
+	}
 
 	private readonly IHostClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
 	private readonly Lock @lock = new();
-	private readonly TickerSchedulerOptions options = options with { Budget = options.Budget.Normalize() };
+	private readonly TickerSchedulerOptions options = normalize(options);
 	private readonly List<TickerSlot> slots = new();
 	private readonly List<int> activeSlots = new();
 	private readonly List<TickerCommand> pending = new();
@@ -377,13 +402,18 @@ public sealed class TickerScheduler(IHostClock clock, in TickerSchedulerOptions 
 				case TickerCommandKind.Retime:
 					if (slot.State == TickerSlotState.Empty)
 						break;
-					slot.Scheduled.Retime(commitAt, cmd.Timing, cmd.RetimingMode);
+					slot.Scheduled.Retime(commitAt, cmd.Timing!.Value, cmd.RetimingMode!.Value);
 					break;
 				}
 			}
 			pending.Clear();
 			rebuildActiveSlots();
 		}
+	}
+
+	private static TickerSchedulerOptions normalize(in TickerSchedulerOptions options) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(options, nameof(options));
+		return options with { Budget = options.Budget.Normalize() };
 	}
 
 	public void RunDueTickers() {

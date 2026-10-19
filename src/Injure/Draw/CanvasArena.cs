@@ -267,7 +267,9 @@ internal sealed class CanvasArenaPool(CanvasDeviceResources res) : IDisposable {
 	/// <remarks>
 	/// The <see langword="default"/> value is invalid.
 	/// </remarks>
-	private readonly record struct FreeArena(CanvasArena Arena, long ReturnedAtRent, long ReturnedAt);
+	private readonly record struct FreeArena(CanvasArena Arena, long ReturnedAtRent, long ReturnedAt) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Arena is null;
+	}
 
 	private readonly Lock poolLock = new();
 	private readonly List<FreeArena> free = new(); // used as a stack, the most recently returned last

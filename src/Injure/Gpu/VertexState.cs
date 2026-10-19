@@ -18,4 +18,6 @@ public readonly record struct VertexState(
 	GpuShaderModuleHandle ShaderModule,
 	string EntryPoint,
 	ImmutableArray<VertexBufferLayout> Buffers = default
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}

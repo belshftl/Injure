@@ -6,7 +6,7 @@ using Injure.Analyzers.Assets;
 namespace Injure.Analyzers.Tests.Assets;
 
 public sealed class AssetBorrowValueAnalyzerTests {
-	private static string[] messages(string body) {
+	private static string[] storeKinds(string body) {
 		string source = $$"""
 			using System;
 			using System.Collections.Generic;
@@ -23,7 +23,7 @@ public sealed class AssetBorrowValueAnalyzerTests {
 			""";
 		return Gen.Analyze(new AssetBorrowValueAnalyzer(), source)
 			.Where(static d => d.Id == "IJ0210")
-			.Select(static d => d.GetMessage())
+			.Select(static d => Gen.MessageArgs(d)[0])
 			.ToArray();
 	}
 
@@ -38,7 +38,7 @@ public sealed class AssetBorrowValueAnalyzerTests {
 	[InlineData("void M(Asset<object> a) { var v = a.Borrow().Value; void f() => use(v); f(); }", "captured by local function 'f'")]
 	[InlineData("void M(Asset<object> a, bool c) { field = c ? a.Borrow().Value : null; }", "stored in a field")]
 	public static void StoresThatCanOutliveTheBorrowAreReported(string body, string expected) =>
-		Assert.Contains(expected, Assert.Single(messages(body)));
+		Assert.Equal(expected, Assert.Single(storeKinds(body)));
 
 	[Theory]
 	[InlineData("void M(Asset<object> a) { use(a.Borrow().Value); }")]
@@ -47,5 +47,5 @@ public sealed class AssetBorrowValueAnalyzerTests {
 	[InlineData("void M(Asset<object> a) { Action f = () => { var v = a.Borrow().Value; use(v); }; }")]
 	[InlineData("void M(Asset<object> a) { field = a.Pin().Value; }")]
 	[InlineData("void M(Asset<object> a) { object o = new(); field = o; }")]
-	public static void UsesWithinTheBorrowAreFine(string body) => Assert.Empty(messages(body));
+	public static void UsesWithinTheBorrowAreFine(string body) => Assert.Empty(storeKinds(body));
 }

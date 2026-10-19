@@ -16,7 +16,8 @@ namespace Injure.Input;
 /// new ID.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is invalid.
+/// The <see langword="default"/> value is valid and is no ID: it refers to no gamepad, and
+/// <see cref="IsValid"/> is <see langword="false"/> for it.
 /// </para>
 /// </remarks>
 public readonly struct GamepadId : IEquatable<GamepadId> {

@@ -306,7 +306,9 @@ public readonly record struct GpuTextureCreateParams(
 	TextureFormat Format,
 	TextureUsage Usage,
 	ImmutableArray<TextureFormat> ViewFormats = default
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Identifies a destination region and subresource within a texture.
@@ -332,7 +334,9 @@ public readonly record struct GpuTextureRegion(
 	uint DepthOrArrayLayers,
 	uint MipLevel,
 	TextureAspect Aspect
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
 
 /// <summary>
 /// Describes how texel data is laid out in memory or in a buffer, for texture writes and
@@ -352,4 +356,6 @@ public readonly record struct GpuTextureLayout(
 	ulong Offset,
 	uint BytesPerRow,
 	uint RowsPerImage
-);
+) : IHasInvalidDefault {
+	bool IHasInvalidDefault.IsDefault => this == default;
+}
