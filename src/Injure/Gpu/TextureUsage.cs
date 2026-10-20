@@ -37,12 +37,14 @@ public readonly partial struct TextureUsage {
 		TextureBinding = 4ul,
 
 		/// <summary>
-		/// Can be bound as a storage texture.
+		/// Can be bound as a storage texture; requires a single-sampled texture with a format that
+		/// supports storage.
 		/// </summary>
 		StorageBinding = 8ul,
 
 		/// <summary>
-		/// Can be a render pass attachment.
+		/// Can be a render pass attachment; requires a renderable format, which excludes compressed
+		/// formats.
 		/// </summary>
 		RenderAttachment = 0x10ul,
 	}

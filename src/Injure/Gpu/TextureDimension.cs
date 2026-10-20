@@ -10,27 +10,29 @@ namespace Injure.Gpu;
 /// The dimensionality of a texture.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUTextureDimension))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUTextureDimension), Subset = true)]
 public readonly partial struct TextureDimension {
 	/// <summary>Raw switch tag for <see cref="TextureDimension"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// No value; WebGPU uses <see cref="Dimension2d"/>.
+		/// One-dimensional. The height and <see cref="GpuTextureParams.DepthOrArrayLayers"/> must be 1,
+		/// and the texture can have only one mip level and a sample count of one.
 		/// </summary>
-		Undefined = 0,
-
-		/// <summary>One-dimensional.</summary>
 		Dimension1d = 1,
 
 		/// <summary>
-		/// Two-dimensional, optionally with array layers.
+		/// Two-dimensional, with <see cref="GpuTextureParams.DepthOrArrayLayers"/> as the number of
+		/// array layers. Mip levels halve the width and height but keep every layer.
 		/// </summary>
 		Dimension2d = 2,
 
-		/// <summary>Three-dimensional.</summary>
+		/// <summary>
+		/// Three-dimensional, with <see cref="GpuTextureParams.DepthOrArrayLayers"/> as the depth. Mip
+		/// levels halve all three dimensions.
+		/// </summary>
 		Dimension3d = 3,
 	}
 }

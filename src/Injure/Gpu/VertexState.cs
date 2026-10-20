@@ -9,8 +9,12 @@ namespace Injure.Gpu;
 /// Vertex stage state for a render pipeline.
 /// </summary>
 /// <param name="ShaderModule">Shader module containing the vertex entry point.</param>
-/// <param name="EntryPoint">Vertex entry point name.</param>
-/// <param name="Buffers">Vertex buffer layouts used by the vertex stage.</param>
+/// <param name="EntryPoint">Name of the <c>@vertex</c> function in the module.</param>
+/// <param name="Buffers">
+/// Layouts of the vertex buffer slots; layout <c>i</c> describes the buffer bound to slot <c>i</c>
+/// with <see cref="RenderPass.SetVertexBuffer(uint, GpuBufferHandle, ulong, ulong)"/>.
+/// <see langword="default"/> or empty for none.
+/// </param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>

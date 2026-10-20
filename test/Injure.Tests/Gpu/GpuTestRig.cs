@@ -73,7 +73,7 @@ internal static class GpuRig {
 		TextureFormat? format = null,
 		TextureUsage extraUsage = default
 	) =>
-		dev.CreateTexture(new GpuTextureCreateParams(
+		dev.CreateTexture(new GpuTextureParams(
 			w, h, 1, 1, samples, TextureDimension.Dimension2d, format ?? Format,
 			TextureUsage.RenderAttachment | (samples == 1 ? TextureUsage.CopySrc : TextureUsage.None) | extraUsage
 		));
@@ -164,7 +164,7 @@ internal static class GpuRig {
 
 		public GpuRenderPipeline Pipeline(GpuDevice dev, ImmutableArray<ColorTargetState> targets, uint samples = 1,
 			DepthStencilState? depthStencil = null, PrimitiveState? primitive = null, string fragment = "fs") =>
-			dev.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+			dev.CreateRenderPipeline(new GpuRenderPipelineParams(
 				PipelineLayout,
 				new VertexState(Shader, "vs", [Vertex3]),
 				new FragmentState(Shader, fragment, targets),

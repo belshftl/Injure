@@ -29,7 +29,7 @@ public readonly partial struct SurfacePresentModePolicy {
 		AutoMailbox = 1,
 
 		/// <summary>
-		/// Prefer <see cref="PresentMode.FifoRelaxed"/>, fall back to <see cref="PresentMode.Mailbox"/>
+		/// Prefer <see cref="PresentMode.FifoRelaxed"/>, fall back to <see cref="PresentMode.Mailbox"/>,
 		/// and then <see cref="PresentMode.Fifo"/> if not present.
 		/// </summary>
 		/// <remarks>
@@ -182,6 +182,8 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	public SurfaceRenderOutput(GpuDevice device, ISurfaceHost surfaceHost, SurfaceFormatPolicy formatPolicy, SurfacePresentModePolicy presentPolicy) {
 		ArgumentNullException.ThrowIfNull(device);
 		ArgumentNullException.ThrowIfNull(surfaceHost);
+		ArgumentInvalidDefaultException.ThrowIfDefault(formatPolicy);
+		ArgumentInvalidDefaultException.ThrowIfDefault(presentPolicy);
 		this.device = device;
 		this.surfaceHost = surfaceHost;
 		this.formatPolicy = formatPolicy;
@@ -198,6 +200,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	/// </summary>
 	public void SetPresentModePolicy(SurfacePresentModePolicy policy) {
 		ObjectDisposedException.ThrowIf(disposed, this);
+		ArgumentInvalidDefaultException.ThrowIfDefault(policy);
 		presentPolicy = policy;
 		presentMode = getSurfacePresentMode();
 		needReconfigure = true;
@@ -417,14 +420,16 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		}
 		GpuTextureView v = new(
 			backbufferView,
-			tvdesc.format.FromWebgpuType(),
-			tvdesc.dimension.FromWebgpuType(),
-			tvdesc.aspect.FromWebgpuType(),
+			new GpuTextureViewParams(
+				tvdesc.format.FromWebgpuType(),
+				tvdesc.dimension.FromWebgpuType(),
+				tvdesc.aspect.FromWebgpuType(),
+				tvdesc.baseMipLevel,
+				tvdesc.mipLevelCount,
+				tvdesc.baseArrayLayer,
+				tvdesc.arrayLayerCount
+			),
 			config.usage.FromWebgpuType(),
-			tvdesc.baseMipLevel,
-			tvdesc.mipLevelCount,
-			tvdesc.baseArrayLayer,
-			tvdesc.arrayLayerCount,
 			config.width,
 			config.height,
 			1,

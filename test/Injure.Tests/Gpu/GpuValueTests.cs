@@ -119,11 +119,18 @@ public static class GpuValueTests {
 		Assert.Equal(uint.MaxValue, ms.Mask);
 		Assert.Equal(0u, default(MultisampleState).Count);
 
-		GpuTextureViewCreateParams view = new();
+		GpuTextureViewParams view = new();
 		Assert.Equal(TextureAspect.All, view.Aspect);
 		Assert.Null(view.Format);
 		Assert.Null(view.Dimension);
-		Assert.Equal(TextureAspect.Undefined, default(GpuTextureViewCreateParams).Aspect);
+		Assert.True(((IHasInvalidDefault)default(GpuTextureViewParams).Aspect).IsDefault);
+
+		PrimitiveState list = new();
+		Assert.Equal(new PrimitiveState(PrimitiveTopology.TriangleList), list);
+		Assert.Equal(FrontFace.Ccw, list.FrontFace);
+		Assert.Equal(CullMode.None, list.CullMode);
+
+		Assert.Equal(new StencilFaceState(CompareFunction.Always, StencilOperation.Keep, StencilOperation.Keep, StencilOperation.Keep), StencilFaceState.Keep);
 
 		PrimitiveState strip = new(PrimitiveTopology.TriangleStrip);
 		Assert.Equal(IndexFormat.Undefined, strip.StripIndexFormat);

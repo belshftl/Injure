@@ -123,7 +123,7 @@ internal sealed class CanvasDeviceResources : IDisposable {
 
 	public GpuBindGroup GetSamplerBindGroup(TexSampling sampling) => samplerBindGroups[sampling.Index];
 
-	private static GpuSamplerCreateParams samplerParams(TexFilter filter, TexAddressing addr) {
+	private static GpuSamplerParams samplerParams(TexFilter filter, TexAddressing addr) {
 		AddressMode address = addr.Tag switch {
 			TexAddressing.Case.Clamp => AddressMode.ClampToEdge,
 			TexAddressing.Case.Repeat => AddressMode.Repeat,
@@ -136,7 +136,7 @@ internal sealed class CanvasDeviceResources : IDisposable {
 			TexFilter.Case.Linear or TexFilter.Case.AreaWeighted => (FilterMode.Linear, MipmapFilterMode.Linear),
 			_ => throw new UnreachableException(),
 		};
-		return new GpuSamplerCreateParams(
+		return new GpuSamplerParams(
 			AddressModeU: address,
 			AddressModeV: address,
 			AddressModeW: address,
@@ -163,7 +163,7 @@ internal sealed class CanvasDeviceResources : IDisposable {
 			shader = device.CreateShaderModuleWgsl(loadShader(key.Interpretation));
 			shaders.Add(key.Interpretation, shader);
 		}
-		return device.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+		return device.CreateRenderPipeline(new GpuRenderPipelineParams(
 			Layout: PipelineLayout,
 			Vertex: new VertexState(
 				ShaderModule: shader,

@@ -10,18 +10,19 @@ namespace Injure.Gpu;
 /// How a <see cref="BlendComponent"/> combines the weighted source and destination values.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// <para>
+/// Results are clamped to the attachment format's range, e.g. [0.0, 1.0] for unorm formats, so
+/// <see cref="Subtract"/>/<see cref="ReverseSubtract"/> can't go negative there.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUBlendOperation))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUBlendOperation), Subset = true)]
 public readonly partial struct BlendOperation {
 	/// <summary>Raw switch tag for <see cref="BlendOperation"/>.</summary>
 	public enum Case {
-		/// <summary>
-		/// No value; WebGPU uses <see cref="Add"/>.
-		/// </summary>
-		Undefined = 0,
-
 		/// <summary>
 		/// source &#215; source factor + destination &#215; destination factor.
 		/// </summary>
@@ -38,12 +39,14 @@ public readonly partial struct BlendOperation {
 		ReverseSubtract = 3,
 
 		/// <summary>
-		/// The minimum of source and destination; both factors must be <see cref="BlendFactor.One"/>.
+		/// The minimum of source and destination, without factors; both factors must be
+		/// <see cref="BlendFactor.One"/>.
 		/// </summary>
 		Min = 4,
 
 		/// <summary>
-		/// The maximum of source and destination; both factors must be <see cref="BlendFactor.One"/>.
+		/// The maximum of source and destination, without factors; both factors must be
+		/// <see cref="BlendFactor.One"/>.
 		/// </summary>
 		Max = 5,
 	}

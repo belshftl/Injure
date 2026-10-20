@@ -448,7 +448,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 	}
 
 	/// <summary>
-	/// Writes a single unmanaged value into a GPU buffer.
+	/// Writes a single unmanaged value into a GPU buffer using the queue.
 	/// </summary>
 	/// <typeparam name="T">Unmanaged value type to upload.</typeparam>
 	/// <param name="buffer">Destination buffer.</param>
@@ -473,7 +473,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 	}
 
 	/// <summary>
-	/// Writes data from a span into a GPU buffer.
+	/// Writes data from a span into a GPU buffer using the queue.
 	/// </summary>
 	/// <typeparam name="T">Unmanaged element type to upload.</typeparam>
 	/// <param name="buffer">Destination buffer.</param>
@@ -494,11 +494,14 @@ public sealed unsafe class GpuDevice : IDisposable {
 	}
 
 	/// <summary>
-	/// Writes data from a pointer into a GPU buffer.
+	/// Writes data from a memory region into a GPU buffer using the queue.
 	/// </summary>
 	/// <param name="buffer">Destination buffer.</param>
 	/// <param name="offset">Byte offset into <paramref name="buffer"/>.</param>
-	/// <param name="data">Pointer to the data to upload.</param>
+	/// <param name="data">
+	/// Pointer to the data to upload. Must be readable for at least <paramref name="size"/> bytes
+	/// unless <paramref name="size"/> is 0. No alignment restrictions are imposed.
+	/// </param>
 	/// <param name="size">Number of bytes to upload from <paramref name="data"/>.</param>
 	/// <inheritdoc cref="WriteToBuffer{T}(GpuBufferHandle, ulong, in T)" path="/exception"/>
 	/// <remarks>
@@ -528,15 +531,20 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Creates a texture and its default view, returning an owning object.
 	/// </summary>
 	/// <param name="params">Texture creation parameters.</param>
-	/// <exception cref="ArgumentException">
-	/// Thrown if the provided <see cref="GpuTextureCreateParams.ViewFormats"/> contains the texture's
-	/// <see cref="GpuTextureCreateParams.Format"/> or any duplicates.
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if <see cref="GpuTextureParams.Dimension"/> is the <see langword="default"/> value.
 	/// </exception>
-	public GpuTexture CreateTexture(in GpuTextureCreateParams @params) {
+	/// <exception cref="ArgumentException">
+	/// Thrown if the provided <see cref="GpuTextureParams.ViewFormats"/> contains the texture's
+	/// <see cref="GpuTextureParams.Format"/> or any duplicates.
+	/// </exception>
+	public GpuTexture CreateTexture(in GpuTextureParams @params) {
 		chk();
+		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
+		GpuArgChecks.Field(@params.Dimension, nameof(@params), nameof(@params.Dimension));
 
 		ReadOnlySpan<TextureFormat> viewFormats = @params.ViewFormats.IsDefault
-			? ReadOnlySpan<TextureFormat>.Empty
+			? []
 			: @params.ViewFormats.AsSpan();
 		WGPUTextureFormat[] wgpuViewFormats;
 		if (viewFormats.Length > 0) {
@@ -568,18 +576,10 @@ public sealed unsafe class GpuDevice : IDisposable {
 			};
 			WGPUTexture tex = Check(wgpuDeviceCreateTexture(Device, &desc));
 			try {
-				return new GpuTexture(
-					tex,
-					@params.Width,
-					@params.Height,
-					@params.DepthOrArrayLayers,
-					@params.MipLevelCount,
-					@params.SampleCount,
-					@params.Dimension,
-					@params.Format,
-					@params.Usage,
-					viewFormats.ToArray()
-				);
+				GpuTextureParams resolved = @params.ViewFormats.IsDefault
+					? @params with { ViewFormats = [] }
+					: @params;
+				return new GpuTexture(tex, resolved);
 			} catch (WebgpuException) {
 				wgpuTextureRelease(tex);
 				throw;
@@ -588,7 +588,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 	}
 
 	/// <summary>
-	/// Writes texel data into a texture.
+	/// Writes texel data from a span into a texture using the queue.
 	/// </summary>
 	/// <typeparam name="T">Unmanaged source element type.</typeparam>
 	/// <param name="tex">Destination texture.</param>
@@ -609,10 +609,10 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// in memory. This allows uploading from data with padding between rows.
 	/// </para>
 	/// <para>
-	/// There are no alignment/etc. restrictions on the values in <see cref="GpuTextureLayout"/>.
+	/// There are no alignment/etc. restrictions on the values in <paramref name="layout"/>.
 	/// </para>
 	/// <para>
-	/// Empty spans are accepted and are a no-op.
+	/// Empty spans are a no-op.
 	/// </para>
 	/// </remarks>
 	public void WriteToTexture<T>(
@@ -623,6 +623,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 	) where T : unmanaged {
 		chk();
 		requireTextureWritable(tex, dst);
+		ArgumentInvalidDefaultException.ThrowIfDefault(layout);
 		if (data.IsEmpty)
 			return;
 		fixed (T* p = data)
@@ -630,11 +631,14 @@ public sealed unsafe class GpuDevice : IDisposable {
 	}
 
 	/// <summary>
-	/// Writes texel data into a texture using the queue.
+	/// Writes texel data from a memory region into a texture using the queue.
 	/// </summary>
 	/// <param name="tex">Destination texture.</param>
 	/// <param name="dst">Destination texture region and subresource.</param>
-	/// <param name="data">Pointer to the source texel data.</param>
+	/// <param name="data">
+	/// Pointer to the source texel data. Must be readable for at least <paramref name="size"/> bytes
+	/// unless <paramref name="size"/> is 0. No alignment restrictions are imposed.
+	/// </param>
 	/// <param name="size">Number of bytes to upload from <paramref name="data"/>.</param>
 	/// <param name="layout">Source memory layout.</param>
 	/// <exception cref="ArgumentNullException">
@@ -648,10 +652,13 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <para>
 	/// The number of bytes consumed from each source row is determined by the uploaded texture region
 	/// and format, while <see cref="GpuTextureLayout.BytesPerRow"/> is the spacing between row starts
-	/// in memory. This allows uploading from data with padding between rows.
+	/// in memory. This allows uploading from data with padding between rows. <b>This does not prevent
+	/// said padding from being read;</b> the memory region of <paramref name="size"/> bytes pointed
+	/// to by <paramref name="data"/> must be <b>fully initialized</b> unless <paramref name="size"/>
+	/// is 0.
 	/// </para>
 	/// <para>
-	/// There are no alignment/etc. restrictions on the values in <see cref="GpuTextureLayout"/>.
+	/// There are no alignment/etc. restrictions on the values in <paramref name="layout"/>.
 	/// </para>
 	/// <para>
 	/// <paramref name="data"/> need only remain valid for the duration of the call.
@@ -666,6 +673,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 	) {
 		chk();
 		requireTextureWritable(tex, dst);
+		ArgumentInvalidDefaultException.ThrowIfDefault(layout);
 		WGPUTexelCopyTextureInfo copyDst = new() {
 			texture = tex.WgpuTexture,
 			mipLevel = dst.MipLevel,
@@ -701,17 +709,28 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Creates a sampler, returning an owning object.
 	/// </summary>
 	/// <param name="params">Sampler creation parameters.</param>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if an address mode or filter of <paramref name="params"/> is the
+	/// <see langword="default"/> value.
+	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <see cref="GpuSamplerCreateParams.LodMinClamp"/> is negative,
-	/// <see cref="GpuSamplerCreateParams.LodMaxClamp"/> is smaller than it, or
-	/// <see cref="GpuSamplerCreateParams.MaxAnisotropy"/> is 0.
+	/// Thrown if <see cref="GpuSamplerParams.LodMinClamp"/> is negative,
+	/// <see cref="GpuSamplerParams.LodMaxClamp"/> is smaller than it, or
+	/// <see cref="GpuSamplerParams.MaxAnisotropy"/> is 0.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <see cref="GpuSamplerCreateParams.MaxAnisotropy"/> is larger than 1 and any of the
+	/// Thrown if <see cref="GpuSamplerParams.MaxAnisotropy"/> is larger than 1 and any of the
 	/// filter modes are set to anything but linear filtering.
 	/// </exception>
-	public GpuSampler CreateSampler(in GpuSamplerCreateParams @params) {
+	public GpuSampler CreateSampler(in GpuSamplerParams @params) {
 		chk();
+		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
+		GpuArgChecks.Field(@params.AddressModeU, nameof(@params), nameof(@params.AddressModeU));
+		GpuArgChecks.Field(@params.AddressModeV, nameof(@params), nameof(@params.AddressModeV));
+		GpuArgChecks.Field(@params.AddressModeW, nameof(@params), nameof(@params.AddressModeW));
+		GpuArgChecks.Field(@params.MagFilter, nameof(@params), nameof(@params.MagFilter));
+		GpuArgChecks.Field(@params.MinFilter, nameof(@params), nameof(@params.MinFilter));
+		GpuArgChecks.Field(@params.MipmapFilter, nameof(@params), nameof(@params.MipmapFilter));
 		if (@params.LodMinClamp < 0)
 			throw new ArgumentOutOfRangeException(nameof(@params), "LodMinClamp cannot be negative");
 		if (@params.LodMaxClamp < @params.LodMinClamp)
@@ -739,7 +758,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 			compare = @params.Compare.ToWebgpuType(),
 			maxAnisotropy = @params.MaxAnisotropy,
 		};
-		return new GpuSampler(Check(wgpuDeviceCreateSampler(Device, &desc)));
+		return new GpuSampler(Check(wgpuDeviceCreateSampler(Device, &desc)), @params);
 	}
 
 	private static WGPUBindGroupLayoutEntry toRawBindGroupLayoutEntry(in GpuBindGroupLayoutEntry entry) {
@@ -779,10 +798,39 @@ public sealed unsafe class GpuDevice : IDisposable {
 		}
 	}
 
+	[StackTraceHidden]
+	private static void checkLayoutDefaults(GpuBindingLayout layout, int i) {
+		switch (layout) {
+		case GpuBufferBindingLayout b:
+			if (GpuArgChecks.IsDefault(b.Type))
+				GpuArgChecks.Throw<BufferBindingType>($"entries[{i}].Layout.Type");
+			break;
+		case GpuSamplerBindingLayout s:
+			if (GpuArgChecks.IsDefault(s.Type))
+				GpuArgChecks.Throw<SamplerBindingType>($"entries[{i}].Layout.Type");
+			break;
+		case GpuStorageTextureBindingLayout st:
+			if (GpuArgChecks.IsDefault(st.Access))
+				GpuArgChecks.Throw<StorageTextureAccess>($"entries[{i}].Layout.Access");
+			if (GpuArgChecks.IsDefault(st.ViewDimension))
+				GpuArgChecks.Throw<TextureViewDimension>($"entries[{i}].Layout.ViewDimension");
+			break;
+		case GpuTextureBindingLayout t:
+			if (GpuArgChecks.IsDefault(t.SampleType))
+				GpuArgChecks.Throw<TextureSampleType>($"entries[{i}].Layout.SampleType");
+			if (GpuArgChecks.IsDefault(t.ViewDimension))
+				GpuArgChecks.Throw<TextureViewDimension>($"entries[{i}].Layout.ViewDimension");
+			break;
+		}
+	}
+
 	/// <summary>
 	/// Creates a bind group layout from the given entries, returning an owning object.
 	/// </summary>
 	/// <param name="entries">Entries describing the bindings in the layout.</param>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if a field of an entry's layout is the <see langword="default"/> value.
+	/// </exception>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if any entry has a <see langword="null"/> layout.
 	/// </exception>
@@ -793,10 +841,12 @@ public sealed unsafe class GpuDevice : IDisposable {
 		chk();
 		if (entries.IsEmpty)
 			throw new ArgumentException("bind group layout must contain at least one entry", nameof(entries));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(entries, nameof(entries));
 
 		for (int i = 0; i < entries.Length; i++) {
 			ref readonly GpuBindGroupLayoutEntry e = ref entries[i];
 			ArgumentNullException.ThrowIfNull(e.Layout);
+			checkLayoutDefaults(e.Layout, i);
 
 			// O(n^2) on paper but it's honestly probably better than allocation/etc for a hashset when
 			// there's probably gonna be like only a few entries 99% of the time
@@ -865,6 +915,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 		ArgumentNullException.ThrowIfNull(layout);
 		if (entries.IsEmpty)
 			throw new ArgumentException("bind group must contain at least one entry", nameof(entries));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(entries, nameof(entries));
 
 		for (int i = 0; i < entries.Length; i++) {
 			ref readonly GpuBindGroupEntry e = ref entries[i];
@@ -1034,10 +1085,86 @@ public sealed unsafe class GpuDevice : IDisposable {
 		return new GpuPipelineLayout(Check(wgpuDeviceCreatePipelineLayout(Device, &desc)));
 	}
 
+	[StackTraceHidden]
+	private static void checkPipelineDefaults(in GpuRenderPipelineParams @params) {
+		const string p = "params";
+		GpuArgChecks.Field(@params.Vertex, p, "Vertex");
+		ReadOnlySpan<VertexBufferLayout> buffers = @params.Vertex.Buffers.AsSpan();
+		for (int i = 0; i < buffers.Length; i++) {
+			ReadOnlySpan<VertexAttribute> attrs = buffers[i].Attributes.AsSpan();
+			for (int j = 0; j < attrs.Length; j++) {
+				if (GpuArgChecks.IsDefault(attrs[j]))
+					GpuArgChecks.Throw<VertexAttribute>($"{p}.Vertex.Buffers[{i}].Attributes[{j}]");
+				if (GpuArgChecks.IsDefault(attrs[j].Format))
+					GpuArgChecks.Throw<VertexFormat>($"{p}.Vertex.Buffers[{i}].Attributes[{j}].Format");
+			}
+		}
+
+		GpuArgChecks.Field(@params.Fragment, p, "Fragment");
+		if (@params.Fragment is FragmentState f) {
+			ReadOnlySpan<ColorTargetState> targets = f.Targets.AsSpan();
+			for (int i = 0; i < targets.Length; i++) {
+				if (GpuArgChecks.IsDefault(targets[i]))
+					GpuArgChecks.Throw<ColorTargetState>($"{p}.Fragment.Targets[{i}]");
+				if (targets[i].Blend is BlendState b)
+					checkBlend(b, i);
+			}
+		}
+
+		GpuArgChecks.Field(@params.Primitive, p, "Primitive");
+		if (@params.Primitive is PrimitiveState prim) {
+			GpuArgChecks.Field(prim.Topology, p, "Primitive.Topology");
+			GpuArgChecks.Field(prim.FrontFace, p, "Primitive.FrontFace");
+			GpuArgChecks.Field(prim.CullMode, p, "Primitive.CullMode");
+		}
+
+		GpuArgChecks.Field(@params.DepthStencil, p, "DepthStencil");
+		if (@params.DepthStencil is DepthStencilState ds) {
+			checkStencil(ds.StencilFront, "StencilFront");
+			checkStencil(ds.StencilBack, "StencilBack");
+		}
+
+		GpuArgChecks.Field(@params.Multisample, p, "Multisample");
+
+		static void checkBlend(in BlendState b, int i) {
+			if (GpuArgChecks.IsDefault(b))
+				GpuArgChecks.Throw<BlendState>($"{p}.Fragment.Targets[{i}].Blend");
+			checkComponent(b.Color, i, "Color");
+			checkComponent(b.Alpha, i, "Alpha");
+		}
+
+		static void checkComponent(in BlendComponent c, int i, string name) {
+			if (GpuArgChecks.IsDefault(c))
+				GpuArgChecks.Throw<BlendComponent>($"{p}.Fragment.Targets[{i}].Blend.{name}");
+			if (GpuArgChecks.IsDefault(c.Operation))
+				GpuArgChecks.Throw<BlendOperation>($"{p}.Fragment.Targets[{i}].Blend.{name}.Operation");
+			if (GpuArgChecks.IsDefault(c.SrcFactor))
+				GpuArgChecks.Throw<BlendFactor>($"{p}.Fragment.Targets[{i}].Blend.{name}.SrcFactor");
+			if (GpuArgChecks.IsDefault(c.DstFactor))
+				GpuArgChecks.Throw<BlendFactor>($"{p}.Fragment.Targets[{i}].Blend.{name}.DstFactor");
+		}
+
+		static void checkStencil(in StencilFaceState s, string face) {
+			if (GpuArgChecks.IsDefault(s))
+				GpuArgChecks.Throw<StencilFaceState>($"{p}.DepthStencil.{face}");
+			if (GpuArgChecks.IsDefault(s.FailOp))
+				GpuArgChecks.Throw<StencilOperation>($"{p}.DepthStencil.{face}.FailOp");
+			if (GpuArgChecks.IsDefault(s.DepthFailOp))
+				GpuArgChecks.Throw<StencilOperation>($"{p}.DepthStencil.{face}.DepthFailOp");
+			if (GpuArgChecks.IsDefault(s.PassOp))
+				GpuArgChecks.Throw<StencilOperation>($"{p}.DepthStencil.{face}.PassOp");
+		}
+	}
+
 	/// <summary>
 	/// Creates a render pipeline, returning an owning object.
 	/// </summary>
 	/// <param name="params">Render pipeline creation parameters.</param>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if a value nested in <paramref name="params"/> is the <see langword="default"/> value
+	/// of a type whose default value is invalid, e.g. a target's blend factor or a stencil
+	/// operation.
+	/// </exception>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if the layout or a shader module is <see langword="null"/>.
 	/// </exception>
@@ -1049,11 +1176,13 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Compatibility between the shaders, the layout, and the vertex/target formats is only validated
 	/// by WebGPU.
 	/// </remarks>
-	public GpuRenderPipeline CreateRenderPipeline(in GpuRenderPipelineCreateParams @params) {
+	public GpuRenderPipeline CreateRenderPipeline(in GpuRenderPipelineParams @params) {
 		// -----------------------------------------------------------------
 		// validation
 		chk();
 
+		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
+		checkPipelineDefaults(@params);
 		ArgumentNullException.ThrowIfNull(@params.Layout);
 		ArgumentNullException.ThrowIfNull(@params.Vertex.ShaderModule);
 		ArgumentException.ThrowIfNullOrWhiteSpace(@params.Vertex.EntryPoint);
@@ -1082,12 +1211,12 @@ public sealed unsafe class GpuDevice : IDisposable {
 
 		// -----------------------------------------------------------------
 		// upfront allocations, as a workaround for CS8346
-		ReadOnlySpan<VertexBufferLayout> vertBuffers = vert.Buffers.IsDefault ? ReadOnlySpan<VertexBufferLayout>.Empty : vert.Buffers.AsSpan();
+		ReadOnlySpan<VertexBufferLayout> vertBuffers = vert.Buffers.IsDefault ? [] : vert.Buffers.AsSpan();
 		int totalVertAttrCount = 0;
 		for (int i = 0; i < vertBuffers.Length; i++)
 			totalVertAttrCount += vertBuffers[i].Attributes.Length;
 
-		ReadOnlySpan<ColorTargetState> colorTargets = haveFrag && !frag.Targets.IsDefault ? frag.Targets.AsSpan() : ReadOnlySpan<ColorTargetState>.Empty;
+		ReadOnlySpan<ColorTargetState> colorTargets = haveFrag && !frag.Targets.IsDefault ? frag.Targets.AsSpan() : [];
 
 		WGPUVertexBufferLayout* wgpuVertBuffers = stackalloc WGPUVertexBufferLayout[vertBuffers.Length];
 		WGPUVertexAttribute* wgpuVertAttrs = stackalloc WGPUVertexAttribute[totalVertAttrCount];
@@ -1107,7 +1236,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 		int attrBase = 0;
 		for (int i = 0; i < vertBuffers.Length; i++) {
 			VertexBufferLayout vb = vertBuffers[i];
-			ReadOnlySpan<VertexAttribute> vbAttributes = vb.Attributes.IsDefault ? ReadOnlySpan<VertexAttribute>.Empty : vb.Attributes.AsSpan();
+			ReadOnlySpan<VertexAttribute> vbAttributes = vb.Attributes.IsDefault ? [] : vb.Attributes.AsSpan();
 			for (int j = 0; j < vbAttributes.Length; j++)
 				wgpuVertAttrs[attrBase + j] = vbAttributes[j].ToWebgpuType();
 			wgpuVertBuffers[i] = new WGPUVertexBufferLayout {

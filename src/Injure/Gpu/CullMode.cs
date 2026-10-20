@@ -10,18 +10,25 @@ namespace Injure.Gpu;
 /// Which triangles to discard based on their facing.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// <para>
+/// Facing is determined by <see cref="PrimitiveState.FrontFace"/>; see <see cref="FrontFace"/>.
+/// Points and lines are never culled.
+/// </para>
+/// <para>
+/// Degenerate triangles are back-facing under both <see cref="FrontFace.Ccw"/> and
+/// <see cref="FrontFace.Cw"/>, so only <see cref="Back"/> discards them. Under <see cref="None"/>
+/// and <see cref="Front"/>, they enclose no pixel centers, but whether a pixel center exactly on
+/// one produces a fragment is undefined.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUCullMode))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUCullMode), Subset = true)]
 public readonly partial struct CullMode {
 	/// <summary>Raw switch tag for <see cref="CullMode"/>.</summary>
 	public enum Case {
-		/// <summary>
-		/// No value; WebGPU uses <see cref="None"/>.
-		/// </summary>
-		Undefined = 0,
-
 		/// <summary>Discards nothing.</summary>
 		None = 1,
 
@@ -31,7 +38,7 @@ public readonly partial struct CullMode {
 		Front = 2,
 
 		/// <summary>
-		/// Discards back-facing triangles.
+		/// Discards back-facing triangles, including degenerate ones (see type-level docs).
 		/// </summary>
 		Back = 3,
 	}

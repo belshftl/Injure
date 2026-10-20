@@ -11,7 +11,7 @@ namespace Injure.Gpu;
 /// </summary>
 /// <remarks>
 /// <para>
-/// There is currently no <c>DontCare</c>, as <c>wgpu-native</c> doesn't have one.
+/// There is currently no <c>LoadOp.DontCare</c>, as wgpu-native doesn't have one.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.

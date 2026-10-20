@@ -10,18 +10,19 @@ namespace Injure.Gpu;
 /// What a stencil test does to the stencil value.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// <para>
+/// Stencil values are 8-bit, so the maximum is 255. Only the bits set in
+/// <see cref="DepthStencilState.StencilWriteMask"/> are written.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUStencilOperation))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUStencilOperation), Subset = true)]
 public readonly partial struct StencilOperation {
 	/// <summary>Raw switch tag for <see cref="StencilOperation"/>.</summary>
 	public enum Case {
-		/// <summary>
-		/// No value; WebGPU uses <see cref="Keep"/>.
-		/// </summary>
-		Undefined = 0,
-
 		/// <summary>Keeps the value.</summary>
 		Keep = 1,
 

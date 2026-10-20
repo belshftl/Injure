@@ -64,13 +64,13 @@ internal sealed class Texture2dMipGenerator : IDisposable {
 	}
 
 	private static GpuTextureView level(GpuTexture texture, uint mip) =>
-		texture.CreateView(new GpuTextureViewCreateParams(Format: null, Dimension: null, Aspect: TextureAspect.All, BaseMipLevel: mip, MipLevelCount: 1));
+		texture.CreateView(new GpuTextureViewParams(Format: null, Dimension: null, Aspect: TextureAspect.All, BaseMipLevel: mip, MipLevelCount: 1));
 
 	private GpuRenderPipeline getPipeline(TextureFormat format, Texture2dMipFilter filter) {
 		lock (pipelinesLock) {
 			if (pipelines.TryGetValue((format, filter), out GpuRenderPipeline? existing))
 				return existing;
-			GpuRenderPipeline created = device.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+			GpuRenderPipeline created = device.CreateRenderPipeline(new GpuRenderPipelineParams(
 				Layout: pipelineLayout,
 				Vertex: new VertexState(ShaderModule: shader, EntryPoint: "vs_main"),
 				Fragment: new FragmentState(

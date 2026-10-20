@@ -11,7 +11,27 @@ namespace Injure.Gpu;
 /// samplers.
 /// </summary>
 /// <remarks>
+/// <para>
+/// What "new" and "existing" refer to depends on the use:
+/// <list type="bullet">
+/// <item><description>
+/// Depth tests compare the fragment's depth (new) against the value in the depth attachment
+/// (existing).
+/// </description></item>
+/// <item><description>
+/// Stencil tests compare the stencil reference (new) against the value in the stencil attachment
+/// (existing), both masked by <see cref="DepthStencilState.StencilReadMask"/>.
+/// </description></item>
+/// <item><description>
+/// Comparison samplers compare the reference passed to <c>textureSampleCompare</c> and similar
+/// (new) against the texel (existing). Each comparison gives 1.0 if it passes and 0.0 otherwise, and
+/// filtering blends those results rather than the texels.
+/// </description></item>
+/// </list>
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// </para>
 /// </remarks>
 [ClosedEnum]
 [ClosedEnumMirror(typeof(WGPUCompareFunction))]

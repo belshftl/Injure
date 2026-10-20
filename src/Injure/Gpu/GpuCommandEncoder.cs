@@ -63,6 +63,9 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// be empty if <paramref name="depthStencil"/> isn't <see langword="null"/>.
 	/// </param>
 	/// <param name="depthStencil">The depth/stencil attachment, if any.</param>
+	/// <exception cref="ArgumentInvalidDefaultException">
+	/// Thrown if an attachment's load/store operations are the <see langword="default"/> value.
+	/// </exception>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if an attachment's view is <see langword="null"/>.
 	/// </exception>
@@ -95,6 +98,15 @@ public abstract unsafe class GpuCommandEncoderHandle {
 			throw new ArgumentException("a render pass needs at least one attachment", nameof(colorAttachments));
 		if (colorAttachments.Length > State.Limits.MaxColorAttachments)
 			throw new ArgumentException($"at most {State.Limits.MaxColorAttachments} color attachments are supported", nameof(colorAttachments));
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(colorAttachments, nameof(colorAttachments));
+		for (int i = 0; i < colorAttachments.Length; i++)
+			if (GpuArgChecks.IsDefault(colorAttachments[i].Ops))
+				GpuArgChecks.Throw<ColorAttachmentOps>($"colorAttachments[{i}].Ops");
+		ArgumentInvalidDefaultException.ThrowIfDefault(depthStencil);
+		if (depthStencil is RenderPassDepthStencilAttachment dsa) {
+			GpuArgChecks.Field(dsa.DepthOps, nameof(depthStencil), nameof(dsa.DepthOps));
+			GpuArgChecks.Field(dsa.StencilOps, nameof(depthStencil), nameof(dsa.StencilOps));
+		}
 
 		GpuTextureViewHandle? first = null;
 		foreach (RenderPassColorAttachment ca in colorAttachments) {
@@ -219,8 +231,10 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// <param name="colorOps">Color attachment load/store operations.</param>
 	/// <inheritdoc cref="BeginRenderPass(ReadOnlySpan{RenderPassColorAttachment}, in RenderPassDepthStencilAttachment?)" path="/exception"/>
 	/// <inheritdoc cref="BeginRenderPass(ReadOnlySpan{RenderPassColorAttachment}, in RenderPassDepthStencilAttachment?)" path="/remarks"/>
-	public RenderPass BeginColorPass(GpuTextureViewHandle colorView, in ColorAttachmentOps colorOps) =>
-		BeginRenderPass([new RenderPassColorAttachment(colorView, colorOps)]);
+	public RenderPass BeginColorPass(GpuTextureViewHandle colorView, in ColorAttachmentOps colorOps) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(colorOps);
+		return BeginRenderPass([new RenderPassColorAttachment(colorView, colorOps)]);
+	}
 
 	/// <summary>
 	/// Opens a render pass targeting a color attachment and a depth-only attachment; shorthand for
@@ -238,6 +252,8 @@ public abstract unsafe class GpuCommandEncoderHandle {
 		GpuTextureViewHandle depthView,
 		in DepthAttachmentOps depthOps
 	) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(colorOps);
+		ArgumentInvalidDefaultException.ThrowIfDefault(depthOps);
 		ArgumentNullException.ThrowIfNull(depthView);
 		if (hasStencil(depthView.Format))
 			throw new ArgumentException("depth view must have a depth-only format", nameof(depthView));
@@ -267,6 +283,9 @@ public abstract unsafe class GpuCommandEncoderHandle {
 		in DepthAttachmentOps depthOps,
 		in StencilAttachmentOps stencilOps
 	) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(colorOps);
+		ArgumentInvalidDefaultException.ThrowIfDefault(depthOps);
+		ArgumentInvalidDefaultException.ThrowIfDefault(stencilOps);
 		ArgumentNullException.ThrowIfNull(depthStencilView);
 		if (!hasDepth(depthStencilView.Format) || !hasStencil(depthStencilView.Format))
 			throw new ArgumentException("depth+stencil view must have a depth+stencil format", nameof(depthStencilView));
@@ -525,6 +544,7 @@ public abstract unsafe class GpuCommandEncoderHandle {
 
 	[StackTraceHidden]
 	private static void requireCopyLayout(in GpuTextureLayout layout, string paramName) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(layout, paramName);
 		if (layout.BytesPerRow % copyBytesPerRowAlignment != 0)
 			throw new ArgumentException($"BytesPerRow must be a multiple of {copyBytesPerRowAlignment} for copies", paramName);
 	}

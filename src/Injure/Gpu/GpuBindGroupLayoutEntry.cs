@@ -6,9 +6,11 @@ namespace Injure.Gpu;
 /// <summary>
 /// Describes one binding entry in a bind group layout.
 /// </summary>
-/// <param name="Binding">Binding index within the layout.</param>
+/// <param name="Binding">
+/// Binding index, matching <c>@binding</c> in the shader; must be unique within the layout.
+/// </param>
 /// <param name="Visibility">Shader stages allowed to access the binding.</param>
-/// <param name="Layout">Binding layout for the bound resource.</param>
+/// <param name="Layout">What kind of resource the binding holds.</param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
@@ -33,7 +35,11 @@ public abstract record GpuBindingLayout {
 /// Describes a buffer binding layout.
 /// </summary>
 /// <param name="Type">Buffer binding type.</param>
-/// <param name="HasDynamicOffset">Whether the binding uses a dynamic offset.</param>
+/// <param name="HasDynamicOffset">
+/// Whether an offset given when setting the bind group, through the <c>dynamicOffsets</c> of
+/// <see cref="RenderPass.SetBindGroup(uint, GpuBindGroupHandle, ReadOnlySpan{uint})"/>, is added
+/// to the bound range's offset.
+/// </param>
 /// <param name="MinBindingSize">
 /// Minimum size in bytes of the buffer range bound to this binding; 0 means no minimum.
 /// </param>
@@ -55,8 +61,12 @@ public sealed record GpuSamplerBindingLayout(
 /// Describes a storage texture binding layout.
 /// </summary>
 /// <param name="Access">Storage access mode.</param>
-/// <param name="Format">Storage texture format.</param>
-/// <param name="ViewDimension">Expected texture view dimension.</param>
+/// <param name="Format">
+/// Format of the bound view, matching the format of <c>texture_storage_*</c> in the shader.
+/// </param>
+/// <param name="ViewDimension">
+/// Dimension of the bound view. Must not be a cube dimension.
+/// </param>
 public sealed record GpuStorageTextureBindingLayout(
 	StorageTextureAccess Access,
 	TextureFormat Format,
@@ -66,9 +76,18 @@ public sealed record GpuStorageTextureBindingLayout(
 /// <summary>
 /// Describes a sampled texture binding layout.
 /// </summary>
-/// <param name="SampleType">Texture sample type.</param>
-/// <param name="ViewDimension">Expected texture view dimension.</param>
-/// <param name="Multisampled">Whether the bound view is multisampled.</param>
+/// <param name="SampleType">
+/// Kind of values the shader reads; must be compatible with the bound view's format, see
+/// <see cref="TextureSampleType"/>.
+/// </param>
+/// <param name="ViewDimension">
+/// Dimension of the bound view, matching the texture type in the shader.
+/// </param>
+/// <param name="Multisampled">
+/// Whether the bound view is multisampled (<c>texture_multisampled_2d</c> and similar). Requires
+/// <see cref="TextureViewDimension.Dimension2d"/> and a <paramref name="SampleType"/> other than
+/// <see cref="TextureSampleType.Float"/>.
+/// </param>
 public sealed record GpuTextureBindingLayout(
 	TextureSampleType SampleType,
 	TextureViewDimension ViewDimension,

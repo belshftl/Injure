@@ -100,13 +100,13 @@ anyhow, to v0.1:
 - [x] add more to the regular analyzer:
   - [x] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [x] devise some infrastructure for default-is-invalid structs
-- [ ] switch over the codebase to the new default-is-invalid infrastructure
+- [x] switch over the codebase to the new default-is-invalid infrastructure
   - [x] switch over `[ClosedEnum]`/`[ClosedFlags]`
   - [x] for `[ClosedEnum]`/`[ClosedFlags]`, probably reserve and add a `RawTag`/`RawMask` that never throws, for use in `Equals`/`GetHashCode` implementations; right now, a lot of `GetHashCode`s throw on e.g. invalid `default` values when they shouldn't
   - [x] fix said `Equals`/`GetHashCode`s
-  - [ ] use `ArgumentInvalidDefaultException` for arguments that are invalid `default` values
+  - [x] use `ArgumentInvalidDefaultException` for arguments that are invalid `default` values
     - [x] everything except `Gpu` and the areas due for revision
-    - [ ] `Gpu`
+    - [x] `Gpu`
   - [x] write `docs/invalid-default-values.md`, including the convention that members of `IHasInvalidDefault` types may throw `InvalidDefaultException` without documenting it, except `IsDefault`, `Equals`, `GetHashCode`, `==`, `!=`, and `ToString`, which never throw
 - [ ] properly document owner-ordering; it's basically ubiquitous in the mod infrastructure, but it's very poorly documented
 - [ ] write dedicated docs for `Gpu`/`Draw`:

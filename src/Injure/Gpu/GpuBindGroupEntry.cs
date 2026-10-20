@@ -6,7 +6,9 @@ namespace Injure.Gpu;
 /// <summary>
 /// Describes one binding entry in a bind group.
 /// </summary>
-/// <param name="Binding">Binding index within the bind group layout.</param>
+/// <param name="Binding">
+/// Binding index of the layout entry this entry provides the resource for.
+/// </param>
 /// <param name="Resource">Resource to bind at <paramref name="Binding"/>.</param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
@@ -32,7 +34,9 @@ public abstract record GpuBindingResource {
 /// </summary>
 /// <param name="Buffer">Buffer to expose through the binding.</param>
 /// <param name="Offset">
-/// Byte offset into <paramref name="Buffer"/> where the exposed range begins.
+/// Byte offset into <paramref name="Buffer"/> where the exposed range begins; must be a multiple of
+/// <see cref="GpuLimits.MinUniformBufferOffsetAlignment"/> for uniform buffers and
+/// <see cref="GpuLimits.MinStorageBufferOffsetAlignment"/> for storage buffers.
 /// </param>
 /// <param name="Size">
 /// Size in bytes of the exposed range. If <see langword="null"/>, the remaining bytes from

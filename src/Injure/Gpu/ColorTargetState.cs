@@ -8,9 +8,18 @@ namespace Injure.Gpu;
 /// <summary>
 /// Describes a color attachment in a render pipeline.
 /// </summary>
-/// <param name="Format">Color attachment format.</param>
-/// <param name="Blend">Optional blend state; use <see langword="null"/> for none.</param>
-/// <param name="WriteMask">Enabled color channels for writes.</param>
+/// <param name="Format">
+/// Format of the color attachment; must match the format of the view a render pass uses as that
+/// attachment.
+/// </param>
+/// <param name="Blend">
+/// Blend state, or <see langword="null"/> for the source to replace the destination. Blending
+/// requires a blendable format; 32-bit float formats are only blendable with
+/// <see cref="GpuFeatures.Float32Blendable"/>.
+/// </param>
+/// <param name="WriteMask">
+/// Channels the pipeline writes; the attachment keeps its contents in the others.
+/// </param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since its <see cref="Format"/> is
 /// <see cref="TextureFormat.Undefined"/>.
@@ -20,13 +29,10 @@ public readonly record struct ColorTargetState(
 	BlendState? Blend,
 	ColorWriteMask WriteMask
 ) : IHasInvalidDefault {
-	/// <summary>
-	/// Converts this value to a native WebGPU <see cref="WGPUColorTargetState"/>.
-	/// </summary>
 	/// <remarks>
-	/// Because the <see cref="WGPUColorTargetState.blend"/> field is a pointer,
-	/// requires passing in a scratch-buffer storage pointer. That pointer must be
-	/// kept alive together with the returned value.
+	/// <see cref="WGPUColorTargetState.blend"/> is a pointer, so this requires scratch storage in the
+	/// form of <paramref name="blendStorage"/>, which must be writable for one
+	/// <see cref="WGPUBlendState"/> and kept alive at least as long as the returned value.
 	/// </remarks>
 	internal unsafe WGPUColorTargetState ToWebgpuType(WGPUBlendState* blendStorage) {
 		WGPUColorTargetState ret = new() {

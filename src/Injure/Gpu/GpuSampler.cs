@@ -18,10 +18,45 @@ public abstract class GpuSamplerHandle {
 	/// freed by <see cref="GpuSampler.Dispose()"/>.
 	/// </summary>
 	/// <remarks>
-	/// <b>The return type is not a stable API and may change without notice.</b> See
+	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public WGPUSampler DangerousGetNative() => WgpuSampler;
+
+	/// <summary>
+	/// Parameters the sampler was created with.
+	/// </summary>
+	public abstract GpuSamplerParams Params { get; }
+
+	/// <inheritdoc cref="GpuSamplerParams.AddressModeU"/>
+	public AddressMode AddressModeU => Params.AddressModeU;
+
+	/// <inheritdoc cref="GpuSamplerParams.AddressModeV"/>
+	public AddressMode AddressModeV => Params.AddressModeV;
+
+	/// <inheritdoc cref="GpuSamplerParams.AddressModeW"/>
+	public AddressMode AddressModeW => Params.AddressModeW;
+
+	/// <inheritdoc cref="GpuSamplerParams.MagFilter"/>
+	public FilterMode MagFilter => Params.MagFilter;
+
+	/// <inheritdoc cref="GpuSamplerParams.MinFilter"/>
+	public FilterMode MinFilter => Params.MinFilter;
+
+	/// <inheritdoc cref="GpuSamplerParams.MipmapFilter"/>
+	public MipmapFilterMode MipmapFilter => Params.MipmapFilter;
+
+	/// <inheritdoc cref="GpuSamplerParams.LodMinClamp"/>
+	public float LodMinClamp => Params.LodMinClamp;
+
+	/// <inheritdoc cref="GpuSamplerParams.LodMaxClamp"/>
+	public float LodMaxClamp => Params.LodMaxClamp;
+
+	/// <inheritdoc cref="GpuSamplerParams.Compare"/>
+	public CompareFunction Compare => Params.Compare;
+
+	/// <inheritdoc cref="GpuSamplerParams.MaxAnisotropy"/>
+	public ushort MaxAnisotropy => Params.MaxAnisotropy;
 }
 
 /// <summary>
@@ -30,11 +65,14 @@ public abstract class GpuSamplerHandle {
 public sealed class GpuSampler : GpuSamplerHandle, IDisposable {
 	private WGPUSampler sampler;
 
-	internal GpuSampler(WGPUSampler sampler) {
+	internal GpuSampler(WGPUSampler sampler, in GpuSamplerParams @params) {
 		this.sampler = sampler;
+		Params = @params;
 	}
 
 	internal override WGPUSampler WgpuSampler => sampler;
+	/// <inheritdoc/>
+	public override GpuSamplerParams Params { get; }
 
 	/// <summary>
 	/// Creates a non-owning view of this sampler.
@@ -61,42 +99,52 @@ public sealed class GpuSamplerRef : GpuSamplerHandle {
 	}
 
 	internal override WGPUSampler WgpuSampler => source.WgpuSampler;
+	/// <inheritdoc/>
+	public override GpuSamplerParams Params => source.Params;
 }
 
 /// <summary>
 /// Parameters used to create a <see cref="GpuSampler"/>.
 /// </summary>
 /// <param name="AddressModeU">Address mode for the U axis.</param>
-/// <param name="AddressModeV">Address mode for the V axis, if applicable.</param>
-/// <param name="AddressModeW">Address mode for the W axis, if applicable.</param>
+/// <param name="AddressModeV">Address mode for the V axis; ignored for 1D textures.</param>
+/// <param name="AddressModeW">Address mode for the W axis; ignored for non-3D textures.</param>
 /// <param name="MagFilter">
-/// Magnification filter (behavior when the sampled area is smaller than or equal to one texel).
+/// Filter when the texture is magnified, i.e. when the level of detail is at most 0; see
+/// <see cref="MipmapFilterMode"/>. Must be <see cref="FilterMode.Linear"/> for anisotropic
+/// filtering, i.e. <see cref="MaxAnisotropy"/> &gt; 1.
 /// </param>
 /// <param name="MinFilter">
-/// Minification filter (behavior when the sampled area is larger than one texel).
+/// Filter when the texture is minified, i.e. when the level of detail is above 0, applied within
+/// each mip level that <paramref name="MipmapFilter"/> selects. Must be
+/// <see cref="FilterMode.Linear"/> for anisotropic filtering, i.e. <see cref="MaxAnisotropy"/>
+/// &gt; 1.
 /// </param>
-/// <param name="MipmapFilter">Mipmap filter (behavior when sampling between mipmap levels).</param>
+/// <param name="MipmapFilter">
+/// How the sampler selects and blends mip levels. Must be <see cref="MipmapFilterMode.Linear"/>
+/// for anisotropic filtering, i.e. <see cref="MaxAnisotropy"/> &gt; 1.
+/// </param>
 /// <param name="LodMinClamp">
-/// Minimum level of detail used internally when sampling a texture.
+/// Lower bound the level of detail is clamped to, relative to the view's base mip level; must not
+/// be negative.
 /// </param>
 /// <param name="LodMaxClamp">
-/// Maximum level of detail used internally when sampling a texture.
+/// Upper bound the level of detail is clamped to, relative to the view's base mip level; must not
+/// be smaller than <paramref name="LodMinClamp"/>. 0 restricts sampling to the base mip level.
 /// </param>
 /// <param name="Compare">
-/// If provided, the sampler will be a comparison sampler using the specified function.
+/// Comparison function, or <see cref="CompareFunction.Undefined"/> for a non-comparison sampler. A
+/// comparison sampler has to be bound as <see cref="SamplerBindingType.Comparison"/>; also see
+/// <see cref="CompareFunction"/> for what comparison samplers compare.
 /// </param>
-/// <param name="MaxAnisotropy">Maximum anisotropy clamp value.</param>
+/// <param name="MaxAnisotropy">
+/// Maximum anisotropy; 1 disables anisotropic filtering. WebGPU clamps larger values to what the
+/// platform supports, typically 16. Requires all three filters to be linear.
+/// </param>
 /// <remarks>
-/// <para>
-/// <paramref name="MagFilter"/>, <paramref name="MinFilter"/>, and <paramref name="MipmapFilter"/>
-/// must all be set to <see cref="FilterMode.Linear"/> (or <see cref="MipmapFilterMode.Linear"/>) if
-/// <paramref name="MaxAnisotropy"/> is larger than 1.
-/// </para>
-/// <para>
-/// The <see langword="default"/> value is invalid, since its <see cref="MaxAnisotropy"/> is 0.
-/// </para>
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly record struct GpuSamplerCreateParams(
+public readonly record struct GpuSamplerParams(
 	AddressMode AddressModeU,
 	AddressMode AddressModeV,
 	AddressMode AddressModeW,

@@ -15,23 +15,33 @@ namespace Injure.Gpu;
 /// </param>
 /// <param name="PassOp">Operation applied when both stencil and depth tests pass.</param>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is a test that always passes and keeps the
-/// stencil value, since WebGPU substitutes <see cref="CompareFunction.Always"/> and
-/// <see cref="StencilOperation.Keep"/> for the <c>Undefined</c> members.
+/// The <see langword="default"/> value is invalid. For a face that doesn't use the stencil, see
+/// <see cref="Keep"/>.
 /// </remarks>
 public readonly record struct StencilFaceState(
 	CompareFunction Compare,
 	StencilOperation FailOp,
 	StencilOperation DepthFailOp,
 	StencilOperation PassOp
-) {
+) : IHasInvalidDefault {
 	/// <summary>
-	/// Converts this value to a native WebGPU <see cref="WGPUStencilFaceState"/>.
+	/// <see cref="CompareFunction.Always"/> + <see cref="StencilOperation.Keep"/> on all three ops,
+	/// i.e. a test that always passes and keeps the stencil value, useful for a face that doesn't use
+	/// the stencil.
 	/// </summary>
+	public static readonly StencilFaceState Keep = new(
+		CompareFunction.Always,
+		StencilOperation.Keep,
+		StencilOperation.Keep,
+		StencilOperation.Keep
+	);
+
 	internal WGPUStencilFaceState ToWebgpuType() => new() {
 		compare = Compare.ToWebgpuType(),
 		failOp = FailOp.ToWebgpuType(),
 		depthFailOp = DepthFailOp.ToWebgpuType(),
 		passOp = PassOp.ToWebgpuType(),
 	};
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

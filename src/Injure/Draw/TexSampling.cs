@@ -7,8 +7,8 @@ using Injure.Primitives;
 namespace Injure.Draw;
 
 /// <summary>
-/// How a texture is filtered when sampled between texel centers; see <see cref="TexSampling"/> for
-/// when to use which.
+/// High-level texture filtering mode between texel centers. See <see cref="TexSampling"/> for when
+/// to use which.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -44,7 +44,7 @@ public readonly partial struct TexFilter {
 		/// </summary>
 		/// <remarks>
 		/// <para>
-		/// Implemented with a shader rather than a GPU sampler.
+		/// Implemented with a shader rather than a GPU sampler filtering mode.
 		/// </para>
 		/// <para>
 		/// The scale applies per texture axis, so a draw stretched along one axis and shrunk along the
@@ -74,8 +74,9 @@ public readonly partial struct TexFilter {
 }
 
 /// <summary>
-/// How texture UV coordinates outside of [0, 1] are handled. See <see cref="TexSampling"/> for
-/// when to use which; if you're not sure which one you want, it's most likely <see cref="Clamp"/>.
+/// High-level texture addressing mode for UV coordinates outside of [0, 1]. See
+/// <see cref="TexSampling"/> for when to use which; if you're not sure which one you want, it's
+/// most likely <see cref="Clamp"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -108,7 +109,7 @@ public readonly partial struct TexAddressing {
 }
 
 /// <summary>
-/// Texture sampling filter + address mode. The address mode is <see cref="TexAddressing.Clamp"/>
+/// Texture filter mode + address mode. The address mode is <see cref="TexAddressing.Clamp"/>
 /// unless explicitly set, since that's what you want most of the time.
 /// </summary>
 /// <param name="Filter">How the texture is filtered between texel centers.</param>
@@ -124,7 +125,7 @@ public readonly partial struct TexAddressing {
 /// exact for integer scales, and produces unevenly-sized pixels at non-integer scales. Movement
 /// usually also causes a "shimmer" from the uneven sizing from non-integer scale. Use
 /// <see cref="TexFilter.Nearest"/> for pixel art and anything else where keeping existing sharp
-/// pixel edges is important. Make sure to use an integer scale.
+/// pixel edges is important; make sure to use an integer scale.
 /// </para>
 /// <para>
 /// The second option, <see cref="TexFilter.Linear"/>, uses bilinear (or trilinear for multi-mip
@@ -148,7 +149,7 @@ public readonly partial struct TexAddressing {
 /// </para>
 /// <para>
 /// Linear filtering has two gotchas. The first is that without mips (see
-/// <see cref="Texture2dCreateParams.Mips"/>), shrinking a texture below about half its size still
+/// <see cref="Texture2dParams.Mips"/>), shrinking a texture below about half its size still
 /// aliases. The second is that, in an atlas, samples near a region's edge blend with the
 /// neighboring region, unless regions are padded by repeating their edge texels; smaller mip levels
 /// blend across a wider band, so they need more padding. <see cref="TexFilter.AreaWeighted"/> has

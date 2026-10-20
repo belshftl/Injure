@@ -35,7 +35,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		using GpuTexture a = GpuRig.Target(dev, 4, 4);
 		using GpuTexture small = GpuRig.Target(dev, 2, 2);
 		using GpuTexture ms = GpuRig.Target(dev, 4, 4, samples: 4);
-		using GpuTexture sampledOnly = dev.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture sampledOnly = dev.CreateTexture(new GpuTextureParams(
 			4, 4, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding));
 		using GpuTexture depth = GpuRig.Target(dev, 4, 4, format: TextureFormat.Depth32Float);
 		using GpuTexture srgb = GpuRig.Target(dev, 4, 4, format: TextureFormat.Rgba8UnormSrgb);
@@ -93,7 +93,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		Assert.Throws<ArgumentException>(() => tint.Pipeline(dev, [GpuRig.Opaque()],
 			primitive: new PrimitiveState(PrimitiveTopology.TriangleList, IndexFormat.Uint16, FrontFace.Ccw, CullMode.None, false)));
 		using GpuRenderPipeline strip = tint.Pipeline(dev, [GpuRig.Opaque()], primitive: new PrimitiveState(PrimitiveTopology.TriangleStrip));
-		Assert.Throws<ArgumentException>(() => dev.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+		Assert.Throws<ArgumentException>(() => dev.CreateRenderPipeline(new GpuRenderPipelineParams(
 			tint.PipelineLayout, new VertexState(tint.Shader, " "))));
 	}
 
@@ -106,7 +106,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 			@fragment fn fs() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
 			""");
 		using GpuPipelineLayout pl = dev.CreatePipelineLayout([]);
-		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineParams(
 			pl, new VertexState(sm, "vs"), new FragmentState(sm, "fs", [GpuRig.Opaque()])));
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
 		GpuRig.Run(dev, enc => {
@@ -130,7 +130,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		Assert.Throws<ArgumentException>(() => dev.CreateUniformBufferBindGroup(layout, ub, offset: 128));
 		Assert.Throws<ArgumentException>(() => dev.CreateUniformBufferBindGroup(layout, ub, offset: 32, size: 64));
 		Assert.Throws<ArgumentException>(() => dev.CreateUniformBufferBindGroup(layout, ub, size: 0));
-		Assert.Throws<ArgumentNullException>(() => dev.CreateBindGroup(layout, [new GpuBindGroupEntry(0, null!)]));
+		Assert.Throws<ArgumentNullException>(() => dev.CreateBindGroup(layout, [new GpuBindGroupEntry(1, null!)]));
 	}
 
 	// ==========================================================================
@@ -222,10 +222,84 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		Assert.Equal(new RawColor32(0, 128, 255, 255), GpuRig.At(GpuRig.Read(dev, outB), 4, 2, 2));
 	}
 
+	// ==========================================================================
+	// winding and culling
+
+	// draws `vertices` (xyz triples in NDC) green over a blue 4x4 target and reads the target back
+	private byte[] drawWound(float[] vertices, PrimitiveState primitive) {
+		using GpuRig.Tinted tint = new(dev, green);
+		using GpuRenderPipeline p = tint.Pipeline(dev, [GpuRig.Opaque()], primitive: primitive);
+		using GpuTexture target = GpuRig.Target(dev, 4, 4);
+		using GpuBuffer vb = GpuRig.BufferWith(dev, BufferUsage.Vertex, vertices.AsSpan());
+		GpuRig.Run(dev, enc => {
+			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(blue.ToRawF128()));
+			pass.SetPipeline(p);
+			pass.SetBindGroup(0, tint.Group, [0]);
+			pass.SetVertexBuffer(0, vb);
+			pass.Draw((uint)vertices.Length / 3);
+		});
+		return GpuRig.Read(dev, target);
+	}
+
+	private static float[] reversed(float[] tri) => [.. tri[6..9], .. tri[3..6], .. tri[0..3]];
+
+	private static void assertAll(byte[] texels, RawColor32 color) {
+		for (uint y = 0; y < 4; y++)
+			for (uint x = 0; x < 4; x++)
+				Assert.Equal(color, GpuRig.At(texels, 4, x, y));
+	}
+
+	// the fullscreen triangle is (-1, -1), (3, -1), (-1, 3) in NDC: counter-clockwise with +Y up
+	[Fact]
+	public void WindingIsCounterClockwiseInNdc() {
+		float[] ccw = GpuRig.Fullscreen();
+		float[] cw = reversed(ccw);
+		PrimitiveState ccwFront = new(PrimitiveTopology.TriangleList, FrontFace.Ccw, CullMode.Back);
+		PrimitiveState cwFront = new(PrimitiveTopology.TriangleList, FrontFace.Cw, CullMode.Back);
+		assertAll(drawWound(ccw, ccwFront), green);
+		assertAll(drawWound(cw, ccwFront), blue);
+		assertAll(drawWound(cw, cwFront), green);
+		assertAll(drawWound(ccw, cwFront), blue);
+	}
+
+	// the example from FrontFace's docs: a triangle that appears counter-clockwise on screen in Y-down
+	// pixel coordinates is counter-clockwise once a Y-flipping projection maps it to NDC, even though
+	// the usual Y-up shoelace sum is negative in pixel coordinates
+	[Fact]
+	public void WindingFollowsOnScreenOrientationOfYDownCoordinates() {
+		// top-left, bottom-left (past the target), top-right (past the target); covers the whole 4x4 target
+		(float X, float Y)[] px = [(0, 0), (0, 8), (8, 0)];
+		float shoelace = 0;
+		for (int i = 0; i < 3; i++)
+			shoelace += px[i].X * px[(i + 1) % 3].Y - px[(i + 1) % 3].X * px[i].Y;
+		Assert.True(shoelace < 0);
+
+		// projection for a 4x4 target with y = 0 at the top
+		float[] ndc = new float[9];
+		for (int i = 0; i < 3; i++) {
+			ndc[i * 3] = px[i].X / 2f - 1f;
+			ndc[i * 3 + 1] = 1f - px[i].Y / 2f;
+		}
+		assertAll(drawWound(ndc, new PrimitiveState(PrimitiveTopology.TriangleList, FrontFace.Ccw, CullMode.Back)), green);
+		assertAll(drawWound(ndc, new PrimitiveState(PrimitiveTopology.TriangleList, FrontFace.Cw, CullMode.Back)), blue);
+	}
+
+	// (0, 1, 2) is counter-clockwise; without the strip's vertex swap, (1, 2, 3) would be clockwise and
+	// the top-right half would be culled
+	[Fact]
+	public void TriangleStripKeepsOneWinding() {
+		float[] quad = [-1f, -1f, 0f, 1f, -1f, 0f, -1f, 1f, 0f, 1f, 1f, 0f];
+		PrimitiveState strip = new(PrimitiveTopology.TriangleStrip, FrontFace.Ccw, CullMode.Back);
+		assertAll(drawWound(quad, strip), green);
+	}
+
+	// no test for whether backface culling discards degenerate triangles, because they produce zero
+	// fragments even without culling
+
 	[Fact]
 	public void DepthTestKeepsTheNearerTriangle() {
 		using GpuRig.Tinted tint = new(dev, RawColor32.Red, green);
-		DepthStencilState depth = new(TextureFormat.Depth32Float, true, CompareFunction.Less, default, default);
+		DepthStencilState depth = new(TextureFormat.Depth32Float, true, CompareFunction.Less, StencilFaceState.Keep, StencilFaceState.Keep);
 		using GpuRenderPipeline p = tint.Pipeline(dev, [GpuRig.Opaque()], depthStencil: depth);
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
 		using GpuTexture depthTex = GpuRig.Target(dev, 4, 4, format: TextureFormat.Depth32Float);
@@ -283,7 +357,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	[Fact]
 	public void SampledTextureBindGroupWorks() {
 		// sample a 1x1 texture through a texture + sampler bind group
-		using GpuTexture src = dev.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture src = dev.CreateTexture(new GpuTextureParams(
 			1, 1, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding | TextureUsage.CopyDst
 		));
 		dev.WriteToTexture(src, GpuRig.Whole(src), new byte[] { 12, 34, 56, 255 }.AsSpan(), new GpuTextureLayout(0, 4, 1));
@@ -305,7 +379,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 			@fragment fn fs() -> @location(0) vec4f { return textureSample(tex, smp, vec2f(0.5, 0.5)); }
 			""");
 		using GpuPipelineLayout pl = dev.CreatePipelineLayout([bgl]);
-		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineParams(
 			pl, new VertexState(sm, "vs"), new FragmentState(sm, "fs", [GpuRig.Opaque()])
 		));
 		using GpuTexture target = GpuRig.Target(dev, 2, 2);
@@ -316,5 +390,37 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 			pass.Draw(3);
 		});
 		Assert.Equal(new RawColor32(12, 34, 56, 255), GpuRig.At(GpuRig.Read(dev, target), 2, 1, 1));
+	}
+
+	// ==========================================================================
+	// storage textures
+	[Fact]
+	public void ReadOnlyAndReadWriteStorageTexturesCompile() {
+		using GpuShaderModule shader = dev.CreateShaderModuleWgsl("""
+			@group(0) @binding(0) var rw: texture_storage_2d<r32float, read_write>;
+			@group(0) @binding(1) var ro: texture_storage_2d<r32float, read>;
+			@vertex fn vs(@location(0) p: vec3f) -> @builtin(position) vec4f { return vec4f(p, 1.0); }
+			@fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+				let c = vec2u(pos.xy);
+				let v = textureLoad(rw, c).x + textureLoad(ro, c).x;
+				textureStore(rw, c, vec4f(v, 0.0, 0.0, 0.0));
+				return vec4f(v);
+			}
+			""");
+		using GpuBindGroupLayout layout = dev.CreateBindGroupLayout([
+			new GpuBindGroupLayoutEntry(0, ShaderStage.Fragment, new GpuStorageTextureBindingLayout(
+				StorageTextureAccess.ReadWrite, TextureFormat.R32Float, TextureViewDimension.Dimension2d
+			)),
+			new GpuBindGroupLayoutEntry(1, ShaderStage.Fragment, new GpuStorageTextureBindingLayout(
+				StorageTextureAccess.ReadOnly, TextureFormat.R32Float, TextureViewDimension.Dimension2d
+			)),
+		]);
+		using GpuPipelineLayout pipelineLayout = dev.CreatePipelineLayout([layout]);
+		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineParams(
+			pipelineLayout,
+			new VertexState(shader, "vs", [GpuRig.Vertex3]),
+			new FragmentState(shader, "fs", [GpuRig.Opaque()])
+		));
+		Assert.Empty(Errors.TakeAll());
 	}
 }

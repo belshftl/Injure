@@ -62,7 +62,8 @@ public readonly partial struct BufferUsage {
 		Storage = 0x80ul,
 
 		/// <summary>
-		/// Can hold indirect draw arguments.
+		/// Can hold the arguments of <see cref="RenderPass.DrawIndirect(GpuBufferHandle, ulong)"/> and
+		/// <see cref="RenderPass.DrawIndexedIndirect(GpuBufferHandle, ulong)"/>.
 		/// </summary>
 		Indirect = 0x100ul,
 

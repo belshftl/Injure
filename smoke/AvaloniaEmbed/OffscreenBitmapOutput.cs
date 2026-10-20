@@ -36,7 +36,7 @@ public sealed class OffscreenBitmapOutput : IRenderOutput {
 		Width = width;
 		Height = height;
 		pitch = (width * 4 + 255) / 256 * 256;
-		texture = device.CreateTexture(new GpuTextureCreateParams(
+		texture = device.CreateTexture(new GpuTextureParams(
 			width, height, 1, 1, 1, TextureDimension.Dimension2d,
 			Format, TextureUsage.RenderAttachment | TextureUsage.CopySrc
 		));

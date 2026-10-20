@@ -18,7 +18,7 @@ public abstract class GpuShaderModuleHandle {
 	/// once freed by <see cref="GpuShaderModule.Dispose()"/>.
 	/// </summary>
 	/// <remarks>
-	/// <b>The return type is not a stable API and may change without notice.</b> See
+	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public WGPUShaderModule DangerousGetNative() => WgpuShaderModule;

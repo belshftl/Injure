@@ -18,7 +18,7 @@ public abstract class GpuRenderPipelineHandle {
 	/// once freed by <see cref="GpuRenderPipeline.Dispose()"/>.
 	/// </summary>
 	/// <remarks>
-	/// <b>The return type is not a stable API and may change without notice.</b> See
+	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public WGPURenderPipeline DangerousGetNative() => WgpuRenderPipeline;
@@ -83,7 +83,7 @@ public sealed class GpuRenderPipelineRef : GpuRenderPipelineHandle {
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
-public readonly record struct GpuRenderPipelineCreateParams(
+public readonly record struct GpuRenderPipelineParams(
 	GpuPipelineLayoutHandle Layout,
 	VertexState Vertex,
 	FragmentState? Fragment = null,

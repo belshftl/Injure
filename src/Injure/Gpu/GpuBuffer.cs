@@ -200,6 +200,7 @@ public sealed unsafe class GpuBuffer : GpuBufferHandle, IDisposable {
 
 	private MapRequest beginMap(MapMode mode, ulong offset, ulong? size, Action<BufferMapStatus>? callback) {
 		ObjectDisposedException.ThrowIf(buffer.IsNull, this);
+		ArgumentInvalidDefaultException.ThrowIfDefault(mode);
 		if (MapState != BufferMapState.Unmapped)
 			throw new InvalidOperationException($"buffer must be unmapped to be mapped, but is {MapState}");
 		BufferUsage needed = mode == MapMode.Read ? BufferUsage.MapRead : BufferUsage.MapWrite;

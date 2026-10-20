@@ -580,7 +580,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	// 4x4 checkerboard of a and b
 	private Texture2d checker(RawColor32 a, RawColor32 b, Texture2dMipFilter? mips) {
-		Texture2d tex = new(Device, new Texture2dCreateParams(4, 4, Mips: mips));
+		Texture2d tex = new(Device, new Texture2dParams(4, 4, Mips: mips));
 		byte[] px = new byte[4 * 4 * 4];
 		for (int y = 0; y < 4; y++)
 			for (int x = 0; x < 4; x++)
@@ -611,9 +611,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void TexturesHaveFullMipChainsWhenAskedTo() {
-		using Texture2d oneByOne = new(Device, new Texture2dCreateParams(1, 1, Mips: Texture2dMipFilter.Raw));
-		using Texture2d wide = new(Device, new Texture2dCreateParams(5, 3, Mips: Texture2dMipFilter.Raw));
-		using Texture2d big = new(Device, new Texture2dCreateParams(256, 64, Mips: Texture2dMipFilter.Color));
+		using Texture2d oneByOne = new(Device, new Texture2dParams(1, 1, Mips: Texture2dMipFilter.Raw));
+		using Texture2d wide = new(Device, new Texture2dParams(5, 3, Mips: Texture2dMipFilter.Raw));
+		using Texture2d big = new(Device, new Texture2dParams(256, 64, Mips: Texture2dMipFilter.Color));
 		Assert.Equal(1u, oneByOne.MipLevelCount);
 		Assert.Equal(3u, wide.MipLevelCount);
 		Assert.Equal(9u, big.MipLevelCount);
@@ -623,8 +623,8 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		Assert.Equal(1u, single.MipLevelCount);
 		Assert.Null(single.MipFilter);
 		Assert.Throws<InvalidOperationException>(single.GenerateMips);
-		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2d(Device, new Texture2dCreateParams(4, 4, Mips: default(Texture2dMipFilter))));
-		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2d(Device, new Texture2dCreateParams(4, 4, Format: default(Texture2dFormat))));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2d(Device, new Texture2dParams(4, 4, Mips: default(Texture2dMipFilter))));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2d(Device, new Texture2dParams(4, 4, Format: default(Texture2dFormat))));
 	}
 
 	[Fact]
@@ -1299,9 +1299,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void RenderTargetsRejectMismatchedFormats() {
-		Assert.Throws<ArgumentException>(() => new RenderTarget2d(Device, new RenderTarget2dCreateParams(4, 4, TextureFormat.Depth32Float)));
-		Assert.Throws<ArgumentException>(() => new RenderTarget2d(Device, new RenderTarget2dCreateParams(4, 4, TextureFormat.Rgba8Unorm, TextureFormat.Stencil8)));
-		using RenderTarget2d withDepth = new(Device, new RenderTarget2dCreateParams(4, 4, TextureFormat.Rgba8Unorm, TextureFormat.Depth24PlusStencil8));
+		Assert.Throws<ArgumentException>(() => new RenderTarget2d(Device, new RenderTarget2dParams(4, 4, TextureFormat.Depth32Float)));
+		Assert.Throws<ArgumentException>(() => new RenderTarget2d(Device, new RenderTarget2dParams(4, 4, TextureFormat.Rgba8Unorm, TextureFormat.Stencil8)));
+		using RenderTarget2d withDepth = new(Device, new RenderTarget2dParams(4, 4, TextureFormat.Rgba8Unorm, TextureFormat.Depth24PlusStencil8));
 		Assert.Throws<ArgumentNullException>(() => withDepth.CreateFilteringDepthBindGroup(null!));
 		using GpuSampler comparison = Device.CreateSampler(SamplerStates.LinearClamp with { Compare = CompareFunction.Less });
 		using GpuBindGroup group = withDepth.CreateComparisonDepthBindGroup(comparison);

@@ -20,7 +20,7 @@ public interface ISurfaceHost {
 	/// the native view), throw instead; the exception reaches whoever triggered the call, such as
 	/// the caller of <see cref="SurfaceRenderOutput.TryAcquire(out IAcquiredOutput?)"/>. Returning
 	/// a stale handle isn't detected, and creating a surface on one can abort the process inside
-	/// the native WebGPU implementation; wgpu-native does on, for example, X11.
+	/// wgpu-native on, for example, X11.
 	/// </para>
 	/// <para>
 	/// To avoid getting there, dispose surfaces created on a native object before destroying it.

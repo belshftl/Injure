@@ -177,8 +177,8 @@ public sealed class RenderTarget2d : IDisposable {
 	/// <param name="device">Device to create the render target on.</param>
 	/// <param name="width">Width in texels.</param>
 	/// <param name="height">Height in texels.</param>
-	/// <inheritdoc cref="RenderTarget2d(GpuDevice, in RenderTarget2dCreateParams)" path="/exception"/>
-	public RenderTarget2d(GpuDevice device, uint width, uint height) : this(device, new RenderTarget2dCreateParams(width, height, TextureFormat.Rgba8Unorm)) {
+	/// <inheritdoc cref="RenderTarget2d(GpuDevice, in RenderTarget2dParams)" path="/exception"/>
+	public RenderTarget2d(GpuDevice device, uint width, uint height) : this(device, new RenderTarget2dParams(width, height, TextureFormat.Rgba8Unorm)) {
 	}
 
 	/// <summary>
@@ -195,7 +195,7 @@ public sealed class RenderTarget2d : IDisposable {
 	/// <exception cref="ArgumentException">
 	/// Thrown if the color format is a depth/stencil format, or the depth/stencil format has no depth.
 	/// </exception>
-	public RenderTarget2d(GpuDevice device, in RenderTarget2dCreateParams @params) {
+	public RenderTarget2d(GpuDevice device, in RenderTarget2dParams @params) {
 		this.device = device ?? throw new ArgumentNullException(nameof(device));
 		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Width);
@@ -210,7 +210,7 @@ public sealed class RenderTarget2d : IDisposable {
 		GpuTextureView? depthSample = null;
 		try {
 			color = device.CreateTexture(
-				new GpuTextureCreateParams(
+				new GpuTextureParams(
 					Width: @params.Width,
 					Height: @params.Height,
 					DepthOrArrayLayers: 1,
@@ -223,7 +223,7 @@ public sealed class RenderTarget2d : IDisposable {
 			);
 			if (@params.DepthStencilFormat is TextureFormat fmt) {
 				depthStencil = device.CreateTexture(
-					new GpuTextureCreateParams(
+					new GpuTextureParams(
 						Width: @params.Width,
 						Height: @params.Height,
 						DepthOrArrayLayers: 1,
@@ -237,7 +237,7 @@ public sealed class RenderTarget2d : IDisposable {
 				// if the format has stencil we need a separate view for sampling
 				depthSample = formatHasStencil(fmt)
 					? depthStencil.CreateView(
-						new GpuTextureViewCreateParams(
+						new GpuTextureViewParams(
 							Format: null,
 							Dimension: null,
 							Aspect: TextureAspect.DepthOnly
@@ -362,7 +362,7 @@ public sealed class RenderTarget2d : IDisposable {
 /// The <see langword="default"/> value is invalid, since its width and height are 0 and its color
 /// format is <see cref="TextureFormat.Undefined"/>.
 /// </remarks>
-public readonly record struct RenderTarget2dCreateParams(
+public readonly record struct RenderTarget2dParams(
 	uint Width,
 	uint Height,
 	TextureFormat ColorFormat,

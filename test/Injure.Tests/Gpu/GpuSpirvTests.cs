@@ -50,7 +50,7 @@ public sealed class GpuSpirvTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 		// one module through each overload
 		using GpuShaderModule vs = Device.CreateShaderModuleSpirv(loadFixture("tint.vert").AsSpan());
 		using GpuShaderModule fs = Device.CreateShaderModuleSpirv(words(loadFixture("tint.frag")).AsSpan());
-		using GpuRenderPipeline spirv = Device.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+		using GpuRenderPipeline spirv = Device.CreateRenderPipeline(new GpuRenderPipelineParams(
 			tint.PipelineLayout,
 			new VertexState(vs, "main", [GpuRig.Vertex3]),
 			new FragmentState(fs, "main", [GpuRig.Opaque()])

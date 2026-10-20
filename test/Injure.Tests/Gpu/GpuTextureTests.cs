@@ -10,7 +10,7 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 
 	[Fact]
 	public void CreateTextureReportsItsParameters() {
-		using GpuTexture tex = dev.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
 			8, 4, 3, 2, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding | TextureUsage.CopyDst,
 			[TextureFormat.Rgba8UnormSrgb]
 		));
@@ -35,10 +35,10 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 
 	[Fact]
 	public void CreateTextureRejectsBadViewFormats() {
-		Assert.Throws<ArgumentException>(() => dev.CreateTexture(new GpuTextureCreateParams(
+		Assert.Throws<ArgumentException>(() => dev.CreateTexture(new GpuTextureParams(
 			4, 4, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding, [GpuRig.Format]
 		)));
-		Assert.Throws<ArgumentException>(() => dev.CreateTexture(new GpuTextureCreateParams(
+		Assert.Throws<ArgumentException>(() => dev.CreateTexture(new GpuTextureParams(
 			4, 4, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding,
 			[TextureFormat.Rgba8UnormSrgb, TextureFormat.Rgba8UnormSrgb]
 		)));
@@ -46,10 +46,10 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 
 	[Fact]
 	public void ViewsCoverTheRequestedSubresources() {
-		using GpuTexture tex = dev.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
 			16, 16, 4, 3, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
 		));
-		using GpuTextureView view = tex.CreateView(new GpuTextureViewCreateParams(
+		using GpuTextureView view = tex.CreateView(new GpuTextureViewParams(
 			null, TextureViewDimension.Dimension2d, TextureAspect.All, BaseMipLevel: 1, MipLevelCount: 1, BaseArrayLayer: 2
 		));
 		Assert.Equal((1u, 1u, 2u, 1u), (view.BaseMipLevel, view.MipLevelCount, view.BaseArrayLayer, view.ArrayLayerCount));
@@ -58,22 +58,22 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 
 	[Fact]
 	public void AspectViewsOfDepthStencilPickAspectFormats() {
-		using GpuTexture tex = dev.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
 			4, 4, 1, 1, 1, TextureDimension.Dimension2d, TextureFormat.Depth24PlusStencil8, TextureUsage.TextureBinding
 		));
-		using GpuTextureView depth = tex.CreateView(new GpuTextureViewCreateParams(null, null, TextureAspect.DepthOnly));
-		using GpuTextureView stencil = tex.CreateView(new GpuTextureViewCreateParams(null, null, TextureAspect.StencilOnly));
+		using GpuTextureView depth = tex.CreateView(new GpuTextureViewParams(null, null, TextureAspect.DepthOnly));
+		using GpuTextureView stencil = tex.CreateView(new GpuTextureViewParams(null, null, TextureAspect.StencilOnly));
 		Assert.Equal(TextureFormat.Depth24Plus, depth.Format);
 		Assert.Equal(TextureFormat.Stencil8, stencil.Format);
-		Assert.Throws<ArgumentException>(() => tex.CreateView(default));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => tex.CreateView(default));
 
 		using GpuTexture color = GpuRig.Target(dev, 4, 4);
-		Assert.Throws<ArgumentException>(() => color.CreateView(new GpuTextureViewCreateParams(null, null, TextureAspect.DepthOnly)));
+		Assert.Throws<ArgumentException>(() => color.CreateView(new GpuTextureViewParams(null, null, TextureAspect.DepthOnly)));
 	}
 
 	[Fact]
 	public void QueueWritesToTextureRespectRowPitch() {
-		using GpuTexture tex = dev.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
 			2, 2, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.CopySrc | TextureUsage.CopyDst
 		));
 		// 12-byte row pitch, i.e. 4 bytes of padding per row, which queue writes allow

@@ -18,25 +18,32 @@ public abstract class GpuTextureViewHandle {
 	/// once freed by <see cref="GpuTextureView.Dispose()"/>.
 	/// </summary>
 	/// <remarks>
-	/// <b>The return type is not a stable API and may change without notice.</b> See
+	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public WGPUTextureView DangerousGetNative() => WgpuTextureView;
 
 	/// <summary>
+	/// Parameters the view was created with, with every <see langword="null"/> field replaced by the
+	/// value it resolved to. Passing them to <see cref="GpuTextureHandle.CreateView"/> of the same
+	/// texture creates an equivalent view.
+	/// </summary>
+	public abstract GpuTextureViewParams Params { get; }
+
+	/// <summary>
 	/// Format of the view.
 	/// </summary>
-	public abstract TextureFormat Format { get; }
+	public TextureFormat Format => Params.Format.GetValueOrDefault();
 
 	/// <summary>
 	/// Dimension of the view.
 	/// </summary>
-	public abstract TextureViewDimension Dimension { get; }
+	public TextureViewDimension Dimension => Params.Dimension.GetValueOrDefault();
 
 	/// <summary>
 	/// Which aspects of the texture are accessible to the view.
 	/// </summary>
-	public abstract TextureAspect Aspect { get; }
+	public TextureAspect Aspect => Params.Aspect;
 
 	/// <summary>
 	/// Allowed usages for this view.
@@ -49,40 +56,40 @@ public abstract class GpuTextureViewHandle {
 	/// <summary>
 	/// Base (most detailed) mipmap level accessible to the view.
 	/// </summary>
-	public abstract uint BaseMipLevel { get; }
+	public uint BaseMipLevel => Params.BaseMipLevel;
 
 	/// <summary>
 	/// How many mipmap levels, starting with <see cref="BaseMipLevel"/>, are accessible to the view.
 	/// </summary>
-	public abstract uint MipLevelCount { get; }
+	public uint MipLevelCount => Params.MipLevelCount.GetValueOrDefault();
 
 	/// <summary>
 	/// First array layer accessible to the view.
 	/// </summary>
-	public abstract uint BaseArrayLayer { get; }
+	public uint BaseArrayLayer => Params.BaseArrayLayer;
 
 	/// <summary>
 	/// How many array layers, starting with <see cref="BaseArrayLayer"/>, are accessible to the view.
 	/// </summary>
-	public abstract uint ArrayLayerCount { get; }
+	public uint ArrayLayerCount => Params.ArrayLayerCount.GetValueOrDefault();
 
 	/// <summary>
-	/// Width of the view.
+	/// Width of the view's base mip level in texels.
 	/// </summary>
 	public abstract uint Width { get; }
 
 	/// <summary>
-	/// Height of the view (1 for 1D views).
+	/// Height of the view's base mip level in texels; 1 for 1D views.
 	/// </summary>
 	public abstract uint Height { get; }
 
 	/// <summary>
-	/// Depth of the view (1 for non-3D views).
+	/// Depth of the view's base mip level in texels; 1 for views other than 3D ones.
 	/// </summary>
 	public abstract uint Depth { get; }
 
 	/// <summary>
-	/// Sample count of the view.
+	/// Samples per texel; 1 unless the texture is multisampled.
 	/// </summary>
 	public abstract uint SampleCount { get; }
 }
@@ -95,28 +102,16 @@ public sealed class GpuTextureView : GpuTextureViewHandle, IDisposable {
 
 	internal GpuTextureView(
 		WGPUTextureView texView,
-		TextureFormat format,
-		TextureViewDimension dimension,
-		TextureAspect aspect,
+		in GpuTextureViewParams @params,
 		TextureUsage usage,
-		uint baseMipLevel,
-		uint mipLevelCount,
-		uint baseArrayLayer,
-		uint arrayLayerCount,
 		uint width,
 		uint height,
 		uint depth,
 		uint sampleCount
 	) {
 		this.texView = texView;
-		Format = format;
-		Dimension = dimension;
-		Aspect = aspect;
+		Params = @params;
 		Usage = usage;
-		BaseMipLevel = baseMipLevel;
-		MipLevelCount = mipLevelCount;
-		BaseArrayLayer = baseArrayLayer;
-		ArrayLayerCount = arrayLayerCount;
 		Width = width;
 		Height = height;
 		Depth = depth;
@@ -125,21 +120,9 @@ public sealed class GpuTextureView : GpuTextureViewHandle, IDisposable {
 
 	internal override WGPUTextureView WgpuTextureView => texView;
 	/// <inheritdoc/>
-	public override TextureFormat Format { get; }
-	/// <inheritdoc/>
-	public override TextureViewDimension Dimension { get; }
-	/// <inheritdoc/>
-	public override TextureAspect Aspect { get; }
+	public override GpuTextureViewParams Params { get; }
 	/// <inheritdoc/>
 	public override TextureUsage Usage { get; }
-	/// <inheritdoc/>
-	public override uint BaseMipLevel { get; }
-	/// <inheritdoc/>
-	public override uint MipLevelCount { get; }
-	/// <inheritdoc/>
-	public override uint BaseArrayLayer { get; }
-	/// <inheritdoc/>
-	public override uint ArrayLayerCount { get; }
 	/// <inheritdoc/>
 	public override uint Width { get; }
 	/// <inheritdoc/>
@@ -175,21 +158,9 @@ public sealed class GpuTextureViewRef : GpuTextureViewHandle {
 
 	internal override WGPUTextureView WgpuTextureView => source.WgpuTextureView;
 	/// <inheritdoc/>
-	public override TextureFormat Format => source.Format;
-	/// <inheritdoc/>
-	public override TextureViewDimension Dimension => source.Dimension;
-	/// <inheritdoc/>
-	public override TextureAspect Aspect => source.Aspect;
+	public override GpuTextureViewParams Params => source.Params;
 	/// <inheritdoc/>
 	public override TextureUsage Usage => source.Usage;
-	/// <inheritdoc/>
-	public override uint BaseMipLevel => source.BaseMipLevel;
-	/// <inheritdoc/>
-	public override uint MipLevelCount => source.MipLevelCount;
-	/// <inheritdoc/>
-	public override uint BaseArrayLayer => source.BaseArrayLayer;
-	/// <inheritdoc/>
-	public override uint ArrayLayerCount => source.ArrayLayerCount;
 	/// <inheritdoc/>
 	public override uint Width => source.Width;
 	/// <inheritdoc/>
@@ -206,14 +177,14 @@ public sealed class GpuTextureViewRef : GpuTextureViewHandle {
 /// <param name="Format">
 /// <para>
 /// If <see cref="Aspect"/> is <see cref="TextureAspect.All"/>, this must be either the texture's
-/// format or one of its <see cref="GpuTextureCreateParams.ViewFormats"/>. If <see cref="Aspect"/>
+/// format or one of its <see cref="GpuTextureParams.ViewFormats"/>. If <see cref="Aspect"/>
 /// is <see cref="TextureAspect.DepthOnly"/> or <see cref="TextureAspect.StencilOnly"/>, this must
 /// be the corresponding aspect-specific format of the texture's depth/stencil format.
 /// </para>
 /// <para>
 /// Can be <see langword="null"/> to use the default of:
 /// <list type="bullet">
-/// <item><description>The texture's format for<see cref="TextureAspect.All"/>.</description></item>
+/// <item><description>The texture's format for <see cref="TextureAspect.All"/>.</description></item>
 /// <item><description>
 /// <see cref="TextureFormat.Depth24Plus"/> or <see cref="TextureFormat.Depth32Float"/>
 /// for depth-only views of combined depth+stencil textures.
@@ -253,12 +224,12 @@ public sealed class GpuTextureViewRef : GpuTextureViewHandle {
 /// Usage flags are currently not settable; proper support is planned.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is invalid, since its <see cref="Aspect"/> is
-/// <see cref="TextureAspect.Undefined"/>. <c>new GpuTextureViewCreateParams()</c> views the whole
-/// texture with the format and dimension derived from it.
+/// The <see langword="default"/> value is invalid, since its <see cref="Aspect"/> is invalid.
+/// <c>new GpuTextureViewParams()</c> views the whole texture with the format and dimension derived
+/// from it.
 /// </para>
 /// </remarks>
-public readonly record struct GpuTextureViewCreateParams(
+public readonly record struct GpuTextureViewParams(
 	TextureFormat? Format,
 	TextureViewDimension? Dimension,
 	TextureAspect Aspect,
@@ -271,7 +242,7 @@ public readonly record struct GpuTextureViewCreateParams(
 	/// Creates parameters for a view of the whole texture, with the format and dimension derived
 	/// from it.
 	/// </summary>
-	public GpuTextureViewCreateParams() : this(null, null, TextureAspect.All) {}
+	public GpuTextureViewParams() : this(null, null, TextureAspect.All) {}
 
 	bool IHasInvalidDefault.IsDefault => this == default;
 }

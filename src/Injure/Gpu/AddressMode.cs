@@ -10,18 +10,13 @@ namespace Injure.Gpu;
 /// How a sampler handles texture coordinates outside [0.0, 1.0].
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUAddressMode))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUAddressMode), Subset = true)]
 public readonly partial struct AddressMode {
 	/// <summary>Raw switch tag for <see cref="AddressMode"/>.</summary>
 	public enum Case {
-		/// <summary>
-		/// No value; WebGPU uses <see cref="ClampToEdge"/>.
-		/// </summary>
-		Undefined = 0,
-
 		/// <summary>
 		/// Texture coordinates are clamped to [0.0, 1.0].
 		/// </summary>

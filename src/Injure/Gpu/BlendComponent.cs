@@ -6,27 +6,30 @@ using WebGPU;
 namespace Injure.Gpu;
 
 /// <summary>
-/// Describes how the color/alpha of a fragment is blended.
+/// Describes how the color/alpha of a fragment is blended: the result is
+/// <see cref="Operation"/> applied to the source times <see cref="SrcFactor"/> and the destination
+/// times <see cref="DstFactor"/>.
 /// </summary>
-/// <param name="Operation">Blend operation to apply.</param>
-/// <param name="SrcFactor">Factor applied to the source value.</param>
-/// <param name="DstFactor">Factor applied to the destination value.</param>
+/// <param name="Operation">How the weighted source and destination combine.</param>
+/// <param name="SrcFactor">
+/// Factor that the source, i.e. the fragment shader output, is multiplied by.
+/// </param>
+/// <param name="DstFactor">
+/// Factor that the destination, i.e. what the attachment already contains, is multiplied by.
+/// </param>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="BlendOperation.Add"/> with
-/// factors <see cref="BlendFactor.One"/> and <see cref="BlendFactor.Zero"/>, i.e. the source
-/// replaces the destination, since WebGPU substitutes those for the <c>Undefined</c> members.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly record struct BlendComponent(
 	BlendOperation Operation,
 	BlendFactor SrcFactor,
 	BlendFactor DstFactor
-) {
-	/// <summary>
-	/// Converts this value to a native WebGPU <see cref="WGPUBlendComponent"/>.
-	/// </summary>
+) : IHasInvalidDefault {
 	internal WGPUBlendComponent ToWebgpuType() => new() {
 		operation = Operation.ToWebgpuType(),
 		srcFactor = SrcFactor.ToWebgpuType(),
 		dstFactor = DstFactor.ToWebgpuType(),
 	};
+
+	bool IHasInvalidDefault.IsDefault => this == default;
 }

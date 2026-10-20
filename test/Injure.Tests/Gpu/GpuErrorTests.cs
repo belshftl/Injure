@@ -125,7 +125,7 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 		using GpuShaderModule bad = Device.CreateShaderModuleWgsl("fn oops( {");
 		Assert.Single(Errors.TakeAll());
 		using GpuPipelineLayout pl = Device.CreatePipelineLayout([]);
-		using GpuRenderPipeline p = Device.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+		using GpuRenderPipeline p = Device.CreateRenderPipeline(new GpuRenderPipelineParams(
 			pl, new VertexState(bad, "vs"), new FragmentState(bad, "fs", [GpuRig.Opaque()])
 		));
 		Assert.NotEmpty(Errors.TakeAll());
@@ -204,7 +204,7 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 	public void PipelineLayoutNotMatchingTheShaderIsReported() {
 		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuPipelineLayout empty = Device.CreatePipelineLayout([]);
-		using GpuRenderPipeline p = Device.CreateRenderPipeline(new GpuRenderPipelineCreateParams(
+		using GpuRenderPipeline p = Device.CreateRenderPipeline(new GpuRenderPipelineParams(
 			empty, new VertexState(tint.Shader, "vs", [GpuRig.Vertex3]), new FragmentState(tint.Shader, "fs", [GpuRig.Opaque()])
 		));
 		Assert.Equal(GpuErrorKind.Validation, Assert.Single(Errors.TakeAll()).Kind);

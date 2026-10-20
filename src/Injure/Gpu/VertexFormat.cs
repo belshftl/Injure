@@ -10,19 +10,13 @@ namespace Injure.Gpu;
 /// The format of a vertex attribute in a vertex buffer, and the type the shader reads it as.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="None"/>, which is invalid for
-/// vertex attributes.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUVertexFormat))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUVertexFormat), Subset = true)]
 public readonly partial struct VertexFormat {
 	/// <summary>Raw switch tag for <see cref="VertexFormat"/>.</summary>
 	public enum Case {
-		/// <summary>
-		/// No format. Invalid for vertex attributes.
-		/// </summary>
-		None = 0,
-
 		/// <summary>
 		/// One 8-bit unsigned integer component; read as <c>u32</c>.
 		/// </summary>

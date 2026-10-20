@@ -83,10 +83,10 @@ public readonly partial struct Texture2dMipFilter {
 /// sampler; how <see cref="Canvas"/> samples it is draw state (<see cref="TexSampling"/>).
 /// </para>
 /// <para>
-/// It has either a single mip level, or a full mip chain (down to 1x1) if created with
-/// <see cref="Texture2dCreateParams.Mips"/>. Uploads only write the base level; the other levels
-/// are computed from it on the GPU, the first time the texture is drawn after an upload, or by
-/// <see cref="GenerateMips()"/>.
+/// Has either a single mip level, or a full mip chain (down to 1x1) if created with
+/// <see cref="Texture2dParams.Mips"/>. Uploads only write the base level; the other levels
+/// are computed from it on the GPU, either automatically when the texture is drawn for the first
+/// time after an upload, or manually by <see cref="GenerateMips()"/>.
 /// </para>
 /// <para>
 /// A texture loaded through an <see cref="AssetStore"/> is owned by the store until the store
@@ -173,9 +173,9 @@ public sealed class Texture2d : IAssetStoreDisposable {
 	/// <param name="device">Device to create the texture on.</param>
 	/// <param name="width">Width in texels.</param>
 	/// <param name="height">Height in texels.</param>
-	/// <inheritdoc cref="Texture2d(GpuDevice, in Texture2dCreateParams)" path="/exception"/>
+	/// <inheritdoc cref="Texture2d(GpuDevice, in Texture2dParams)" path="/exception"/>
 	public Texture2d(GpuDevice device, uint width, uint height)
-		: this(device, new Texture2dCreateParams(width, height)) {
+		: this(device, new Texture2dParams(width, height)) {
 	}
 
 	/// <summary>
@@ -185,9 +185,9 @@ public sealed class Texture2d : IAssetStoreDisposable {
 	/// <param name="width">Width in texels.</param>
 	/// <param name="height">Height in texels.</param>
 	/// <param name="format">Storage format.</param>
-	/// <inheritdoc cref="Texture2d(GpuDevice, in Texture2dCreateParams)" path="/exception"/>
+	/// <inheritdoc cref="Texture2d(GpuDevice, in Texture2dParams)" path="/exception"/>
 	public Texture2d(GpuDevice device, uint width, uint height, Texture2dFormat format)
-		: this(device, new Texture2dCreateParams(width, height, format)) {
+		: this(device, new Texture2dParams(width, height, format)) {
 	}
 
 	/// <summary>
@@ -204,7 +204,7 @@ public sealed class Texture2d : IAssetStoreDisposable {
 	/// <exception cref="ArgumentInvalidDefaultException">
 	/// Thrown if the format or mip filter is the invalid <see langword="default"/> value.
 	/// </exception>
-	public Texture2d(GpuDevice device, in Texture2dCreateParams @params) {
+	public Texture2d(GpuDevice device, in Texture2dParams @params) {
 		ArgumentNullException.ThrowIfNull(device);
 		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
 		ArgumentOutOfRangeException.ThrowIfZero(@params.Width);
@@ -221,7 +221,7 @@ public sealed class Texture2d : IAssetStoreDisposable {
 		MipFilter = @params.Mips;
 
 		texture = device.CreateTexture(
-			new GpuTextureCreateParams(
+			new GpuTextureParams(
 				Width: @params.Width,
 				Height: @params.Height,
 				DepthOrArrayLayers: 1,
@@ -400,7 +400,7 @@ public sealed class Texture2d : IAssetStoreDisposable {
 /// The <see langword="default"/> value is invalid, since its width and height are 0 and its
 /// <see cref="Format"/> is invalid.
 /// </remarks>
-public readonly record struct Texture2dCreateParams(
+public readonly record struct Texture2dParams(
 	uint Width,
 	uint Height,
 	Texture2dFormat? Format = null,

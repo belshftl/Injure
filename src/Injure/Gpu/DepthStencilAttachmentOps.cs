@@ -10,7 +10,8 @@ namespace Injure.Gpu;
 /// <param name="LoadOp">What to do with the existing depth values at the start of the pass.</param>
 /// <param name="StoreOp">What to do with the rendered depth values at the end of the pass.</param>
 /// <param name="ClearValue">
-/// Depth to clear to if <paramref name="LoadOp"/> is <see cref="LoadOp.Clear"/>; must be in [0, 1].
+/// Depth to clear to if <paramref name="LoadOp"/> is <see cref="LoadOp.Clear"/>; must be in
+/// [0.0, 1.0].
 /// </param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid, since writable depth can't use

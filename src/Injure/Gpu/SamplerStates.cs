@@ -4,7 +4,7 @@
 namespace Injure.Gpu;
 
 /// <summary>
-/// Common <see cref="GpuSamplerCreateParams"/>.
+/// Common <see cref="GpuSamplerParams"/>.
 /// </summary>
 public static class SamplerStates {
 	/// <summary>
@@ -12,7 +12,7 @@ public static class SamplerStates {
 	/// <see cref="FilterMode.Nearest"/> for the mag/min filters, and
 	/// <see cref="MipmapFilterMode.Nearest"/> for the mipmap filter.
 	/// </summary>
-	public static readonly GpuSamplerCreateParams NearestClamp = new(
+	public static readonly GpuSamplerParams NearestClamp = new(
 		AddressModeU: AddressMode.ClampToEdge,
 		AddressModeV: AddressMode.ClampToEdge,
 		AddressModeW: AddressMode.ClampToEdge,
@@ -26,7 +26,7 @@ public static class SamplerStates {
 	/// <see cref="FilterMode.Linear"/> for the mag/min filters, and
 	/// <see cref="MipmapFilterMode.Linear"/> for the mipmap filter.
 	/// </summary>
-	public static readonly GpuSamplerCreateParams LinearClamp = new(
+	public static readonly GpuSamplerParams LinearClamp = new(
 		AddressModeU: AddressMode.ClampToEdge,
 		AddressModeV: AddressMode.ClampToEdge,
 		AddressModeW: AddressMode.ClampToEdge,
@@ -40,7 +40,7 @@ public static class SamplerStates {
 	/// <see cref="FilterMode.Nearest"/> for the mag/min filters, and
 	/// <see cref="MipmapFilterMode.Nearest"/> for the mipmap filter.
 	/// </summary>
-	public static readonly GpuSamplerCreateParams NearestRepeat = new(
+	public static readonly GpuSamplerParams NearestRepeat = new(
 		AddressModeU: AddressMode.Repeat,
 		AddressModeV: AddressMode.Repeat,
 		AddressModeW: AddressMode.Repeat,
@@ -54,7 +54,7 @@ public static class SamplerStates {
 	/// <see cref="FilterMode.Linear"/> for the mag/min filters, and
 	/// <see cref="MipmapFilterMode.Linear"/> for the mipmap filter.
 	/// </summary>
-	public static readonly GpuSamplerCreateParams LinearRepeat = new(
+	public static readonly GpuSamplerParams LinearRepeat = new(
 		AddressModeU: AddressMode.Repeat,
 		AddressModeV: AddressMode.Repeat,
 		AddressModeW: AddressMode.Repeat,

@@ -13,7 +13,7 @@ namespace Injure.Gpu;
 /// The <see langword="default"/> value is valid and is <see cref="VertexBufferNotUsed"/>.
 /// </remarks>
 [ClosedEnum(CheckZeroName = false)]
-[ClosedEnumMirror(typeof(WGPUVertexStepMode))]
+[ClosedEnumMirror(typeof(WGPUVertexStepMode), Subset = true)]
 public readonly partial struct VertexStepMode {
 	/// <summary>Raw switch tag for <see cref="VertexStepMode"/>.</summary>
 	public enum Case {
@@ -21,11 +21,6 @@ public readonly partial struct VertexStepMode {
 		/// Marks the vertex buffer slot as unused.
 		/// </summary>
 		VertexBufferNotUsed = 0,
-
-		/// <summary>
-		/// No value; WebGPU uses <see cref="Vertex"/>.
-		/// </summary>
-		Undefined = 1,
 
 		/// <summary>
 		/// Advances once per vertex.

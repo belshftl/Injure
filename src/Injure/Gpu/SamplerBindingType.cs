@@ -18,22 +18,21 @@ public readonly partial struct SamplerBindingType {
 	/// <summary>Raw switch tag for <see cref="SamplerBindingType"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// No value; WebGPU uses <see cref="Filtering"/>.
-		/// </summary>
-		Undefined = 1,
-
-		/// <summary>
-		/// A sampler that may filter (e.g. <see cref="FilterMode.Linear"/>).
+		/// A non-comparison sampler with any filter modes.
 		/// </summary>
 		Filtering = 2,
 
 		/// <summary>
-		/// A sampler that only uses nearest filtering; needed for unfilterable textures.
+		/// A non-comparison sampler whose <see cref="GpuSamplerParams.MagFilter"/>,
+		/// <see cref="GpuSamplerParams.MinFilter"/>, and <see cref="GpuSamplerParams.MipmapFilter"/>
+		/// are all nearest; required for sampling <see cref="TextureSampleType.UnfilterableFloat"/>
+		/// textures.
 		/// </summary>
 		NonFiltering = 3,
 
 		/// <summary>
-		/// A comparison sampler, i.e. one with a <see cref="CompareFunction"/>.
+		/// A comparison sampler, i.e. one whose <see cref="GpuSamplerParams.Compare"/> isn't
+		/// <see cref="CompareFunction.Undefined"/> (<c>sampler_comparison</c> in WGSL).
 		/// </summary>
 		Comparison = 4,
 	}

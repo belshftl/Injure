@@ -128,7 +128,7 @@ public sealed class GpuCommandEncoderTests(GpuDeviceFixture fixture) : GpuTestBa
 	// texture copies
 	[Fact]
 	public void BufferToTextureToBufferRoundtrips() {
-		using GpuTexture tex = dev.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
 			2, 2, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.CopySrc | TextureUsage.CopyDst
 		));
 		byte[] staged = new byte[256 + 8];
@@ -162,7 +162,7 @@ public sealed class GpuCommandEncoderTests(GpuDeviceFixture fixture) : GpuTestBa
 
 	[Fact]
 	public void TextureCopiesValidateArguments() {
-		using GpuTexture renderOnly = dev.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture renderOnly = dev.CreateTexture(new GpuTextureParams(
 			4, 4, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.RenderAttachment
 		));
 		using GpuTexture copyable = GpuRig.Target(dev, 4, 4, extraUsage: TextureUsage.CopyDst);

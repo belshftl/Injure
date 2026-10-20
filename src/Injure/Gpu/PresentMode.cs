@@ -15,17 +15,14 @@ namespace Injure.Gpu;
 /// <see cref="SurfacePresentModePolicy"/>.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUPresentMode))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUPresentMode), Subset = true)]
 public readonly partial struct PresentMode {
 	/// <summary>Raw switch tag for <see cref="PresentMode"/>.</summary>
 	public enum Case {
-		/// <summary>No value.</summary>
-		Undefined = 0,
-
 		/// <summary>
 		/// Frames are queued and shown one per vblank. Never tears; supported everywhere.
 		/// </summary>

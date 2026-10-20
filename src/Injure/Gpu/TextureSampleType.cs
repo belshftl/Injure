@@ -19,28 +19,38 @@ public readonly partial struct TextureSampleType {
 	/// <summary>Raw switch tag for <see cref="TextureSampleType"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// No value; WebGPU uses <see cref="Float"/>.
+		/// Floating-point values that may be filtered (<c>texture_2d&lt;f32&gt;</c> and similar), from
+		/// unorm, snorm, and float formats other than 32-bit float ones.
 		/// </summary>
-		Undefined = 1,
-
-		/// <summary>
-		/// Floating-point values that may be filtered.
-		/// </summary>
+		/// <remarks>
+		/// 32-bit float formats can use this with <see cref="GpuFeatures.Float32Filterable"/>.
+		/// </remarks>
 		Float = 2,
 
 		/// <summary>
-		/// Floating-point values that may only be read with a non-filtering sampler, e.g. from 32-bit
-		/// float formats.
+		/// Floating-point values that may only be read with a <see cref="SamplerBindingType.NonFiltering"/>
+		/// sampler or <c>textureLoad()</c>. Any format that allows <see cref="Float"/> also allows
+		/// this, and 32-bit float formats require it unless <see cref="GpuFeatures.Float32Filterable"/>
+		/// is enabled.
 		/// </summary>
 		UnfilterableFloat = 3,
 
-		/// <summary>Depth values.</summary>
+		/// <summary>
+		/// Depth values (<c>texture_depth_2d</c> and similar), from a depth format or the depth aspect
+		/// of a combined depth/stencil format.
+		/// </summary>
 		Depth = 4,
 
-		/// <summary>Signed integers.</summary>
+		/// <summary>
+		/// Signed integers (<c>texture_2d&lt;i32&gt;</c> and similar), from sint formats; only
+		/// readable with <c>textureLoad()</c>.
+		/// </summary>
 		Sint = 5,
 
-		/// <summary>Unsigned integers.</summary>
+		/// <summary>
+		/// Unsigned integers (<c>texture_2d&lt;u32&gt;</c> and similar), from uint formats and the
+		/// stencil aspect; only readable with <c>textureLoad()</c>.
+		/// </summary>
 		Uint = 6,
 	}
 }

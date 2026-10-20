@@ -11,19 +11,21 @@ namespace Injure.Gpu;
 /// A factor that a <see cref="BlendComponent"/> multiplies the source or destination value by.
 /// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// <para>
+/// Factors apply per channel. In <see cref="BlendState.Color"/>, a factor such as <see cref="Src"/>
+/// multiplies red by red, green by green, and blue by blue. In <see cref="BlendState.Alpha"/>, every
+/// factor uses the alpha of its value, so e.g. <see cref="Src"/> and <see cref="SrcAlpha"/> are
+/// equivalent there.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUBlendFactor))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUBlendFactor), Subset = true)]
 public readonly partial struct BlendFactor {
 	/// <summary>Raw switch tag for <see cref="BlendFactor"/>.</summary>
 	public enum Case {
-		/// <summary>
-		/// No value; WebGPU uses <see cref="One"/> for source factors and <see cref="Zero"/> for
-		/// destination factors.
-		/// </summary>
-		Undefined = 0,
-
 		/// <summary>0.</summary>
 		Zero = 1,
 

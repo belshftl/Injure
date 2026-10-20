@@ -18,24 +18,20 @@ public readonly partial struct BufferBindingType {
 	/// <summary>Raw switch tag for <see cref="BufferBindingType"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// No value; WebGPU uses <see cref="Uniform"/>.
-		/// </summary>
-		Undefined = 1,
-
-		/// <summary>
 		/// A uniform buffer (<c>var&lt;uniform&gt;</c>); requires <see cref="BufferUsage.Uniform"/>.
+		/// The bound range can be at most <see cref="GpuLimits.MaxUniformBufferBindingSize"/> bytes.
 		/// </summary>
 		Uniform = 2,
 
 		/// <summary>
 		/// A read-write storage buffer (<c>var&lt;storage, read_write&gt;</c>); requires
-		/// <see cref="BufferUsage.Storage"/>.
+		/// <see cref="BufferUsage.Storage"/>. Not usable from a vertex shader.
 		/// </summary>
 		Storage = 3,
 
 		/// <summary>
 		/// A read-only storage buffer (<c>var&lt;storage, read&gt;</c>); requires
-		/// <see cref="BufferUsage.Storage"/>.
+		/// <see cref="BufferUsage.Storage"/>. Usable from a vertex shader, unlike <see cref="Storage"/>.
 		/// </summary>
 		ReadOnlyStorage = 4,
 	}

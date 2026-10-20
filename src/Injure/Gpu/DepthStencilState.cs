@@ -8,19 +8,50 @@ namespace Injure.Gpu;
 /// <summary>
 /// Describes a depth/stencil attachment in a render pipeline.
 /// </summary>
-/// <param name="Format">Depth/stencil attachment format.</param>
-/// <param name="DepthWriteEnabled">Whether the pipeline can modify depth values.</param>
-/// <param name="DepthCompare">Depth comparison function.</param>
-/// <param name="StencilFront">Stencil operations for front-facing geometry.</param>
-/// <param name="StencilBack">Stencil operations for back-facing geometry.</param>
-/// <param name="StencilReadMask">Bitmask applied when reading stencil values.</param>
-/// <param name="StencilWriteMask">Bitmask applied when writing stencil values.</param>
-/// <param name="DepthBias">Constant depth bias.</param>
-/// <param name="DepthBiasSlopeScale">Slope-scaled depth bias factor.</param>
-/// <param name="DepthBiasClamp">Clamp applied to the final depth bias.</param>
+/// <param name="Format">
+/// Format of the depth/stencil attachment; must match the format of the view a render pass uses as
+/// that attachment.
+/// </param>
+/// <param name="DepthWriteEnabled">
+/// Whether fragments that pass the depth and stencil tests write their depth.
+/// </param>
+/// <param name="DepthCompare">
+/// Depth test; see <see cref="CompareFunction"/>. <see cref="CompareFunction.Always"/> passes every
+/// fragment.
+/// </param>
+/// <param name="StencilFront">
+/// Stencil test and operations for front-facing triangles, and for points/lines. See
+/// <see cref="StencilFaceState.Keep"/> if the stencil isn't used.
+/// </param>
+/// <param name="StencilBack">
+/// Stencil test and operations for back-facing triangles. See <see cref="StencilFaceState.Keep"/>
+/// if the stencil isn't used.
+/// </param>
+/// <param name="StencilReadMask">
+/// Bits of the stencil value and reference that stencil tests compare.
+/// </param>
+/// <param name="StencilWriteMask">Bits of the stencil value that stencil operations write.</param>
+/// <param name="DepthBias">
+/// Constant added to each fragment's depth, in units of the smallest depth difference the format
+/// can represent.
+/// </param>
+/// <param name="DepthBiasSlopeScale">
+/// Factor of the triangle's maximum depth slope added to each fragment's depth.
+/// </param>
+/// <param name="DepthBiasClamp">
+/// Limit of the total depth bias. A positive value caps it from above, a negative value caps it
+/// from below, and 0 disables the limit.
+/// </param>
 /// <remarks>
+/// <para>
+/// Depth bias only applies to triangles; pipelines with point/line topologies must leave
+/// <see cref="DepthBias"/>, <see cref="DepthBiasSlopeScale"/>, and <see cref="DepthBiasClamp"/> at
+/// 0.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is invalid, since its <see cref="Format"/> is
 /// <see cref="TextureFormat.Undefined"/>.
+/// </para>
 /// </remarks>
 public readonly record struct DepthStencilState(
 	TextureFormat Format,
@@ -34,9 +65,6 @@ public readonly record struct DepthStencilState(
 	float DepthBiasSlopeScale = 0f,
 	float DepthBiasClamp = 0f
 ) : IHasInvalidDefault {
-	/// <summary>
-	/// Converts this value to a native WebGPU <see cref="WGPUDepthStencilState"/>.
-	/// </summary>
 	internal WGPUDepthStencilState ToWebgpuType() => new() {
 		format = Format.ToWebgpuType(),
 		depthWriteEnabled = DepthWriteEnabled ? WGPUOptionalBool.True : WGPUOptionalBool.False,

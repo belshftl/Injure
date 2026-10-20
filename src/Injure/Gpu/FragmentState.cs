@@ -9,8 +9,12 @@ namespace Injure.Gpu;
 /// Fragment stage state for a render pipeline.
 /// </summary>
 /// <param name="ShaderModule">Shader module containing the fragment entry point.</param>
-/// <param name="EntryPoint">Fragment entry point name.</param>
-/// <param name="Targets">Color targets written by the fragment stage.</param>
+/// <param name="EntryPoint">Name of the <c>@fragment</c> function in the module.</param>
+/// <param name="Targets">
+/// Color targets, one per color attachment of the render passes the pipeline is used in, in the
+/// same order; target <c>i</c> receives the shader output at <c>@location(i)</c>. Must not be
+/// empty.
+/// </param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>

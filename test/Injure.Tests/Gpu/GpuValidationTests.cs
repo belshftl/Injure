@@ -27,7 +27,7 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 
 	[Fact]
 	public void WriteToTextureValidatesArguments() {
-		using GpuTexture tex = Device.CreateTexture(new GpuTextureCreateParams(
+		using GpuTexture tex = Device.CreateTexture(new GpuTextureParams(
 			4, 4, 1, 2, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.CopyDst
 		));
 		using GpuTexture noCopyDst = GpuRig.Target(Device, 4, 4);
@@ -142,5 +142,99 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 			Assert.Throws<ArgumentException>(() => pass.DrawIndirect(args, 20));
 			Assert.Throws<ArgumentException>(() => pass.DrawIndexedIndirect(args, 16));
 		});
+	}
+
+	// ==========================================================================
+	// invalid default values
+	private static void throwsDefault(string paramName, Action action) =>
+		Assert.Equal(paramName, Assert.Throws<ArgumentInvalidDefaultException>(action).ParamName);
+
+	[Fact]
+	public void CreateMethodsRejectNestedDefaults() {
+		throwsDefault("params", () => Device.CreateSampler(default));
+		throwsDefault("params.MinFilter", () => Device.CreateSampler(SamplerStates.LinearClamp with { MinFilter = default }));
+		throwsDefault("params.Dimension", () => Device.CreateTexture(new GpuTextureParams(
+			4, 4, 1, 1, 1, default, GpuRig.Format, TextureUsage.TextureBinding
+		)));
+
+		using GpuTexture tex = GpuRig.Target(Device, 4, 4);
+		throwsDefault("params", () => tex.CreateView(default));
+		throwsDefault("params.Aspect", () => tex.CreateView(new GpuTextureViewParams(null, null, default, BaseMipLevel: 1)));
+		throwsDefault("params.Dimension", () => tex.CreateView(new GpuTextureViewParams(null, default(TextureViewDimension), TextureAspect.All)));
+
+		throwsDefault("entries[1]", () => Device.CreateBindGroupLayout([
+			new GpuBindGroupLayoutEntry(0, ShaderStage.Vertex, new GpuBufferBindingLayout(BufferBindingType.Uniform)),
+			default,
+		]));
+		throwsDefault("entries[0].Layout.Type", () => Device.CreateBindGroupLayout([
+			new GpuBindGroupLayoutEntry(0, ShaderStage.Vertex, new GpuBufferBindingLayout(default)),
+		]));
+
+		// the default checks run before the null checks, so the pipelines don't need real shaders
+		VertexState vert = new(null!, "vs");
+		throwsDefault("params.DepthStencil.StencilFront", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
+			null!, vert, DepthStencil: new DepthStencilState(TextureFormat.Depth32Float, true, CompareFunction.Less, default, StencilFaceState.Keep)
+		)));
+		throwsDefault("params.Primitive.CullMode", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
+			null!, vert, Primitive: new PrimitiveState() with { CullMode = default }
+		)));
+		BlendState badBlend = BlendStates.Alpha with { Alpha = BlendStates.Alpha.Alpha with { DstFactor = default } };
+		throwsDefault("params.Fragment.Targets[0].Blend.Alpha.DstFactor", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
+			null!, vert, Fragment: new FragmentState(null!, "fs", [new ColorTargetState(GpuRig.Format, badBlend, ColorWriteMask.All)])
+		)));
+	}
+
+	[Fact]
+	public void CommandsRejectDefaults() {
+		using GpuTexture tex = GpuRig.Target(Device, 4, 4, extraUsage: TextureUsage.CopyDst);
+		using GpuBuffer buf = Device.CreateBuffer(1024 * 4, BufferUsage.CopySrc);
+		using GpuBuffer mappable = Device.CreateBuffer(16, BufferUsage.MapRead | BufferUsage.CopyDst);
+		using GpuCommandEncoder enc = Device.CreateCommandEncoder();
+		throwsDefault("colorOps", () => enc.BeginColorPass(tex.DefaultView, default));
+		throwsDefault("colorAttachments[0].Ops", () => enc.BeginRenderPass([new RenderPassColorAttachment(tex.DefaultView, default)]));
+		throwsDefault("srcLayout", () => enc.CopyBufferToTexture(buf, default, tex, GpuRig.Whole(tex)));
+		throwsDefault("dstRegion.Aspect", () => enc.CopyBufferToTexture(
+			buf, new GpuTextureLayout(0, 256, 4), tex, GpuRig.Whole(tex) with { Aspect = default }
+		));
+		throwsDefault("mode", () => mappable.Map(default));
+	}
+
+	// ==========================================================================
+	// params properties
+	[Fact]
+	public void SamplerParamsRoundTrip() {
+		GpuSamplerParams p = SamplerStates.LinearClamp with { MaxAnisotropy = 4, Compare = CompareFunction.Less };
+		using GpuSampler sampler = Device.CreateSampler(p);
+		Assert.Equal(p, sampler.Params);
+		Assert.Equal(p, sampler.AsRef().Params);
+		Assert.Equal(p.MinFilter, sampler.MinFilter);
+		Assert.Equal((ushort)4, sampler.MaxAnisotropy);
+		Assert.Equal(CompareFunction.Less, sampler.AsRef().Compare);
+	}
+
+	[Fact]
+	public void TextureParamsHaveEmptyRatherThanDefaultViewFormats() {
+		GpuTextureParams p = new(4, 2, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding);
+		using GpuTexture tex = Device.CreateTexture(p);
+		Assert.False(tex.Params.ViewFormats.IsDefault);
+		Assert.Equal(p with { ViewFormats = [] }, tex.Params with { ViewFormats = [] });
+		Assert.Equal((4u, 2u), (tex.AsRef().Width, tex.AsRef().Height));
+		Assert.Equal(0, tex.ViewFormats.Length);
+	}
+
+	[Fact]
+	public void ViewParamsAreResolved() {
+		using GpuTexture tex = Device.CreateTexture(new GpuTextureParams(
+			8, 8, 3, 2, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
+		));
+		using GpuTextureView view = tex.CreateView(new GpuTextureViewParams(null, null, TextureAspect.All, BaseArrayLayer: 1));
+		Assert.Equal(
+			new GpuTextureViewParams(GpuRig.Format, TextureViewDimension.Dimension2dArray, TextureAspect.All, 0, 2, 1, 2),
+			view.Params
+		);
+		Assert.Equal(tex.DefaultViewDimension, tex.DefaultView.Params.Dimension);
+		using GpuTextureView again = tex.CreateView(view.Params);
+		Assert.Equal(view.Params, again.Params);
+		Assert.Equal((8u, 8u), (again.Width, again.Height));
 	}
 }

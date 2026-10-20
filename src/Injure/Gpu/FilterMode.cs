@@ -15,19 +15,14 @@ namespace Injure.Gpu;
 /// <c>k + 0.5</c>.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is valid and is <see cref="Undefined"/>.
+/// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-[ClosedEnum]
-[ClosedEnumMirror(typeof(WGPUFilterMode))]
+[ClosedEnum(DefaultIsInvalid = true)]
+[ClosedEnumMirror(typeof(WGPUFilterMode), Subset = true)]
 public readonly partial struct FilterMode {
 	/// <summary>Raw switch tag for <see cref="FilterMode"/>.</summary>
 	public enum Case {
-		/// <summary>
-		/// No value; WebGPU uses <see cref="Nearest"/>.
-		/// </summary>
-		Undefined = 0,
-
 		/// <summary>
 		/// Returns the texel at <c>(floor(u), floor(v), floor(w))</c>, truncated to the texture's
 		/// dimensionality.
@@ -42,7 +37,7 @@ public readonly partial struct FilterMode {
 		/// <summary>
 		/// Blends the 2 (1D), 4 (2D), or 8 (3D) texels nearest to the coordinate, weighted by distance
 		/// to said texels' centers. Coordinates exactly at texel centers return exactly that texel.
-		/// Neighbors outside the the texture are resolved by the address mode.
+		/// Neighbors outside the texture are resolved by the address mode.
 		/// </summary>
 		/// <remarks>
 		/// <para>
@@ -54,8 +49,7 @@ public readonly partial struct FilterMode {
 		/// <see cref="SamplerBindingType.Filtering"/>.
 		/// </para>
 		/// <para>
-		/// Required for anisotropic filtering, i.e. <see cref="GpuSamplerCreateParams.MaxAnisotropy"/>
-		/// &gt; 1.
+		/// Required for anisotropic filtering, i.e. <see cref="GpuSamplerParams.MaxAnisotropy"/> &gt; 1.
 		/// </para>
 		/// </remarks>
 		Linear = 2,

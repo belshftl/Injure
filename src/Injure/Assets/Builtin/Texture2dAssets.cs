@@ -15,7 +15,7 @@ public sealed class Texture2dAssetMipsJsonConverter : JsonStringEnumConverter<Te
 	public Texture2dAssetMipsJsonConverter() : base(namingPolicy: null, allowIntegerValues: false) {}
 }
 
-// mirrors Texture2dCreateParams.Mips, as a plain enum for JSON
+// mirrors Texture2dParams.Mips, as a plain enum for JSON
 [JsonConverter(typeof(Texture2dAssetMipsJsonConverter))]
 public enum Texture2dAssetMips {
 	None,
@@ -117,7 +117,7 @@ public sealed class Texture2dAssetCreator(GpuDevice gpuDevice) : IAssetStagedCre
 			Texture2dAssetMips.Raw => Texture2dMipFilter.Raw,
 			_ => throw new InvalidDataException($"invalid {nameof(Texture2dAssetMips)} value '{p.Metadata.Mips}'"),
 		};
-		Texture2d tex = new(gpuDevice, new Texture2dCreateParams(w, h, fmt, mips));
+		Texture2d tex = new(gpuDevice, new Texture2dParams(w, h, fmt, mips));
 		tex.Upload(src, checked((int)srcStride), PixelFormat.Rgba32_Unorm);
 		return tex;
 	}
