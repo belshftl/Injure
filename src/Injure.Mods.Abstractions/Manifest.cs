@@ -57,6 +57,9 @@ public readonly record struct GameCompatibilityManifest {
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly record struct ModRelationshipManifest : IHasInvalidDefault {
+	// explicit so that object initializers don't trip IJ0100; `required` makes them set every member
+	public ModRelationshipManifest() {}
+
 	public required string OwnerId { get; init; }
 	public required ModRelationshipKind Kind { get; init; }
 	public required Semver? Version { get; init; }
@@ -69,6 +72,9 @@ public readonly record struct ModRelationshipManifest : IHasInvalidDefault {
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly record struct ModAssetsManifest : IHasInvalidDefault {
+	// explicit so that object initializers don't trip IJ0100; `required` makes them set every member
+	public ModAssetsManifest() {}
+
 	public required ModAssetManagementKind ManagementKind { get; init; }
 	public required string? Root { get; init; }
 
@@ -79,6 +85,9 @@ public readonly record struct ModAssetsManifest : IHasInvalidDefault {
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly record struct ModNativeLibraryManifest : IHasInvalidDefault {
+	// explicit so that object initializers don't trip IJ0100; `required` makes them set every member
+	public ModNativeLibraryManifest() {}
+
 	public required string Id { get; init; }
 	public required string Path { get; init; }
 	public required string RuntimeIdentifier { get; init; }

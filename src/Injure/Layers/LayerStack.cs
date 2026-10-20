@@ -435,15 +435,14 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input, IDia
 			throw;
 		}
 
-		warming.Add(
-			new WarmingOp {
-				Kind = pushToTop ? WarmingOpKind.PushTop : WarmingOpKind.PushBottom,
-				Layer = layer,
-				Ticker = ticker,
-				Cts = cts,
-				Task = task,
-			}
-		);
+		warming.Add(new WarmingOp(
+			Kind: pushToTop ? WarmingOpKind.PushTop : WarmingOpKind.PushBottom,
+			Layer: layer,
+			OldLayer: null,
+			Ticker: ticker,
+			Cts: cts,
+			Task: task
+		));
 	}
 
 	private void beginWarmReplace(Layer oldLayer, Layer newLayer, TickerHandle ticker) {
@@ -464,16 +463,14 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input, IDia
 			throw;
 		}
 
-		warming.Add(
-			new WarmingOp {
-				Kind = WarmingOpKind.Replace,
-				OldLayer = oldLayer,
-				Layer = newLayer,
-				Ticker = ticker,
-				Cts = cts,
-				Task = task,
-			}
-		);
+		warming.Add(new WarmingOp(
+			Kind: WarmingOpKind.Replace,
+			Layer: newLayer,
+			OldLayer: oldLayer,
+			Ticker: ticker,
+			Cts: cts,
+			Task: task
+		));
 	}
 
 	private void enterWarmed(Layer layer, TickerHandle ticker, bool pushToTop) {

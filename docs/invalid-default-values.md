@@ -39,6 +39,8 @@ Asset<Texture2d> t = Assets.GetAsset<Texture2d>(default); // error IJ0100: The d
 
 with some exemptions, like equality checks (`x == default` and `x != default`), assigning it to an `out` parameter, and code inside the type itself.
 
+If you're not aware, C# also forces every single struct to have a parameterless constructor, and generates one implicitly that produces `default` if you don't manually declare one. As such, `new T()` counts as creating the default value unless `T` has an explicitly declared parameterless constructor. It counts even with an object initializer, like `new T { X = 1 }`, since the analyzer can't tell which members determine `IsDefault`. For a struct with a constructor that takes parameters, this also catches initializers that bypass that constructor, and with it any field/property initializers, which only constructors run.
+
 There are two more diagnostics. `IJ0101` reports `= default` optional parameters of default-is-invalid types:
 
 ```csharp
@@ -67,6 +69,8 @@ Implement `IHasInvalidDefault` on your struct; the `Injure.Analyzers` analyzer r
 3. Make sure `IsDefault` is cheap to call, since every argument check calls it.
 4. Make every member that can't work on the default value throw `InvalidDefaultException.For<T>()`. In cases with a single or a handful of commonly-accessed fields, you can reduce boilerplate a lot by using private properties that do the check; for instance, for `private Foo data;` where `Foo` is a reference type, you can use `private Foo d => data ?? throw InvalidDefaultException.For<T>();`.
 5. Make sure `Equals`, `GetHashCode`, `==`, `!=`, and `ToString` never throw. A common trap is the auto-generated `ToString` of `record struct`s, which for some reason lists every single property with a publicly accessible getter, including computed properties that throw on the default value.
+
+If you're running into `IJ0100` false-positives with `new T { ... }` and e.g. `required` members: an explicitly declared parameterless constructor, i.e. `public T() {}`, exempts `new T()` and `new T { ... }` for that struct. Only declare one if the struct has `required` members, whose initializers the compiler forces every creation to set (the constructor must not have `[SetsRequiredMembers]`), or if the constructor itself makes the value valid.
 
 When writing a public method that takes such a type, check the argument:
 

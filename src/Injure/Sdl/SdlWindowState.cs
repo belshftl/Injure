@@ -21,6 +21,10 @@ namespace Injure.Sdl;
 /// </para>
 /// </remarks>
 public readonly struct SdlWindowState : IHasInvalidDefault {
+	internal SdlWindowState(string title) {
+		Title = title;
+	}
+
 	/// <summary>
 	/// Window title.
 	/// </summary>

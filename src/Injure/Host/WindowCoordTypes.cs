@@ -71,8 +71,9 @@ public readonly struct WindowPos(float x, float y) : IEquatable<WindowPos>, IFor
 	/// <b>This is probably not what you want.</b> Window coordinates don't map 1:1 to drawable units,
 	/// so the result will be wrong if interpreted as a position in drawable units; it may still
 	/// happen to coincide depending on the setup, especially on non-HiDPI displays, but it's
-	/// incorrect. Use <see cref="Draw.Viewport.FromWindow(WindowPos, float)"/> to map to drawable
-	/// units.
+	/// incorrect. Use <see cref="Game.StandardGame.WindowToDrawable(WindowPos)"/> if you're using
+	/// <see cref="Game.StandardGame"/>, and <see cref="Draw.Viewport.FromWindow(WindowPos, float)"/>
+	/// otherwise, to map to drawable units.
 	/// </remarks>
 	public Vector2 ToRaw() => new(X, Y);
 
@@ -168,8 +169,9 @@ public readonly struct WindowDelta(float x, float y) : IEquatable<WindowDelta>, 
 	/// <b>This is probably not what you want.</b> Window coordinates don't map 1:1 to drawable units,
 	/// so the result will be wrong if interpreted as a movement in drawable units; it may still
 	/// happen to coincide depending on the setup, especially on non-HiDPI displays, but it's
-	/// incorrect. Use <see cref="Draw.Viewport.FromWindow(WindowDelta, float)"/> to map to drawable
-	/// units.
+	/// incorrect. Use <see cref="Game.StandardGame.WindowToDrawable(WindowDelta)"/> if you're using
+	/// <see cref="Game.StandardGame"/>, and <see cref="Draw.Viewport.FromWindow(WindowDelta, float)"/>
+	/// otherwise, to map to drawable units.
 	/// </remarks>
 	public Vector2 ToRaw() => new(X, Y);
 

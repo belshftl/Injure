@@ -27,6 +27,15 @@ public sealed class InvalidDefaultAnalyzerTests {
 			public int V;
 			bool IHasInvalidDefault.IsDefault => V == 0;
 		}
+		public struct Required : IHasInvalidDefault {
+			public required int V { get; init; }
+			public Required() {}
+			bool IHasInvalidDefault.IsDefault => V == 0;
+		}
+		public readonly record struct Positional(int V) : IHasInvalidDefault {
+			public int W { get; init; }
+			bool IHasInvalidDefault.IsDefault => V == 0;
+		}
 
 		""";
 
@@ -51,6 +60,8 @@ public sealed class InvalidDefaultAnalyzerTests {
 	[InlineData("Bad x = default;", "default")]
 	[InlineData("var x = default(Bad);", "default(Bad)")]
 	[InlineData("var x = new Bad();", "new Bad()")]
+	[InlineData("var x = new Settable { V = 1 };", "new Settable { V = 1 }")]
+	[InlineData("var x = new Positional { W = 1 };", "new Positional { W = 1 }")]
 	[InlineData("use(default);", "default")]
 	[InlineData("object o = default(Bad);", "default(Bad)")]
 	[InlineData("Bad x = b.GetHashCode() > 0 ? b : default;", "default")]
@@ -61,6 +72,7 @@ public sealed class InvalidDefaultAnalyzerTests {
 	[Theory]
 	[InlineData("public static class G { public static T Make<T>() where T : struct, IHasInvalidDefault => default; }", "default")]
 	[InlineData("public static class G { public static T Make<T>() where T : struct, IHasInvalidDefault => new T(); }", "new T()")]
+	[InlineData("public interface IV { int V { get; set; } } public static class G { public static T Make<T>() where T : struct, IV, IHasInvalidDefault => new T { V = 1 }; }", "new T { V = 1 }")]
 	[InlineData("public sealed class F { private Bad b = default; }", "default")]
 	public static void DefaultValuesOutsideMethodBodiesAndInGenericCodeAreReported(string decls, string at) =>
 		Assert.Equal(("IJ0100", at), Assert.Single(reported(decls)));
@@ -69,7 +81,9 @@ public sealed class InvalidDefaultAnalyzerTests {
 	[InlineData("bool x = b == default;")]
 	[InlineData("bool x = b != default(Bad);")]
 	[InlineData("var x = new WithCtor();")]
-	[InlineData("var x = new Settable { V = 1 };")]
+	[InlineData("var x = new WithCtor { V = 2 };")]
+	[InlineData("var x = new Required { V = 1 };")]
+	[InlineData("var x = new Positional(1) { W = 1 };")]
 	[InlineData("Bad? x = default;")]
 	[InlineData("int x = default;")]
 	[InlineData("var x = Bad.Zero;")]

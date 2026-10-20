@@ -511,8 +511,7 @@ public sealed class SdlWindow : IDisposable {
 		Check(SDL.GetWindowSizeInPixels(handle, out int pixelWidth, out int pixelHeight));
 		Check(SDL.GetWindowPosition(handle, out int x, out int y));
 		SDL.WindowFlags flags = SDL.GetWindowFlags(handle);
-		return new SdlWindowState {
-			Title = SDL.GetWindowTitle(handle) ?? "",
+		return new SdlWindowState(SDL.GetWindowTitle(handle) ?? "") {
 			Width = width,
 			Height = height,
 			PixelWidth = pixelWidth,

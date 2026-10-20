@@ -7,6 +7,9 @@ namespace Injure.Sched.Coro;
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly struct CoroTraceFrame : IHasInvalidDefault {
+	// explicit so that object initializers don't trip IJ0100; `required` makes them set every member
+	public CoroTraceFrame() {}
+
 	public required string DebugName { get; init; }
 	public required string EnumeratorTypeName { get; init; }
 	public required string SourceFile { get; init; }

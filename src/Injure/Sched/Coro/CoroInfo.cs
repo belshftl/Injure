@@ -9,6 +9,9 @@ namespace Injure.Sched.Coro;
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly struct CoroInfo : IHasInvalidDefault {
+	// explicit so that object initializers don't trip IJ0100; `required` makes them set every member
+	public CoroInfo() {}
+
 	public required CoroHandle Handle { get; init; }
 	public required string? Name { get; init; }
 	public required string? OwnerId { get; init; }

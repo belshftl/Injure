@@ -70,13 +70,12 @@ public abstract class InvalidDefaultAnalyzerBase(
 				return;
 			break;
 		case IObjectCreationOperation creation:
-			// an object initializer can make the result valid
-			if (creation.Constructor is not { IsImplicitlyDeclared: true, Parameters.Length: 0 } || creation.Initializer is not null)
+			// an object initializer doesn't count, since nothing here knows which members IsDefault
+			// reads; an explicit parameterless constructor does
+			if (creation.Constructor is not { IsImplicitlyDeclared: true, Parameters.Length: 0 })
 				return;
 			break;
-		case ITypeParameterObjectCreationOperation creation:
-			if (creation.Initializer is not null)
-				return;
+		case ITypeParameterObjectCreationOperation:
 			break;
 		default:
 			return;
