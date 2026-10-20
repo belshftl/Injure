@@ -18,7 +18,7 @@ namespace Injure.Primitives;
 /// <remarks>
 /// <para>
 /// Arithmetic operators do <see langword="int"/> arithmetic per component: they wrap on overflow
-/// outside a <see langword="checked"/> context, and division truncates towards zero.
+/// outside a <see langword="checked"/> context, and division rounds towards zero.
 /// </para>
 /// <para>
 /// Laid out in memory as <see cref="int"/>s <see cref="X"/>, <see cref="Y"/>, in that order, with
@@ -107,10 +107,10 @@ public readonly struct Vector2Int(int x, int y) : IEquatable<Vector2Int>, IForma
 
 	/// <summary>
 	/// Converts <paramref name="v"/> to a <see cref="Vector2Int"/>, rounding each component to the
-	/// nearest integer, with halves rounded as given by <paramref name="mode"/>.
+	/// nearest integer, with midpoints rounded as given by <paramref name="mode"/>.
 	/// </summary>
 	/// <param name="v">The vector to convert.</param>
-	/// <param name="mode">How to round components exactly halfway between two integers.</param>
+	/// <param name="mode">How to round midpoints between two integers.</param>
 	/// <inheritdoc cref="Floor(Vector2)" path="/exception"/>
 	public static Vector2Int Round(Vector2 v, MidpointRounding mode) =>
 		new(toInt(MathF.Round(v.X, mode)), toInt(MathF.Round(v.Y, mode)));
@@ -156,9 +156,9 @@ public readonly struct Vector2Int(int x, int y) : IEquatable<Vector2Int>, IForma
 	public static Vector2Int operator *(Vector2Int v, int s) => new(v.X * s, v.Y * s);
 	/// <summary>Multiplies each component by a scalar.</summary>
 	public static Vector2Int operator *(int s, Vector2Int v) => new(v.X * s, v.Y * s);
-	/// <summary>Divides two vectors component-wise, truncating towards zero.</summary>
+	/// <summary>Divides two vectors component-wise, rounding towards zero.</summary>
 	public static Vector2Int operator /(Vector2Int a, Vector2Int b) => new(a.X / b.X, a.Y / b.Y);
-	/// <summary>Divides each component by a scalar, truncating towards zero.</summary>
+	/// <summary>Divides each component by a scalar, rounding towards zero.</summary>
 	public static Vector2Int operator /(Vector2Int v, int s) => new(v.X / s, v.Y / s);
 
 	public bool Equals(Vector2Int other) => X == other.X && Y == other.Y;

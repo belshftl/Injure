@@ -1208,7 +1208,8 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <summary>
 	/// Computes the automatic edge count for an arc of radius <paramref name="r"/> covering
 	/// <paramref name="sweep"/> radians (assumed to be non-negative). The formula is the matching
-	/// fraction of <see cref="ellipseSegments"/>, rounded up and clamped to be at least 1.
+	/// fraction of <see cref="ellipseSegments"/>, rounded towards positive infinity and clamped to be
+	/// at least 1.
 	/// </summary>
 	private static int arcSegments(OwnedCanvas oc, float r, float sweep) =>
 		Math.Max(1, (int)MathF.Ceiling(ellipseSegments(oc, r) * (sweep / MathF.Tau)));

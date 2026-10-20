@@ -37,8 +37,6 @@ Locals and parameters use camelCase.
 
 The rationale is that the casing of a name tells you at a glance whether anything outside the type can depend on it.
 
----
-
 ## Abbreviations
 
 Abbreviations and acronyms are ordinary words and follow the casing of their position, with no exceptions:
@@ -64,8 +62,6 @@ A proper noun whose name contains an abbreviation, (OpenSSH, macOS, PostgreSQL, 
 
 Names that come from foreign code, such as the WebGPU and SDL bindings, keep their original spelling (e.g. `WGPUTextureFormat`); only Injure's own names follow this convention. This also applies to names that match external definitions across an FFI boundary, such as `pub type HRESULT` / `pub struct GUID` in the CLR profiler for the modloader, even though by Rust convention and this project's convention it'd be `Hresult` / `Guid`, since COM uses `HRESULT`/`GUID`.
 
----
-
 ## Shortened names
 
 A ubiquitous part of a name may be shortened if the shorter form is unambiguous and reading or typing the long form every time costs more than it gains. This applies to type and member names alike, when either:
@@ -77,7 +73,24 @@ The rationale, which holds for members just as much as types, is that a name rar
 
 This does not apply to rarely used names, where the reader is likely to have forgotten what the abbreviation means.
 
----
+## Rounding
+
+Rounding to an integer, or to a multiple of some step, explicitly specifies the rounding direction or midpoint behavior. Docs and code comments never use "round up", "round down", or "round to the nearest X" without the midpoint behavior, even if the inputs are always non-negative and "up"/"down" would happen to be unambiguous.
+
+Rounding in a direction uses one of these phrases:
+- "towards positive infinity" (`Math.Ceiling`);
+- "towards negative infinity" (`Math.Floor`);
+- "towards zero" (`Math.Truncate`, and integer division);
+- "away from zero".
+
+Rounding to the nearest value states the midpoint behavior, using one of the directions above or "to even":
+```csharp
+/// Rounds to the nearest nanosecond, with midpoints rounded away from zero.
+```
+
+Both forms spell "towards" with the trailing "s".
+
+Alternatively, if it's preferable to name the exact operation (e.g. `floor()`), that can be used instead of the terminology above.
 
 ## Doc comments
 

@@ -183,7 +183,7 @@ public readonly partial struct CanvasScissorKind {
 /// </para>
 /// <para>
 /// To clip, the scissor is mapped to target pixels with each edge rounded separately to the
-/// nearest pixel boundary, with halves rounded up (towards positive infinity), rather than
+/// nearest pixel boundary, with midpoints rounded towards positive infinity, rather than
 /// rounding the position and size. This way, scissors sharing an edge map to adjacent pixel
 /// rectangles, with no gap or overlap between them.
 /// </para>

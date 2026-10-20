@@ -12,8 +12,6 @@ Injure's APIs enforce invariants: an owning object releases its resource exactly
 
 These members exist because the alternative is worse. Being able to reach the native WebGPU object behind a `GpuBuffer`, or the GPU resources behind a `Texture2d`, is sometimes necessary, and hiding them in the name of safety only pushes people to fish them out of private fields with reflection, which ends up not buying any extra safety and breaking on every internal refactor. So they are public, under a name that says plainly that the caller has to know what they're doing.
 
----
-
 ## When a member is "dangerous"
 
 A member gets the prefix if, and only if, it lets the caller break an invariant that Injure otherwise enforces. In practice, that happens in one of these ways:
@@ -31,14 +29,10 @@ A member gets the prefix if, and only if, it lets the caller break an invariant 
 
 Members that are merely low-level are not dangerous as long as Injure still enforces invariants. `GpuBuffer.ReadMapped<T>(ulong offset, Span<T> dst)` and `GpuBuffer.WriteMapped<T>(ulong offset, ReadOnlySpan<T> src)` access mapped memory too, but they check the mapping state, mode, and bounds on every call, so they are ordinary members. `DangerousGetMappedPointer()`, on the other hand, has no such checks, and exists for advanced zero-copy usage.
 
----
-
 ## Naming
 
 - `DangerousGet*` for members that hand a value out, e.g. `DangerousGetNative()`, `DangerousGetRaw()`.
 - `DangerousCreate*` for members that build an Injure value from something the caller hands in. Static factories usually take the form `DangerousCreateFromSomeSource`, e.g. `DangerousCreateFromRaw`, `DangerousCreateFromMetalLayer`. Instance members that convert a foreign value into an Injure one use `DangerousCreateSomeResult`, e.g. `SdlEventSource.DangerousCreateHostEvent(in SDL.Event, out HostEvent)`.
-
----
 
 ## The caller's contract
 
@@ -54,15 +48,11 @@ In return, Injure promises only that a `DangerousGet*` member returns the curren
 
 **If the contract is violated, nothing is promised.** The consequences may range from simply using a stale asset version to dereferencing a dangling pointer. The program may throw, misbehave, or abort in native code. It can be thought of as similar to UB. In particular, Injure does not promise that misuse can't corrupt managed state.
 
----
-
 ## Stability
 
 A dangerous member whose signature only uses Injure and BCL types, such as `HostTick.DangerousGetRaw()`, is as stable as any other member; only what it lets the caller do is different.
 
 A dangerous member whose signature includes a foreign type is **not** stable API: its return or parameter type may change without notice, for example when a dependency is replaced or updated, or when internals are reorganized. Such members say so in their docs (see below).
-
----
 
 ## Documentation requirements
 
@@ -85,15 +75,11 @@ For example:
 public WGPUBuffer DangerousGetNative() { /* ... */ }
 ```
 
----
-
 ## For Injure devs: tooling
 
 Dangerous members bypass the "don't expose non-BCL/Injure types in public API" rule: the return type of a `DangerousGet*` method and the parameter types of a `DangerousCreate*` method may be foreign.
 
 The analyzer only looks at the name, so the prefix has to be honest. Don't add it to a member just to silence `IJDEV0103`; if a member exposes a foreign type without bypassing anything, the foreign type should be wrapped instead.
-
----
 
 ## For Injure devs: when not to add one
 

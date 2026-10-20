@@ -113,9 +113,9 @@ public readonly struct Viewport : IEquatable<Viewport>, IHasInvalidDefault {
 	/// </param>
 	/// <param name="targetPixelSize">Size of the target to fit into, in pixels.</param>
 	/// <param name="integerScale">
-	/// Whether to round <see cref="PixelsPerUnit"/> down to a whole number, allowing for a clean
-	/// integer upscale at the cost of leaving wider bars, and potentially having bars on all four
-	/// sides. Ignored if the content doesn't fit at 1 pixel per drawable unit.
+	/// Whether to round <see cref="PixelsPerUnit"/> towards negative infinity to a whole number,
+	/// allowing for a clean integer upscale at the cost of leaving wider bars, and potentially having
+	/// bars on all four sides. Ignored if the content doesn't fit at 1 pixel per drawable unit.
 	/// </param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if a component of <paramref name="contentSize"/> or <paramref name="targetPixelSize"/>
@@ -131,7 +131,7 @@ public readonly struct Viewport : IEquatable<Viewport>, IHasInvalidDefault {
 	/// this case.
 	/// </para>
 	/// <para>
-	/// <see cref="PixelOffset"/> is rounded down to whole pixels, so with
+	/// <see cref="PixelOffset"/> is rounded towards negative infinity to whole pixels, so with
 	/// <paramref name="integerScale"/>, drawable units land exactly on target pixels. Values within
 	/// float error of a whole pixel are snapped to said whole pixel.
 	/// </para>
@@ -242,8 +242,8 @@ public readonly struct Viewport : IEquatable<Viewport>, IHasInvalidDefault {
 	// mapping through the default value would divide by or multiply with 0
 	private float ppu => IsDefault ? throw InvalidDefaultException.For<Viewport>() : PixelsPerUnit;
 
-	// rounds each edge separately to a pixel boundary, halves up, so adjacent rectangles stay
-	// adjacent; edges past 2^24 are clamped, which doesn't matter because render targets never get
+	// rounds each edge separately to the nearest pixel boundary, with midpoints rounded towards
+	// positive infinity, so adjacent rectangles stay adjacent; edges past 2^24 are clamped, which doesn't matter because render targets never get
 	// that large
 	internal static RectI RoundToPixels(RectF rect) => RoundToPixels(rect.Left, rect.Top, rect.Right, rect.Bottom);
 

@@ -133,17 +133,17 @@ public readonly struct RectI : IEquatable<RectI>, IFormattable {
 	public Vector2Int Size => new(Width, Height);
 
 	/// <summary>
-	/// X coordinate of the rectangle's center, rounded down.
+	/// X coordinate of the rectangle's center, rounded towards negative infinity.
 	/// </summary>
 	public int CenterX => X + Width / 2;
 
 	/// <summary>
-	/// Y coordinate of the rectangle's center, rounded down.
+	/// Y coordinate of the rectangle's center, rounded towards negative infinity.
 	/// </summary>
 	public int CenterY => Y + Height / 2;
 
 	/// <summary>
-	/// The rectangle's center point, with its components rounded down.
+	/// The rectangle's center point, with its components rounded towards negative infinity.
 	/// </summary>
 	public Vector2Int Center => new(CenterX, CenterY);
 

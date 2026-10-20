@@ -129,7 +129,7 @@ public static class PrimitivesJsonAndFormatTests {
 		Assert.Equal(new Vector2Int(14, -21), a * b);
 		Assert.Equal(new Vector2Int(14, -14), a * 2);
 		Assert.Equal(new Vector2Int(14, -14), 2 * a);
-		// truncating towards zero, like int division
+		// rounding towards zero, like int division
 		Assert.Equal(new Vector2Int(3, -2), a / b);
 		Assert.Equal(new Vector2Int(3, -3), a / 2);
 		Assert.Equal(new Vector2Int(2, -7), Vector2Int.Min(a, b));

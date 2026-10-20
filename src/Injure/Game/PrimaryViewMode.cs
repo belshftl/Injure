@@ -63,7 +63,7 @@ public readonly struct PrimaryViewMode : IEquatable<PrimaryViewMode>, IHasInvali
 	/// </summary>
 	/// <param name="contentSize">Size of the area, e.g. a fixed logical resolution.</param>
 	/// <param name="integerScale">
-	/// Whether to round the scale down to a whole number of physical pixels; see
+	/// Whether to round the scale towards negative infinity to a whole number of physical pixels; see
 	/// <see cref="Draw.Viewport.Letterbox(Vector2, Vector2, bool)"/>.
 	/// </param>
 	/// <exception cref="ArgumentOutOfRangeException">

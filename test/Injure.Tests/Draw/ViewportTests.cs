@@ -50,9 +50,10 @@ public static class ViewportTests {
 	}
 
 	[Fact]
-	public static void LetterboxIntegerScalesRoundDownAndCenterOnWholePixels() {
+	public static void LetterboxIntegerScalesRoundTowardsNegativeInfinityAndCenterOnWholePixels() {
 		var vp = Viewport.Letterbox(content320, new Vector2(801, 451), true);
-		// scale 2.5 rounds to 2: 640x360 in 801x451, offsets 80.5 and 45.5 round down
+		// scale 2.5 rounds towards negative infinity to 2: 640x360 in 801x451, and offsets 80.5 and
+		// 45.5 round towards negative infinity too
 		Assert.Equal(new RectF(80, 45, 640, 360), vp.PixelRect);
 		Assert.Equal(2f, vp.PixelsPerUnit);
 	}

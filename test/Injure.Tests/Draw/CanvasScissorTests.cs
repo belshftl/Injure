@@ -65,8 +65,8 @@ public static class CanvasScissorTests {
 
 	// the internal rounding the canvas uses to turn scissors (mapped through the viewport) into pixels
 	[Fact]
-	public static void EachEdgeIsRoundedToTheNearestPixel() {
-		// edges 1.2, 4.8, 2.5, 3.5; halves round up
+	public static void EachEdgeIsRoundedToTheNearestPixelWithMidpointsTowardsPositiveInfinity() {
+		// edges 1.2, 4.8, 2.5, 3.5; midpoints round towards positive infinity
 		Assert.Equal(new RectI(1, 3, 4, 1), Viewport.RoundToPixels(new RectF(1.2f, 2.5f, 3.6f, 1f)));
 	}
 

@@ -66,8 +66,8 @@ public readonly struct HostDuration : IRealTimeDuration<HostDuration>, IUnaryNeg
 	/// Thrown if the result is out of range.
 	/// </exception>
 	/// <remarks>
-	/// Rounds to the nearest nanosecond, away from zero on ties. Inexact for magnitudes above 2^53 ns
-	/// (roughly 104 days).
+	/// Rounds to the nearest nanosecond, with midpoints rounded away from zero. Inexact for magnitudes
+	/// above 2^53 ns (roughly 104 days).
 	/// </remarks>
 	public static HostDuration FromSeconds(double sec) {
 		if (!double.IsFinite(sec))
@@ -83,7 +83,8 @@ public readonly struct HostDuration : IRealTimeDuration<HostDuration>, IUnaryNeg
 	/// Thrown if <paramref name="hz"/> is not positive, or is not finite.
 	/// </exception>
 	/// <remarks>
-	/// Rounds to the nearest nanosecond, and never returns a duration shorter than one nanosecond.
+	/// Rounds to the nearest nanosecond, with midpoints rounded away from zero, and never returns a
+	/// duration shorter than one nanosecond.
 	/// </remarks>
 	public static HostDuration PeriodFromHz(double hz) {
 		if (!double.IsFinite(hz) || hz <= 0.0)
@@ -97,7 +98,8 @@ public readonly struct HostDuration : IRealTimeDuration<HostDuration>, IUnaryNeg
 	public double ToSeconds() => (double)ns / nsPerSecond;
 
 	/// <summary>
-	/// Converts this duration to a <see cref="TimeSpan"/>, truncating to its 100ns resolution.
+	/// Converts this duration to a <see cref="TimeSpan"/>, rounding towards zero to its 100ns
+	/// resolution.
 	/// </summary>
 	public TimeSpan ToTimeSpan() => TimeSpan.FromTicks(ns / (nsPerSecond / TimeSpan.TicksPerSecond));
 
@@ -107,13 +109,13 @@ public readonly struct HostDuration : IRealTimeDuration<HostDuration>, IUnaryNeg
 	public static HostDuration operator *(HostDuration left, long right) => new(checked(left.ns * right));
 
 	/// <summary>
-	/// Divides a duration by a scalar, truncating toward zero.
+	/// Divides a duration by a scalar, rounding towards zero.
 	/// </summary>
 	public static HostDuration operator /(HostDuration left, long right) => new(checked(left.ns / right));
 
 	/// <summary>
 	/// Returns how many whole times <paramref name="right"/> fits into <paramref name="left"/>,
-	/// truncating toward zero.
+	/// rounding towards zero.
 	/// </summary>
 	public static long operator /(HostDuration left, HostDuration right) => checked(left.ns / right.ns);
 

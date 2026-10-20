@@ -17,8 +17,6 @@ That restriction must be enforced, ideally at compile time, as per "strictness i
 
 Using a `ref struct` is the preferred option if how the type is used allows it.
 
----
-
 ## `Untyped` names
 
 The `Untyped` prefix (`IUntyped*` for interfaces, `Untyped*` otherwise) has two meanings:
@@ -26,13 +24,9 @@ The `Untyped` prefix (`IUntyped*` for interfaces, `Untyped*` otherwise) has two 
 - **A non-generic view of a generic type.** An `IUntyped*` interface exposes the parts of a generic type that don't depend on its type arguments, so that instances with different type arguments can be handled together, e.g. stored in one collection. Example: `IUntypedAssetRef`, implemented by every `AssetRef<T>`.
 - **A variant of a normally generic type without its type parameters.** This is rare and mostly appears in internal mod-related code, when a lifetime identity type can't be named statically. Example: `UntypedModExportTable`, an internal type of the mod runtime. It stores a mod's exports without needing the lifetime identity at compile time, and is converted into the generic form with reflection before being handed to a mod.
 
----
-
 ## `Dangerous` names
 
 The `DangerousGet*` and `DangerousCreate*` prefixes mark members that let the caller bypass an invariant Injure otherwise enforces. Their meaning, naming, caller contract, and documentation requirements are described in [`dangerous-get-create.md`](dangerous-get-create.md).
-
----
 
 ## `*Handle` and `*Ref` names
 

@@ -61,8 +61,8 @@ public static class PreciseWait {
 	/// Currently behaves identically to <see cref="WaitPreferOvershoot(long)"/> on non-Windows platforms.
 	/// </para>
 	/// <para>
-	/// On Windows, due to implementation constraints, precision is only to the nearest 100 nanoseconds;
-	/// <paramref name="ns"/> is rounded down to a 100-nanosecond step.
+	/// On Windows, due to implementation constraints, precision is only 100 nanoseconds;
+	/// <paramref name="ns"/> is rounded towards negative infinity to a multiple of 100 nanoseconds.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException">
@@ -82,8 +82,8 @@ public static class PreciseWait {
 	/// Currently behaves identically to <see cref="WaitPreferUndershoot(long)"/> on non-Windows platforms.
 	/// </para>
 	/// <para>
-	/// On Windows, due to implementation constraints, precision is only to the nearest 100 nanoseconds;
-	/// the <paramref name="ns"/> argument is rounded up to a 100-nanosecond step.
+	/// On Windows, due to implementation constraints, precision is only 100 nanoseconds;
+	/// <paramref name="ns"/> is rounded towards positive infinity to a multiple of 100 nanoseconds.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="ArgumentOutOfRangeException">
