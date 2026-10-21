@@ -973,7 +973,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 			throw new ArgumentException("WGSL source code must not be empty", nameof(source));
 
 		int bytes = Encoding.UTF8.GetByteCount(source);
-		Span<byte> utf8 = bytes <= 1024 ? stackalloc byte[bytes] : new byte[bytes];
+		Span<byte> utf8 = bytes <= 2048 ? stackalloc byte[bytes] : new byte[bytes];
 		int written = Encoding.UTF8.GetBytes(source, utf8);
 		fixed (byte* p = utf8) {
 			WGPUShaderSourceWGSL src = new() {
@@ -1049,7 +1049,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 		if (code.Length >= 4 && BinaryPrimitives.ReadUInt32BigEndian(code) == spirvMagic)
 			throw new ArgumentException("SPIR-V code is big-endian, but this overload expects little-endian bytes", nameof(code));
 
-		Span<uint> words = code.Length <= 1024 ? stackalloc uint[code.Length >> 2] : new uint[code.Length >> 2];
+		Span<uint> words = code.Length <= 2048 ? stackalloc uint[code.Length >> 2] : new uint[code.Length >> 2];
 		for (int i = 0; i < words.Length; i++)
 			words[i] = BinaryPrimitives.ReadUInt32LittleEndian(code.Slice(i << 2, 4));
 		return CreateShaderModuleSpirv(words);

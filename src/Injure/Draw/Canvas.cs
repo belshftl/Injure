@@ -5,14 +5,15 @@ using System.Buffers;
 using System.Collections.Immutable;
 using System.Numerics;
 using Injure.Assets;
+using Injure.Draw.Text;
 using Injure.Gpu;
 using Injure.Primitives;
 
 namespace Injure.Draw;
 
 /// <summary>
-/// Draws 2D shapes and textures. Obtained from an <see cref="OwnedCanvas"/>, and intended to then
-/// be propagated down into code that needs to draw things. Not thread-safe.
+/// Draws 2D shapes, textures, and optionally text. Obtained from an <see cref="OwnedCanvas"/>, and
+/// intended to then be propagated down into code that needs to draw things. Not thread-safe.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,7 +41,7 @@ namespace Injure.Draw;
 /// <para>
 /// Only triangles are ever drawn; geometry for all other shapes is generated as triangles rather
 /// than using line/list/strip/etc GPU primitives. Curved shapes are approximated by polygons.
-/// There is no face culling, so winding order doesn't affect visaul output.
+/// There is no face culling, so winding order doesn't affect visual output.
 /// </para>
 /// <para>
 /// Colors are sRGB-encoded, and blending happens on the encoded values. Targets must therefore have
@@ -49,12 +50,18 @@ namespace Injure.Draw;
 /// textures should hold sRGB-encoded colors in non-sRGB formats.
 /// </para>
 /// <para>
+/// Has built-in <see cref="TextSystem"/> integration for convenience:
+/// <see cref="Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, Vector2, SrgbColor32)"/>
+/// lays out the text on the spot through a <see cref="TextSystem"/> passed to the
+/// <see cref="OwnedCanvas"/> at creation, and caches the layout for later draws.
+/// </para>
+/// <para>
 /// The name clashes with the <c>Canvas</c> controls of Avalonia and WPF, and is similar to MAUI's
 /// <c>ICanvas</c>. Code that runs into such a conflict can alias this type, e.g.
 /// <c>global using IjCanvas = Injure.Draw.Canvas;</c>.
 /// </para>
 /// <para>
-/// Infomative: untextured draws actually use a 1x1 <see cref="TextureInterpretation.Color"/> white
+/// Informative: untextured draws actually use a 1x1 <see cref="TextureInterpretation.Color"/> white
 /// texture, and <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.Viewport"/> are
 /// applied on the CPU rather than in a vertex shader. Both of these allow for particular internal
 /// optimizations. The functional behavior is unchanged, and the optimizations heavily outweigh the
@@ -999,6 +1006,97 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 			],
 			quadIndices.AsSpan()
 		);
+	}
+
+	// ==========================================================================
+	// text
+
+	/// <summary>
+	/// Draws laid out text, running a relayout first if it's stale; see
+	/// <see cref="TextLayout.IsStale"/>.
+	/// </summary>
+	/// <param name="layout">The text to draw.</param>
+	/// <param name="at">Position for the layout's top-left corner.</param>
+	/// <param name="color">Color of the glyphs.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="layout"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the <see cref="TextSystem"/> that made <paramref name="layout"/> has been disposed.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if one of the layout's fonts is an asset and the calling thread isn't attached to its
+	/// asset store.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// Glyphs are rasterized for the size they end up at in target pixels, as given by the font
+	/// size and <see cref="EffectiveTransform"/>, so text stays sharp under scaling.
+	/// </para>
+	/// <para>
+	/// If <see cref="EffectiveTransform"/> only scales and translates, each glyph is snapped to the
+	/// target pixel (not drawable unit) grid: the baseline is snapped to the nearest pixel row, and
+	/// the horizontal position is snapped to the nearest quarter pixel, with the glyph rasterized at
+	/// that quarter-pixel offset. Under rotation/shear/mirroring, glyphs are drawn where the layout
+	/// puts them with no snapping.
+	/// </para>
+	/// <para>
+	/// Draws with <see cref="CanvasMaterial.Rmask"/> and <see cref="TexFilter.Linear"/> sampling
+	/// regardless of <see cref="CurrentParams"/>; the other parameters apply as usual.
+	/// </para>
+	/// </remarks>
+	public void Text(TextLayout layout, Vector2 at, SrgbColor32 color) {
+		ArgumentNullException.ThrowIfNull(layout);
+		TextRenderer.Draw(o, layout, at, color);
+	}
+
+	/// <summary>
+	/// Lays out and draws text using the <see cref="TextSystem"/> this canvas was created with.
+	/// </summary>
+	/// <param name="fonts">
+	/// The font chain to lay the text out with; <see cref="FontSpec"/>, <see cref="FontData"/>, and
+	/// <see cref="Asset{T}"/> of <see cref="FontData"/> implicitly cast to this.
+	/// </param>
+	/// <param name="text">
+	/// The text. Each <c>\n</c> starts a new paragraph. Unpaired surrogates are replaced
+	/// with U+FFFD REPLACEMENT CHARACTER.
+	/// </param>
+	/// <param name="style">How the text is sized and laid out.</param>
+	/// <param name="at">Position for the laid out text's top-left corner.</param>
+	/// <param name="color">Color of the glyphs.</param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="fonts"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="style"/>'s <see cref="TextStyle.Size"/> isn't positive and finite,
+	/// or its <see cref="TextLayoutOptions.MaxWidth"/> is negative or NaN.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the canvas's <see cref="TextSystem"/> has been disposed.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if the canvas's <see cref="OwnedCanvas"/> was created without a
+	/// <see cref="TextSystem"/>, or if one of <paramref name="fonts"/> is an asset and the calling
+	/// thread isn't attached to its asset store.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// The layout is cached in the <see cref="TextSystem"/>, keyed by <paramref name="fonts"/>,
+	/// <paramref name="text"/>, and <paramref name="style"/>, so drawing the same text every frame
+	/// only lays out once and cache-hits afterward. A cached layout is dropped if it's been unused
+	/// for <see cref="TextCacheOptions.LayoutCacheFrames"/> frames.
+	/// </para>
+	/// <para>
+	/// Otherwise the same as <see cref="Text(TextLayout, Vector2, SrgbColor32)"/>; see its docs.
+	/// </para>
+	/// </remarks>
+	public void Text(FontFallbackChain fonts, ReadOnlySpan<char> text, in TextStyle style, Vector2 at, SrgbColor32 color) {
+		OwnedCanvas oc = o;
+		ArgumentNullException.ThrowIfNull(fonts);
+		TextStyle.Validate(in style, nameof(style));
+		TextSystem ts = oc.TextSystem
+			?? throw new InvalidOperationException("this canvas has no TextSystem, since its OwnedCanvas was created without one");
+		TextRenderer.Draw(oc, ts.GetCachedLayout(fonts, text, in style), at, color);
 	}
 
 	// ==========================================================================

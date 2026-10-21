@@ -91,7 +91,7 @@ public sealed class IlMethodBodyRoundtripTests {
 			$"re-encoded to {encoded.CodeSize} code bytes, which is more than the original {originalCodeSize}"
 		);
 
-		Span<byte> bytes = encoded.Size <= 1024 ? stackalloc byte[encoded.Size] : new byte[encoded.Size];
+		Span<byte> bytes = encoded.Size <= 2048 ? stackalloc byte[encoded.Size] : new byte[encoded.Size];
 		encoded.WriteTo(bytes);
 		Assert.Equal(encoded.Size, bytes.Length);
 

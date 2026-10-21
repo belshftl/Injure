@@ -9,5 +9,5 @@ internal static class KnownNames {
 	public const string AssetFileKindAttribute = "Injure.Assets.AssetFileKindAttribute";
 
 	public const string Texture2d = "Injure.Draw.Texture2d";
-	public const string Font = "Injure.Draw.Text.Font";
+	public const string FontData = "Injure.Draw.Text.FontData";
 }

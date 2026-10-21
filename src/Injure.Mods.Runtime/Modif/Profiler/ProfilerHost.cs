@@ -48,8 +48,9 @@ internal sealed unsafe class ProfilerHost : IProfilerHost, IProfilerEvents, IDis
 	/// Events drained per wait.
 	/// </summary>
 	/// <remarks>
-	/// This amount of events is allocated on the stack. If you change it to a larger value, change it
-	/// to something like a regular array allocation instead.
+	/// This amount of events is allocated on the stack (64 * 24 = 1536 bytes, on targets with 64-bit
+	/// pointers). If you change it to a larger value, change it to something like a regular array
+	/// allocation instead.
 	/// </remarks>
 	private const int drainBatchSize = 64;
 
@@ -279,7 +280,7 @@ internal sealed unsafe class ProfilerHost : IProfilerHost, IProfilerEvents, IDis
 
 		string path = "";
 		if (needed > 0) {
-			Span<char> buf = needed <= 512 ? stackalloc char[(int)needed] : new char[needed];
+			Span<char> buf = needed <= 1024 ? stackalloc char[(int)needed] : new char[needed];
 			fixed (char* p = buf) {
 				if (Native.prof_module_path(moduleId, p, needed, &needed) < 0)
 					return false;

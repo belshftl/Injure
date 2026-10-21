@@ -58,7 +58,7 @@ This intentionally deviates from the [.NET naming guidelines](https://learn.micr
 
 Treating abbreviations as regular words removes the first three ambiguities: `IoStream` can only mean `Io` + `Stream`, and `IOStream` can only mean the interface prefix + `O` + `Stream`. The `IIlTokenResolver` example is also unambiguously the interface prefix + `Il` + `Token` + `Resolver`, or "interface for an IL token resolver".
 
-A proper noun whose name contains an abbreviation, (OpenSSH, macOS, PostgreSQL, WebGPU, etc.) is a single word, not several words split where the abbreviation starts or ends: `Openssh`, `Macos`, `Postgresql`, `Webgpu`. So it's `WebgpuDevice`, not `WebGpuDevice`; the abbreviation is part of the name, not a word of its own. This clears the last aforementioned ambiguity; if "IOStream" was a proper noun, it'd be `Iostream` in a type/member name.
+camelCase/PascalCase proper nouns (JavaScript, FreeType, etc.), including ones whose name contains an abbreviation (OpenSSH, macOS, PostgreSQL, WebGPU, etc.) are single words, not several words split at word boundaries: `Javascript`, `Freetype`, `Openssh`, `Macos`, `Postgresql`, `Webgpu`. This clears the last aforementioned ambiguity; if "IOStream" was a proper noun, it'd be `Iostream` in a type/member name.
 
 Names that come from foreign code, such as the WebGPU and SDL bindings, keep their original spelling (e.g. `WGPUTextureFormat`); only Injure's own names follow this convention. This also applies to names that match external definitions across an FFI boundary, such as `pub type HRESULT` / `pub struct GUID` in the CLR profiler for the modloader, even though by Rust convention and this project's convention it'd be `Hresult` / `Guid`, since COM uses `HRESULT`/`GUID`.
 
@@ -152,8 +152,8 @@ A struct implements `IHasInvalidDefault` if and only if it documents its `defaul
 
 ### Internal/private types and members
 
-Internal/private types and members can also have doc comments. Unlike public-API accessible ones, there is not a strict need to document, but the usual convention is to document `internal` members/types unless the behavior is obvious, and to document `private` members/types if there is some kind of important information that is difficult to derive from just reading the code of the member/type in question and its surrounding code.
+Internal/private types and members are not exempt from doc comments; unlike public-API ones, there isn't a strict need to document, but if you find yourself writing an explanatory comment for an internal/private type or member targeted at anything other than the immediately surrounding code in the same file, it should most likely become a doc comment.
 
-Additionally, public-API types and members nearly always have a `<summary>` if they have a doc comment at all (not counting `inheritdoc` ones); exemptions can be made for e.g. enum members whose role is obvious from just the name but have additional notes/remarks. Internal/private types are exempt from this, and may have e.g. purely a `<remarks>` or purely a `<returns>` or purely one or more `<exception>`s; that pattern is common for if the general purpose/behavior is evident but some supplementary info or edge case(s) need to be noted.
+Additionally, public-API types and members nearly always have a `<summary>` if they have a doc comment at all (not counting `inheritdoc` ones); exemptions can be made for e.g. enum members whose role is obvious from just the name but have additional notes/remarks. Internal/private types are exempt from this, and may have e.g. purely a `<remarks>` or purely a `<returns>` or purely one or more `<exception>`s; that pattern is common for if the general purpose/behavior is already clear but some supplementary info or edge case(s) need to be noted.
 
 Also see the section above; all structs must have a `<remarks>` documenting the validity of the `default` value.

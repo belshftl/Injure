@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Numerics;
+using Injure.Draw.Text;
 using Injure.Gpu;
 using Injure.Primitives;
 
@@ -115,6 +116,12 @@ namespace Injure.Draw;
 /// <see cref="SetMemoryPolicy(GpuDevice, CanvasMemoryPolicy)"/>.
 /// </para>
 /// <para>
+/// Has optional <see cref="Text.TextSystem"/> integration for convenience; a canvas created with a
+/// <see cref="TextSystem"/> can draw text without a prepared <see cref="TextLayout"/> via
+/// <see cref="Canvas.Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, Vector2, SrgbColor32)"/>.
+/// See <see cref="OwnedCanvas(RenderFrame, in CanvasParams, TextSystem?)"/>.
+/// </para>
+/// <para>
 /// See <see cref="Draw.Canvas"/> for more info regarding draws, parameters, etc.
 /// </para>
 /// <para>
@@ -125,6 +132,7 @@ public sealed class OwnedCanvas : IDisposable {
 	// ==========================================================================
 	// state
 	private readonly RenderFrame frame;
+	private readonly TextSystem? textSystem;
 	private readonly CanvasDeviceResources res;
 	private readonly CanvasArena arena;
 	private readonly Stack<CanvasParams> @params = new();
@@ -133,6 +141,7 @@ public sealed class OwnedCanvas : IDisposable {
 	private readonly Stack<ulong> scopeIds = new();
 	private ulong nextScopeId = 1;
 	private RenderPass? pass;
+	private GlyphPagePins? glyphPins;
 	private bool disposed = false;
 
 	// for tests checking what batches together
@@ -172,12 +181,23 @@ public sealed class OwnedCanvas : IDisposable {
 	private RectI appliedScissor;
 	private CanvasArena.GeometryChunk? setChunk;
 
+	// ==========================================================================
+	// public api
+
 	/// <summary>
 	/// Creates a canvas drawing into <paramref name="frame"/>, and begins a render pass as dictated by
 	/// <paramref name="baseParams"/>.
 	/// </summary>
 	/// <param name="frame">Frame to record into.</param>
 	/// <param name="baseParams">The base of the parameters stack, which can't be popped off.</param>
+	/// <param name="textSystem">
+	/// The text system that
+	/// <see cref="Canvas.Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, Vector2, SrgbColor32)"/>
+	/// lays text out with and caches layouts in, or <see langword="null"/> for no text system
+	/// integration, which makes that overload unavailable. Layouts passed to
+	/// <see cref="Canvas.Text(TextLayout, Vector2, SrgbColor32)"/> are drawn with the text system
+	/// that made them either way.
+	/// </param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
 	/// </exception>
@@ -193,15 +213,21 @@ public sealed class OwnedCanvas : IDisposable {
 	/// Thrown if <paramref name="frame"/> has already been submitted or disposed, has a render pass
 	/// active, or has no primary output while <paramref name="baseParams"/> targets it.
 	/// </exception>
-	public OwnedCanvas(RenderFrame frame, in CanvasParams baseParams) {
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if <paramref name="textSystem"/> has been disposed.
+	/// </exception>
+	public OwnedCanvas(RenderFrame frame, in CanvasParams baseParams, TextSystem? textSystem = null) {
 		ArgumentNullException.ThrowIfNull(frame);
 		ArgumentInvalidDefaultException.ThrowIfDefault(baseParams);
+		textSystem?.ThrowIfDisposed();
 		this.frame = frame;
+		this.textSystem = textSystem;
 		res = CanvasDeviceResources.For(frame.Device);
 		validate(baseParams);
 		arena = res.ArenaPool.Rent(frame);
 		@params.Push(baseParams);
 		openPass(in baseParams);
+		textSystem?.OnCanvasCreated(frame);
 	}
 
 	/// <summary>
@@ -267,6 +293,13 @@ public sealed class OwnedCanvas : IDisposable {
 
 	// ==========================================================================
 	// used by Canvas
+	internal TextSystem? TextSystem {
+		get {
+			chk();
+			return textSystem;
+		}
+	}
+
 	internal CanvasParams CurrentParams {
 		get {
 			chk();
@@ -357,7 +390,23 @@ public sealed class OwnedCanvas : IDisposable {
 		}
 	}
 
-	internal void AddTextured(in ResolvedDrawableTexture tex, TexSampling sampling, ReadOnlySpan<Vertex2dTextureColor> verts, ReadOnlySpan<uint> indices) {
+	internal void AddTextured(in ResolvedDrawableTexture tex, TexSampling sampling, ReadOnlySpan<Vertex2dTextureColor> verts, ReadOnlySpan<uint> indices) =>
+		addTextured(in tex, sampling, verts, indices, EffectiveTransform);
+
+	/// <remarks>
+	/// Like <see cref="AddTextured"/>, but the vertices are in target pixels.
+	/// </remarks>
+	internal void AddTexturedInPixels(in ResolvedDrawableTexture tex, TexSampling sampling, ReadOnlySpan<Vertex2dTextureColor> verts, ReadOnlySpan<uint> indices) =>
+		addTextured(in tex, sampling, verts, indices, Matrix3x2.Identity);
+
+	// keeps a glyph atlas page alive until the frame is submitted or discarded
+	internal void PinGlyphPage(GlyphAtlasPage page) {
+		chk();
+		glyphPins ??= frame.AddOrderedDisposable(new GlyphPagePins());
+		glyphPins.Pin(page);
+	}
+
+	private void addTextured(in ResolvedDrawableTexture tex, TexSampling sampling, ReadOnlySpan<Vertex2dTextureColor> verts, ReadOnlySpan<uint> indices, Matrix3x2 m) {
 		chk();
 		CanvasTarget target = @params.Peek().Target;
 		if (!target.IsPrimary && tex.SameRenderTargetAs(target.RenderTarget))
@@ -367,7 +416,6 @@ public sealed class OwnedCanvas : IDisposable {
 			&& sampling.Filter != TexFilter.Linear
 		)
 			throw new InvalidOperationException($"sdf textures can only be sampled with TexFilter.Linear, as sharper sampling defeats the point of an sdf (tried to sample with {sampling.Filter})");
-		Matrix3x2 m = EffectiveTransform;
 		Span<Vertex2dTextureColor> dst = reserve(tex.Identity, tex.BindGroup, sampling, textured: true, verts.Length, indices, replace: false);
 		for (int i = 0; i < verts.Length; i++) {
 			var p = Vector2.Transform(new Vector2(verts[i].X, verts[i].Y), m);

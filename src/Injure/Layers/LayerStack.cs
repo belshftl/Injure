@@ -207,7 +207,9 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input, IDia
 		try {
 			if (entries.Count == 0)
 				return;
-			Span<ResolvedPassState> states = entries.Count <= 64 ? stackalloc ResolvedPassState[entries.Count] : new ResolvedPassState[entries.Count];
+			Span<ResolvedPassState> states = entries.Count <= 256
+				? stackalloc ResolvedPassState[entries.Count]
+				: new ResolvedPassState[entries.Count];
 			resolvePassStates(states);
 
 			for (int i = 0; i < entries.Count; i++) {
@@ -259,7 +261,9 @@ public sealed class LayerStack(ITickerRegistry tickers, IInputSource input, IDia
 		try {
 			if (entries.Count == 0)
 				return;
-			Span<ResolvedPassState> states = entries.Count <= 64 ? stackalloc ResolvedPassState[entries.Count] : new ResolvedPassState[entries.Count];
+			Span<ResolvedPassState> states = entries.Count <= 256
+				? stackalloc ResolvedPassState[entries.Count]
+				: new ResolvedPassState[entries.Count];
 			resolvePassStates(states);
 
 			double rawDt = info.Elapsed.ToSeconds();

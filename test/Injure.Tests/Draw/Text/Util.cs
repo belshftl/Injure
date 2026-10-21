@@ -40,11 +40,4 @@ internal static class Util {
 			Assert.Equal(expected[i].Dir, actual[i].Direction);
 		}
 	}
-
-	public static string[] LineTexts(string fullText, ReadOnlySpan<LogicalLine> lines) {
-		string[] result = new string[lines.Length];
-		for (int i = 0; i < lines.Length; i++)
-			result[i] = fullText[lines[i].Start..lines[i].Limit];
-		return result;
-	}
 }

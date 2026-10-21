@@ -33,7 +33,7 @@ public static class BuiltinAssetRegistrations {
 	public static void RegisterFontInto(AssetStore store, TextSystem text) {
 		ArgumentNullException.ThrowIfNull(store);
 		store.RegisterCreator(
-			new OwnerOrderedEntry<IAssetCreator<Font>>(
+			new OwnerOrderedEntry<IAssetCreator<FontData>>(
 				new FontAssetCreator(text),
 				EngineInfo.OwnerId,
 				"FontAssetCreator"

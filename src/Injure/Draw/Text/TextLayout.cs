@@ -1,49 +1,143 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Numerics;
+using System.Runtime.InteropServices;
 using HarfBuzzSharp;
 using Injure.DevAnalyzers.Attributes;
-using Injure.Primitives;
 
 namespace Injure.Draw.Text;
 
+/// <summary>
+/// How text is broken into lines beyond explicit line breaks.
+/// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="None"/>.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
-[ClosedEnum]
+[ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct TextWrapMode {
+	/// <summary>Raw switch tag for <see cref="TextWrapMode"/>.</summary>
 	public enum Case {
-		None,
+		/// <summary>
+		/// Lines only break at explicit line breaks.
+		/// </summary>
+		None = 1,
+
+		/// <summary>
+		/// Lines also break at the last break opportunity (e.g. a space) that keeps them within
+		/// <see cref="TextLayoutOptions.MaxWidth"/>, or within a word if a single word is wider. Spaces
+		/// at the end of a wrapped line don't count towards its width.
+		/// </summary>
 		Greedy,
 	}
 }
 
+/// <summary>
+/// How lines are positioned horizontally within the layout's box.
+/// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Left"/>.
+/// <para>
+/// Lines are aligned within a box whose left edge is at X = 0. The box is
+/// <see cref="TextLayoutOptions.MaxWidth"/> wide, or as wide as the widest line if
+/// <see cref="TextLayoutOptions.MaxWidth"/> is infinite, in which case the widest line starts at
+/// X = 0 and the other lines are aligned relative to it.
+/// </para>
+/// <para>
+/// A line wider than the box, e.g. a single word wider than a finite
+/// <see cref="TextLayoutOptions.MaxWidth"/>, overflows it on the side or sides its alignment doesn't
+/// hold in place: a <see cref="Left"/> line past the right edge, a <see cref="Right"/> line past the
+/// left edge (to negative X coordinates), and a <see cref="Center"/> line equally past both.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-[ClosedEnum(CheckZeroName = false)] // left is the natural alignment from not adding an X offset so it's an alright "default"/"neutral"
+[ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct TextHorizontalAlign {
+	/// <summary>Raw switch tag for <see cref="TextHorizontalAlign"/>.</summary>
 	public enum Case {
-		Left,
+		/// <summary>
+		/// Lines start at the left edge.
+		/// </summary>
+		Left = 1,
+
+		/// <summary>
+		/// Lines are centered.
+		/// </summary>
 		Center,
+
+		/// <summary>
+		/// Lines end at the right edge.
+		/// </summary>
 		Right,
 	}
 }
 
+/// <summary>
+/// What happens to text past a maximum number of lines.
+/// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is <see cref="Clip"/>.
+/// <para>
+/// Currently unused.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
-[ClosedEnum(CheckZeroName = false)] // clip is kind of the plain default one may expect for "max lines"
+[ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct TextOverflowMode {
+	/// <summary>Raw switch tag for <see cref="TextOverflowMode"/>.</summary>
 	public enum Case {
-		Clip,
+		/// <summary>
+		/// Lines past the maximum are left out.
+		/// </summary>
+		Clip = 1,
+
+		/// <summary>
+		/// Lines past the maximum are left out, and the last line ends in an ellipsis.
+		/// </summary>
 		Ellipsis,
 	}
 }
 
-internal enum LineBreakKind {
+/// <summary>
+/// One line of a <see cref="TextLayout"/>, in drawable units, relative to the layout's top-left
+/// corner.
+/// </summary>
+/// <param name="Width">Width of the line's glyphs.</param>
+/// <param name="BaselineY">Y coordinate of the line's baseline.</param>
+/// <param name="Ascent">Distance from the baseline up to the top of the line.</param>
+/// <param name="Descent">Distance from the baseline down to the bottom of the line's glyphs.</param>
+/// <param name="LineGap">Extra space below <paramref name="Descent"/> before the next line.</param>
+/// <param name="Height">
+/// Vertical space the line takes up, i.e. <c>Ascent + Descent + LineGap</c>.
+/// </param>
+/// <param name="OffsetX">
+/// X coordinate of the line's left edge, from alignment (see <see cref="TextHorizontalAlign"/>);
+/// negative for a line that overflows the layout's box to the left.
+/// </param>
+/// <remarks>
+/// <para>
+/// The vertical metrics are the largest of the fonts the line uses, or the primary font's for an
+/// empty line.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is valid and is an empty line at the origin with every
+/// metric at 0.
+/// </para>
+/// </remarks>
+public readonly record struct TextLine(
+	float Width,
+	float BaselineY,
+	float Ascent,
+	float Descent,
+	float LineGap,
+	float Height,
+	float OffsetX
+);
+
+internal enum LineBreakKind : byte {
 	None,
 	Soft,
 	Hard,
@@ -80,10 +174,15 @@ internal readonly record struct VisualBidiRun(
 	bool IHasInvalidDefault.IsDefault => Direction == default;
 }
 
+/// <summary>
+/// A shaped cluster within a paragraph, in source order. Widths are in drawable units, and source
+/// positions are relative to the paragraph.
+/// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is valid and is an empty cluster starting at 0.
+/// The <see langword="default"/> value is valid and is an empty cluster of run 0 at position 0.
 /// </remarks>
 internal readonly record struct ParagraphCluster(
+	int Run,
 	int GlyphStart,
 	int GlyphCount,
 	int SourceStart,
@@ -92,141 +191,318 @@ internal readonly record struct ParagraphCluster(
 	bool IsWhitespaceOnly,
 	LineBreakKind BreakAfter
 ) {
-	internal int SourceLimit => SourceStart + SourceLength;
+	public int SourceLimit => SourceStart + SourceLength;
 }
+
+/// <summary>
+/// A range of a paragraph's clusters forming one line.
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty line at cluster 0.
+/// </remarks>
+internal readonly record struct LineSpan(
+	int Start,
+	int End
+);
 
 internal sealed class ParagraphRun {
-	public required IResolvedFont Font { get; init; }
+	public required int FontIndex { get; init; }
 	public required TextItem Item { get; init; }
-	public required ShapedRun ShapedRun { get; init; }
-	public required ParagraphCluster[] SourceOrderClusters { get; init; }
-	public required ParagraphCluster[] GlyphOrderClusters { get; init; }
-
-	public int SourceStart => Item.SourceStart;
-	public int SourceLength => Item.Text.Length;
-	public int SourceLimit => Item.SourceStart + Item.Text.Length;
+	public required ShapedRun Shaped { get; init; }
 }
 
 /// <remarks>
-/// The <see langword="default"/> value is valid and is an empty line starting at 0.
+/// <para>
+/// Positions are in drawable units relative to the layout's top-left corner, at the glyph's origin on
+/// the baseline.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is valid and is glyph 0 of the primary font at the origin,
+/// at size 0.
+/// </para>
 /// </remarks>
-internal readonly record struct LogicalLine(
-	int Start,
-	int Limit
-);
-
-/// <remarks>
-/// The <see langword="default"/> value is invalid.
-/// </remarks>
-internal readonly record struct PlannedGlyph(
-	IResolvedFont Font,
+internal readonly record struct LaidOutGlyph(
+	int FontIndex,
 	uint GlyphId,
-	uint Cluster,
 	float X,
-	float Y
-) : IHasInvalidDefault {
-	bool IHasInvalidDefault.IsDefault => Font is null;
-}
-
-/// <remarks>
-/// The <see langword="default"/> value is valid and is an empty line, starting at 0, with every
-/// metric at 0.
-/// </remarks>
-public readonly record struct TextLine(
-	int GlyphStart,
-	int GlyphCount,
-	float Width,
-	float BaselineY,
-	float Ascent,
-	float Descent,
-	float LineGap,
-	float Height,
-	float OffsetX
+	float Y,
+	float Size,
+	int SourceIndex
 );
 
-internal sealed class TextLayoutPlan {
-	public required PlannedGlyph[] Glyphs { get; init; }
+internal sealed class LayoutResult {
+	public required LaidOutGlyph[] Glyphs { get; init; }
 	public required TextLine[] Lines { get; init; }
 	public required float Width { get; init; }
 	public required float Height { get; init; }
 }
 
-internal enum TextLayoutPlanMode {
-	MeasureOnly,
-	GlyphPlan,
-}
-
 internal static class TextLayouter {
-	public static TextLayoutPlan BuildPlan(
-		ITextItemizer itemizer,
-		FallbackResolver fallbackResolver,
-		ResolvedFontFallbackChain fonts,
-		ReadOnlySpan<char> text,
-		in TextStyle style,
-		TextLayoutPlanMode mode
-	) {
-		List<PlannedGlyph>? glyphs = mode == TextLayoutPlanMode.GlyphPlan ? new List<PlannedGlyph>() : null;
-		List<TextLine> lines = new();
+	private sealed class Scratch {
+		public readonly List<LaidOutGlyph> Glyphs = new();
+		public readonly List<TextLine> Lines = new();
+		// index of each line's first glyph in Glyphs
+		public readonly List<int> LineGlyphStarts = new();
+		public readonly List<ParagraphRun> Runs = new();
+		public readonly List<ParagraphCluster> Clusters = new();
+		public readonly List<LineSpan> Spans = new();
+		public readonly List<LogicalBidiRun> LogicalRuns = new();
+		public readonly List<VisualBidiRun> VisualRuns = new();
+		public readonly List<ResolvedItem> Resolved = new();
+	}
 
-		float lineTopY = 0f;
-		float maxLineWidth = 0f;
+	public static LayoutResult Layout(
+		ITextItemizer itemizer,
+		FallbackResolver resolver,
+		ResolvedFontFallbackChain fonts,
+		string text,
+		in TextStyle style
+	) {
+		Scratch s = new();
+		var metrics = new FontLineMetrics[fonts.Fonts.Length];
+		for (int i = 0; i < metrics.Length; i++)
+			metrics[i] = fonts.States[i].LineMetrics;
+		bool wrap = style.Layout.WrapMode == TextWrapMode.Greedy && !float.IsPositiveInfinity(style.Layout.MaxWidth);
+		string? breakLanguage = TextAnalysis.UnibreakLanguage(style.Language);
+		float top = 0f;
+		float width = 0f;
 		int paraStart = 0;
-		for (int i = 0; i <= text.Length; i++) {
-			bool isParaBreak = i == text.Length || text[i] == '\n';
-			if (!isParaBreak)
-				continue;
-			string paraText = new(text[paraStart..i]);
-			ParagraphRun[] paraRuns = BuildParaRuns(itemizer, fallbackResolver, fonts, paraText, paraStart, style.Locale, style.LanguageBcp47);
-			ParagraphCluster[] logiClusters = FlattenSourceOrderClusters(paraRuns);
-			LogicalLine[] logiLines = WrapParaLogicalLines(logiClusters, paraStart, paraText.Length, style.LayoutOptions.MaxWidth, style.LayoutOptions.WrapMode);
-			foreach (LogicalLine logiLine in logiLines) {
-				FontLineMetrics metrics = ComputeLineMetrics(paraRuns, logiLine, fonts.Primary.GetState().LineMetrics);
-				int glyphStart = glyphs?.Count ?? 0;
-				float baselineY = lineTopY + metrics.Ascent;
-				float lineW;
-				if (glyphs is not null) {
-					lineW = EmitVisualLineGlyphs(paraRuns, paraText, paraStart, logiLine, baselineY, glyphs);
-				} else {
-					lineW = 0f;
-					foreach (ParagraphCluster cluster in logiClusters)
-						if (Contains(cluster, logiLine.Start, logiLine.Limit))
-							lineW += cluster.Width;
-				}
-				float alignOffsetX = getAlignOffset(lineW, style.LayoutOptions.MaxWidth, style.LayoutOptions.HorizontalAlign);
-				if (glyphs is not null && alignOffsetX != 0f)
-					shiftPlannedGlyphs(glyphs, glyphStart, glyphs.Count, alignOffsetX);
-				lines.Add(
-					new TextLine(
-						GlyphStart: glyphStart,
-						GlyphCount: glyphs is not null ? glyphs.Count - glyphStart : 0,
-						Width: lineW,
-						BaselineY: baselineY,
-						Ascent: metrics.Ascent,
-						Descent: metrics.Descent,
-						LineGap: metrics.LineGap,
-						Height: metrics.Height,
-						OffsetX: alignOffsetX
-					)
-				);
-				maxLineWidth = Math.Max(lineW, maxLineWidth);
-				lineTopY += metrics.Height;
+		for (;;) {
+			int newline = text.IndexOf('\n', paraStart);
+			int paraLimit = newline < 0 ? text.Length : newline;
+			string para = text[paraStart..paraLimit];
+			s.Runs.Clear();
+			s.Clusters.Clear();
+			s.Spans.Clear();
+			if (para.Length == 0) {
+				emitLine(s, null, metrics, paraStart, default, in style, ref top, ref width);
+			} else {
+				using var analysis = TextAnalysis.ParagraphAnalysis.Create(para);
+				buildRuns(s, itemizer, resolver, fonts, para, analysis, in style);
+				buildClusters(s, para, breakLanguage, in style);
+				Wrap(CollectionsMarshal.AsSpan(s.Clusters), style.Layout.MaxWidth, wrap, s.Spans);
+				foreach (LineSpan span in s.Spans)
+					emitLine(s, analysis, metrics, paraStart, span, in style, ref top, ref width);
 			}
-			paraStart = i + 1;
+			if (newline < 0)
+				break;
+			paraStart = newline + 1;
 		}
-		return new TextLayoutPlan {
-			Glyphs = glyphs?.ToArray() ?? Array.Empty<PlannedGlyph>(),
-			Lines = lines.ToArray(),
-			Width = maxLineWidth,
-			Height = lineTopY,
+		align(s, float.IsPositiveInfinity(style.Layout.MaxWidth) ? width : style.Layout.MaxWidth, style.Layout.HorizontalAlign);
+		return new LayoutResult {
+			Glyphs = s.Glyphs.ToArray(),
+			Lines = s.Lines.ToArray(),
+			Width = width,
+			Height = top,
 		};
 	}
 
-	private static float getAlignOffset(float lineWidth, float boxWidth, TextHorizontalAlign align) {
-		if (float.IsPositiveInfinity(boxWidth))
-			return 0f;
+	private static void buildRuns(
+		Scratch s,
+		ITextItemizer itemizer,
+		FallbackResolver resolver,
+		ResolvedFontFallbackChain fonts,
+		string para,
+		TextAnalysis.ParagraphAnalysis analysis,
+		in TextStyle style
+	) {
+		s.LogicalRuns.Clear();
+		analysis.GetLogicalRuns(s.LogicalRuns);
+		foreach (LogicalBidiRun bidiRun in s.LogicalRuns) {
+			TextItem[] items = itemizer.Itemize(para.AsSpan(bidiRun.Start, bidiRun.Length), bidiRun.Start, bidiRun.Direction, style.Language);
+			foreach (TextItem item in items) {
+				s.Resolved.Clear();
+				resolver.ResolveItems(fonts, item, s.Resolved);
+				foreach (ResolvedItem r in s.Resolved)
+					s.Runs.Add(new ParagraphRun { FontIndex = r.FontIndex, Item = r.Item, Shaped = r.ShapedRun });
+			}
+		}
+	}
+
+	private static void buildClusters(Scratch s, string para, string? breakLanguage, in TextStyle style) {
+		Span<LineBreakKind> breakAfter = (para.Length + 1) <= 2048
+			? stackalloc LineBreakKind[para.Length + 1]
+			: new LineBreakKind[para.Length + 1];
+		foreach (LineBreakOpportunity opp in TextAnalysis.GetLineBreaks(para, breakLanguage))
+			breakAfter[opp.Position] = opp.Kind;
+		for (int r = 0; r < s.Runs.Count; r++) {
+			ParagraphRun run = s.Runs[r];
+			foreach (ShapedCluster c in run.Shaped.SourceOrderClusters) {
+				int start = run.Item.SourceStart + c.SourceStart;
+				s.Clusters.Add(new ParagraphCluster(
+					Run: r,
+					GlyphStart: c.GlyphStart,
+					GlyphCount: c.GlyphCount,
+					SourceStart: start,
+					SourceLength: c.SourceLength,
+					Width: c.Width * style.Size,
+					IsWhitespaceOnly: c.IsWhitespaceOnly,
+					BreakAfter: breakAfter[start + c.SourceLength]
+				));
+			}
+		}
+	}
+
+	/// <summary>
+	/// Breaks a paragraph's clusters into lines; whitespace never causes a wrap by itself, and is
+	/// trimmed from both sides of a wrap.
+	/// </summary>
+	public static void Wrap(ReadOnlySpan<ParagraphCluster> clusters, float maxWidth, bool wrap, List<LineSpan> dst) {
+		if (clusters.IsEmpty) {
+			dst.Add(default);
+			return;
+		}
+		int start = 0;
+		float width = 0f;
+		int lastBreak = -1; // the last cluster of the line that a soft break may follow
+		int i = 0;
+		while (i < clusters.Length) {
+			ParagraphCluster c = clusters[i];
+			if (wrap && i > start && !c.IsWhitespaceOnly && width + c.Width > maxWidth) {
+				int end = lastBreak >= start ? lastBreak + 1 : i;
+				dst.Add(new LineSpan(start, TrimTrailingWs(clusters, start, end)));
+				start = SkipLeadingWs(clusters, end);
+				width = 0f;
+				for (int k = start; k < i; k++)
+					width += clusters[k].Width;
+				lastBreak = -1;
+				continue;
+			}
+			width += c.Width;
+			if (c.BreakAfter == LineBreakKind.Hard) {
+				dst.Add(new LineSpan(start, i + 1));
+				start = i + 1;
+				width = 0f;
+				lastBreak = -1;
+			} else if (c.BreakAfter == LineBreakKind.Soft) {
+				lastBreak = i;
+			}
+			i++;
+		}
+		if (start < clusters.Length || dst.Count == 0)
+			dst.Add(new LineSpan(start, clusters.Length));
+	}
+
+	public static int SkipLeadingWs(ReadOnlySpan<ParagraphCluster> clusters, int start) {
+		while (start < clusters.Length && clusters[start].IsWhitespaceOnly)
+			start++;
+		return start;
+	}
+
+	public static int TrimTrailingWs(ReadOnlySpan<ParagraphCluster> clusters, int start, int end) {
+		while (end > start && clusters[end - 1].IsWhitespaceOnly)
+			end--;
+		return end;
+	}
+
+	/// <summary>
+	/// Gets the first index in [<paramref name="lo"/>, <paramref name="hi"/>) whose cluster starts at
+	/// or after <paramref name="position"/>, or <paramref name="hi"/> if none does.
+	/// </summary>
+	private static int lowerBound(ReadOnlySpan<ParagraphCluster> clusters, int lo, int hi, int position) {
+		while (lo < hi) {
+			int mid = lo + (hi - lo) / 2;
+			if (clusters[mid].SourceStart < position)
+				lo = mid + 1;
+			else
+				hi = mid;
+		}
+		return lo;
+	}
+
+	private static void emitLine(
+		Scratch s,
+		TextAnalysis.ParagraphAnalysis? analysis,
+		FontLineMetrics[] metrics,
+		int paraStart,
+		LineSpan span,
+		in TextStyle style,
+		ref float top,
+		ref float width
+	) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(s.Clusters);
+		FontLineMetrics m = default;
+		if (span.End > span.Start) {
+			for (int k = span.Start; k < span.End; k++) {
+				FontLineMetrics fm = metrics[s.Runs[clusters[k].Run].FontIndex];
+				m = new FontLineMetrics(MathF.Max(m.Ascent, fm.Ascent), MathF.Max(m.Descent, fm.Descent), MathF.Max(m.LineGap, fm.LineGap));
+			}
+		} else {
+			m = metrics[0];
+		}
+		float size = style.Size;
+		float baselineY = top + m.Ascent * size;
+		s.LineGlyphStarts.Add(s.Glyphs.Count);
+		float penX = 0f;
+		if (span.End > span.Start && analysis is not null) {
+			s.VisualRuns.Clear();
+			analysis.GetVisualRunsForLine(s.VisualRuns, clusters[span.Start].SourceStart, clusters[span.End - 1].SourceLimit);
+			foreach (VisualBidiRun v in s.VisualRuns) {
+				int a = lowerBound(clusters, span.Start, span.End, v.Start);
+				int b = lowerBound(clusters, a, span.End, v.Start + v.Length);
+				if (v.Direction == Direction.RightToLeft) {
+					for (int k = b - 1; k >= a; k--)
+						emitCluster(s, clusters[k], paraStart, size, baselineY, ref penX);
+				} else {
+					for (int k = a; k < b; k++)
+						emitCluster(s, clusters[k], paraStart, size, baselineY, ref penX);
+				}
+			}
+		}
+		float height = m.Height * size;
+		s.Lines.Add(new TextLine(
+			Width: penX,
+			BaselineY: baselineY,
+			Ascent: m.Ascent * size,
+			Descent: m.Descent * size,
+			LineGap: m.LineGap * size,
+			Height: height,
+			OffsetX: 0f // set by align()
+		));
+		top += height;
+		width = MathF.Max(width, penX);
+	}
+
+	private static void emitCluster(Scratch s, in ParagraphCluster c, int paraStart, float size, float baselineY, ref float penX) {
+		ParagraphRun run = s.Runs[c.Run];
+		ReadOnlySpan<ShapedGlyph> glyphs = run.Shaped.Glyphs.AsSpan(c.GlyphStart, c.GlyphCount);
+		foreach (ShapedGlyph g in glyphs) {
+			s.Glyphs.Add(new LaidOutGlyph(
+				FontIndex: run.FontIndex,
+				GlyphId: g.GlyphId,
+				X: penX + g.XOffset * size,
+				Y: baselineY - g.YOffset * size,
+				Size: size,
+				SourceIndex: paraStart + run.Item.SourceStart + (int)g.Cluster
+			));
+			penX += g.XAdvance * size;
+			// TODO: YAdvance, for vertical text
+		}
+	}
+
+	/// <summary>
+	/// Offsets each line horizontally to align it within a box of width <paramref name="boxWidth"/>
+	/// starting at x = 0.
+	/// </summary>
+	private static void align(Scratch s, float boxWidth, TextHorizontalAlign align) {
+		Span<TextLine> lines = CollectionsMarshal.AsSpan(s.Lines);
+		Span<LaidOutGlyph> glyphs = CollectionsMarshal.AsSpan(s.Glyphs);
+		for (int i = 0; i < lines.Length; i++) {
+			float offsetX = alignOffset(lines[i].Width, boxWidth, align);
+			if (offsetX == 0f)
+				continue;
+			int end = i + 1 < lines.Length ? s.LineGlyphStarts[i + 1] : glyphs.Length;
+			for (int k = s.LineGlyphStarts[i]; k < end; k++)
+				glyphs[k] = glyphs[k] with { X = glyphs[k].X + offsetX };
+			lines[i] = lines[i] with { OffsetX = offsetX };
+		}
+	}
+
+	/// <remarks>
+	/// Negative for lines wider than the box that overflow it to the left.
+	/// </remarks>
+	private static float alignOffset(float lineWidth, float boxWidth, TextHorizontalAlign align) {
 		float free = boxWidth - lineWidth;
-		if (free <= 0f)
-			return 0f;
 		return align.Tag switch {
 			TextHorizontalAlign.Case.Left => 0f,
 			TextHorizontalAlign.Case.Center => free * 0.5f,
@@ -234,340 +510,139 @@ internal static class TextLayouter {
 			_ => throw new UnreachableException(),
 		};
 	}
-
-	private static void shiftPlannedGlyphs(List<PlannedGlyph> glyphs, int start, int end, float dx) {
-		for (int i = start; i < end; i++)
-			glyphs[i] = glyphs[i] with { X = glyphs[i].X + dx };
-	}
-
-	public static FontLineMetrics ComputeLineMetrics(ReadOnlySpan<ParagraphRun> paraRuns, LogicalLine logiLine, FontLineMetrics fallback) {
-		float ascent = 0f;
-		float descent = 0f;
-		float lineGap = 0f;
-		bool any = false;
-		foreach (ParagraphRun paraRun in paraRuns) {
-			if (!Overlaps(paraRun, logiLine.Start, logiLine.Limit))
-				continue;
-			FontLineMetrics m = paraRun.Font.GetState().LineMetrics;
-			ascent = Math.Max(ascent, m.Ascent);
-			descent = Math.Max(descent, m.Descent);
-			lineGap = Math.Max(lineGap, m.LineGap);
-			any = true;
-		}
-		return any ? new FontLineMetrics(ascent, descent, lineGap, Height: ascent + descent + lineGap) : fallback;
-	}
-
-	public static ParagraphRun[] BuildParaRuns(
-		ITextItemizer itemizer,
-		FallbackResolver fallbackResolver,
-		ResolvedFontFallbackChain fonts,
-		string paraText,
-		int paraAbsoluteStart,
-		string locale,
-		string? languageBcp47
-	) {
-		LineBreakOpportunity[] brklist = TextAnalysis.GetLineBreaks(paraText, locale);
-		Dictionary<int, LineBreakKind> breaks = BuildBreaksDict(brklist);
-		LogicalBidiRun[] bidiRuns = TextAnalysis.GetLogicalBidiRuns(paraText);
-		List<ParagraphRun> paraRuns = new();
-		foreach (LogicalBidiRun bidiRun in bidiRuns) {
-			ReadOnlySpan<char> bidiRunText = paraText.AsSpan(bidiRun.Start, bidiRun.Length);
-			TextItem[] items = itemizer.Itemize(bidiRunText, paraAbsoluteStart + bidiRun.Start, bidiRun.Direction, languageBcp47);
-			foreach (TextItem item in items) {
-				ResolvedItem[] resolvedItems = fallbackResolver.ResolveItems(fonts, item);
-				foreach (ResolvedItem resolved in resolvedItems)
-					paraRuns.Add(BuildParaRun(resolved.Font, resolved.Item, resolved.ShapedRun, paraAbsoluteStart, breaks));
-			}
-		}
-		return paraRuns.ToArray();
-	}
-
-	public static ParagraphRun BuildParaRun(IResolvedFont font, in TextItem item, ShapedRun shapedRun, int paraAbsoluteStart, IReadOnlyDictionary<int, LineBreakKind> breaks) {
-		ParagraphCluster[] sourceOrderClusters = BuildParaClusters(item, shapedRun.SourceOrderClusters, paraAbsoluteStart, breaks);
-		ParagraphCluster[] glyphOrderClusters = BuildParaClusters(item, shapedRun.GlyphOrderClusters, paraAbsoluteStart, breaks);
-		return new ParagraphRun {
-			Font = font,
-			Item = item,
-			ShapedRun = shapedRun,
-			SourceOrderClusters = sourceOrderClusters,
-			GlyphOrderClusters = glyphOrderClusters,
-		};
-	}
-
-	public static ParagraphCluster[] BuildParaClusters(
-		in TextItem item,
-		ShapedCluster[] shapedClusters,
-		int paraAbsoluteStart,
-		IReadOnlyDictionary<int, LineBreakKind> breaks
-	) {
-		var paraClusters = new ParagraphCluster[shapedClusters.Length];
-		for (int i = 0; i < shapedClusters.Length; i++) {
-			ShapedCluster shapedCluster = shapedClusters[i];
-			int absoluteSourceStart = item.SourceStart + shapedCluster.SourceStart;
-			int absoluteSourceLimit = absoluteSourceStart + shapedCluster.SourceLength;
-			if (!breaks.TryGetValue(absoluteSourceLimit - paraAbsoluteStart, out LineBreakKind breakAfter))
-				breakAfter = LineBreakKind.None;
-			paraClusters[i] = new ParagraphCluster(
-				GlyphStart: shapedCluster.GlyphStart,
-				GlyphCount: shapedCluster.GlyphCount,
-				SourceStart: absoluteSourceStart,
-				SourceLength: shapedCluster.SourceLength,
-				Width: shapedCluster.Width,
-				IsWhitespaceOnly: shapedCluster.IsWhitespaceOnly,
-				BreakAfter: breakAfter
-			);
-		}
-		return paraClusters;
-	}
-
-	public static ParagraphCluster[] FlattenSourceOrderClusters(ReadOnlySpan<ParagraphRun> paraRuns) {
-		List<ParagraphCluster> flattened = new();
-		foreach (ParagraphRun paraRun in paraRuns)
-			foreach (ParagraphCluster cluster in paraRun.SourceOrderClusters)
-				flattened.Add(cluster);
-		return flattened.ToArray();
-	}
-
-	public static Dictionary<int, LineBreakKind> BuildBreaksDict(LineBreakOpportunity[] brklist) {
-		Dictionary<int, LineBreakKind> dict = new(brklist.Length);
-		for (int i = 0; i < brklist.Length; i++)
-			dict[brklist[i].Position] = brklist[i].Kind;
-		return dict;
-	}
-
-	public static LogicalLine[] WrapParaLogicalLines(
-		ReadOnlySpan<ParagraphCluster> paraClusters,
-		int paraAbsoluteStart,
-		int paraLength,
-		float maxWidth,
-		TextWrapMode wrapMode
-	) {
-		if (paraLength == 0)
-			return [new LogicalLine(Start: paraAbsoluteStart, Limit: paraAbsoluteStart)];
-		List<LogicalLine> lines = new();
-		bool wrap = wrapMode == TextWrapMode.Greedy && !float.IsPositiveInfinity(maxWidth);
-		int lineStart = paraAbsoluteStart;
-		float lineWidth = 0f;
-		int lastBreakSourceLimit = -1;
-		int i = 0;
-		while (i < paraClusters.Length) {
-			ParagraphCluster paraCluster = paraClusters[i];
-			float nextWidth = lineWidth + paraCluster.Width;
-			if (paraCluster.BreakAfter == LineBreakKind.Soft) {
-				lastBreakSourceLimit = paraCluster.SourceLimit;
-			} else if (paraCluster.BreakAfter == LineBreakKind.Hard) {
-				lines.Add(new LogicalLine(lineStart, paraCluster.SourceLimit));
-				lineStart = paraCluster.SourceLimit;
-				lineWidth = 0f;
-				lastBreakSourceLimit = -1;
-				i++;
-				continue;
-			}
-
-			if (wrap && nextWidth > maxWidth && lineStart < paraCluster.SourceStart) {
-				if (lastBreakSourceLimit > lineStart) {
-					lines.Add(new LogicalLine(Start: lineStart, Limit: TrimTrailingWs(paraClusters, lineStart, lastBreakSourceLimit)));
-					lineStart = SkipLeadingWs(paraClusters, lastBreakSourceLimit);
-					lineWidth = ComputeWidth(paraClusters, lineStart, paraCluster.SourceStart);
-				} else {
-					lines.Add(new LogicalLine(Start: lineStart, Limit: paraCluster.SourceStart));
-					lineStart = paraCluster.SourceStart;
-					lineWidth = 0f;
-				}
-				lastBreakSourceLimit = -1;
-				continue;
-			}
-			lineWidth = nextWidth;
-			i++;
-		}
-		lines.Add(new LogicalLine(Start: lineStart, Limit: paraAbsoluteStart + paraLength));
-		return lines.ToArray();
-	}
-
-	public static int SkipLeadingWs(ReadOnlySpan<ParagraphCluster> paraClusters, int lineStart) {
-		int start = lineStart;
-		foreach (ParagraphCluster paraCluster in paraClusters) {
-			if (paraCluster.SourceStart < lineStart)
-				continue;
-			if (!paraCluster.IsWhitespaceOnly)
-				break;
-			start = paraCluster.SourceLimit;
-		}
-		return start;
-	}
-
-	public static int TrimTrailingWs(ReadOnlySpan<ParagraphCluster> paraClusters, int lineStart, int lineLimit) {
-		int limit = lineLimit;
-		for (int i = paraClusters.Length - 1; i >= 0; i--) {
-			ParagraphCluster paraCluster = paraClusters[i];
-			if (!Contains(paraCluster, lineStart, lineLimit))
-				continue;
-			if (!paraCluster.IsWhitespaceOnly)
-				break;
-			limit = paraCluster.SourceStart;
-		}
-		return limit;
-	}
-
-	public static float ComputeWidth(ReadOnlySpan<ParagraphCluster> paraClusters, int start, int limit) {
-		float w = 0f;
-		foreach (ParagraphCluster paraCluster in paraClusters)
-			if (Contains(paraCluster, start, limit))
-				w += paraCluster.Width;
-		return w;
-	}
-
-	public static float EmitVisualLineGlyphs(
-		ReadOnlySpan<ParagraphRun> paraRuns,
-		string paraText,
-		int paraAbsoluteStart,
-		LogicalLine logiLine,
-		float baselineY,
-		List<PlannedGlyph> dst
-	) {
-		VisualBidiRun[] visualRuns = TextAnalysis.GetVisualBidiRunsForLine(
-			paraText,
-			logiLine.Start - paraAbsoluteStart,
-			logiLine.Limit - paraAbsoluteStart
-		);
-		float penX = 0f;
-		foreach (VisualBidiRun visualRun in visualRuns) {
-			int start = paraAbsoluteStart + visualRun.Start;
-			int limit = start + visualRun.Length;
-			switch (visualRun.Direction) {
-			case Direction.LeftToRight:
-				foreach (ParagraphRun paraRun in paraRuns) {
-					if (!Overlaps(paraRun, start, limit))
-						continue;
-					EmitParaRunGlyphs(paraRun, start, limit, baselineY, ref penX, dst);
-				}
-				break;
-			case Direction.RightToLeft:
-				for (int i = paraRuns.Length - 1; i >= 0; i--) {
-					ParagraphRun paraRun = paraRuns[i];
-					if (!Overlaps(paraRun, start, limit))
-						continue;
-					EmitParaRunGlyphs(paraRun, start, limit, baselineY, ref penX, dst);
-				}
-				break;
-			default:
-				throw new InternalStateException($"unexpected direction {visualRun.Direction} in bidi visual run");
-			}
-		}
-		return penX;
-	}
-
-	public static void EmitParaRunGlyphs(
-		ParagraphRun run,
-		int sliceStart,
-		int sliceLimit,
-		float baselineY,
-		ref float penX,
-		List<PlannedGlyph> dst
-	) {
-		foreach (ParagraphCluster paraCluster in run.GlyphOrderClusters) {
-			if (!Contains(paraCluster, sliceStart, sliceLimit))
-				continue;
-			for (int i = paraCluster.GlyphStart; i < paraCluster.GlyphStart + paraCluster.GlyphCount; i++) {
-				ShapedGlyph shaped = run.ShapedRun.Glyphs[i];
-				dst.Add(
-					new PlannedGlyph(
-						Font: run.Font,
-						GlyphId: shaped.GlyphId,
-						Cluster: shaped.Cluster,
-						X: penX + shaped.XOffset,
-						Y: baselineY - shaped.YOffset
-					)
-				);
-				penX += shaped.XAdvance;
-				// TODO: YAdvance and such
-			}
-		}
-	}
-
-	public static bool Contains(ParagraphCluster paraCluster, int start, int limit) =>
-		paraCluster.SourceStart >= start && paraCluster.SourceLimit <= limit;
-
-	public static bool Overlaps(ParagraphRun paraRun, int start, int limit) =>
-		paraRun.SourceStart < limit && paraRun.SourceLimit > start;
 }
 
+/// <summary>
+/// Text laid out into positioned glyphs and lines, ready to draw with
+/// <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, Primitives.SrgbColor32)"/>.
+/// Obtained from <see cref="TextSystem.Layout(FontFallbackChain, string, in TextStyle)"/>.
+/// </summary>
 /// <remarks>
-/// The <see langword="default"/> value is invalid.
+/// <para>
+/// Positions and sizes are in drawable units (with the identity transform), relative to the
+/// layout's top-left corner. Glyphs are rasterized for the effective scale when drawn, so a layout
+/// doesn't depend on e.g. the target it's drawn to.
+/// </para>
+/// <para>
+/// This holds no GPU resources, and doesn't need disposal. It does reference the font states it
+/// was laid out with, though. If one of the fonts in the font fallback chain is an asset that gets
+/// reloaded, the layout becomes <i>stale</i>, which is queryable through <see cref="IsStale"/>;
+/// drawing it lays it out again first, which is also doable manually via
+/// <see cref="RelayoutIfStale()"/>. Until it is re-laid-out, <see cref="Lines"/>,
+/// <see cref="Width"/>, and <see cref="Height"/> are out of date and still describe the previous
+/// layout.
+/// </para>
+/// <para>
+/// Unpaired surrogates in the given text are replaced with U+FFFD REPLACEMENT CHARACTER. Each is a
+/// single UTF-16 code unit, just like U+FFFD, so the length of the text and positions in it remain
+/// unchanged.
+/// </para>
+/// <para>
+/// Not thread-safe; must be used on the same thread that uses its <see cref="TextSystem"/>.
+/// </para>
 /// </remarks>
-internal readonly record struct TextGlyph(
-	GlyphAtlasPage Page,
-	RectI SrcPixels,
-	RectF DstPixels,
-	SrgbColor32 Color,
-	uint GlyphId,
-	uint Cluster
-) : IHasInvalidDefault {
-	bool IHasInvalidDefault.IsDefault => Page is null;
-}
+public sealed class TextLayout {
+	private readonly TextSystem owner;
+	private ResolvedFontFallbackChain resolved;
+	private LaidOutGlyph[] glyphs;
+	private ImmutableArray<TextLine> lines;
 
-/// <remarks>
-/// The <see langword="default"/> value is valid and is an all-zero measurement, i.e. a measurement
-/// of nothing.
-/// </remarks>
-public readonly record struct TextMeasurement(
-	float Width,
-	float Height,
-	int LineCount
-);
-
-public sealed class TextLayoutMeasurement {
-	public TextLine[] Lines { get; }
-	public float Width { get; }
-	public float Height { get; }
-	public int LineCount => Lines.Length;
-
-	internal TextLayoutMeasurement(TextLine[] lines, float width, float height) {
-		Lines = lines;
-		Width = width;
-		Height = height;
-	}
-}
-
-public sealed class TextLayout : IDisposable {
-	internal TextGlyph[] Glyphs { get; }
-	public TextLine[] Lines { get; }
-	public float Width { get; }
-	public float Height { get; }
-	public int LineCount => Lines.Length;
-
-	public TextMeasurement Measurement => new(Width, Height, LineCount);
-	public TextLayoutMeasurement LayoutMeasurement => new(Lines, Width, Height);
-
-	private GlyphAtlasPage[] retainedPages;
-	private bool disposed = false;
-
-	internal TextLayout(TextGlyph[] glyphs, TextLine[] lines, float width, float height, GlyphAtlasPage[] retainedPages) {
-		Glyphs = glyphs;
-		Lines = lines;
-		Width = width;
-		Height = height;
-		this.retainedPages = retainedPages;
-		foreach (GlyphAtlasPage p in retainedPages)
-			p.Retain();
+	internal TextLayout(TextSystem owner, FontFallbackChain fonts, string text, in TextStyle style) {
+		this.owner = owner;
+		Fonts = fonts;
+		Text = TextAnalysis.ReplaceUnpairedSurrogates(text);
+		Style = style;
+		(resolved, glyphs, lines) = compute();
 	}
 
-	public void Render(Canvas cv, Vector2 at = default) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		using CanvasParamsScope scope = cv.PushParams(material: CanvasMaterial.Rmask, sampling: TexSampling.Linear);
-		foreach (TextGlyph glyph in Glyphs) {
-			RectF dst = new(glyph.DstPixels.X + at.X, glyph.DstPixels.Y + at.Y, glyph.DstPixels.Width, glyph.DstPixels.Height);
-			RectF src = new(glyph.SrcPixels.X, glyph.SrcPixels.Y, glyph.SrcPixels.Width, glyph.SrcPixels.Height);
-			cv.Texture(glyph.Page.Texture, new TexDraw(dst) { Source = TexRegion.Texels(src), Tint = glyph.Color });
+	/// <summary>
+	/// The fonts the text is laid out with.
+	/// </summary>
+	public FontFallbackChain Fonts { get; }
+
+	/// <summary>
+	/// The laid out text, with unpaired surrogates replaced with U+FFFD REPLACEMENT CHARACTER.
+	/// </summary>
+	public string Text { get; }
+
+	/// <summary>
+	/// The style the text is laid out with.
+	/// </summary>
+	public TextStyle Style { get; }
+
+	/// <summary>
+	/// The lines, from top to bottom.
+	/// </summary>
+	/// <remarks>
+	/// If the layout is stale (see <see cref="IsStale"/>), this still describes the previous layout.
+	/// </remarks>
+	public IReadOnlyList<TextLine> Lines => lines;
+
+	/// <summary>
+	/// Width of the widest line.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Lines are aligned within a box starting at X = 0 (see <see cref="TextHorizontalAlign"/>), so
+	/// they can extend past this width: to the right if <see cref="TextLayoutOptions.MaxWidth"/> is
+	/// finite and larger, and to the left (X &lt; 0) if a <see cref="TextHorizontalAlign.Center"/> or
+	/// <see cref="TextHorizontalAlign.Right"/> line has a larger width than the the box. If
+	/// <see cref="TextLayoutOptions.MaxWidth"/> is positive infinity, this is the box's width, and
+	/// every line is within [0, <see cref="Width"/>].
+	/// </para>
+	/// <para>
+	/// If the layout is stale (see <see cref="IsStale"/>), this still describes the previous layout.
+	/// </para>
+	/// </remarks>
+	public float Width { get; private set; }
+
+	/// <summary>
+	/// Total height of the lines.
+	/// </summary>
+	/// <remarks>
+	/// If the layout is stale (see <see cref="IsStale"/>), this still describes the previous layout.
+	/// </remarks>
+	public float Height { get; private set; }
+
+	/// <summary>
+	/// Whether one of <see cref="Fonts"/> is an asset that was reloaded since the text was last laid
+	/// out.
+	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the <see cref="TextSystem"/> that made this layout has been disposed.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if one of <see cref="Fonts"/> is an asset and the calling thread isn't attached to its
+	/// asset store.
+	/// </exception>
+	public bool IsStale {
+		get {
+			owner.ThrowIfDisposed();
+			return resolved.IsStale();
 		}
 	}
 
-	public void Dispose() {
-		if (disposed)
-			return;
-		disposed = true;
-		foreach (GlyphAtlasPage p in retainedPages)
-			p.Release();
-		retainedPages = Array.Empty<GlyphAtlasPage>();
+	/// <summary>
+	/// Lays the text out again if the layout is stale (see <see cref="IsStale"/>).
+	/// </summary>
+	/// <returns>Whether the text was laid out again.</returns>
+	/// <inheritdoc cref="IsStale" path="/exception"/>
+	public bool RelayoutIfStale() {
+		if (!IsStale)
+			return false;
+		(resolved, glyphs, lines) = compute();
+		return true;
+	}
+
+	internal TextSystem Owner => owner;
+	internal ResolvedFontFallbackChain Resolved => resolved;
+	internal ReadOnlySpan<LaidOutGlyph> Glyphs => glyphs;
+
+	private (ResolvedFontFallbackChain, LaidOutGlyph[], ImmutableArray<TextLine>) compute() {
+		ResolvedFontFallbackChain chain = owner.ResolveFallbackChain(Fonts);
+		LayoutResult r = owner.RunLayouter(chain, Text, Style);
+		Width = r.Width;
+		Height = r.Height;
+		return (chain, r.Glyphs, ImmutableArray.Create(r.Lines));
 	}
 }

@@ -6,11 +6,11 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using HarfBuzzSharp;
-using static Injure.Draw.Text.FriBidi;
+using static Injure.Draw.Text.Fribidi;
 
 namespace Injure.Draw.Text;
 
-internal static unsafe partial class FriBidi {
+internal static unsafe partial class Fribidi {
 	[LibraryImport("fribidi")]
 	public static partial void fribidi_get_bidi_types(uint* str, int len, uint* btypes);
 
@@ -28,15 +28,21 @@ internal static unsafe partial class FriBidi {
 }
 
 internal static unsafe partial class Unibreak {
+	public const sbyte LINEBREAK_MUSTBREAK = 0;
+	public const sbyte LINEBREAK_ALLOWBREAK = 1;
+	public const sbyte LINEBREAK_NOBREAK = 2;
+	public const sbyte LINEBREAK_INSIDEACHAR = 3;
+	public const sbyte LINEBREAK_INDETERMINATE = 4;
+
 	// void set_linebreaks_utf16(const utf16_t *s, size_t len, const char *lang, char *brks);
 	[LibraryImport("ijmisc", StringMarshalling = StringMarshalling.Utf8)]
-	public static partial void set_linebreaks_utf16(char* s, nuint len, string? lang, byte* brks);
+	public static partial void set_linebreaks_utf16(char* s, nuint len, string? lang, sbyte* brks);
 
-	public static void SetLineBreaks(string text, Span<byte> breaks, string? lang = null) {
+	public static void SetLineBreaks(string text, Span<sbyte> breaks, string? lang = null) {
 		if (breaks.Length < text.Length)
-			throw new ArgumentException("breaks buffer too small", nameof(breaks));
+			throw new InternalStateException("line breaks buffer too small");
 		fixed (char* pText = text)
-		fixed (byte* pBreaks = breaks)
+		fixed (sbyte* pBreaks = breaks)
 			set_linebreaks_utf16(pText, (nuint)text.Length, lang, pBreaks);
 	}
 }
@@ -50,11 +56,28 @@ internal readonly record struct GraphemeSpan(
 );
 
 internal static unsafe class TextAnalysis {
-	private sealed class ParagraphAnalysis : IDisposable {
-		private static readonly ArrayPool<int> intPool = ArrayPool<int>.Shared;
-		private static readonly ArrayPool<uint> uintPool = ArrayPool<uint>.Shared;
-		private static readonly ArrayPool<sbyte> sbytePool = ArrayPool<sbyte>.Shared;
+	public sealed class ParagraphAnalysis : IDisposable {
+		// TODO: a way to pass FRIBIDI_FLAG_REORDER_NSM for rtl combining mark placement
+		private const uint fribidiFlags = 0;
+
 		private bool disposed = false;
+		/// <summary>
+		/// Copy of <see cref="Levels"/> that <c>fribidi_reorder_line</c> reorders in place.
+		/// </summary>
+		/// <remarks>
+		/// <c>fribidi_reorder_line</c> indexes this and <see cref="lineMap"/> by position in the
+		/// paragraph and only touches the line's part, so one copy of each serves every line of the
+		/// paragraph.
+		/// </remarks>
+		private sbyte[]? lineLevels;
+
+		/// <summary>
+		/// Visual-to-logical map of the line last passed to <see cref="GetVisualRunsForLine"/>.
+		/// </summary>
+		/// <remarks>
+		/// See <see cref="lineLevels"/>.
+		/// </remarks>
+		private int[]? lineMap;
 
 		public string Text { get; }
 		public int ScalarLength { get; }
@@ -87,18 +110,18 @@ internal static unsafe class TextAnalysis {
 
 		public static ParagraphAnalysis Create(string text) {
 			int estimatedScalars = text.Length; // XXX this is an upper-bound estimate that may be too blunt
-			int[] scalarStartsUtf16 = intPool.Rent(estimatedScalars + 1);
-			uint[] scalars = uintPool.Rent(estimatedScalars);
-			uint[] bidiTypes = uintPool.Rent(estimatedScalars);
-			uint[] bracketTypes = uintPool.Rent(estimatedScalars);
-			sbyte[] levels = sbytePool.Rent(estimatedScalars);
+			int[] scalarStartsUtf16 = ArrayPool<int>.Shared.Rent(estimatedScalars + 1);
+			uint[] scalars = ArrayPool<uint>.Shared.Rent(estimatedScalars);
+			uint[] bidiTypes = ArrayPool<uint>.Shared.Rent(estimatedScalars);
+			uint[] bracketTypes = ArrayPool<uint>.Shared.Rent(estimatedScalars);
+			sbyte[] levels = ArrayPool<sbyte>.Shared.Rent(estimatedScalars);
 			int scalarCount = 0;
 			int utf16Index = 0;
 			scalarStartsUtf16[0] = 0;
 
 			while (utf16Index < text.Length) {
 				if (Rune.DecodeFromUtf16(text.AsSpan(utf16Index), out Rune rune, out int consumed) != OperationStatus.Done)
-					throw new InvalidOperationException($"invalid utf-16 at index {utf16Index}");
+					throw new InternalStateException($"invalid utf-16 at index {utf16Index}, which layout should have replaced");
 				scalars[scalarCount] = (uint)rune.Value;
 				utf16Index += consumed;
 				scalarCount++;
@@ -121,7 +144,8 @@ internal static unsafe class TextAnalysis {
 		}
 
 		public void GetLogicalRuns(List<LogicalBidiRun> dst) {
-			ObjectDisposedException.ThrowIf(disposed, this);
+			if (disposed)
+				throw new InternalStateException("ParagraphAnalysis already disposed");
 			int scalarStart = 0;
 			while (scalarStart < ScalarLength) {
 				bool rtl = isRtlLevel(Levels[scalarStart]);
@@ -142,77 +166,77 @@ internal static unsafe class TextAnalysis {
 		}
 
 		public void GetVisualRunsForLine(List<VisualBidiRun> dst, int lineStartUtf16, int lineLimitUtf16) {
-			ObjectDisposedException.ThrowIf(disposed, this);
+			if (disposed)
+				throw new InternalStateException("ParagraphAnalysis already disposed");
 			int lineScalarStart = utf16ToScalarBoundary(lineStartUtf16);
 			int lineScalarLimit = utf16ToScalarBoundary(lineLimitUtf16);
 			int lineScalarLength = lineScalarLimit - lineScalarStart;
 			if (lineScalarLength <= 0)
 				return;
 
-			int[] visualToLogical = intPool.Rent(lineScalarLength);
-			sbyte[] lineLevels = sbytePool.Rent(ScalarLength);
-			try {
+			if (lineLevels is null || lineMap is null) {
+				lineLevels = ArrayPool<sbyte>.Shared.Rent(ScalarLength);
 				Array.Copy(Levels, 0, lineLevels, 0, ScalarLength);
-				for (int i = 0; i < lineScalarLength; i++)
-					visualToLogical[i] = lineScalarStart + i;
+				lineMap = ArrayPool<int>.Shared.Rent(ScalarLength);
+			}
+			sbyte[] levels = lineLevels;
+			int[] map = lineMap;
+			for (int i = lineScalarStart; i < lineScalarLimit; i++)
+				map[i] = i;
 
-				fixed (uint* pBidiTypes = BidiTypes)
-				fixed (sbyte* pLevels = lineLevels)
-				fixed (int* pMap = visualToLogical) {
-					if (fribidi_reorder_line(
-						FRIBIDI_FLAGS,
-						pBidiTypes,
-						lineScalarLength,
-						lineScalarStart,
-						BaseDir,
-						pLevels,
-						null,
-						pMap
-					) == 0)
-						throw new InvalidOperationException("fribidi_reorder_line failed");
-				}
+			fixed (uint* pBidiTypes = BidiTypes)
+			fixed (sbyte* pLevels = levels)
+			fixed (int* pMap = map) {
+				if (fribidi_reorder_line(
+					fribidiFlags,
+					pBidiTypes,
+					lineScalarLength,
+					lineScalarStart,
+					BaseDir,
+					pLevels,
+					null,
+					pMap
+				) == 0)
+					throw new InvalidOperationException("fribidi_reorder_line failed");
+			}
 
-				int visualIndex = 0;
-				while (visualIndex < lineScalarLength) {
-					int firstLogical = visualToLogical[visualIndex];
-					bool rtl = isRtlLevel(lineLevels[firstLogical]);
-					int delta = rtl ? -1 : 1;
-					int minLogical = firstLogical;
-					int maxLogical = firstLogical;
-					int prevLogical = firstLogical;
-					int nextVisual = visualIndex + 1;
-					while (nextVisual < lineScalarLength) {
-						int logical = visualToLogical[nextVisual];
-						if (isRtlLevel(lineLevels[logical]) != rtl)
-							break;
-						if (logical != prevLogical + delta)
-							break;
-						prevLogical = logical;
-						minLogical = Math.Min(minLogical, logical);
-						maxLogical = Math.Max(maxLogical, logical);
-						nextVisual++;
-					}
-					int utf16Start = ScalarStartsUtf16[minLogical];
-					int utf16Limit = ScalarStartsUtf16[maxLogical + 1];
-					dst.Add(
-						new VisualBidiRun(
-							Start: utf16Start,
-							Length: utf16Limit - utf16Start,
-							Direction: rtl ? Direction.RightToLeft : Direction.LeftToRight
-						)
-					);
-					visualIndex = nextVisual;
+			int visualIndex = lineScalarStart;
+			while (visualIndex < lineScalarLimit) {
+				int firstLogical = map[visualIndex];
+				bool rtl = isRtlLevel(levels[firstLogical]);
+				int delta = rtl ? -1 : 1;
+				int minLogical = firstLogical;
+				int maxLogical = firstLogical;
+				int prevLogical = firstLogical;
+				int nextVisual = visualIndex + 1;
+				while (nextVisual < lineScalarLimit) {
+					int logical = map[nextVisual];
+					if (isRtlLevel(levels[logical]) != rtl)
+						break;
+					if (logical != prevLogical + delta)
+						break;
+					prevLogical = logical;
+					minLogical = Math.Min(minLogical, logical);
+					maxLogical = Math.Max(maxLogical, logical);
+					nextVisual++;
 				}
-			} finally {
-				intPool.Return(visualToLogical, clearArray: false);
-				sbytePool.Return(lineLevels, clearArray: false);
+				int utf16Start = ScalarStartsUtf16[minLogical];
+				int utf16Limit = ScalarStartsUtf16[maxLogical + 1];
+				dst.Add(
+					new VisualBidiRun(
+						Start: utf16Start,
+						Length: utf16Limit - utf16Start,
+						Direction: rtl ? Direction.RightToLeft : Direction.LeftToRight
+					)
+				);
+				visualIndex = nextVisual;
 			}
 		}
 
 		private int utf16ToScalarBoundary(int utf16Offset) {
 			int idx = Array.BinarySearch(ScalarStartsUtf16, 0, ScalarLength + 1, utf16Offset);
 			if (idx < 0)
-				throw new ArgumentOutOfRangeException(nameof(utf16Offset), $"offset {utf16Offset} is not on a scalar boundary");
+				throw new InternalStateException($"offset {utf16Offset} is not on a scalar boundary");
 			return idx;
 		}
 
@@ -220,22 +244,43 @@ internal static unsafe class TextAnalysis {
 			if (disposed)
 				return;
 			disposed = true;
-			intPool.Return(ScalarStartsUtf16, clearArray: false);
-			uintPool.Return(Scalars, clearArray: false);
-			uintPool.Return(BidiTypes, clearArray: false);
-			uintPool.Return(BracketTypes, clearArray: false);
-			sbytePool.Return(Levels, clearArray: false);
+			ArrayPool<int>.Shared.Return(ScalarStartsUtf16);
+			ArrayPool<uint>.Shared.Return(Scalars);
+			ArrayPool<uint>.Shared.Return(BidiTypes);
+			ArrayPool<uint>.Shared.Return(BracketTypes);
+			ArrayPool<sbyte>.Shared.Return(Levels);
+			if (lineLevels is not null)
+				ArrayPool<sbyte>.Shared.Return(lineLevels);
+			if (lineMap is not null)
+				ArrayPool<int>.Shared.Return(lineMap);
 		}
 	}
 
 	private static readonly UnicodeFunctions hbUnicode = UnicodeFunctions.Default;
 
-	// TODO: a way to pass FRIBIDI_FLAG_REORDER_NSM for rtl combining mark placement
-	private const uint FRIBIDI_FLAGS = 0;
+	/// <summary>
+	/// Replaces unpaired surrogates with U+FFFD, which keeps the length and every index the same.
+	/// </summary>
+	public static string ReplaceUnpairedSurrogates(string s) {
+		// the vast majority of inputs won't have unpaired surrogates
+		char[]? chars = null;
+		for (int i = 0; i < s.Length; i++) {
+			char c = s[i];
+			if (!char.IsSurrogate(c))
+				continue;
+			if (char.IsHighSurrogate(c) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1])) {
+				i++;
+				continue;
+			}
+			chars ??= s.ToCharArray();
+			chars[i] = '\ufffd';
+		}
+		return chars is null ? s : new string(chars);
+	}
 
 	public static GraphemeSpan[] GetGraphemeSpans(string text) {
 		if (text.Length == 0)
-			return Array.Empty<GraphemeSpan>();
+			return [];
 		int[] starts = StringInfo.ParseCombiningCharacters(text);
 		var spans = new GraphemeSpan[starts.Length];
 		for (int i = 0; i < starts.Length; i++) {
@@ -246,16 +291,44 @@ internal static unsafe class TextAnalysis {
 		return spans;
 	}
 
-	public static LineBreakOpportunity[] GetLineBreaks(string text, string locale) {
+	/// <summary>
+	/// Converts a BCP 47 language tag to the language string libunibreak expects.
+	/// </summary>
+	/// <remarks>
+	/// libunibreak compares the first two characters with the languages it has rules for (and with
+	/// <c>zh</c>/<c>ja</c>/<c>ko</c> for CJK handling), case-sensitively, and checks for a
+	/// <c>-strict</c> suffix. So, for example, a three-letter subtag like <c>kok</c> (Konkani) would
+	/// falsely match <c>ko</c> (Korean).
+	/// </remarks>
+	public static string? UnibreakLanguage(string? tag) {
+		if (string.IsNullOrEmpty(tag))
+			return null;
+		string[] subtags = tag.ToLowerInvariant().Split('-');
+		string? lang = subtags[0].Length == 2 ? subtags[0] : null;
+		bool strict = false;
+		// the u extension's keywords run until the next singleton subtag
+		int u = Array.IndexOf(subtags, "u");
+		if (u > 0) {
+			for (int i = u + 1; i + 1 < subtags.Length && subtags[i].Length > 1; i++) {
+				if (subtags[i] == "lb" && subtags[i + 1] == "strict") {
+					strict = true;
+					break;
+				}
+			}
+		}
+		return strict ? (lang ?? "und") + "-strict" : lang;
+	}
+
+	public static LineBreakOpportunity[] GetLineBreaks(string text, string? unibreakLanguage) {
 		if (text.Length == 0)
-			return Array.Empty<LineBreakOpportunity>();
-		byte[] brks = GC.AllocateUninitializedArray<byte>(text.Length);
-		Unibreak.SetLineBreaks(text, brks, locale);
+			return [];
+		Span<sbyte> raw = text.Length <= 2048 ? stackalloc sbyte[text.Length] : new sbyte[text.Length];
+		Unibreak.SetLineBreaks(text, raw, unibreakLanguage);
 		List<LineBreakOpportunity> breaks = new();
-		for (int i = 0; i < brks.Length; i++) {
-			LineBreakKind kind = brks[i] switch {
-				0 => LineBreakKind.Hard, // LINEBREAK_MUSTBREAK
-				1 => LineBreakKind.Soft, // LINEBREAK_ALLOWBREAK
+		for (int i = 0; i < raw.Length; i++) {
+			LineBreakKind kind = raw[i] switch {
+				Unibreak.LINEBREAK_MUSTBREAK => LineBreakKind.Hard,
+				Unibreak.LINEBREAK_ALLOWBREAK => LineBreakKind.Soft,
 				_ => LineBreakKind.None,
 			};
 			if (kind != LineBreakKind.None)
@@ -266,7 +339,7 @@ internal static unsafe class TextAnalysis {
 
 	public static LogicalBidiRun[] GetLogicalBidiRuns(string text) {
 		if (text.Length == 0)
-			return Array.Empty<LogicalBidiRun>();
+			return [];
 		using var para = ParagraphAnalysis.Create(text);
 		List<LogicalBidiRun> l = new();
 		para.GetLogicalRuns(l);
@@ -275,7 +348,7 @@ internal static unsafe class TextAnalysis {
 
 	public static VisualBidiRun[] GetVisualBidiRunsForLine(string text, int lineStart, int lineLimit) {
 		if (lineStart >= lineLimit)
-			return Array.Empty<VisualBidiRun>();
+			return [];
 		using var para = ParagraphAnalysis.Create(text);
 		List<VisualBidiRun> l = new();
 		para.GetVisualRunsForLine(l, lineStart, lineLimit);
@@ -306,7 +379,7 @@ internal static unsafe class TextAnalysis {
 		}
 
 		if (text.IsEmpty)
-			return Array.Empty<TextItem>();
+			return [];
 		List<TextItem> items = new();
 		int currentRunStart = -1;
 		Script? currentScript = null;
@@ -314,7 +387,7 @@ internal static unsafe class TextAnalysis {
 		int index = 0;
 		while (index < text.Length) {
 			if (Rune.DecodeFromUtf16(text[index..], out Rune rune, out int runeLength) != OperationStatus.Done)
-				throw new InvalidOperationException($"invalid utf-16 at index {index}");
+				throw new InternalStateException($"invalid utf-16 at index {index}, which layout should have replaced");
 			Script script = hbUnicode.GetScript(rune.Value);
 			if (script == Script.Common || script == Script.Inherited || script == Script.Unknown) {
 				if (currentRunStart < 0 && pendingPrefixStart < 0)

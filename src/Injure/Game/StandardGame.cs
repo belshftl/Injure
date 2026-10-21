@@ -324,11 +324,15 @@ public abstract class StandardGame {
 	/// drawable area, so they keep the clear color. To draw into them, push a target with a
 	/// <see cref="Viewport.Whole(Vector2, float)"/> viewport.
 	/// </para>
+	/// <para>
+	/// If <see cref="StandardGameOptions.Text"/> is enabled, the canvas is created with
+	/// <see cref="Text"/>, so it can draw text without a prepared layout.
+	/// </para>
 	/// </remarks>
 	protected OwnedCanvas CreateCanvas(RenderFrame frame) {
 		ArgumentNullException.ThrowIfNull(frame);
 		var p = CanvasParams.Primary(primaryViewport(current), options.ClearColor);
-		return new OwnedCanvas(frame, in p);
+		return new OwnedCanvas(frame, in p, current.Text);
 	}
 
 	// read on demand rather than per frame, so it's also correct outside OnRender (e.g. for mapping

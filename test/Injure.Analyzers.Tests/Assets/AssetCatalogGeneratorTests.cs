@@ -33,6 +33,7 @@ public sealed class AssetCatalogGeneratorTests {
 			"assets/textures/bg_01.png",
 			"assets/textures/characters/hero-idle.png",
 			"assets/fonts/main.ttf",
+			"assets/fonts/collection.otc",
 			"assets/.DS_Store",
 			"assets/.git/ignored.png",
 			"elsewhere/not-included.png",
@@ -45,8 +46,9 @@ public sealed class AssetCatalogGeneratorTests {
 		Assert.Equal(new AssetId("game", "player.png"), player.AssetId);
 		Assert.Same(store.GetAsset<Texture2d>(new AssetId("game", "player.png")), player);
 		Assert.IsType<Asset<Texture2d>>(prop(assets, "Ui"));
-		Asset<Font> font = Assert.IsType<Asset<Font>>(prop(prop(assets, "Fonts"), "Main"));
+		Asset<FontData> font = Assert.IsType<Asset<FontData>>(prop(prop(assets, "Fonts"), "Main"));
 		Assert.Equal(new AssetId("game", "fonts/main.ttf"), font.AssetId);
+		Assert.IsType<Asset<FontData>>(prop(prop(assets, "Fonts"), "Collection"));
 
 		object textures = prop(assets, "Textures");
 		Assert.Equal("TexturesGroup", textures.GetType().Name);
@@ -56,7 +58,7 @@ public sealed class AssetCatalogGeneratorTests {
 
 		// groups include their subdirectories, and the catalog is the group of everything
 		Assert.Equal(2, ((IReadOnlyList<IUntypedAsset>)textures).Count);
-		Assert.Equal(5, ((IReadOnlyList<IUntypedAsset>)assets).Count);
+		Assert.Equal(6, ((IReadOnlyList<IUntypedAsset>)assets).Count);
 		Assert.Contains(hero, (AssetGroup)assets);
 	}
 

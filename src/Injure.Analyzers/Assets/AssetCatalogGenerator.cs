@@ -52,9 +52,10 @@ public sealed class AssetCatalogGenerator : IIncrementalGenerator {
 		(".bmp", KnownNames.Texture2d),
 		(".tga", KnownNames.Texture2d),
 		(".tex.json", KnownNames.Texture2d),
-		(".ttf", KnownNames.Font),
-		(".otf", KnownNames.Font),
-		(".ttc", KnownNames.Font),
+		(".ttf", KnownNames.FontData),
+		(".otf", KnownNames.FontData),
+		(".ttc", KnownNames.FontData),
+		(".otc", KnownNames.FontData),
 	];
 
 	public void Initialize(IncrementalGeneratorInitializationContext context) {

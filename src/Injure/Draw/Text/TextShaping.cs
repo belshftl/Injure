@@ -28,8 +28,17 @@ internal readonly record struct TextItem(
 	bool IHasInvalidDefault.IsDefault => Text is null;
 }
 
+/// <summary>
+/// A glyph of a <see cref="ShapedRun"/>.
+/// </summary>
 /// <remarks>
+/// <para>
+/// Positions are in em units, i.e. fractions of the font size, since layout is unhinted and scales
+/// linearly with the size.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is valid and is glyph 0 with no offset or advance.
+/// </para>
 /// </remarks>
 internal readonly record struct ShapedGlyph(
 	uint GlyphId,
@@ -62,8 +71,13 @@ internal sealed class ShapedRun {
 	public required TextSegmentProperties Properties { get; init; }
 	public required bool GuessSegmentProperties { get; init; }
 	public required ShapedGlyph[] Glyphs { get; init; }
+	/// <summary>
+	/// The run's clusters, sorted by <see cref="ShapedCluster.SourceStart"/>.
+	/// </summary>
+	/// <remarks>
+	/// Each cluster's glyphs are contiguous in <see cref="Glyphs"/> and in visual order.
+	/// </remarks>
 	public required ShapedCluster[] SourceOrderClusters { get; init; }
-	public required ShapedCluster[] GlyphOrderClusters { get; init; }
 	public required float Width { get; init; }
 }
 
@@ -72,6 +86,10 @@ internal interface ITextItemizer {
 }
 
 internal sealed class DefaultTextItemizer : ITextItemizer {
+	public static readonly DefaultTextItemizer Instance = new();
+
+	private DefaultTextItemizer() {}
+
 	public TextItem[] Itemize(ReadOnlySpan<char> text, int sourceStart, Direction direction, string? languageBcp47) =>
 		TextAnalysis.ItemizeByScript(text, sourceStart, direction, languageBcp47);
 }
@@ -114,6 +132,8 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 			cache.Remove(key);
 		}
 	}
+
+	public ShapedRun ShapeUncached(IResolvedFont font, in TextItem item) => shape(font, in item);
 
 	public ShapedRun GetOrCreate(IResolvedFont font, in TextItem item) {
 		Key key = new(
@@ -165,32 +185,31 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 		GlyphInfo[] infos = buf.GlyphInfos;
 		GlyphPosition[] positions = buf.GlyphPositions;
 		var glyphs = new ShapedGlyph[buf.Length];
+		float perUnit = 1f / st.UnitsPerEm;
 		float w = 0f;
 		for (int i = 0; i < buf.Length; i++) {
 			glyphs[i] = new ShapedGlyph(
 				GlyphId: infos[i].Codepoint,
 				Cluster: infos[i].Cluster,
-				XOffset: positions[i].XOffset / 64.0f,
-				YOffset: positions[i].YOffset / 64.0f,
-				XAdvance: positions[i].XAdvance / 64.0f,
-				YAdvance: positions[i].YAdvance / 64.0f
+				XOffset: positions[i].XOffset * perUnit,
+				YOffset: positions[i].YOffset * perUnit,
+				XAdvance: positions[i].XAdvance * perUnit,
+				YAdvance: positions[i].YAdvance * perUnit
 			);
-			w += positions[i].XAdvance / 64.0f;
+			w += glyphs[i].XAdvance;
 		}
-		(TextSegmentProperties properties, ShapedCluster[] sourceOrderClusters, ShapedCluster[] glyphOrderClusters) =
-			buildClusters(item, buf, glyphs);
+		(TextSegmentProperties properties, ShapedCluster[] sourceOrderClusters) = buildClusters(item, buf, glyphs);
 		return new ShapedRun {
 			Text = item.Text,
 			Properties = properties,
 			GuessSegmentProperties = item.GuessSegmentProperties,
 			Glyphs = glyphs,
 			SourceOrderClusters = sourceOrderClusters,
-			GlyphOrderClusters = glyphOrderClusters,
 			Width = w,
 		};
 	}
 
-	private static (TextSegmentProperties Properties, ShapedCluster[] SourceOrderClusters, ShapedCluster[] GlyphOrderClusters) buildClusters(
+	private static (TextSegmentProperties Properties, ShapedCluster[] SourceOrderClusters) buildClusters(
 		in TextItem item,
 		Buffer buf,
 		ShapedGlyph[] glyphs
@@ -232,9 +251,7 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 				glyphStart += glyphCount;
 			}
 		}
-		ShapedCluster[] glyphOrderArray = glyphOrderClusters.ToArray();
-		var sourceOrderArray = new ShapedCluster[glyphOrderArray.Length];
-		Array.Copy(glyphOrderArray, sourceOrderArray, glyphOrderArray.Length);
+		ShapedCluster[] sourceOrderArray = glyphOrderClusters.ToArray();
 		Array.Sort(
 			sourceOrderArray,
 			static (a, b) => {
@@ -245,7 +262,7 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 		TextSegmentProperties props = !item.GuessSegmentProperties
 			? item.Properties
 			: new TextSegmentProperties(Direction: buf.Direction, Script: buf.Script, LanguageBcp47: item.Properties.LanguageBcp47);
-		return (props, sourceOrderArray, glyphOrderArray);
+		return (props, sourceOrderArray);
 	}
 
 	private static bool isWsOnly(ReadOnlySpan<char> text) {
@@ -257,24 +274,21 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 		return true;
 	}
 
-	private static int estimate(ShapedRun shaped, in TextItem item) {
-		int cost = 0;
-		cost += item.Text.Length * sizeof(char);
-		cost += shaped.Glyphs.Length * ShapedGlyph.Size;
-		cost += shaped.SourceOrderClusters.Length * ShapedCluster.Size;
-		cost += shaped.GlyphOrderClusters.Length * ShapedCluster.Size;
-
-		cost += 64; // extra weight for object/etc overhead to avoid pretending small entries are free
-		return cost;
-	}
+	private static int estimate(ShapedRun shaped, in TextItem item) =>
+		(item.Text.Length * sizeof(char))
+		+ (shaped.Glyphs.Length * ShapedGlyph.Size)
+		+ (shaped.SourceOrderClusters.Length * ShapedCluster.Size)
+		+ 144; // very rough estimate of extra object overhead, to avoid pretending small entries are free
 
 	public void Trim() {
 		if (cache.Count <= maxEntries && totalEstimatedCost <= maxEstimatedCost)
 			return;
-		foreach (Key key in cache
-			.OrderBy(static kvp => kvp.Value.LastUseStamp)
-			.ThenByDescending(static kvp => kvp.Value.EstimatedCost)
-			.Select(static kvp => kvp.Key)) {
+		foreach (
+			Key key in cache
+				.OrderBy(static kvp => kvp.Value.LastUseStamp)
+				.ThenByDescending(static kvp => kvp.Value.EstimatedCost)
+				.Select(static kvp => kvp.Key)
+		) {
 			if (cache.Count <= maxEntries && totalEstimatedCost <= maxEstimatedCost)
 				break;
 			totalEstimatedCost -= cache[key].EstimatedCost;

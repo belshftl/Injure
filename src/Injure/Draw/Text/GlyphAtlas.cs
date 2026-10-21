@@ -1,14 +1,16 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using FreeTypeSharp;
 using Injure.Draw.PixelConv;
-using Injure.Primitives;
 using Injure.Gpu;
-using static FreeTypeSharp.FT;
+using Injure.Primitives;
 
 namespace Injure.Draw.Text;
 
+/// <remarks>
+/// Pinned by every frame that draws from it (see <see cref="GlyphPagePins"/>), so trimming doesn't
+/// dispose a page that an unsubmitted frame samples.
+/// </remarks>
 internal sealed class GlyphAtlasPage : IDisposable {
 	public required Texture2d Texture;
 	public required int Width;
@@ -22,19 +24,49 @@ internal sealed class GlyphAtlasPage : IDisposable {
 	public readonly HashSet<GlyphAtlasKey> Keys = new();
 
 	private int refcount;
-	public int RefCount => Volatile.Read(ref refcount);
+	public int Refcount => Volatile.Read(ref refcount);
+
+	private bool disposed = false;
 
 	public void Retain() {
+		if (disposed)
+			throw new InternalStateException("GlyphAtlasPage already disposed");
 		if (Interlocked.Increment(ref refcount) <= 0)
-			throw new InternalStateException("refcount overflow/corruption");
+			throw new InternalStateException("refcount overflow");
 	}
 
 	public void Release() {
+		if (disposed)
+			throw new InternalStateException("GlyphAtlasPage already disposed");
 		if (Interlocked.Decrement(ref refcount) < 0)
 			throw new InternalStateException("refcount went negative");
 	}
 
-	public void Dispose() => Texture.Dispose();
+	public void Dispose() {
+		if (disposed)
+			return;
+		disposed = true;
+		Texture.Dispose();
+	}
+}
+
+/// <summary>
+/// Set of pages a canvas drew glyphs from, registered into the <see cref="RenderFrame"/> to be
+/// disposed on submit/discard, decrementing the refcounts.
+/// </summary>
+internal sealed class GlyphPagePins : IDisposable {
+	private readonly HashSet<GlyphAtlasPage> pages = new();
+
+	public void Pin(GlyphAtlasPage page) {
+		if (pages.Add(page))
+			page.Retain();
+	}
+
+	public void Dispose() {
+		foreach (GlyphAtlasPage page in pages)
+			page.Release();
+		pages.Clear();
+	}
 }
 
 /// <remarks>
@@ -42,9 +74,12 @@ internal sealed class GlyphAtlasPage : IDisposable {
 /// </remarks>
 internal readonly record struct GlyphAtlasKey(
 	FontCacheToken FontCacheToken,
-	uint GlyphId
+	uint GlyphId,
+	int PixelSize,
+	FontRasterOptions Raster,
+	int SubpixelX
 ) : IHasInvalidDefault {
-	bool IHasInvalidDefault.IsDefault => this == default;
+	bool IHasInvalidDefault.IsDefault => FontCacheToken == default;
 }
 
 /// <remarks>
@@ -54,17 +89,24 @@ internal readonly record struct GlyphAtlasEntry(
 	GlyphAtlasPage Page,
 	RectI SrcPixels,
 	int BitmapLeft,
-	int BitmapTop,
-	int Width,
-	int Height
+	int BitmapTop
 ) : IHasInvalidDefault {
 	bool IHasInvalidDefault.IsDefault => Page is null;
 }
 
-internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, int pageWidth = 1024, int pageHeight = 1024, int padding = 1, int maxPages = 16) : IDisposable {
+internal sealed class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, int pageWidth = 1024, int pageHeight = 1024, int padding = 1, int maxPages = 16) : IDisposable {
+	/// <summary>
+	/// Size at which <see cref="empty"/> is cleared whole, since nothing else bounds it.
+	/// </summary>
+	private const int maxEmptyEntries = 4096;
+
 	private readonly GpuDevice gpuDevice = gpuDevice;
 	private readonly TextSystem text = text;
 	private readonly Dictionary<GlyphAtlasKey, GlyphAtlasEntry> entries = new();
+	/// <summary>
+	/// Keys of glyphs without pixels, e.g. spaces, so they aren't loaded again on every draw.
+	/// </summary>
+	private readonly HashSet<GlyphAtlasKey> empty = new();
 	private readonly List<GlyphAtlasPage> pages = new();
 
 	private readonly int pageWidth = pageWidth;
@@ -75,112 +117,82 @@ internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, in
 	private ulong nextUseStamp = 0; // first will be 1 since this gets incremented upfront
 	private bool disposed = false;
 
+	/// <summary>
+	/// The atlas's pages; for tests.
+	/// </summary>
+	internal IReadOnlyList<GlyphAtlasPage> Pages => pages;
+
 	private void clear() {
 		for (int i = 0; i < pages.Count; i++)
 			pages[i].Dispose();
 		pages.Clear();
 		entries.Clear();
+		empty.Clear();
 	}
 
 	public void Clear() {
-		ObjectDisposedException.ThrowIf(disposed, this);
+		if (disposed)
+			throw new InternalStateException("GlyphAtlas already disposed");
 		clear();
 	}
 
-	public bool TryGetOrCreate(IResolvedFont font, uint glyphId, out GlyphAtlasEntry entry) {
-		ObjectDisposedException.ThrowIf(disposed, this);
-		GlyphAtlasKey key = new(
-			FontCacheToken: font.GetCacheToken(),
-			GlyphId: glyphId
-		);
+	/// <summary>
+	/// Gets the atlas entry of a glyph, rasterizing it and adding it to the atlas if necessary.
+	/// </summary>
+	/// <returns><see langword="false"/> for glyphs without pixels.</returns>
+	public bool TryGetOrCreate(ResolvedFontState font, in FontRasterOptions raster, uint glyphId, int pixelSize, int subpixelX, out GlyphAtlasEntry entry) {
+		if (disposed)
+			throw new InternalStateException("GlyphAtlas already disposed");
+		GlyphAtlasKey key = new(font.CacheToken, glyphId, pixelSize, raster, subpixelX);
 		if (entries.TryGetValue(key, out entry)) {
 			entry.Page.LastUseStamp = ++nextUseStamp;
 			return true;
 		}
-		if (tryRasterize(font, glyphId, out entry)) {
-			entry.Page.Keys.Add(key);
-			entry.Page.LastUseStamp = ++nextUseStamp;
-			entries.Add(key, entry);
-			text.OnCacheActivity();
-			Trim();
-			return true;
-		}
-		return false;
-	}
-
-	private bool tryRasterize(IResolvedFont font, uint glyphId, out GlyphAtlasEntry entry) {
-		ResolvedFontState st = font.GetState();
-		FTException.Check(FT_Load_Glyph(st.FtFace, glyphId, st.Options.LoadFlags));
-		FTException.Check(FT_Render_Glyph(st.FtFace->glyph, st.Options.RenderMode));
-		FT_GlyphSlotRec_* slot = st.FtFace->glyph;
-		int bitmapLeft = slot->bitmap_left;
-		int bitmapTop = slot->bitmap_top;
-		int w = checked((int)slot->bitmap.width);
-		int h = checked((int)slot->bitmap.rows);
-		if (slot->bitmap.width == 0 || slot->bitmap.rows == 0) {
-			entry = default;
+		if (empty.Contains(key))
+			return false;
+		if (!font.TryRasterize(glyphId, pixelSize, in raster, subpixelX, out RasterizedGlyph glyph)) {
+			if (empty.Count >= maxEmptyEntries)
+				empty.Clear();
+			empty.Add(key);
 			return false;
 		}
-
-		byte[] pixels = readbitmap(slot->bitmap);
-		GlyphAtlasPage page = alloc(w, h, out int x, out int y);
-		page.Texture.Upload(x, y, pixels, srcStride: w, PixelFormat.R8_Unorm, w, h);
-		entry = new GlyphAtlasEntry(
-			Page: page,
-			SrcPixels: new RectI(x, y, w, h),
-			BitmapLeft: bitmapLeft,
-			BitmapTop: bitmapTop,
-			Width: w,
-			Height: h
-		);
-		return true;
-	}
-
-	private static byte[] readbitmap(FT_Bitmap_ bitmap) {
-		int w = (int)bitmap.width;
-		int h = (int)bitmap.rows;
-		int pitch = bitmap.pitch;
-		if (bitmap.pixel_mode != FT_Pixel_Mode_.FT_PIXEL_MODE_GRAY)
-			throw new NotSupportedException($"unsupported FreeType pixel mode {bitmap.pixel_mode}");
-		byte[] buf = new byte[checked(w * h)];
-		if (bitmap.buffer is null || w == 0 || h == 0)
-			return buf;
-		fixed (byte* dst = buf) {
-			if (pitch == w) {
-				ulong sz = (ulong)(w * h);
-				Buffer.MemoryCopy(bitmap.buffer, dst, sz, sz);
-			} else {
-				// negative pitch = rows are bottom-up
-				int absPitch = Math.Abs(pitch);
-				for (int y = 0; y < h; y++) {
-					byte* srcRow = pitch >= 0 ? bitmap.buffer + y * absPitch : bitmap.buffer + (h - 1 - y) * absPitch;
-					byte* dstRow = dst + y * w;
-					Buffer.MemoryCopy(srcRow, dstRow, (ulong)w, (ulong)w);
-				}
-			}
+		GlyphAtlasPage page = alloc(glyph.Width, glyph.Height, out int x, out int y);
+		page.Texture.Upload(x, y, glyph.Pixels, srcStride: glyph.Width, PixelFormat.R8_Unorm, glyph.Width, glyph.Height);
+		entry = new GlyphAtlasEntry(page, new RectI(x, y, glyph.Width, glyph.Height), glyph.Left, glyph.Top);
+		page.Keys.Add(key);
+		page.LastUseStamp = ++nextUseStamp;
+		entries.Add(key, entry);
+		// the new glyph's page may be the only unpinned one, which trimming would otherwise free
+		page.Retain();
+		try {
+			text.OnCacheActivity();
+			Trim();
+		} finally {
+			page.Release();
 		}
-		return buf;
+		return true;
 	}
 
 	private GlyphAtlasPage alloc(int width, int height, out int x, out int y) {
 		int w = width + padding * 2;
 		int h = height + padding * 2;
 		int px, py;
-		for (int i = 0; i < pages.Count; i++)
+		for (int i = 0; i < pages.Count; i++) {
 			if (tryAllocOnPage(pages[i], w, h, out px, out py)) {
 				x = px + padding;
 				y = py + padding;
 				return pages[i];
 			}
-		GlyphAtlasPage page = newpage();
+		}
+		GlyphAtlasPage page = newPage();
 		if (!tryAllocOnPage(page, w, h, out px, out py))
-			throw new InvalidOperationException("glyph is larger than atlas page");
+			throw new InvalidOperationException($"glyph has a size of {width}x{height}, which is too large to fit into a {pageWidth}x{pageHeight} atlas page");
 		x = px + padding;
 		y = py + padding;
 		return page;
 	}
 
-	private GlyphAtlasPage newpage() {
+	private GlyphAtlasPage newPage() {
 		GlyphAtlasPage page = new() {
 			Texture = new Texture2d(
 				gpuDevice,
@@ -206,7 +218,7 @@ internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, in
 			page.WriteY += page.RowHeight;
 			page.RowHeight = 0;
 		}
-		if (page.WriteY + height > page.Height) {
+		if (page.WriteY + height > page.Height || width > page.Width) {
 			x = 0;
 			y = 0;
 			return false;
@@ -218,22 +230,39 @@ internal sealed unsafe class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, in
 		return true;
 	}
 
-	// the glyphs stay on their pages until a page is freed, since layouts may still reference them
+	/// <summary>
+	/// Removes the entries of a font state's glyphs.
+	/// </summary>
+	/// <remarks>
+	/// The glyphs stay on their pages until the page is freed, since frames may still sample them.
+	/// </remarks>
 	public void Forget(FontCacheToken token) {
-		ObjectDisposedException.ThrowIf(disposed, this);
+		if (disposed)
+			throw new InternalStateException("GlyphAtlas already disposed");
 		foreach (GlyphAtlasKey key in entries.Keys.Where(k => k.FontCacheToken == token).ToArray()) {
 			entries[key].Page.Keys.Remove(key);
 			entries.Remove(key);
 		}
+		empty.RemoveWhere(k => k.FontCacheToken == token);
 	}
 
+	/// <summary>
+	/// Frees the least recently used pages past <see cref="maxPages"/>.
+	/// </summary>
+	/// <remarks>
+	/// Pages pinned by unfinished frames are skipped, so a single frame drawing more glyphs than
+	/// <see cref="maxPages"/> pages hold grows the atlas past it until the frame is done.
+	/// </remarks>
 	public void Trim() {
 		if (pages.Count <= maxPages)
 			return;
-		foreach (GlyphAtlasPage page in pages
-			.Where(static p => p.RefCount == 0)
-			.OrderBy(static p => p.LastUseStamp)
-			.Take(pages.Count - maxPages)) {
+		foreach (
+			GlyphAtlasPage page in pages
+				.Where(static p => p.Refcount == 0)
+				.OrderBy(static p => p.LastUseStamp)
+				.Take(pages.Count - maxPages)
+				.ToArray()
+		) {
 			foreach (GlyphAtlasKey key in page.Keys)
 				entries.Remove(key);
 			page.Keys.Clear();

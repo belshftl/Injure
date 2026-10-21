@@ -85,18 +85,24 @@ anyhow, to v0.1:
     - [x] make `StandardGame` build the pixel-density view matrix for the primary target, with an opt-out
   - [x] area-weighted upscaling (sharp-bilinear-like) as a shader, exposed as `TexFilter.AreaWeighted`
   - [x] replace view matrices with a uniform scale + transform + drawable area size, named something like `Viewport`, and introduce the concept of drawable units; also make scissors work in drawable units
-  - [ ] a third smoke game under `smoke/` exercising `StandardGame`, HiDPI, fractional scaling of low-res render targets, and pointer hit-testing, e.g. a box with draggable corners that sets a texture's destination rect, switchable between clamp, repeat, and mirror-repeat
+  - [ ] antialiasing; there's no msaa for render targets or the primary target yet, so shape edges alias and sub-pixel lines flicker
+  - [ ] custom shaders/materials, shader assets
+  - [ ] a third smoke game under `smoke/` exercising `StandardGame`, HiDPI, fractional scaling of low-res render targets, and pointer hit-testing, e.g. a box with draggable corners that sets a texture's destination rect
   - [ ] textured geometry beyond quads: textured triangles/meshes, arbitrary-corner textured quads (`Vertex2dTextureColor` has no draw call taking it yet)
   - [ ] more blend presets in `CanvasOutputStates`, e.g. additive and multiply
-  - [ ] antialiasing; there's no msaa for render targets or the primary target yet, so shape edges alias and sub-pixel lines flicker
   - [ ] masking/clipping beyond rects, e.g. stencil-based clip to shape (`RenderTarget2d` already supports a depth/stencil format but `Canvas` never attaches it)
-  - [ ] custom shaders/materials, shader assets
   - [ ] layering/sorting by depth or explicit layer instead of strict call order
   - [ ] retained geometry: static meshes, tilemaps, instancing for many identical sprites
   - [ ] linear-space blending (`LinearColorF128`)
   - [ ] revisit the pixel converter, pt 1: revisit the api (though i'm not sure if it actually needs a redesign or if it's fine as is)
   - [ ] revisit the pixel converter, pt 2: write benchmarks, it's probably the part of the whole library that benefits the most from having benchmarks
   - [ ] revisit the pixel converter, pt 3: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement
+- [ ] revisit the text renderer; the apis don't feel very nice to me, and it's missing most non-basic features, for instance regarding layout
+  - [x] pt 1, foundations: float font sizes in drawable units with unhinted layout metrics; rasterize at draw time from the effective transform's scale; layouts as plain data, with atlas pages pinned per frame instead of per layout; one layout result type instead of three; put raster options somewhere like the face to split them from per-span style; drop `LiveText`; add `cv.Text(...)` backed by a per-`TextSystem` layout cache; fix some bugs
+  - [ ] pt 2, attributed text: a builder with per-span font, size, and color; line metrics for mixed sizes; `cv.Text(...)` taking built text
+  - [ ] pt 3, layout features: line height, letter spacing, start/end/justify alignment, max lines + ellipsis (`TextOverflowMode` is currently unused), proper paragraph separators (`\r\n`, U+2028, U+2029), soft hyphens / hyphenation, maybe consider knuth-plass linebreaking
+  - [ ] pt 4, queries: hit testing, caret positions, selection rects; text input would need this
+  - [ ] pt 5, rendering features: underline/strikethrough, outlines/shadows, color glyphs (RGBA atlas pages and a non-mask material)
 - [x] add more to the regular analyzer:
   - [x] add `[InterfaceImplKindConstraint(InterfaceImplKind.{Class,Struct})]`
   - [x] devise some infrastructure for default-is-invalid structs
@@ -155,8 +161,6 @@ anyhow, to v0.1:
   - [ ] it also needs to be decided how components should be designed; i've learned firsthand that, in mods, it's very common that you have to attach extra data to entities, and components are the standard solution for that, but having to look up a custom component on the entity every time and manage when it gets added/removed is a pain. also consider naming them attachments instead of components, i think that's more accurate because "component" has the connotation of something with behavior, like a health component, whereas "attachment" is more broad
   - [ ] standardize on a bunch of things (maybe by using more derived abstract types? or interfaces? unsure) like entities with a notion of position, entities with a notion of collision, entities that can serialize/deserialize, perhaps entities that "bind" in some way to a reloadable mod generation and need `<L>`, etc. the important thing isn't really that adding `public Vector2 Position` to your entity is hard, but that having everyone on the same page on how it's done is very valuable
   - [ ] here be dragons
-- [ ] revisit the text renderer; the apis don't feel very nice to me, and it's missing most non-basic features, for instance regarding layout
-  - [ ] make glyph raster size account for the effective transform's scale (and so the target's pixels per logical unit); text is currently rasterized at `PixelSize` and stretched
 - [ ] expose WebGPU error scopes in `Gpu` (push/pop around specific operations, popping asynchronously through `GpuDevice.Poll()` like buffer mapping), for code that wants to detect and recover from a specific failure instead of only having the device-wide `GpuErrorHandler`
 - [ ] support compute pipelines, compute passes, etc. in `Gpu`
 - [ ] redesign `TGameApi` and `IReloadTeardown` from the mod infrastructure
@@ -196,6 +200,7 @@ anyhow, to v0.1:
   - [ ] do some practical testing and think about the intended model for mods to have nuget dependencies, including nuget dependencies that package native runtimes
   - [ ] load-from-zip
   - [ ] detouring open generics
+- [ ] vertical text in the text renderer, vertical shaping, upright vs rotated glyphs, column-based line breaking
 - [ ] get to the audio engine:
   - [x] figure out how audio is even gonna work considering c# is garbage collected
   - [x] set up the native packaging churn

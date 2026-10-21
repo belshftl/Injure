@@ -1,79 +1,130 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Buffers.Binary;
-using System.Diagnostics;
-using System.IO.Hashing;
 using HarfBuzzSharp;
 using Injure.Assets;
 
 namespace Injure.Draw.Text;
 
-public sealed class FontFallbackChain {
-	private static int nextId = 0;
+/// <summary>
+/// A primary font face + a series of fallback faces, tried in order for characters the primary
+/// face doesn't have.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A character is drawn with the first face that has glyphs for its entire grapheme cluster, or
+/// with the primary face's "missing" glyph (<c>.notdef</c>) if not a single one in the chain does.
+/// </para>
+/// <para>
+/// Two chains are equal if they contain equal <see cref="FontSpec"/>s in the same order.
+/// </para>
+/// </remarks>
+public sealed class FontFallbackChain : IEquatable<FontFallbackChain> {
 	private readonly FontSpec[] allFonts;
+	private readonly int hash;
 
-	public int Id { get; } = Interlocked.Increment(ref nextId);
-	public FontSpec Primary { get; }
-	public IReadOnlyList<FontSpec> Fallbacks { get; }
+	/// <summary>
+	/// The face tried first.
+	/// </summary>
+	public FontSpec Primary => allFonts[0];
+
+	/// <summary>
+	/// The faces tried after <see cref="Primary"/>, in order.
+	/// </summary>
+	public ReadOnlySpan<FontSpec> Fallbacks => allFonts.AsSpan(1);
+
+	/// <summary>
+	/// <see cref="Primary"/> followed by <see cref="Fallbacks"/>.
+	/// </summary>
 	public ReadOnlySpan<FontSpec> AllFonts => allFonts;
 
-	public FontFallbackChain(FontSpec primary, params FontSpec[] fallbacks) {
-		Primary = primary;
-		Fallbacks = fallbacks ?? Array.Empty<FontSpec>();
-		allFonts = new FontSpec[Fallbacks.Count + 1];
-		allFonts[0] = Primary;
-		for (int i = 0; i < Fallbacks.Count; i++)
-			allFonts[i + 1] = Fallbacks[i];
+	/// <summary>
+	/// Creates a chain.
+	/// </summary>
+	/// <param name="primary">The face tried first.</param>
+	/// <param name="fallbacks">The faces tried after <paramref name="primary"/>, in order.</param>
+	public FontFallbackChain(FontSpec primary, params ReadOnlySpan<FontSpec> fallbacks) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(primary);
+		ArgumentInvalidDefaultException.ThrowIfAnyDefault(fallbacks, nameof(fallbacks));
+		allFonts = new FontSpec[fallbacks.Length + 1];
+		allFonts[0] = primary;
+		fallbacks.CopyTo(allFonts.AsSpan(1));
+		HashCode h = new();
+		foreach (FontSpec f in allFonts)
+			h.Add(f);
+		hash = h.ToHashCode();
 	}
+
+	/// <summary>
+	/// Creates a chain with <paramref name="font"/> and no fallbacks.
+	/// </summary>
+	public static implicit operator FontFallbackChain(FontSpec font) => new(font);
+
+	/// <summary>
+	/// Creates a chain with the first face of <paramref name="font"/> and no fallbacks.
+	/// </summary>
+	public static implicit operator FontFallbackChain(FontData font) => new(font);
+
+	/// <summary>
+	/// Creates a chain with the first face of <paramref name="font"/> and no fallbacks.
+	/// </summary>
+	public static implicit operator FontFallbackChain(Asset<FontData> font) => new(font);
+
+	public bool Equals(FontFallbackChain? other) =>
+		other is not null && (ReferenceEquals(this, other) || hash == other.hash && allFonts.AsSpan().SequenceEqual(other.allFonts));
+	public override bool Equals(object? obj) => Equals(obj as FontFallbackChain);
+	public override int GetHashCode() => hash;
+	public static bool operator ==(FontFallbackChain? left, FontFallbackChain? right) =>
+		left is null ? right is null : left.Equals(right);
+	public static bool operator !=(FontFallbackChain? left, FontFallbackChain? right) => !(left == right);
+}
+
+internal sealed class FontChainKey(FontCacheToken[] tokens) : IEquatable<FontChainKey> {
+	private readonly FontCacheToken[] tokens = tokens;
+	private readonly int hash = computeHash(tokens);
+
+	private static int computeHash(FontCacheToken[] tokens) {
+		HashCode h = new();
+		foreach (FontCacheToken t in tokens)
+			h.Add(t);
+		return h.ToHashCode();
+	}
+
+	public bool Equals(FontChainKey? other) =>
+		other is not null && hash == other.hash && tokens.AsSpan().SequenceEqual(other.tokens);
+	public override bool Equals(object? obj) => Equals(obj as FontChainKey);
+	public override int GetHashCode() => hash;
+	public static bool operator ==(FontChainKey? left, FontChainKey? right) =>
+		left is null ? right is null : left.Equals(right);
+	public static bool operator !=(FontChainKey? left, FontChainKey? right) => !(left == right);
 }
 
 internal sealed class ResolvedFontFallbackChain {
-	private readonly IResolvedFont[] allFonts;
+	public readonly IResolvedFont[] Fonts;
+	public readonly FontRasterOptions[] Raster;
+	public readonly ResolvedFontState[] States;
+	public readonly FontCacheToken[] Tokens;
+	public readonly FontChainKey Key;
 
-	public int Id { get; }
-	public IResolvedFont Primary { get; }
-	public IReadOnlyList<IResolvedFont> Fallbacks { get; }
-	public ReadOnlySpan<IResolvedFont> AllFonts => allFonts;
-
-	public ResolvedFontFallbackChain(int id, IResolvedFont primary, IEnumerable<IResolvedFont>? fallbacks) {
-		Id = id;
-		Primary = primary;
-		Fallbacks = fallbacks?.ToArray() ?? Array.Empty<IResolvedFont>();
-		allFonts = new IResolvedFont[Fallbacks.Count + 1];
-		allFonts[0] = Primary;
-		for (int i = 0; i < Fallbacks.Count; i++)
-			allFonts[i + 1] = Fallbacks[i];
+	public ResolvedFontFallbackChain(IResolvedFont[] fonts, FontRasterOptions[] raster) {
+		Fonts = fonts;
+		Raster = raster;
+		States = new ResolvedFontState[fonts.Length];
+		Tokens = new FontCacheToken[fonts.Length];
+		for (int i = 0; i < fonts.Length; i++) {
+			States[i] = fonts[i].GetState();
+			Tokens[i] = States[i].CacheToken;
+		}
+		Key = new FontChainKey(Tokens);
 	}
 
-	private ulong? hash;
-	public ulong Hash() => hash ??= computeHash();
+	public IResolvedFont Primary => Fonts[0];
 
-	private ulong computeHash() {
-		XxHash3 h = new();
-		const int estimated = 4 + 8 + 4 + 4 + 4 + 4 + 1 + 8;
-		Span<byte> buf = stackalloc byte[estimated];
-		foreach (IResolvedFont fnt in allFonts) {
-			FontCacheToken t = fnt.GetCacheToken();
-			int i = 0;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.SourceKind);
-			i += 4;
-			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.Key.Id);
-			i += 8;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)t.Key.FaceIndex));
-			i += 4;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], unchecked((uint)t.Key.Options.PixelSize));
-			i += 4;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.Options.RasterMode.Tag);
-			i += 4;
-			BinaryPrimitives.WriteUInt32LittleEndian(buf[i..], (uint)t.Key.Options.Hinting.Tag);
-			i += 4;
-			buf[i++] = t.Key.Options.UseEmbeddedBitmaps ? (byte)1 : (byte)0;
-			BinaryPrimitives.WriteUInt64LittleEndian(buf[i..], t.StateId);
-			i += 8;
-			h.Append(buf);
-		}
-		return h.GetCurrentHashAsUInt64();
+	public bool IsStale() {
+		for (int i = 0; i < Fonts.Length; i++)
+			if (Fonts[i].GetCacheToken() != Tokens[i])
+				return true;
+		return false;
 	}
 }
 
@@ -81,8 +132,7 @@ internal sealed class ResolvedFontFallbackChain {
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 internal readonly record struct FallbackProbeKey(
-	int FallbackChainId,
-	ulong FallbackChainHash,
+	FontChainKey Chain,
 	string Text,
 	Direction Direction,
 	Script? Script,
@@ -148,92 +198,75 @@ internal sealed class FallbackProbeCache(TextSystem text, int maxEntries, int ma
 		}
 	}
 
-	private static int estimate(FallbackProbeKey key) {
-		int cost = 0;
-		cost += key.Text.Length * sizeof(char);
-
-		cost += 32; // extra weight for object/etc overhead to avoid pretending small entries are free
-		return cost;
-	}
+	private static int estimate(FallbackProbeKey key) =>
+		(key.Text.Length * sizeof(char))
+		+ 80; // very rough estimate of extra object overhead, to avoid pretending small entries are free
 }
 
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 internal readonly record struct ResolvedItem(
-	IResolvedFont Font,
+	int FontIndex,
 	TextItem Item,
 	ShapedRun ShapedRun
 ) : IHasInvalidDefault {
-	bool IHasInvalidDefault.IsDefault => Font is null;
+	bool IHasInvalidDefault.IsDefault => ShapedRun is null;
 }
 
 internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache probeCache) {
 	private readonly ShapeCache shapeCache = shapeCache;
 	private readonly FallbackProbeCache probeCache = probeCache;
 
-	public ResolvedItem[] ResolveItems(ResolvedFontFallbackChain fonts, TextItem item) {
+	public void ResolveItems(ResolvedFontFallbackChain fonts, TextItem item, List<ResolvedItem> dst) {
 		GraphemeSpan[] graphemes = TextAnalysis.GetGraphemeSpans(item.Text);
 		if (graphemes.Length == 0)
-			return Array.Empty<ResolvedItem>();
-		List<(int Start, int Limit, int FontIndex)> spans = new();
-		GraphemeSpan first = graphemes[0];
-		int currStart = first.Start;
-		int currLimit = first.Start + first.Length;
-		int currFontIdx = resolveFontIndex(fonts, item, first);
-		for (int i = 1; i < graphemes.Length; i++) {
-			GraphemeSpan grapheme = graphemes[i];
-			int fontIndex = resolveFontIndex(fonts, item, grapheme);
-			if (fontIndex != currFontIdx) {
-				spans.Add((currStart, currLimit, currFontIdx));
-				currStart = grapheme.Start;
-				currLimit = grapheme.Start + grapheme.Length;
-				currFontIdx = fontIndex;
-			} else {
-				currLimit = grapheme.Start + grapheme.Length;
-			}
-		}
-		spans.Add((currStart, currLimit, currFontIdx));
-		var resolved = new ResolvedItem[spans.Count];
-		for (int i = 0; i < spans.Count; i++) {
-			(int start, int limit, int fontIndex) = spans[i];
-			TextItem mergedItem = item with {
+			return;
+		int spanStart = 0;
+		int spanFont = resolveFontIndex(fonts, item, graphemes[0]);
+		for (int i = 1; i <= graphemes.Length; i++) {
+			int font = i < graphemes.Length ? resolveFontIndex(fonts, item, graphemes[i]) : -1;
+			if (font == spanFont)
+				continue;
+			int start = graphemes[spanStart].Start;
+			int limit = graphemes[i - 1].Start + graphemes[i - 1].Length;
+			TextItem merged = item with {
 				SourceStart = item.SourceStart + start,
 				Text = item.Text[start..limit],
 			};
-			IResolvedFont font = fonts.AllFonts[fontIndex];
-			ShapedRun shapedRun = shapeCache.GetOrCreate(font, mergedItem);
-			resolved[i] = new ResolvedItem(
-				Font: font,
-				Item: mergedItem,
-				ShapedRun: shapedRun
-			);
+			dst.Add(new ResolvedItem(spanFont, merged, shapeCache.GetOrCreate(fonts.Fonts[spanFont], merged)));
+			spanStart = i;
+			spanFont = font;
 		}
-		return resolved;
 	}
 
 	private int resolveFontIndex(ResolvedFontFallbackChain fonts, TextItem parentItem, GraphemeSpan grapheme) {
+		if (fonts.Fonts.Length == 1)
+			return 0;
+		string text = parentItem.Text.Substring(grapheme.Start, grapheme.Length);
 		FallbackProbeKey key = new(
-			FallbackChainId: fonts.Id,
-			FallbackChainHash: fonts.Hash(),
-			Text: parentItem.Text.Substring(grapheme.Start, grapheme.Length),
+			Chain: fonts.Key,
+			Text: text,
 			Direction: parentItem.Properties.Direction ?? throw new InternalStateException("fallback probing requires an explicit direction"),
 			Script: parentItem.Properties.Script,
 			LanguageBcp47: parentItem.Properties.LanguageBcp47
 		);
-		if (probeCache.TryGet(key, out int fontidx))
-			return fontidx;
+		if (probeCache.TryGet(key, out int fontIndex))
+			return fontIndex;
 		TextItem graphemeItem = parentItem with {
 			SourceStart = parentItem.SourceStart + grapheme.Start,
-			Text = parentItem.Text.Substring(grapheme.Start, grapheme.Length),
+			Text = text,
 		};
-		for (int i = 0; i < fonts.AllFonts.Length; i++)
-			if (noNotdefs(shapeCache.GetOrCreate(fonts.AllFonts[i], graphemeItem))) {
-				probeCache.Set(key, i);
-				return i;
+		// shape without caching, single graphemes would only crowd out the shape cache
+		fontIndex = 0;
+		for (int i = 0; i < fonts.Fonts.Length; i++) {
+			if (noNotdefs(shapeCache.ShapeUncached(fonts.Fonts[i], graphemeItem))) {
+				fontIndex = i;
+				break;
 			}
-		probeCache.Set(key, 0);
-		return 0;
+		}
+		probeCache.Set(key, fontIndex);
+		return fontIndex;
 	}
 
 	private static bool noNotdefs(ShapedRun shaped) {

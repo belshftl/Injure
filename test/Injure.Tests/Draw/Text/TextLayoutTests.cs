@@ -6,90 +6,48 @@ using Injure.Draw.Text;
 namespace Injure.Tests.Draw.Text;
 
 public static class TextLayoutTests {
-	[Fact]
-	public static void SkipLeadingWsWorks() {
-		ParagraphCluster[] clusters = [
-			new(0, 1, 0, 1, 10, true, LineBreakKind.None),
-			new(1, 1, 1, 1, 10, true, LineBreakKind.None),
-			new(2, 1, 2, 1, 10, false, LineBreakKind.None),
-		];
-		int next = TextLayouter.SkipLeadingWs(clusters, 0);
-		Assert.Equal(2, next);
+	// one glyph per cluster, 10 wide
+	private static ParagraphCluster c(int i, bool ws = false, LineBreakKind breakAfter = LineBreakKind.None) =>
+		new(Run: 0, GlyphStart: i, GlyphCount: 1, SourceStart: i, SourceLength: 1, Width: 10, IsWhitespaceOnly: ws, BreakAfter: breakAfter);
+
+	private static LineSpan[] wrap(ParagraphCluster[] clusters, float maxWidth, bool wrap = true) {
+		List<LineSpan> spans = new();
+		TextLayouter.Wrap(clusters, maxWidth, wrap, spans);
+		return spans.ToArray();
 	}
 
 	[Fact]
-	public static void TrimTrailingWsWorks() {
-		ParagraphCluster[] clusters = [
-			new(0, 1, 0, 1, 10, false, LineBreakKind.None),
-			new(1, 1, 1, 1, 10, true, LineBreakKind.Soft),
-			new(2, 1, 2, 1, 10, true, LineBreakKind.Soft),
-		];
-		int trimmed = TextLayouter.TrimTrailingWs(clusters, 0, 3);
-		Assert.Equal(1, trimmed);
+	public static void SkipLeadingWsWorks() =>
+		Assert.Equal(2, TextLayouter.SkipLeadingWs([c(0, ws: true), c(1, ws: true), c(2)], 0));
+
+	[Fact]
+	public static void TrimTrailingWsWorks() =>
+		Assert.Equal(1, TextLayouter.TrimTrailingWs([c(0), c(1, ws: true), c(2, ws: true)], 0, 3));
+
+	[Fact]
+	public static void EmptyParagraphsAreOneEmptyLine() =>
+		Assert.Equal([new LineSpan(0, 0)], wrap([], 100f));
+
+	[Fact]
+	public static void WrapsAtTheLastBreakOpportunityAndTrimsSpacesAroundIt() {
+		// "aa bb"
+		ParagraphCluster[] clusters = [c(0), c(1), c(2, ws: true, LineBreakKind.Soft), c(3), c(4)];
+		Assert.Equal([new LineSpan(0, 2), new LineSpan(3, 5)], wrap(clusters, 25f));
+		Assert.Equal([new LineSpan(0, 5)], wrap(clusters, 25f, wrap: false));
 	}
 
 	[Fact]
-	public static void FlattenSourceOrderClustersWorks() {
-		ParagraphRun[] runs = [
-			new() {
-				Font = null!,
-				Item = default,
-				ShapedRun = null!,
-				SourceOrderClusters = [
-					new ParagraphCluster(0, 1, 0, 1, 10, false, LineBreakKind.None),
-					new ParagraphCluster(1, 1, 1, 1, 10, false, LineBreakKind.None),
-				],
-				GlyphOrderClusters = null!,
-			},
-			new() {
-				Font = null!,
-				Item = default,
-				ShapedRun = null!,
-				SourceOrderClusters = [
-					new ParagraphCluster(0, 1, 2, 1, 10, false, LineBreakKind.None),
-				],
-				GlyphOrderClusters = null!,
-			},
-		];
-		ParagraphCluster[] flat = TextLayouter.FlattenSourceOrderClusters(runs);
-		Assert.Equal(3, flat.Length);
-		Assert.Equal(0, flat[0].SourceStart);
-		Assert.Equal(1, flat[1].SourceStart);
-		Assert.Equal(2, flat[2].SourceStart);
+	public static void SpacesDontWrapByThemselves() {
+		// "aa " at a width only "aa" fits in; the last line keeps its trailing space
+		ParagraphCluster[] clusters = [c(0), c(1), c(2, ws: true, LineBreakKind.Soft)];
+		Assert.Equal([new LineSpan(0, 3)], wrap(clusters, 20f));
 	}
 
 	[Fact]
-	public static void WrapParaLogicalLinesEmptyParaYieldsSingleEmptyLine() {
-		LogicalLine[] lines = TextLayouter.WrapParaLogicalLines(
-			paraClusters: [],
-			paraAbsoluteStart: 0,
-			paraLength: 0,
-			maxWidth: 100f,
-			wrapMode: TextWrapMode.Greedy
-		);
-		Assert.Single(lines);
-		Assert.Equal(0, lines[0].Start);
-		Assert.Equal(0, lines[0].Limit);
-	}
+	public static void WordsWiderThanTheLineBreakAnywhere() =>
+		Assert.Equal([new LineSpan(0, 1), new LineSpan(1, 2), new LineSpan(2, 3)], wrap([c(0), c(1), c(2)], 15f));
 
 	[Fact]
-	public static void WrapParaLogicalLinesWorks() {
-		ParagraphCluster[] clusters = [
-			new(0, 1, 0, 1, 10, false, LineBreakKind.None),
-			new(1, 1, 1, 1, 10, false, LineBreakKind.None),
-			new(2, 1, 2, 1, 10, true, LineBreakKind.Soft),
-			new(3, 1, 3, 1, 10, false, LineBreakKind.None),
-			new(4, 1, 4, 1, 10, false, LineBreakKind.None),
-		];
-		LogicalLine[] lines = TextLayouter.WrapParaLogicalLines(
-			clusters,
-			paraAbsoluteStart: 0,
-			paraLength: 5,
-			maxWidth: 25f,
-			wrapMode: TextWrapMode.Greedy
-		);
-		Assert.True(lines.Length >= 2);
-		Assert.Equal(0, lines[0].Start);
-		Assert.True(lines[0].Limit <= 3);
-	}
+	public static void HardBreaksEndLines() =>
+		Assert.Equal([new LineSpan(0, 2), new LineSpan(2, 3)], wrap([c(0), c(1, breakAfter: LineBreakKind.Hard), c(2)], 100f, wrap: false));
 }

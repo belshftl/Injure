@@ -245,7 +245,7 @@ public readonly struct CanvasScissor : IEquatable<CanvasScissor> {
 	/// Scissors ignore <see cref="CanvasParams.Transform"/>, so a rectangle in draw coordinates needs
 	/// to be mapped to the drawable area manually. Pass in the transform the scissor will apply
 	/// under; if the same override also changes the transform, make sure to use the new transform,
-	/// not the current <see cref="Canvas.CurrentTransform"/>. Negative scales (flips) and rotations
+	/// not the current <see cref="Canvas.CurrentTransform"/>. Negative scales (mirroring) and rotations
 	/// by multiples of 90 degrees are allowed; the edges are reordered as needed.
 	/// </para>
 	/// <para>

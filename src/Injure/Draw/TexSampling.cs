@@ -62,7 +62,7 @@ public readonly partial struct TexFilter {
 		/// </para>
 		/// <para>
 		/// The weights are exact for draws whose texture axes align with the target's axes, i.e. ones
-		/// with only translation, scaling, and flips. With rotation or skew, a pixel covers a
+		/// with only translation, scaling, and mirroring. With rotation or shear, a pixel covers a
 		/// parallelogram of texels, whose extent along each texture axis sets the scale along it, and
 		/// the weights approximate its coverage. At 45 degrees, the weights are off by up to 1/8 of the
 		/// difference between two texels along a texel edge, and by up to about 1/5 near a texel
