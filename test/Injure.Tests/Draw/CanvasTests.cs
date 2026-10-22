@@ -464,6 +464,25 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		Assert.Equal(red, GpuRig.At(px, 4, 3, 2));
 	}
 
+	// Scale(1e-20) has a nonzero determinant, but its inverse overflows, so by our definition it's
+	// non-invertible
+	// at 1e10 pixels per unit, the effective transform is Scale(1e-10), whose inverse doesn't
+	// overflow, so only the check of the transform by itself rejects it, since the transform by
+	// itself must stay invertible too
+	// Set overrides are checked on their own, so this multiplies two invertible ones into it
+	[Fact]
+	public void TransformsMustBeInvertibleOnTheirOwn() {
+		render(black, canvas => {
+			Canvas cv = canvas.Canvas;
+			using (cv.PushParams(target: CanvasTarget.Primary(scaled(1e10f))))
+			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateScale(1e-10f)))) {
+				var tiny = CanvasTransformOverride.Multiply(Matrix3x2.CreateScale(1e-10f));
+				Assert.Throws<ArgumentException>(() => canvas.Canvas.PushParams(transform: tiny));
+				Assert.True(MatrixInvert.IsInvertible(Matrix3x2.CreateScale(1e-20f) * cv.CurrentViewport.ToPixelsMatrix));
+			}
+		});
+	}
+
 	[Fact]
 	public void DefaultTargetsAreRejected() {
 		render(black, canvas => {
@@ -827,7 +846,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void FramePrimaryFactoryCoversTheWholeOutput() {
 		using GpuTexture target = GpuRig.Target(Device, 6, 4);
 		using RenderFrame frame = new(Device, new GpuRig.FakeOutput(target));
-		CanvasParams p = CanvasParams.Primary(frame, SrgbColor32.Red, pixelsPerUnit: 2f);
+		var p = CanvasParams.Primary(frame, SrgbColor32.Red, pixelsPerUnit: 2f);
 		Assert.Equal(CanvasParams.Primary(Viewport.Whole(new Vector2(6, 4), 2f), SrgbColor32.Red), p);
 		Assert.Equal(new Vector2(3, 2), p.Target.Viewport.Size);
 		Assert.Equal(Viewport.Whole(new Vector2(6, 4)), CanvasParams.Primary(frame, ColorAttachmentOps.Load).Target.Viewport);
@@ -1034,6 +1053,19 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		// radius 0 draws nothing
 		px = render16(cv => cv.Circle(new Vector2(8, 8), 0f, red.AssumeSrgb()));
 		Assert.Equal(black, at16(px, 8, 8));
+	}
+
+	// single-color shapes add their geometry through a different path than per-vertex-color ones
+	[Fact]
+	public void SingleColorShapesMapThroughTheViewport() {
+		// at 4 pixels per unit, a circle at (2, 2) with radius 1.5 covers pixels within 6 of (8, 8)
+		byte[] px = render16(cv => {
+			using (cv.PushParams(target: CanvasTarget.Primary(scaled(4, 16))))
+				cv.Circle(new Vector2(2, 2), 1.5f, red.AssumeSrgb());
+		});
+		Assert.Equal(red, at16(px, 8, 8));
+		Assert.Equal(red, at16(px, 8, 3));
+		Assert.Equal(black, at16(px, 1, 1));
 	}
 
 	[Fact]

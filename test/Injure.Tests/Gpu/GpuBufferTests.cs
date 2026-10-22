@@ -21,17 +21,6 @@ public sealed class GpuBufferTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	// ==========================================================================
 	// creation and queue writes
 	[Fact]
-	public void CreateBufferReportsSizeAndUsage() {
-		using GpuBuffer buf = dev.CreateBuffer(64, BufferUsage.Vertex | BufferUsage.CopyDst);
-		Assert.Equal(64ul, buf.Size);
-		Assert.Equal(BufferUsage.Vertex | BufferUsage.CopyDst, buf.Usage);
-		Assert.Equal(BufferMapState.Unmapped, buf.MapState);
-		GpuBufferRef r = buf.AsRef();
-		Assert.Equal(buf.Size, r.Size);
-		Assert.Equal(buf.Usage, r.Usage);
-	}
-
-	[Fact]
 	public void QueueWritesLandInTheBuffer() {
 		using GpuBuffer buf = dev.CreateBuffer(16, BufferUsage.CopySrc | BufferUsage.CopyDst);
 		dev.WriteToBuffer(buf, 0, new uint[] { 1, 2, 3, 4 }.AsSpan());

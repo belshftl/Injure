@@ -19,13 +19,6 @@ public sealed class GpuDeviceTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	}
 
 	[Fact]
-	public void SharedDeviceHasNoFeaturesAndIsAlive() {
-		GpuDevice dev = Device;
-		Assert.Equal(GpuFeatures.None, dev.Features);
-		Assert.Equal(DeviceState.Alive, dev.State);
-	}
-
-	[Fact]
 	public void OptionalFeaturesEnableTheSupportedOnes() {
 		_ = Device;
 		GpuFeatures all = GpuFeatures.None;

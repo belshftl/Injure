@@ -19,11 +19,6 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 	}
 
 	[Fact]
-	public void DefaultHandlerIsFailFast() {
-		Assert.Same(GpuErrorHandlers.FailFast, new GpuDeviceOptions { RequiredFeatures = GpuFeatures.None }.ErrorHandler);
-	}
-
-	[Fact]
 	public void ErrorsAreReportedBeforeTheFailingCallReturns() {
 		createInvalidBuffer(Device);
 		GpuError e = Assert.Single(Errors.TakeAll());

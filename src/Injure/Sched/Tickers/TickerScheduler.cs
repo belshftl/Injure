@@ -447,7 +447,7 @@ public sealed class TickerScheduler(IHostClock clock, in TickerSchedulerOptions 
 
 			if (calls >= options.BatchCallLimit)
 				return;
-			if (options.EventPollInterval > 0 && calls > options.EventPollInterval)
+			if (options.EventPollInterval > 0 && calls >= options.EventPollInterval)
 				return;
 			if (options.MaxBatchDuration > HostDuration.Zero) {
 				HostDuration elapsed = clock.Now - start;

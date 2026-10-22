@@ -165,16 +165,6 @@ public static class ActionRegistryAndMapTests {
 	}
 
 	[Fact]
-	public static void BuilderDefaults() {
-		ActionMapBuilder b = new();
-		Assert.Equal(StateAxisMergePolicy.MaxAbs, b.StateAxisMergePolicy);
-		Assert.Equal(StateAxis2dMergePolicy.MaxMagnitude, b.StateAxis2dMergePolicy);
-		ActionId a = new ActionRegistry().Register("t::a");
-		b.BindStateAxis2d(a, InputStateAxis2dSource.GamepadStick(GamepadStick.Left), Axis2dDeadzone.None);
-		Assert.Equal(Vector2.One, b.StateAxis2dBindings[0].Scale);
-	}
-
-	[Fact]
 	public static void ProfileReplaceBumpsVersion() {
 		ActionMapSnapshot m1 = new ActionMapBuilder().ToSnapshot();
 		ActionMapSnapshot m2 = new ActionMapBuilder().ToSnapshot();

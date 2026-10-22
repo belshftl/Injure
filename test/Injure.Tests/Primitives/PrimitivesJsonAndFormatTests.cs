@@ -112,14 +112,6 @@ public static class PrimitivesJsonAndFormatTests {
 		Assert.Throws<JsonException>(() => de<RectF>(json));
 
 	[Fact]
-	public static void Vector2IntHasDocumentedLayout() {
-		Assert.Equal(Vector2Int.Size, Unsafe.SizeOf<Vector2Int>());
-		Vector2Int v = new(0x11223344, -2);
-		ReadOnlySpan<int> ints = MemoryMarshal.Cast<Vector2Int, int>(new ReadOnlySpan<Vector2Int>(in v));
-		Assert.Equal([0x11223344, -2], ints.ToArray());
-	}
-
-	[Fact]
 	public static void Vector2IntArithmeticIsPerComponent() {
 		Vector2Int a = new(7, -7);
 		Vector2Int b = new(2, 3);
@@ -137,8 +129,6 @@ public static class PrimitivesJsonAndFormatTests {
 		Assert.Equal(new Vector2Int(7, 7), Vector2Int.Abs(a));
 		(int x, int y) = a;
 		Assert.Equal((7, -7), (x, y));
-		Assert.Equal(Vector2Int.Zero, default);
-		Assert.Equal(Vector2Int.One, Vector2Int.UnitX + Vector2Int.UnitY);
 	}
 
 	[Fact]

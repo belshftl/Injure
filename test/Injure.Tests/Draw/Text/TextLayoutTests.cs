@@ -30,10 +30,10 @@ public static class TextLayoutTests {
 
 	[Fact]
 	public static void WrapsAtTheLastBreakOpportunityAndTrimsSpacesAroundIt() {
-		// "aa bb"
-		ParagraphCluster[] clusters = [c(0), c(1), c(2, ws: true, LineBreakKind.Soft), c(3), c(4)];
-		Assert.Equal([new LineSpan(0, 2), new LineSpan(3, 5)], wrap(clusters, 25f));
-		Assert.Equal([new LineSpan(0, 5)], wrap(clusters, 25f, wrap: false));
+		// "aa bbb", overflowing in the middle of "bbb", which has to move as a whole
+		ParagraphCluster[] clusters = [c(0), c(1), c(2, ws: true, LineBreakKind.Soft), c(3), c(4), c(5)];
+		Assert.Equal([new LineSpan(0, 2), new LineSpan(3, 6)], wrap(clusters, 45f));
+		Assert.Equal([new LineSpan(0, 6)], wrap(clusters, 45f, wrap: false));
 	}
 
 	[Fact]

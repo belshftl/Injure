@@ -131,8 +131,6 @@ internal static class IlMaxStackAnalyzer {
 				after = 0;
 			}
 			after += push;
-			if (after > max)
-				max = after;
 
 			if (strict && instr.Prefixes is { } prefixes && prefixes.Has(IlPrefixFlags.Tail) &&
 				(boundary + 1 >= instrs.Count || instrs[boundary + 1].OpCode != ILOpCode.Ret))

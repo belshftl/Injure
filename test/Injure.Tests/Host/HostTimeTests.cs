@@ -45,6 +45,9 @@ public static class HostTimeTests {
 	[Fact]
 	public static void DurationConversionsWork() {
 		Assert.Equal(dur(1_500_000), HostDuration.FromSeconds(0.0015));
+		// fractions of a nanosecond round to the nearest one rather than towards zero
+		Assert.Equal(dur(2), HostDuration.FromSeconds(1.6e-9));
+		Assert.Equal(dur(-2), HostDuration.FromSeconds(-1.6e-9));
 		Assert.Equal(dur(500_000_000), HostDuration.PeriodFromHz(2.0));
 		Assert.Equal(dur(1), HostDuration.PeriodFromHz(1e12));
 		Assert.Equal(0.25, dur(250_000_000).ToSeconds());

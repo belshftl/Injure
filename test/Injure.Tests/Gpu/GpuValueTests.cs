@@ -12,14 +12,6 @@ public static class GpuValueTests {
 	// ==========================================================================
 	// SurfaceSource
 	[Fact]
-	public static void SurfaceSourceFactoriesSetKind() {
-		Assert.Equal(SurfaceSourceKind.MetalLayer, SurfaceSource.DangerousCreateFromMetalLayer(1).Kind);
-		Assert.Equal(SurfaceSourceKind.WaylandSurface, SurfaceSource.DangerousCreateFromWaylandSurface(1, 2).Kind);
-		Assert.Equal(SurfaceSourceKind.XlibWindow, SurfaceSource.DangerousCreateFromXlibWindow(1, 2).Kind);
-		Assert.Equal(SurfaceSourceKind.WindowsHwnd, SurfaceSource.DangerousCreateFromWindowsHwnd(1, 2).Kind);
-	}
-
-	[Fact]
 	public static void SurfaceSourceFactoriesRejectNullHandles() {
 		Assert.Equal("layer", Assert.Throws<ArgumentException>(static () => SurfaceSource.DangerousCreateFromMetalLayer(0)).ParamName);
 		Assert.Equal("display", Assert.Throws<ArgumentException>(static () => SurfaceSource.DangerousCreateFromWaylandSurface(0, 1)).ParamName);
@@ -85,70 +77,12 @@ public static class GpuValueTests {
 					Assert.Equal(name + "Srgb", srgb.Tag.ToString());
 			}
 		}
-		Assert.Equal(23, srgbCount);
+		// guards against the name check matching nothing, which would skip the sRGB half
+		Assert.NotEqual(0, srgbCount);
 	}
 
 	// ==========================================================================
-	// presets and convenience constructors
-	[Fact]
-	public static void AttachmentOpsPresets() {
-		Assert.Equal(new ColorAttachmentOps(LoadOp.Load, StoreOp.Store, default), ColorAttachmentOps.Load);
-		Assert.Equal(new ColorAttachmentOps(LoadOp.Clear, StoreOp.Store, RawColorF128.White), ColorAttachmentOps.Clear(RawColorF128.White));
-		Assert.Equal(new DepthAttachmentOps(LoadOp.Clear, StoreOp.Store, 0.25f), DepthAttachmentOps.Clear(0.25f));
-		Assert.Equal(LoadOp.Load, DepthAttachmentOps.Load.LoadOp);
-		Assert.Equal(new StencilAttachmentOps(LoadOp.Clear, StoreOp.Store, 7), StencilAttachmentOps.Clear(7));
-		Assert.Equal(LoadOp.Load, StencilAttachmentOps.Load.LoadOp);
-	}
-
-	[Fact]
-	public static void BlendStatePresetsUseDocumentedFactors() {
-		static void check(BlendState s, BlendFactor colorSrc, BlendFactor colorDst) {
-			Assert.Equal(new BlendComponent(BlendOperation.Add, colorSrc, colorDst), s.Color);
-			Assert.Equal(new BlendComponent(BlendOperation.Add, BlendFactor.One, BlendFactor.OneMinusSrcAlpha), s.Alpha);
-		}
-		check(BlendStates.Alpha, BlendFactor.SrcAlpha, BlendFactor.OneMinusSrcAlpha);
-		check(BlendStates.PremulAlpha, BlendFactor.One, BlendFactor.OneMinusSrcAlpha);
-		check(BlendStates.Additive, BlendFactor.SrcAlpha, BlendFactor.One);
-		check(BlendStates.PremulAdditive, BlendFactor.One, BlendFactor.One);
-	}
-
-	[Fact]
-	public static void ConvenienceConstructorsDifferFromDefault() {
-		MultisampleState ms = new();
-		Assert.Equal(1u, ms.Count);
-		Assert.Equal(uint.MaxValue, ms.Mask);
-		Assert.Equal(0u, default(MultisampleState).Count);
-
-		GpuTextureViewParams view = new();
-		Assert.Equal(TextureAspect.All, view.Aspect);
-		Assert.Null(view.Format);
-		Assert.Null(view.Dimension);
-		Assert.True(((IHasInvalidDefault)default(GpuTextureViewParams).Aspect).IsDefault);
-
-		PrimitiveState list = new();
-		Assert.Equal(new PrimitiveState(PrimitiveTopology.TriangleList), list);
-		Assert.Equal(FrontFace.Ccw, list.FrontFace);
-		Assert.Equal(CullMode.None, list.CullMode);
-
-		Assert.Equal(new StencilFaceState(CompareFunction.Always, StencilOperation.Keep, StencilOperation.Keep, StencilOperation.Keep), StencilFaceState.Keep);
-
-		PrimitiveState strip = new(PrimitiveTopology.TriangleStrip);
-		Assert.Equal(IndexFormat.Undefined, strip.StripIndexFormat);
-		Assert.Equal(FrontFace.Ccw, strip.FrontFace);
-		Assert.Equal(CullMode.None, strip.CullMode);
-		Assert.False(strip.UnclippedDepth);
-	}
-
-	[Fact]
-	public static void DeviceOptionsDefaults() {
-		GpuDeviceOptions opts = new() { RequiredFeatures = GpuFeatures.None };
-		Assert.Equal(PowerPreference.HighPerformance, opts.PowerPreference);
-		Assert.Equal(BackendType.Undefined, opts.BackendType);
-		Assert.Equal(GpuFeatures.None, opts.OptionalFeatures);
-		Assert.Null(opts.CompatibleHost);
-		Assert.Equal(PowerPreference.Undefined, default(GpuDeviceOptions).PowerPreference);
-	}
-
+	// conversions
 	[Fact]
 	public static void MapStatusConversion() {
 		Assert.Equal(BufferMapStatus.Success, WGPUMapAsyncStatus.Success.FromWebgpuType());

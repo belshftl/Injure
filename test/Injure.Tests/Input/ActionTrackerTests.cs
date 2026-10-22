@@ -44,10 +44,14 @@ public static class ActionTrackerTests {
 
 		InputStep s2 = rig.Step();
 		Assert.Equal(new ButtonActionState(true, true), s2.Actions.GetButton(a));
+		// held, so neither edge
+		Assert.False(s2.Actions.GetButton(a).Pressed);
+		Assert.False(s2.Actions.GetButton(a).Released);
 		Assert.Empty(s2.Events);
 
 		InputStep s3 = rig.Feed(Kb(Key.A, false)).Step();
 		Assert.True(s3.Actions.GetButton(a).Released);
+		Assert.False(s3.Actions.GetButton(a).Pressed);
 		Assert.Equal([EdgeType.Release], s3.ButtonEvents(a).Select(static e => e.Edge));
 	}
 

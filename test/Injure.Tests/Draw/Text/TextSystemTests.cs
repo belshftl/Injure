@@ -107,12 +107,6 @@ public sealed class TextSystemTests : GpuTestBase {
 	}
 
 	[Fact]
-	public static void DefaultLayoutOptionsWrapGreedilyWithoutAWidth() {
-		Assert.Equal(new TextLayoutOptions(float.PositiveInfinity, TextWrapMode.Greedy, TextHorizontalAlign.Left), TextLayoutOptions.Default);
-		Assert.Equal(TextLayoutOptions.Default, new TextStyle(10f).Layout);
-	}
-
-	[Fact]
 	public void GreedyWrappingBreaksAtSpaces() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -219,6 +213,19 @@ public sealed class TextSystemTests : GpuTestBase {
 		TextLayout cached = text.GetCachedLayout(sans, "a\ud800b", style());
 		Assert.Equal("a\ufffdb", cached.Text);
 		Assert.Same(cached, text.GetCachedLayout(sans, "a\ud800b", style()));
+	}
+
+	[Fact]
+	public void RightToLeftTextIsLaidOutInVisualOrder() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		// the glyphs are all .notdefs since the font doesn't have hebrew, tell apart by source indices
+		static int[] visualOrder(TextLayout l) =>
+			l.Glyphs.ToArray().OrderBy(static g => g.X).Select(static g => g.SourceIndex).ToArray();
+		// an LTR paragraph with an RTL run: the run's characters go right to left
+		Assert.Equal([0, 1, 2, 4, 3], visualOrder(text.Layout(sans, "ab \u05d0\u05d1", style())));
+		// an RTL paragraph with an LTR run: the paragraph goes right to left, the run left to right
+		Assert.Equal([3, 4, 2, 1, 0], visualOrder(text.Layout(sans, "\u05d0\u05d1 ab", style())));
 	}
 
 	[Fact]

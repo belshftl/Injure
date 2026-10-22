@@ -172,6 +172,9 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 
 		// the default checks run before the null checks, so the pipelines don't need real shaders
 		VertexState vert = new(null!, "vs");
+		throwsDefault("params.Vertex.Buffers[0].Attributes[0].Format", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
+			null!, vert with { Buffers = [new VertexBufferLayout(4, VertexStepMode.Vertex, [new VertexAttribute(default, 0, 1)])] }
+		)));
 		throwsDefault("params.DepthStencil.StencilFront", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
 			null!, vert, DepthStencil: new DepthStencilState(TextureFormat.Depth32Float, true, CompareFunction.Less, default, StencilFaceState.Keep)
 		)));

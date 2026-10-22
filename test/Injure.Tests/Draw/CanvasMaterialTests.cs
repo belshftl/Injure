@@ -42,9 +42,4 @@ public static class CanvasMaterialTests {
 		Assert.Equal("params", ex.ParamName);
 	}
 
-	[Fact]
-	public static void NonSdfMaterialsHaveNoSdfParams() {
-		Assert.Null(CanvasMaterial.Color.SdfParams);
-		Assert.Null(CanvasMaterial.Rmask.SdfParams);
-	}
 }

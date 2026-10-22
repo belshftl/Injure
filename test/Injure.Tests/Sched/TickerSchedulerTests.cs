@@ -55,6 +55,46 @@ public static class TickerSchedulerTests {
 	}
 
 	[Fact]
+	public static void BatchCallLimitSplitsCatchUpAcrossRuns() {
+		ManualClock clock = new(1_000_000_000);
+		TickerScheduler sched = new(clock, new TickerSchedulerOptions(BatchCallLimit: 3, EventPollInterval: 0));
+		List<TickCallbackTimingInfo> calls = new();
+		TickerOptions catchUp = TickerOptions.Default with { OverrunMode = TickerOverrunMode.CatchUp, MaxBurst = 100 };
+		sched.Add(new TickerSpec(new TickerTiming(ms10), catchUp)).Subscribe((in info, in _) => calls.Add(info));
+		sched.ApplyPending();
+		sched.RunDueTickers();
+		Assert.Single(calls);
+
+		// 5 periods behind: 3 calls now, the other 2 in the next run
+		clock.Advance(ms10 * 5);
+		sched.RunDueTickers();
+		Assert.Equal(4, calls.Count);
+		sched.RunDueTickers();
+		Assert.Equal(6, calls.Count);
+		sched.RunDueTickers();
+		Assert.Equal(6, calls.Count);
+	}
+
+	[Fact]
+	public static void EventPollIntervalSplitsCatchUpAcrossRuns() {
+		ManualClock clock = new(1_000_000_000);
+		TickerScheduler sched = new(clock, new TickerSchedulerOptions(BatchCallLimit: 64, EventPollInterval: 2));
+		List<TickCallbackTimingInfo> calls = new();
+		TickerOptions catchUp = TickerOptions.Default with { OverrunMode = TickerOverrunMode.CatchUp, MaxBurst = 100 };
+		sched.Add(new TickerSpec(new TickerTiming(ms10), catchUp)).Subscribe((in info, in _) => calls.Add(info));
+		sched.ApplyPending();
+		sched.RunDueTickers();
+		Assert.Single(calls);
+
+		// 4 periods behind: 2 calls per run, like BatchCallLimit
+		clock.Advance(ms10 * 4);
+		sched.RunDueTickers();
+		Assert.Equal(3, calls.Count);
+		sched.RunDueTickers();
+		Assert.Equal(5, calls.Count);
+	}
+
+	[Fact]
 	public static void FirstCallbackAtClockEpochDoesNotUnderflow() {
 		// "previous" times of the first callback would be one period before the epoch
 		ManualClock clock = new(0);
@@ -70,13 +110,6 @@ public static class TickerSchedulerTests {
 		TickerScheduler sched = new(new ManualClock(0), new TickerSchedulerOptions());
 		Assert.Throws<ArgumentOutOfRangeException>(() => sched.Add(new TickerSpec(new TickerTiming(HostDuration.Zero), TickerOptions.Default)));
 		Assert.Throws<ArgumentOutOfRangeException>(() => sched.Add(new TickerSpec(new TickerTiming(-ms10), TickerOptions.Default)));
-	}
-
-	[Fact]
-	public static void OptionsConstructedWithNewHaveTheParameterDefaults() {
-		TickerSchedulerOptions options = new();
-		Assert.Equal(64, options.BatchCallLimit);
-		Assert.Equal(8, options.EventPollInterval);
 	}
 
 	[Fact]

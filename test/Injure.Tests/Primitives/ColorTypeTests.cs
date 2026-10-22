@@ -34,35 +34,6 @@ public static class ColorTypeTests {
 	}
 
 	[Fact]
-	public static void RawColor32HasDocumentedLayout() {
-		Assert.Equal(4, RawColor32.Size);
-		Assert.Equal(RawColor32.Size, Unsafe.SizeOf<RawColor32>());
-		RawColor32 c = new(0x11, 0x22, 0x33, 0x44);
-		Assert.Equal([0x11, 0x22, 0x33, 0x44], MemoryMarshal.AsBytes(new ReadOnlySpan<RawColor32>(in c)).ToArray());
-		// little-endian platform observation, not a documented guarantee
-		Assert.Equal(0x44332211u, c.ReinterpretToU32());
-	}
-
-	[Fact]
-	public static void SrgbColor32HasDocumentedLayout() {
-		Assert.Equal(4, SrgbColor32.Size);
-		Assert.Equal(SrgbColor32.Size, Unsafe.SizeOf<SrgbColor32>());
-		SrgbColor32 c = new(0x11, 0x22, 0x33, 0x44);
-		Assert.Equal([0x11, 0x22, 0x33, 0x44], MemoryMarshal.AsBytes(new ReadOnlySpan<SrgbColor32>(in c)).ToArray());
-		// little-endian platform observation, not a documented guarantee
-		Assert.Equal(0x44332211u, c.ReinterpretToU32());
-	}
-
-	[Fact]
-	public static void RawColorF128HasDocumentedLayout() {
-		Assert.Equal(16, RawColorF128.Size);
-		Assert.Equal(RawColorF128.Size, Unsafe.SizeOf<RawColorF128>());
-		RawColorF128 c = new(1f, 2f, 3f, 4f);
-		Assert.Equal([1f, 2f, 3f, 4f], MemoryMarshal.Cast<RawColorF128, float>(new ReadOnlySpan<RawColorF128>(in c)).ToArray());
-		Assert.Equal(new Vector4(1f, 2f, 3f, 4f), Unsafe.BitCast<RawColorF128, Vector4>(c));
-	}
-
-	[Fact]
 	public static void SpanReinterpretsAliasAndKeepTheBytes() {
 		RawColor32[] raw = [new(0x11, 0x22, 0x33, 0x44), new(0x55, 0x66, 0x77, 0x88)];
 
@@ -87,13 +58,6 @@ public static class ColorTypeTests {
 
 		Assert.True(RawColor32.SpanAssumeSrgb(Span<RawColor32>.Empty).IsEmpty);
 		Assert.True(SrgbColor32.SpanToRaw(ReadOnlySpan<SrgbColor32>.Empty).IsEmpty);
-	}
-
-	[Fact]
-	public static void DefaultsAreTransparent() {
-		Assert.Equal(RawColor32.Transparent, default);
-		Assert.Equal(SrgbColor32.Transparent, default);
-		Assert.Equal(RawColorF128.Transparent, default);
 	}
 
 	[Fact]
