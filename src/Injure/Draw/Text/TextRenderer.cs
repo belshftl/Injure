@@ -28,12 +28,12 @@ internal static class TextRenderer {
 	private const int subpixelSteps = 4;
 	private static readonly ImmutableArray<uint> quadIndices = [0, 2, 1, 3, 1, 2];
 
-	public static void Draw(OwnedCanvas oc, TextLayout layout, Vector2 at, SrgbColor32 color) {
+	public static void Draw(OwnedCanvas oc, TextLayout layout, Vector2 at, SrgbColor32 tint) {
 		layout.RelayoutIfStale();
 		ReadOnlySpan<LaidOutGlyph> glyphs = layout.Glyphs;
 		if (glyphs.IsEmpty)
 			return;
-		ResolvedFontFallbackChain chain = layout.Resolved;
+		ReadOnlySpan<ResolvedFontFallbackChain> chains = layout.Chains;
 		GlyphAtlas atlas = layout.Owner.Atlas;
 		int maxPixelSize = layout.Owner.MaxRasterPixelSize;
 
@@ -49,8 +49,9 @@ internal static class TextRenderer {
 			int pixelSize = Math.Clamp((int)MathF.Round(g.Size * scale, MidpointRounding.AwayFromZero), 1, maxPixelSize);
 			float rasterPerUnit = pixelSize / g.Size;
 			Vector2 pos = at + new Vector2(g.X, g.Y);
-			ResolvedFontState state = chain.States[g.FontIndex];
-			FontRasterOptions raster = chain.Raster[g.FontIndex];
+			ResolvedFontState state = chains[g.Chain].States[g.FontIndex];
+			FontRasterOptions raster = chains[g.Chain].Raster[g.FontIndex];
+			SrgbColor32 color = tint == SrgbColor32.White ? g.Color : multiply(g.Color, tint);
 			GlyphAtlasEntry e;
 			if (snap) {
 				var px = Vector2.Transform(pos, m);
@@ -77,6 +78,15 @@ internal static class TextRenderer {
 			}
 		}
 	}
+
+	// per channel, on the encoded values
+	// x / 255 is never exactly a midpoint for an integer x, so adding 127 rounds to the nearest value
+	private static SrgbColor32 multiply(SrgbColor32 a, SrgbColor32 b) => new(
+		(byte)((a.R * b.R + 127) / 255),
+		(byte)((a.G * b.G + 127) / 255),
+		(byte)((a.B * b.B + 127) / 255),
+		(byte)((a.A * b.A + 127) / 255)
+	);
 
 	private static void addQuad(OwnedCanvas oc, in GlyphAtlasEntry e, float x, float y, float w, float h, SrgbColor32 color, bool inPixels) {
 		float invW = 1f / e.Page.Width, invH = 1f / e.Page.Height;

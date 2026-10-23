@@ -99,7 +99,7 @@ anyhow, to v0.1:
   - [ ] revisit the pixel converter, pt 3: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement
 - [ ] revisit the text renderer; the apis don't feel very nice to me, and it's missing most non-basic features, for instance regarding layout
   - [x] pt 1, foundations: float font sizes in drawable units with unhinted layout metrics; rasterize at draw time from the effective transform's scale; layouts as plain data, with atlas pages pinned per frame instead of per layout; one layout result type instead of three; put raster options somewhere like the face to split them from per-span style; drop `LiveText`; add `cv.Text(...)` backed by a per-`TextSystem` layout cache; fix some bugs
-  - [ ] pt 2, attributed text: a builder with per-span font, size, and color; line metrics for mixed sizes; `cv.Text(...)` taking built text
+  - [x] pt 2, attributed text: a builder with per-span font, size, and color; line metrics for mixed sizes; `cv.Text(...)` taking built text
   - [ ] pt 3, layout features: line height, letter spacing, start/end/justify alignment, max lines + ellipsis (`TextOverflowMode` is currently unused), proper paragraph separators (`\r\n`, U+2028, U+2029), soft hyphens / hyphenation, maybe consider knuth-plass linebreaking
   - [ ] pt 4, queries: hit testing, caret positions, selection rects; text input would need this
   - [ ] pt 5, rendering features: underline/strikethrough, outlines/shadows, color glyphs (RGBA atlas pages and a non-mask material)

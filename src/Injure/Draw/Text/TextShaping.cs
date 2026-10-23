@@ -173,7 +173,8 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 				buf.Direction = d;
 			if (item.Properties.Script is Script s)
 				buf.Script = s;
-			if (!string.IsNullOrWhiteSpace(item.Properties.LanguageBcp47)) {
+			// "und" is the unspecified language, which leaving the buffer's language unset means
+			if (!string.IsNullOrWhiteSpace(item.Properties.LanguageBcp47) && !string.Equals(item.Properties.LanguageBcp47, "und", StringComparison.OrdinalIgnoreCase)) {
 				if (!langs.TryGetValue(item.Properties.LanguageBcp47, out Language? l)) {
 					l = new Language(item.Properties.LanguageBcp47);
 					langs.Add(item.Properties.LanguageBcp47, l);

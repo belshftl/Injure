@@ -35,7 +35,8 @@ public sealed class TextSystemTests : GpuTestBase {
 	private static FontSpec spec(FontData font, FontRasterMode mode = default) =>
 		new(font, raster: new FontRasterOptions(FontHinting.None, mode));
 
-	private static TextStyle style(TextLayoutOptions? layout = null) => new(10f, layout);
+	private static TextStyle style(FontFallbackChain fonts, float size = 10f, SrgbColor32? color = null, string language = "und") =>
+		new(fonts, size, color, language);
 
 	private byte[] render(uint w, uint h, float pixelsPerUnit, Action<OwnedCanvas> draw, TextSystem? text = null) {
 		using GpuTexture target = GpuRig.Target(Device, w, h);
@@ -77,52 +78,53 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void LayoutUsesUnhintedAdvancesAndLineMetrics() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout l = text.Layout(sans, "aaa", style());
+		TextLayout l = text.Layout("aaa", style(sans));
 		Assert.Equal(15f, l.Width);
 		Assert.Equal(10f, l.Height);
 		TextLine line = Assert.Single(l.Lines);
 		Assert.Equal(8f, line.BaselineY);
-		Assert.Equal(15f, text.Layout(sans, "am", style()).Width);
-		Assert.Equal(13f, text.Layout(sans, "a a", style()).Width);
+		Assert.Equal(15f, text.Layout("am", style(sans)).Width);
+		Assert.Equal(13f, text.Layout("a a", style(sans)).Width);
 		// sizes scale linearly, without integer rounding
-		Assert.Equal(7.5f, text.Layout(sans, "aaa", new TextStyle(5f)).Width);
-		Assert.Equal(1.5f * 0.5f * 3, text.Layout(sans, "aaa", new TextStyle(1.5f)).Width, 5);
+		Assert.Equal(7.5f, text.Layout("aaa", style(sans, 5f)).Width);
+		Assert.Equal(1.5f * 0.5f * 3, text.Layout("aaa", style(sans, 1.5f)).Width, 5);
 	}
 
 	[Fact]
-	public void LayoutRejectsInvalidStyles() {
+	public void LayoutRejectsInvalidStylesAndOptions() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout(sans, "a", default));
-		Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout(sans, "a", new TextStyle(0f)));
-		Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout(sans, "a", new TextStyle(float.NaN)));
-		Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout(sans, "a", style(TextLayoutOptions.Default with { MaxWidth = -1 })));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout("a", default));
+		Assert.Equal("style.Fonts", Assert.Throws<ArgumentNullException>(() => text.Layout("a", style(sans) with { Fonts = null! })).ParamName);
+		Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout("a", style(sans, 0f)));
+		Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout("a", style(sans, float.NaN)));
+		Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout("a", style(sans), TextLayoutOptions.Default with { MaxWidth = -1 }));
 		// nested defaults are reported by their path
-		ArgumentInvalidDefaultException e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout(sans, "a", style(TextLayoutOptions.Default with { WrapMode = default })));
-		Assert.Equal("style.Layout.WrapMode", e.ParamName);
-		e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout(sans, "a", style(TextLayoutOptions.Default with { HorizontalAlign = default })));
-		Assert.Equal("style.Layout.HorizontalAlign", e.ParamName);
-		e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout(sans, "a", new TextStyle(10f, default(TextLayoutOptions))));
-		Assert.Equal("style.Layout.WrapMode", e.ParamName);
+		ArgumentInvalidDefaultException e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout("a", style(sans), TextLayoutOptions.Default with { WrapMode = default }));
+		Assert.Equal("options.WrapMode", e.ParamName);
+		e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout("a", style(sans), TextLayoutOptions.Default with { HorizontalAlign = default }));
+		Assert.Equal("options.HorizontalAlign", e.ParamName);
+		e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout("a", style(sans), default(TextLayoutOptions)));
+		Assert.Equal("options", e.ParamName);
 	}
 
 	[Fact]
 	public void GreedyWrappingBreaksAtSpaces() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout l = text.Layout(sans, "aa aa aa", style(TextLayoutOptions.Default with { MaxWidth = 26 }));
+		TextLayout l = text.Layout("aa aa aa", style(sans), TextLayoutOptions.Default with { MaxWidth = 26 });
 		Assert.Equal(2, l.Lines.Count);
 		// spaces at a wrap don't count towards a line's width
 		Assert.Equal(23f, l.Lines[0].Width);
 		Assert.Equal(10f, l.Lines[1].Width);
 		Assert.Equal(18f, l.Lines[1].BaselineY);
 		Assert.Equal(20f, l.Height);
-		Assert.Single(text.Layout(sans, "aa aa aa", style()).Lines);
-		Assert.Single(text.Layout(sans, "aa aa aa", style(TextLayoutOptions.Default with { MaxWidth = 26, WrapMode = TextWrapMode.None })).Lines);
+		Assert.Single(text.Layout("aa aa aa", style(sans)).Lines);
+		Assert.Single(text.Layout("aa aa aa", style(sans), TextLayoutOptions.Default with { MaxWidth = 26, WrapMode = TextWrapMode.None }).Lines);
 	}
 
 	private static TextLine[] aligned(TextSystem text, FontData sans, string s, float maxWidth, TextHorizontalAlign align) =>
-		text.Layout(sans, s, style(TextLayoutOptions.Default with { MaxWidth = maxWidth, WrapMode = TextWrapMode.None, HorizontalAlign = align })).Lines.ToArray();
+		text.Layout(s, style(sans), TextLayoutOptions.Default with { MaxWidth = maxWidth, WrapMode = TextWrapMode.None, HorizontalAlign = align }).Lines.ToArray();
 
 	[Fact]
 	public void TheLanguageSelectsLineBreakingRules() {
@@ -134,9 +136,9 @@ public sealed class TextSystemTests : GpuTestBase {
 		// break between 'b' and '»'
 		const string s = "a \u00ab b \u00bb c";
 		TextLayoutOptions box = TextLayoutOptions.Default with { MaxWidth = 21 };
-		float[] widths(string? language) =>
-			text.Layout(sans, s, new TextStyle(10f, box, language)).Lines.Select(static l => l.Width).ToArray();
-		Assert.Equal([21f, 13f], widths(null));
+		float[] widths(string language) =>
+			text.Layout(s, style(sans, language: language), box).Lines.Select(static l => l.Width).ToArray();
+		Assert.Equal([21f, 13f], widths("und"));
 		Assert.Equal([21f, 13f], widths("en"));
 		Assert.Equal([5f, 21f, 5f], widths("fr"));
 		Assert.Equal([5f, 21f, 5f], widths("fr-CA"));
@@ -162,7 +164,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		TextLine[] right = aligned(text, sans, "aaaa\naa", float.PositiveInfinity, TextHorizontalAlign.Right);
 		Assert.Equal(0f, right[0].OffsetX);
 		Assert.Equal(10f, right[1].OffsetX);
-		Assert.Equal(20f, text.Layout(sans, "aaaa\naa", style()).Width);
+		Assert.Equal(20f, text.Layout("aaaa\naa", style(sans)).Width);
 		Assert.Equal(0f, aligned(text, sans, "aaaa\naa", float.PositiveInfinity, TextHorizontalAlign.Left)[1].OffsetX);
 	}
 
@@ -176,7 +178,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(-10f, aligned(text, sans, "aaaa", 10, TextHorizontalAlign.Right)[0].OffsetX);
 		// the glyphs move with the line; drawn at 15.5, the line starts at 5.5, and 'a' starts 0.5 in
 		// from its origin, so the boxes cover exactly pixels 6..9 through 21..24
-		byte[] px = render(32, 12, 1f, oc => oc.Canvas.Text(text.Layout(sans, "aaaa", style(TextLayoutOptions.Default with { MaxWidth = 10, WrapMode = TextWrapMode.None, HorizontalAlign = TextHorizontalAlign.Right })), new Vector2(15.5f, 0f), SrgbColor32.White));
+		byte[] px = render(32, 12, 1f, oc => oc.Canvas.Text(text.Layout("aaaa", style(sans), TextLayoutOptions.Default with { MaxWidth = 10, WrapMode = TextWrapMode.None, HorizontalAlign = TextHorizontalAlign.Right }), new Vector2(15.5f, 0f), SrgbColor32.White));
 		Assert.Equal(0, GpuRig.At(px, 32, 5, 4).R);
 		Assert.Equal(255, GpuRig.At(px, 32, 6, 4).R);
 		Assert.Equal(255, GpuRig.At(px, 32, 24, 4).R);
@@ -187,7 +189,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void ParagraphsAndEmptyLinesStack() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout l = text.Layout(sans, "a\n\nam", style());
+		TextLayout l = text.Layout("a\n\nam", style(sans));
 		Assert.Equal(3, l.Lines.Count);
 		Assert.Equal(0f, l.Lines[1].Width);
 		Assert.Equal(28f, l.Lines[2].BaselineY);
@@ -200,19 +202,19 @@ public sealed class TextSystemTests : GpuTestBase {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
 		// the test font has no U+FFFD, so it's a 500-unit .notdef
-		TextLayout l = text.Layout(sans, "a\ud800b", style());
+		TextLayout l = text.Layout("a\ud800b", style(sans));
 		Assert.Equal(15f, l.Width);
-		Assert.Equal("a\ufffdb", l.Text);
-		TextLayout lone = text.Layout(sans, "\udc00", style());
-		Assert.Equal("\ufffd", lone.Text);
+		Assert.Equal("a\ufffdb", l.Text.Text);
+		TextLayout lone = text.Layout("\udc00", style(sans));
+		Assert.Equal("\ufffd", lone.Text.Text);
 		Assert.Equal(5f, lone.Width);
 		// valid text is kept as is, without a copy
 		string valid = "ab\ud83d\ude00";
-		Assert.Same(valid, text.Layout(sans, valid, style()).Text);
+		Assert.Same(valid, text.Layout(valid, style(sans)).Text.Text);
 		// the layout cache still finds the layout by the text as given
-		TextLayout cached = text.GetCachedLayout(sans, "a\ud800b", style());
-		Assert.Equal("a\ufffdb", cached.Text);
-		Assert.Same(cached, text.GetCachedLayout(sans, "a\ud800b", style()));
+		TextLayout cached = text.GetCachedLayout("a\ud800b", style(sans), TextLayoutOptions.Default);
+		Assert.Equal("a\ufffdb", cached.Text.Text);
+		Assert.Same(cached, text.GetCachedLayout("a\ud800b", style(sans), TextLayoutOptions.Default));
 	}
 
 	[Fact]
@@ -223,9 +225,83 @@ public sealed class TextSystemTests : GpuTestBase {
 		static int[] visualOrder(TextLayout l) =>
 			l.Glyphs.ToArray().OrderBy(static g => g.X).Select(static g => g.SourceIndex).ToArray();
 		// an LTR paragraph with an RTL run: the run's characters go right to left
-		Assert.Equal([0, 1, 2, 4, 3], visualOrder(text.Layout(sans, "ab \u05d0\u05d1", style())));
+		Assert.Equal([0, 1, 2, 4, 3], visualOrder(text.Layout("ab \u05d0\u05d1", style(sans))));
 		// an RTL paragraph with an LTR run: the paragraph goes right to left, the run left to right
-		Assert.Equal([3, 4, 2, 1, 0], visualOrder(text.Layout(sans, "\u05d0\u05d1 ab", style())));
+		Assert.Equal([3, 4, 2, 1, 0], visualOrder(text.Layout("\u05d0\u05d1 ab", style(sans))));
+	}
+
+	[Fact]
+	public void MixedSizesShareABaselineAndTakeTheLargestMetrics() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		RichText t = new RichTextBuilder(style(sans)).Append("a").Append("a", new TextStyleOverride(Size: 20f)).Build();
+		TextLayout l = text.Layout(t);
+		TextLine line = Assert.Single(l.Lines);
+		// size 20's ascent of 16 and descent of 4 win over size 10's 8 and 2
+		Assert.Equal((16f, 4f, 20f), (line.Ascent, line.Descent, line.Height));
+		Assert.Equal(15f, l.Width);
+		Assert.All(l.Glyphs.ToArray(), static g => Assert.Equal(16f, g.Y));
+		Assert.Equal([10f, 20f], l.Glyphs.ToArray().Select(static g => g.Size));
+	}
+
+	[Fact]
+	public void EmptyLinesTakeTheSizeAtTheirPosition() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		// the empty paragraph starts at the second '\n', which is size 20
+		RichText t = new RichTextBuilder(style(sans)).Append("a\n").Append("\nb", new TextStyleOverride(Size: 20f)).Build();
+		Assert.Equal([10f, 20f, 20f], text.Layout(t).Lines.Select(static l => l.Height));
+		Assert.Equal(20f, text.Layout(new RichText("", style(sans, 20f))).Height);
+	}
+
+	[Fact]
+	public void SpansCanUseDifferentFonts() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		FontData digits = text.LoadFont(fontBytes("InjureTestDigits"));
+		// no fallbacks needed: '1' is in the digits font, and the last span's fonts equal the first's
+		RichText t = new RichTextBuilder(style(sans)).Append("a").Append("1", new TextStyleOverride(Fonts: digits)).Append("a", new TextStyleOverride(Color: SrgbColor32.Red)).Build();
+		TextLayout l = text.Layout(t);
+		Assert.Equal(16f, l.Width);
+		Assert.Equal(2, l.Chains.Length);
+	}
+
+	[Fact]
+	public void LineBreaksFollowEachCharactersLanguage() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		// see TheLanguageSelectsLineBreakingRules; only the breaks inside the guillemets differ, so
+		// only the language of what's inside them matters
+		TextLayoutOptions box = TextLayoutOptions.Default with { MaxWidth = 21 };
+		float[] widths(string outside, string inside) {
+			RichText t = new RichTextBuilder(style(sans, language: outside))
+				.Append("a ")
+				.Append("\u00ab b \u00bb", new TextStyleOverride(Language: inside))
+				.Append(" c")
+				.Build();
+			return text.Layout(t, box).Lines.Select(static l => l.Width).ToArray();
+		}
+		Assert.Equal([5f, 21f, 5f], widths("und", "fr"));
+		Assert.Equal([21f, 13f], widths("fr", "und"));
+	}
+
+	[Fact]
+	public void GlyphsTakeTheirSpansColorTimesTheTint() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		RichText t = new RichTextBuilder(style(spec(sans)))
+			.Append("a", new TextStyleOverride(Color: SrgbColor32.Red))
+			.Append("b", new TextStyleOverride(Color: new SrgbColor32(0, 200, 100)))
+			.Build();
+		TextLayout layout = text.Layout(t);
+		// 'a' covers pixel 2 and 'b' pixel 7, both fully
+		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero));
+		Assert.Equal(RawColor32.Red, GpuRig.At(px, 16, 2, 4));
+		Assert.Equal(new RawColor32(0, 200, 100, 255), GpuRig.At(px, 16, 7, 4));
+		// 200 * 128 / 255 = 100.39 and 100 * 128 / 255 = 50.20 round down; red's 0 channels stay 0
+		px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, new SrgbColor32(128, 128, 128)));
+		Assert.Equal(new RawColor32(128, 0, 0, 255), GpuRig.At(px, 16, 2, 4));
+		Assert.Equal(new RawColor32(0, 100, 50, 255), GpuRig.At(px, 16, 7, 4));
 	}
 
 	[Fact]
@@ -234,8 +310,8 @@ public sealed class TextSystemTests : GpuTestBase {
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
 		FontData digits = text.LoadFont(fontBytes("InjureTestDigits"));
 		// without a fallback, '1' is .notdef
-		Assert.Equal(10f, text.Layout(sans, "a1", style()).Width);
-		Assert.Equal(11f, text.Layout(new FontFallbackChain(sans, digits), "a1", style()).Width);
+		Assert.Equal(10f, text.Layout("a1", style(sans)).Width);
+		Assert.Equal(11f, text.Layout("a1", style(new FontFallbackChain(sans, digits))).Width);
 	}
 
 	[Fact]
@@ -256,7 +332,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void LayoutsDrawTheirGlyphs() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout layout = text.Layout(spec(sans), "ab", style());
+		TextLayout layout = text.Layout("ab", style(spec(sans)));
 		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, SrgbColor32.White));
 		// 'a' spans 0.5..4.5 px horizontally and 7 px up from the baseline at y = 8
 		Assert.True(GpuRig.At(px, 16, 2, 4).R > 200);
@@ -269,7 +345,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void GlyphsAreRasterizedForTheEffectiveScale() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout layout = text.Layout(spec(sans), "a", style());
+		TextLayout layout = text.Layout("a", style(spec(sans)));
 		// at 2 pixels per unit, the box covers exactly pixels 1..8 and rows 2..15; stretching a
 		// 10px rasterization would blur its edges over neighboring pixels instead
 		byte[] px = render(32, 24, 2f, oc => oc.Canvas.Text(layout, Vector2.Zero, SrgbColor32.White));
@@ -287,7 +363,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void GlyphsArePositionedToAQuarterPixel() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout layout = text.Layout(spec(sans), "a", style());
+		TextLayout layout = text.Layout("a", style(spec(sans)));
 		// half a pixel to the right, the box covers exactly pixels 1..4, rather than being blurred
 		// or snapped to a whole pixel
 		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, new Vector2(0.5f, 0f), SrgbColor32.White));
@@ -301,7 +377,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void MonochromeRasterizationHasNoPartialCoverage() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout layout = text.Layout(spec(sans, FontRasterMode.Monochrome), "ab", style());
+		TextLayout layout = text.Layout("ab", style(spec(sans, FontRasterMode.Monochrome)));
 		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, new Vector2(0.25f, 0f), SrgbColor32.White));
 		bool any = false;
 		for (uint y = 0; y < 12; y++) {
@@ -318,7 +394,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void RotatedTextIsDrawnUnsnapped() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout layout = text.Layout(spec(sans), "a", style());
+		TextLayout layout = text.Layout("a", style(spec(sans)));
 		// a quarter turn around (8, 8) maps the box (x 8.5..12.5, y 1..8) to x 8..15, y 8.5..12.5
 		byte[] px = render(16, 16, 1f, oc => {
 			Canvas cv = oc.Canvas;
@@ -335,7 +411,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void AtlasPagesStayPinnedUntilTheFrameIsDone() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout layout = text.Layout(spec(sans), "ab", style());
+		TextLayout layout = text.Layout("ab", style(spec(sans)));
 		using GpuTexture target = GpuRig.Target(Device, 16, 12);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
 			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(16, 12)), SrgbColor32.Black);
@@ -354,8 +430,8 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void CanvasTextNeedsATextSystem() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		render(16, 12, 1f, oc => Assert.Throws<InvalidOperationException>(() => oc.Canvas.Text(sans, "a", style(), Vector2.Zero, SrgbColor32.White)));
-		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(spec(sans), "a", style(), Vector2.Zero, SrgbColor32.White), text);
+		render(16, 12, 1f, oc => Assert.Throws<InvalidOperationException>(() => oc.Canvas.Text("a", style(sans), Vector2.Zero)));
+		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text("a", style(spec(sans)), Vector2.Zero), text);
 		Assert.True(GpuRig.At(px, 16, 2, 4).R > 200);
 	}
 
@@ -370,18 +446,26 @@ public sealed class TextSystemTests : GpuTestBase {
 		}
 
 		nextFrame();
-		TextLayout a = text.GetCachedLayout(fonts, "ab", style());
+		TextLayoutOptions opts = TextLayoutOptions.Default;
+		TextLayout a = text.GetCachedLayout("ab", style(fonts), opts);
 		// equal inputs share a layout, different ones don't
-		Assert.Same(a, text.GetCachedLayout(new FontFallbackChain(spec(sans)), "ab", style()));
-		Assert.NotSame(a, text.GetCachedLayout(fonts, "ab", new TextStyle(20f)));
-		Assert.NotSame(a, text.GetCachedLayout(fonts, "ba", style()));
+		Assert.Same(a, text.GetCachedLayout("ab", style(new FontFallbackChain(spec(sans))), opts));
+		Assert.NotSame(a, text.GetCachedLayout("ab", style(fonts, 20f), opts));
+		Assert.NotSame(a, text.GetCachedLayout("ba", style(fonts), opts));
+		Assert.NotSame(a, text.GetCachedLayout("ab", style(fonts), opts with { MaxWidth = 5 }));
+		// so do equal rich texts, and a plain string and a single-span rich text are equal inputs
+		RichText rich = new RichTextBuilder(style(fonts)).Append("a").Append("b", new TextStyleOverride(Color: SrgbColor32.Red)).Build();
+		TextLayout r = text.GetCachedLayout(rich, opts);
+		Assert.Same(r, text.GetCachedLayout(new RichTextBuilder(style(fonts)).Append("a").Append("b", new TextStyleOverride(Color: SrgbColor32.Red)).Build(), opts));
+		Assert.NotSame(a, r);
+		Assert.Same(a, text.GetCachedLayout(new RichText("ab", style(fonts)), opts));
 		nextFrame();
 		nextFrame();
-		Assert.Same(a, text.GetCachedLayout(fonts, "ab", style()));
+		Assert.Same(a, text.GetCachedLayout("ab", style(fonts), opts));
 		nextFrame();
 		nextFrame();
 		nextFrame();
-		Assert.NotSame(a, text.GetCachedLayout(fonts, "ab", style()));
+		Assert.NotSame(a, text.GetCachedLayout("ab", style(fonts), opts));
 	}
 
 	private sealed class FontStore : IDisposable {
@@ -415,7 +499,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void LayoutsOfReloadedFontsGoStaleAndRelayout() {
 		using FontStore fs = new(Device, "InjureTestSans");
 		using AssetThreadAttachment att = fs.Store.AttachCurrentThread();
-		TextLayout layout = fs.Text.Layout(fs.Font, "aaa", style());
+		TextLayout layout = fs.Text.Layout("aaa", style(fs.Font));
 		Assert.Equal(15f, layout.Width);
 		Assert.False(layout.IsStale);
 		Assert.False(layout.RelayoutIfStale());
@@ -428,7 +512,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.False(layout.IsStale);
 		// em fractions like 0.7 aren't exact in floats
 		Assert.Equal(21f, layout.Width, 4);
-		Assert.Equal(14f, fs.Text.Layout(fs.Font, "aa", style()).Width, 4);
+		Assert.Equal(14f, fs.Text.Layout("aa", style(fs.Font)).Width, 4);
 
 		// drawing a stale layout lays it out again, after the old states were reclaimed too
 		fs.Reload("InjureTestSans");
@@ -444,7 +528,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void FontStatesOutliveTheirTextSystem() {
 		FontStore fs = new(Device, "InjureTestSans");
 		using (AssetThreadAttachment att = fs.Store.AttachCurrentThread())
-			Assert.Equal(10f, fs.Text.Layout(fs.Font, "aa", style()).Width);
+			Assert.Equal(10f, fs.Text.Layout("aa", style(fs.Font)).Width);
 		// the store reclaims the states after the text system is gone, which they survive by
 		// keeping FreeType alive
 		fs.Text.Dispose();
@@ -455,7 +539,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void LayoutsOfDisposedSystemsThrow() {
 		TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		TextLayout layout = text.Layout(sans, "a", style());
+		TextLayout layout = text.Layout("a", style(sans));
 		text.Dispose();
 		Assert.Throws<ObjectDisposedException>(() => layout.IsStale);
 		render(16, 12, 1f, oc => Assert.Throws<ObjectDisposedException>(() => oc.Canvas.Text(layout, Vector2.Zero, SrgbColor32.White)));

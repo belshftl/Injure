@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using HarfBuzzSharp;
 using Injure.DevAnalyzers.Attributes;
+using Injure.Primitives;
 
 namespace Injure.Draw.Text;
 
@@ -119,8 +120,8 @@ public readonly partial struct TextOverflowMode {
 /// </param>
 /// <remarks>
 /// <para>
-/// The vertical metrics are the largest of the fonts the line uses, or the primary font's for an
-/// empty line.
+/// The vertical metrics are the largest of the line's fonts' metrics, each scaled by the size of
+/// the text using it, or, for an empty line, those of the primary font and size at its position.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is an empty line at the origin with every
@@ -206,10 +207,28 @@ internal readonly record struct LineSpan(
 );
 
 internal sealed class ParagraphRun {
+	public required int Chain { get; init; }
 	public required int FontIndex { get; init; }
+	public required float Size { get; init; }
 	public required TextItem Item { get; init; }
 	public required ShapedRun Shaped { get; init; }
 }
+
+/// <summary>
+/// A maximal range of the text whose spans share everything shaping depends on (fonts, size, and
+/// language), but don't necessarily share e.g. colors. Positions are absolute.
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is valid and is an empty range of chain 0 at position 0,
+/// at size 0.
+/// </remarks>
+internal readonly record struct ShapingSpan(
+	int Start,
+	int Limit,
+	int Chain,
+	float Size,
+	string Language
+);
 
 /// <remarks>
 /// <para>
@@ -217,17 +236,19 @@ internal sealed class ParagraphRun {
 /// the baseline.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is valid and is glyph 0 of the primary font at the origin,
-/// at size 0.
+/// The <see langword="default"/> value is valid and is glyph 0 of the first chain's primary font at
+/// the origin, at size 0, transparent.
 /// </para>
 /// </remarks>
 internal readonly record struct LaidOutGlyph(
+	int Chain,
 	int FontIndex,
 	uint GlyphId,
 	float X,
 	float Y,
 	float Size,
-	int SourceIndex
+	int SourceIndex,
+	SrgbColor32 Color
 );
 
 internal sealed class LayoutResult {
@@ -239,6 +260,9 @@ internal sealed class LayoutResult {
 
 internal static class TextLayouter {
 	private sealed class Scratch {
+		public required RichText Text;
+		public required ShapingSpan[] Shaping;
+		public required FontLineMetrics[][] Metrics; // by chain, then font
 		public readonly List<LaidOutGlyph> Glyphs = new();
 		public readonly List<TextLine> Lines = new();
 		// index of each line's first glyph in Glyphs
@@ -249,46 +273,60 @@ internal static class TextLayouter {
 		public readonly List<LogicalBidiRun> LogicalRuns = new();
 		public readonly List<VisualBidiRun> VisualRuns = new();
 		public readonly List<ResolvedItem> Resolved = new();
+		// libunibreak's language strings, and each paragraph's breaks for them
+		public readonly Dictionary<string, string?> BreakLanguages = new(StringComparer.Ordinal);
+		public readonly Dictionary<string, LineBreakOpportunity[]> ParagraphBreaks = new(StringComparer.Ordinal);
 	}
 
+	/// <summary>
+	/// Lays out rich text.
+	/// </summary>
+	/// <remarks>
+	/// <paramref name="spanChains"/> holds the index into <paramref name="chains"/> of each span's
+	/// fonts.
+	/// </remarks>
 	public static LayoutResult Layout(
 		ITextItemizer itemizer,
 		FallbackResolver resolver,
-		ResolvedFontFallbackChain fonts,
-		string text,
-		in TextStyle style
+		ResolvedFontFallbackChain[] chains,
+		RichText text,
+		int[] spanChains,
+		in TextLayoutOptions options
 	) {
-		Scratch s = new();
-		var metrics = new FontLineMetrics[fonts.Fonts.Length];
-		for (int i = 0; i < metrics.Length; i++)
-			metrics[i] = fonts.States[i].LineMetrics;
-		bool wrap = style.Layout.WrapMode == TextWrapMode.Greedy && !float.IsPositiveInfinity(style.Layout.MaxWidth);
-		string? breakLanguage = TextAnalysis.UnibreakLanguage(style.Language);
+		var metrics = new FontLineMetrics[chains.Length][];
+		for (int c = 0; c < chains.Length; c++) {
+			metrics[c] = new FontLineMetrics[chains[c].Fonts.Length];
+			for (int f = 0; f < metrics[c].Length; f++)
+				metrics[c][f] = chains[c].States[f].LineMetrics;
+		}
+		Scratch s = new() { Text = text, Shaping = ShapingSpans(text, spanChains), Metrics = metrics };
+		string str = text.Text;
+		bool wrap = options.WrapMode == TextWrapMode.Greedy && !float.IsPositiveInfinity(options.MaxWidth);
 		float top = 0f;
 		float width = 0f;
 		int paraStart = 0;
 		for (;;) {
-			int newline = text.IndexOf('\n', paraStart);
-			int paraLimit = newline < 0 ? text.Length : newline;
-			string para = text[paraStart..paraLimit];
+			int newline = str.IndexOf('\n', paraStart);
+			int paraLimit = newline < 0 ? str.Length : newline;
+			string para = str[paraStart..paraLimit];
 			s.Runs.Clear();
 			s.Clusters.Clear();
 			s.Spans.Clear();
 			if (para.Length == 0) {
-				emitLine(s, null, metrics, paraStart, default, in style, ref top, ref width);
+				emitLine(s, null, paraStart, default, ref top, ref width);
 			} else {
 				using var analysis = TextAnalysis.ParagraphAnalysis.Create(para);
-				buildRuns(s, itemizer, resolver, fonts, para, analysis, in style);
-				buildClusters(s, para, breakLanguage, in style);
-				Wrap(CollectionsMarshal.AsSpan(s.Clusters), style.Layout.MaxWidth, wrap, s.Spans);
+				buildRuns(s, itemizer, resolver, chains, para, paraStart, analysis);
+				buildClusters(s, para, paraStart);
+				Wrap(CollectionsMarshal.AsSpan(s.Clusters), options.MaxWidth, wrap, s.Spans);
 				foreach (LineSpan span in s.Spans)
-					emitLine(s, analysis, metrics, paraStart, span, in style, ref top, ref width);
+					emitLine(s, analysis, paraStart, span, ref top, ref width);
 			}
 			if (newline < 0)
 				break;
 			paraStart = newline + 1;
 		}
-		align(s, float.IsPositiveInfinity(style.Layout.MaxWidth) ? width : style.Layout.MaxWidth, style.Layout.HorizontalAlign);
+		align(s, float.IsPositiveInfinity(options.MaxWidth) ? width : options.MaxWidth, options.HorizontalAlign);
 		return new LayoutResult {
 			Glyphs = s.Glyphs.ToArray(),
 			Lines = s.Lines.ToArray(),
@@ -297,34 +335,109 @@ internal static class TextLayouter {
 		};
 	}
 
+	/// <summary>
+	/// Merges adjacent spans that differ only in color, since color doesn't affect shaping.
+	/// </summary>
+	internal static ShapingSpan[] ShapingSpans(RichText text, int[] spanChains) {
+		ReadOnlySpan<RichTextSpan> spans = text.SpansSpan;
+		List<ShapingSpan> result = new(spans.Length);
+		for (int i = 0; i < spans.Length; i++) {
+			RichTextSpan span = spans[i];
+			ShapingSpan next = new(span.Start, span.Limit, spanChains[i], span.Style.Size, span.Style.Language);
+			if (result.Count > 0) {
+				ShapingSpan prev = result[^1];
+				if (prev.Chain == next.Chain && prev.Size == next.Size && prev.Language == next.Language) {
+					result[^1] = prev with { Limit = next.Limit };
+					continue;
+				}
+			}
+			result.Add(next);
+		}
+		return result.ToArray();
+	}
+
+	// the shaping span containing the code unit at `index`; the last one for an index at the end
+	private static int shapingSpanAt(ReadOnlySpan<ShapingSpan> spans, int index) {
+		int lo = 0, hi = spans.Length - 1;
+		while (lo < hi) {
+			int mid = lo + (hi - lo + 1) / 2;
+			if (spans[mid].Start <= index)
+				lo = mid;
+			else
+				hi = mid - 1;
+		}
+		return lo;
+	}
+
 	private static void buildRuns(
 		Scratch s,
 		ITextItemizer itemizer,
 		FallbackResolver resolver,
-		ResolvedFontFallbackChain fonts,
+		ResolvedFontFallbackChain[] chains,
 		string para,
-		TextAnalysis.ParagraphAnalysis analysis,
-		in TextStyle style
+		int paraStart,
+		TextAnalysis.ParagraphAnalysis analysis
 	) {
+		ReadOnlySpan<ShapingSpan> shaping = s.Shaping;
 		s.LogicalRuns.Clear();
 		analysis.GetLogicalRuns(s.LogicalRuns);
 		foreach (LogicalBidiRun bidiRun in s.LogicalRuns) {
-			TextItem[] items = itemizer.Itemize(para.AsSpan(bidiRun.Start, bidiRun.Length), bidiRun.Start, bidiRun.Direction, style.Language);
-			foreach (TextItem item in items) {
-				s.Resolved.Clear();
-				resolver.ResolveItems(fonts, item, s.Resolved);
-				foreach (ResolvedItem r in s.Resolved)
-					s.Runs.Add(new ParagraphRun { FontIndex = r.FontIndex, Item = r.Item, Shaped = r.ShapedRun });
+			int runStart = paraStart + bidiRun.Start;
+			int runLimit = runStart + bidiRun.Length;
+			// each bidi run is cut further where the fonts, size, or language change
+			for (int k = shapingSpanAt(shaping, runStart); k < shaping.Length && shaping[k].Start < runLimit; k++) {
+				ShapingSpan span = shaping[k];
+				int segStart = Math.Max(runStart, span.Start) - paraStart;
+				int segLimit = Math.Min(runLimit, span.Limit) - paraStart;
+				if (segLimit <= segStart)
+					continue;
+				TextItem[] items = itemizer.Itemize(para.AsSpan(segStart, segLimit - segStart), segStart, bidiRun.Direction, span.Language);
+				foreach (TextItem item in items) {
+					s.Resolved.Clear();
+					resolver.ResolveItems(chains[span.Chain], item, s.Resolved);
+					foreach (ResolvedItem r in s.Resolved) {
+						s.Runs.Add(new ParagraphRun {
+							Chain = span.Chain,
+							FontIndex = r.FontIndex,
+							Size = span.Size,
+							Item = r.Item,
+							Shaped = r.ShapedRun,
+						});
+					}
+				}
 			}
 		}
 	}
 
-	private static void buildClusters(Scratch s, string para, string? breakLanguage, in TextStyle style) {
+	private static void buildClusters(Scratch s, string para, int paraStart) {
 		Span<LineBreakKind> breakAfter = (para.Length + 1) <= 2048
 			? stackalloc LineBreakKind[para.Length + 1]
 			: new LineBreakKind[para.Length + 1];
-		foreach (LineBreakOpportunity opp in TextAnalysis.GetLineBreaks(para, breakLanguage))
-			breakAfter[opp.Position] = opp.Kind;
+		breakAfter.Clear();
+		// a break after a character follows that character's language
+		// libunibreak takes a single language, so the paragraph is analyzed once per distinct language
+		// in it, with full context
+		ReadOnlySpan<ShapingSpan> shaping = s.Shaping;
+		s.ParagraphBreaks.Clear();
+		int paraLimit = paraStart + para.Length;
+		for (int k = shapingSpanAt(shaping, paraStart); k < shaping.Length && shaping[k].Start < paraLimit; k++) {
+			ShapingSpan span = shaping[k];
+			string key = span.Language;
+			if (!s.ParagraphBreaks.TryGetValue(key, out LineBreakOpportunity[]? breaks)) {
+				if (!s.BreakLanguages.TryGetValue(key, out string? unibreakLang)) {
+					unibreakLang = TextAnalysis.UnibreakLanguage(span.Language);
+					s.BreakLanguages.Add(key, unibreakLang);
+				}
+				breaks = TextAnalysis.GetLineBreaks(para, unibreakLang);
+				s.ParagraphBreaks.Add(key, breaks);
+			}
+			// breaks after the span's characters, i.e. at positions (start, limit] relative to the paragraph
+			int lo = Math.Max(span.Start, paraStart) - paraStart;
+			int hi = Math.Min(span.Limit, paraLimit) - paraStart;
+			foreach (LineBreakOpportunity opp in breaks)
+				if (opp.Position > lo && opp.Position <= hi)
+					breakAfter[opp.Position] = opp.Kind;
+		}
 		for (int r = 0; r < s.Runs.Count; r++) {
 			ParagraphRun run = s.Runs[r];
 			foreach (ShapedCluster c in run.Shaped.SourceOrderClusters) {
@@ -335,7 +448,7 @@ internal static class TextLayouter {
 					GlyphCount: c.GlyphCount,
 					SourceStart: start,
 					SourceLength: c.SourceLength,
-					Width: c.Width * style.Size,
+					Width: c.Width * run.Size,
 					IsWhitespaceOnly: c.IsWhitespaceOnly,
 					BreakAfter: breakAfter[start + c.SourceLength]
 				));
@@ -410,28 +523,37 @@ internal static class TextLayouter {
 		return lo;
 	}
 
+	/// <summary>
+	/// Lays out one line. Its vertical metrics are the largest of its runs' fonts' metrics scaled by
+	/// the runs' sizes, or, for an empty line, those of the primary font and size at the paragraph's
+	/// start.
+	/// </summary>
 	private static void emitLine(
 		Scratch s,
 		TextAnalysis.ParagraphAnalysis? analysis,
-		FontLineMetrics[] metrics,
 		int paraStart,
 		LineSpan span,
-		in TextStyle style,
 		ref float top,
 		ref float width
 	) {
 		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(s.Clusters);
-		FontLineMetrics m = default;
+		float ascent = 0f, descent = 0f, lineGap = 0f;
 		if (span.End > span.Start) {
 			for (int k = span.Start; k < span.End; k++) {
-				FontLineMetrics fm = metrics[s.Runs[clusters[k].Run].FontIndex];
-				m = new FontLineMetrics(MathF.Max(m.Ascent, fm.Ascent), MathF.Max(m.Descent, fm.Descent), MathF.Max(m.LineGap, fm.LineGap));
+				ParagraphRun run = s.Runs[clusters[k].Run];
+				FontLineMetrics m = s.Metrics[run.Chain][run.FontIndex];
+				ascent = MathF.Max(ascent, m.Ascent * run.Size);
+				descent = MathF.Max(descent, m.Descent * run.Size);
+				lineGap = MathF.Max(lineGap, m.LineGap * run.Size);
 			}
 		} else {
-			m = metrics[0];
+			ShapingSpan at = s.Shaping[shapingSpanAt(s.Shaping, paraStart)];
+			FontLineMetrics m = s.Metrics[at.Chain][0];
+			ascent = m.Ascent * at.Size;
+			descent = m.Descent * at.Size;
+			lineGap = m.LineGap * at.Size;
 		}
-		float size = style.Size;
-		float baselineY = top + m.Ascent * size;
+		float baselineY = top + ascent;
 		s.LineGlyphStarts.Add(s.Glyphs.Count);
 		float penX = 0f;
 		if (span.End > span.Start && analysis is not null) {
@@ -442,20 +564,20 @@ internal static class TextLayouter {
 				int b = lowerBound(clusters, a, span.End, v.Start + v.Length);
 				if (v.Direction == Direction.RightToLeft) {
 					for (int k = b - 1; k >= a; k--)
-						emitCluster(s, clusters[k], paraStart, size, baselineY, ref penX);
+						emitCluster(s, clusters[k], paraStart, baselineY, ref penX);
 				} else {
 					for (int k = a; k < b; k++)
-						emitCluster(s, clusters[k], paraStart, size, baselineY, ref penX);
+						emitCluster(s, clusters[k], paraStart, baselineY, ref penX);
 				}
 			}
 		}
-		float height = m.Height * size;
+		float height = ascent + descent + lineGap;
 		s.Lines.Add(new TextLine(
 			Width: penX,
 			BaselineY: baselineY,
-			Ascent: m.Ascent * size,
-			Descent: m.Descent * size,
-			LineGap: m.LineGap * size,
+			Ascent: ascent,
+			Descent: descent,
+			LineGap: lineGap,
 			Height: height,
 			OffsetX: 0f // set by align()
 		));
@@ -463,17 +585,23 @@ internal static class TextLayouter {
 		width = MathF.Max(width, penX);
 	}
 
-	private static void emitCluster(Scratch s, in ParagraphCluster c, int paraStart, float size, float baselineY, ref float penX) {
+	// each glyph takes the color of its cluster's first character
+	private static void emitCluster(Scratch s, in ParagraphCluster c, int paraStart, float baselineY, ref float penX) {
 		ParagraphRun run = s.Runs[c.Run];
+		ReadOnlySpan<RichTextSpan> spans = s.Text.SpansSpan;
 		ReadOnlySpan<ShapedGlyph> glyphs = run.Shaped.Glyphs.AsSpan(c.GlyphStart, c.GlyphCount);
+		float size = run.Size;
 		foreach (ShapedGlyph g in glyphs) {
+			int source = paraStart + run.Item.SourceStart + (int)g.Cluster;
 			s.Glyphs.Add(new LaidOutGlyph(
+				Chain: run.Chain,
 				FontIndex: run.FontIndex,
 				GlyphId: g.GlyphId,
 				X: penX + g.XOffset * size,
 				Y: baselineY - g.YOffset * size,
 				Size: size,
-				SourceIndex: paraStart + run.Item.SourceStart + (int)g.Cluster
+				SourceIndex: source,
+				Color: spans[s.Text.SpanIndexAt(source)].Style.Color
 			));
 			penX += g.XAdvance * size;
 			// TODO: YAdvance, for vertical text
@@ -514,8 +642,9 @@ internal static class TextLayouter {
 
 /// <summary>
 /// Text laid out into positioned glyphs and lines, ready to draw with
-/// <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, Primitives.SrgbColor32)"/>.
-/// Obtained from <see cref="TextSystem.Layout(FontFallbackChain, string, in TextStyle)"/>.
+/// <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, SrgbColor32?)"/>.
+/// Obtained from <see cref="TextSystem.Layout(RichText, TextLayoutOptions?)"/> or
+/// <see cref="TextSystem.Layout(string, in TextStyle, TextLayoutOptions?)"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -524,8 +653,8 @@ internal static class TextLayouter {
 /// doesn't depend on e.g. the target it's drawn to.
 /// </para>
 /// <para>
-/// This holds no GPU resources, and doesn't need disposal. It does reference the font states it
-/// was laid out with, though. If one of the fonts in the font fallback chain is an asset that gets
+/// This doesn't hold GPU resources, and doesn't need disposal. It does reference the font states
+/// it was laid out with, though. If one of the fonts of the text's styles is an asset that gets
 /// reloaded, the layout becomes <i>stale</i>, which is queryable through <see cref="IsStale"/>;
 /// drawing it lays it out again first, which is also doable manually via
 /// <see cref="RelayoutIfStale()"/>. Until it is re-laid-out, <see cref="Lines"/>,
@@ -533,42 +662,33 @@ internal static class TextLayouter {
 /// layout.
 /// </para>
 /// <para>
-/// Unpaired surrogates in the given text are replaced with U+FFFD REPLACEMENT CHARACTER. Each is a
-/// single UTF-16 code unit, just like U+FFFD, so the length of the text and positions in it remain
-/// unchanged.
-/// </para>
-/// <para>
 /// Not thread-safe; must be used on the same thread that uses its <see cref="TextSystem"/>.
 /// </para>
 /// </remarks>
 public sealed class TextLayout {
 	private readonly TextSystem owner;
-	private ResolvedFontFallbackChain resolved;
+	private ResolvedFontFallbackChain[] chains;
 	private LaidOutGlyph[] glyphs;
 	private ImmutableArray<TextLine> lines;
 
-	internal TextLayout(TextSystem owner, FontFallbackChain fonts, string text, in TextStyle style) {
+	internal TextLayout(TextSystem owner, RichText text, in TextLayoutOptions options) {
 		this.owner = owner;
-		Fonts = fonts;
-		Text = TextAnalysis.ReplaceUnpairedSurrogates(text);
-		Style = style;
-		(resolved, glyphs, lines) = compute();
+		Text = text;
+		Options = options;
+		(chains, glyphs, lines) = compute();
 	}
 
 	/// <summary>
-	/// The fonts the text is laid out with.
+	/// The laid out text. A plain string passed to
+	/// <see cref="TextSystem.Layout(string, in TextStyle, TextLayoutOptions?)"/> is turned into rich
+	/// text with a single span.
 	/// </summary>
-	public FontFallbackChain Fonts { get; }
+	public RichText Text { get; }
 
 	/// <summary>
-	/// The laid out text, with unpaired surrogates replaced with U+FFFD REPLACEMENT CHARACTER.
+	/// How the text is broken into lines and aligned.
 	/// </summary>
-	public string Text { get; }
-
-	/// <summary>
-	/// The style the text is laid out with.
-	/// </summary>
-	public TextStyle Style { get; }
+	public TextLayoutOptions Options { get; }
 
 	/// <summary>
 	/// The lines, from top to bottom.
@@ -586,7 +706,7 @@ public sealed class TextLayout {
 	/// Lines are aligned within a box starting at X = 0 (see <see cref="TextHorizontalAlign"/>), so
 	/// they can extend past this width: to the right if <see cref="TextLayoutOptions.MaxWidth"/> is
 	/// finite and larger, and to the left (X &lt; 0) if a <see cref="TextHorizontalAlign.Center"/> or
-	/// <see cref="TextHorizontalAlign.Right"/> line has a larger width than the the box. If
+	/// <see cref="TextHorizontalAlign.Right"/> line has a larger width than the box. If
 	/// <see cref="TextLayoutOptions.MaxWidth"/> is positive infinity, this is the box's width, and
 	/// every line is within [0, <see cref="Width"/>].
 	/// </para>
@@ -605,20 +725,23 @@ public sealed class TextLayout {
 	public float Height { get; private set; }
 
 	/// <summary>
-	/// Whether one of <see cref="Fonts"/> is an asset that was reloaded since the text was last laid
-	/// out.
+	/// Whether one of the fonts of <see cref="Text"/>'s styles is an asset that was reloaded since the
+	/// text was last laid out.
 	/// </summary>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if the <see cref="TextSystem"/> that made this layout has been disposed.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if one of <see cref="Fonts"/> is an asset and the calling thread isn't attached to its
-	/// asset store.
+	/// Thrown if one of the fonts is an asset and the calling thread isn't attached to its asset
+	/// store.
 	/// </exception>
 	public bool IsStale {
 		get {
 			owner.ThrowIfDisposed();
-			return resolved.IsStale();
+			foreach (ResolvedFontFallbackChain chain in chains)
+				if (chain.IsStale())
+					return true;
+			return false;
 		}
 	}
 
@@ -630,19 +753,33 @@ public sealed class TextLayout {
 	public bool RelayoutIfStale() {
 		if (!IsStale)
 			return false;
-		(resolved, glyphs, lines) = compute();
+		(chains, glyphs, lines) = compute();
 		return true;
 	}
 
 	internal TextSystem Owner => owner;
-	internal ResolvedFontFallbackChain Resolved => resolved;
+	internal ReadOnlySpan<ResolvedFontFallbackChain> Chains => chains;
 	internal ReadOnlySpan<LaidOutGlyph> Glyphs => glyphs;
 
-	private (ResolvedFontFallbackChain, LaidOutGlyph[], ImmutableArray<TextLine>) compute() {
-		ResolvedFontFallbackChain chain = owner.ResolveFallbackChain(Fonts);
-		LayoutResult r = owner.RunLayouter(chain, Text, Style);
+	private (ResolvedFontFallbackChain[], LaidOutGlyph[], ImmutableArray<TextLine>) compute() {
+		// spans with equal fonts share a resolved chain, which also makes them shape as one run
+		ReadOnlySpan<RichTextSpan> spans = Text.SpansSpan;
+		Dictionary<FontFallbackChain, int> indices = new();
+		List<ResolvedFontFallbackChain> resolved = new();
+		var spanChains = new int[spans.Length];
+		for (int i = 0; i < spans.Length; i++) {
+			FontFallbackChain fonts = spans[i].Style.Fonts;
+			if (!indices.TryGetValue(fonts, out int index)) {
+				index = resolved.Count;
+				indices.Add(fonts, index);
+				resolved.Add(owner.ResolveFallbackChain(fonts));
+			}
+			spanChains[i] = index;
+		}
+		ResolvedFontFallbackChain[] chainArray = resolved.ToArray();
+		LayoutResult r = owner.RunLayouter(chainArray, Text, spanChains, Options);
 		Width = r.Width;
 		Height = r.Height;
-		return (chain, r.Glyphs, ImmutableArray.Create(r.Lines));
+		return (chainArray, r.Glyphs, ImmutableArray.Create(r.Lines));
 	}
 }

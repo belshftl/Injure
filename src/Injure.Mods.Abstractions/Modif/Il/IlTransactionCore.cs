@@ -294,7 +294,7 @@ internal sealed class IlTransactionCore {
 				ImmutableArray<IlAnchorId>.Builder targets = ImmutableArray.CreateBuilder<IlAnchorId>(rowLabels.Length);
 				foreach (IlLabel label in rowLabels)
 					targets.Add(getLabelTarget(labelTargets, label.LabelId));
-				operand = new IlSwitchOperand(targets.MoveToImmutable());
+				operand = new IlSwitchOperand(targets.DrainToImmutable());
 			} else {
 				if (rowLabels.Length != 1)
 					throw new InternalStateException($"branch instruction {instrs[index].OpCode} has {rowLabels.Length} labels");

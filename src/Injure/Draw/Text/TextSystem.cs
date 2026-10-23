@@ -61,7 +61,7 @@ public sealed class TextCacheOptions {
 
 	/// <summary>
 	/// Number of frames a layout made by
-	/// <see cref="Canvas.Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, Primitives.SrgbColor32)"/>
+	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbColor32?)"/>
 	/// is kept for after its last use.
 	/// </summary>
 	public int LayoutCacheFrames { get; init; } = 120;
@@ -109,10 +109,10 @@ internal sealed unsafe class FtLibrary {
 /// </summary>
 /// <remarks>
 /// <para>
-/// Text is laid out with <see cref="Layout(FontFallbackChain, string, in TextStyle)"/> and drawn
-/// with <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, Primitives.SrgbColor32)"/>.
+/// Text is laid out with <see cref="Layout(RichText, TextLayoutOptions?)"/> and drawn
+/// with <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, Primitives.SrgbColor32?)"/>.
 /// Alternatively, <see cref="Canvas"/> has integration with this type to do both at once as
-/// <see cref="Canvas.Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, Primitives.SrgbColor32)"/>,
+/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbColor32?)"/>,
 /// which keeps the layouts it makes in a cache inside this <see cref="TextSystem"/>, dropping
 /// entries that haven't been drawn for a while (see <see cref="TextCacheOptions.LayoutCacheFrames"/>).
 /// </para>
@@ -202,7 +202,7 @@ public sealed unsafe class TextSystem : IDisposable {
 
 	/// <summary>
 	/// Layouts made by
-	/// <see cref="Canvas.Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, Primitives.SrgbColor32)"/>,
+	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbColor32?)"/>,
 	/// by text, then by fonts and style.
 	/// </summary>
 	private readonly Dictionary<string, List<CachedLayout>> layoutCache = new(StringComparer.Ordinal);
@@ -365,64 +365,114 @@ public sealed unsafe class TextSystem : IDisposable {
 	// ==========================================================================
 	// layout
 
-	internal LayoutResult RunLayouter(ResolvedFontFallbackChain chain, string text, in TextStyle style) =>
-		TextLayouter.Layout(itemizer, fallbackResolver, chain, text, in style);
+	internal LayoutResult RunLayouter(ResolvedFontFallbackChain[] chains, RichText text, int[] spanChains, in TextLayoutOptions options) =>
+		TextLayouter.Layout(itemizer, fallbackResolver, chains, text, spanChains, in options);
 
 	/// <summary>
-	/// Lays out text.
+	/// Lays out rich text.
 	/// </summary>
-	/// <param name="fonts">
-	/// The fonts to lay the text out with. A <see cref="FontSpec"/>, <see cref="FontData"/>, or
-	/// <see cref="Asset{T}"/> of <see cref="FontData"/> converts to this implicitly.
+	/// <param name="text">The text and its styles.</param>
+	/// <param name="options">
+	/// How the text is broken into lines and aligned, or <see langword="null"/> for
+	/// <see cref="TextLayoutOptions.Default"/>.
 	/// </param>
-	/// <param name="text">
-	/// The text. Each <c>'\n'</c> starts a new paragraph. Unpaired surrogates are replaced
-	/// with U+FFFD REPLACEMENT CHARACTER.
-	/// </param>
-	/// <param name="style">How the text is sized and laid out.</param>
 	/// <returns>The layout.</returns>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="fonts"/> or <paramref name="text"/> is <see langword="null"/>.
+	/// Thrown if <paramref name="text"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="style"/>'s <see cref="TextStyle.Size"/> isn't positive and finite,
-	/// or its <see cref="TextLayoutOptions.MaxWidth"/> is negative or NaN.
+	/// Thrown if <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> is negative
+	/// or NaN.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this text system has been disposed.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if one of <paramref name="fonts"/> is an asset and the calling thread isn't attached
-	/// to its asset store.
+	/// Thrown if one of the text's fonts is an asset and the calling thread isn't attached to its
+	/// asset store.
 	/// </exception>
-	public TextLayout Layout(FontFallbackChain fonts, string text, in TextStyle style) {
-		ArgumentNullException.ThrowIfNull(fonts);
+	public TextLayout Layout(RichText text, TextLayoutOptions? options = null) {
 		ArgumentNullException.ThrowIfNull(text);
-		TextStyle.Validate(in style, nameof(style));
+		TextLayoutOptions opts = options ?? TextLayoutOptions.Default;
+		TextLayoutOptions.Validate(in opts, nameof(options));
 		ThrowIfDisposed();
-		return new TextLayout(this, fonts, text, in style);
+		return new TextLayout(this, text, in opts);
 	}
+
+	/// <summary>
+	/// Lays out text with a single style.
+	/// </summary>
+	/// <param name="text">
+	/// The text. Each <c>'\n'</c> starts a new paragraph. Unpaired surrogates are replaced
+	/// with U+FFFD REPLACEMENT CHARACTER.
+	/// </param>
+	/// <param name="style">The style of the whole text.</param>
+	/// <param name="options">
+	/// How the text is broken into lines and aligned, or <see langword="null"/> for
+	/// <see cref="TextLayoutOptions.Default"/>.
+	/// </param>
+	/// <returns>The layout, whose <see cref="TextLayout.Text"/> has a single span.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="text"/> or <paramref name="style"/>'s
+	/// <see cref="TextStyle.Fonts"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="style"/>'s <see cref="TextStyle.Size"/> isn't positive and finite,
+	/// or <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> is negative or NaN.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this text system has been disposed.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if one of <paramref name="style"/>'s fonts is an asset and the calling thread isn't
+	/// attached to its asset store.
+	/// </exception>
+	public TextLayout Layout(string text, in TextStyle style, TextLayoutOptions? options = null) =>
+		Layout(new RichText(text, in style), options);
 
 	// ==========================================================================
 	// layout cache
 
-	internal TextLayout GetCachedLayout(FontFallbackChain fonts, ReadOnlySpan<char> text, in TextStyle style) {
+	// the layouts are keyed by text first; the entries for one text are few, so comparing their
+	// styles and options linearly is cheaper than hashing a composite key without allocating it
+	internal TextLayout GetCachedLayout(ReadOnlySpan<char> text, in TextStyle style, in TextLayoutOptions options) {
 		ThrowIfDisposed();
-		if (layoutLookup.TryGetValue(text, out string? key, out List<CachedLayout>? list)) {
-			foreach (CachedLayout c in list) {
-				if (c.Layout.Fonts.Equals(fonts) && c.Layout.Style == style) {
-					c.LastUsedFrame = frameNumber;
-					return c.Layout;
-				}
+		List<CachedLayout> list = cacheListFor(text, out string key);
+		foreach (CachedLayout c in list) {
+			ReadOnlySpan<RichTextSpan> spans = c.Layout.Text.SpansSpan;
+			if (spans.Length == 1 && spans[0].Style == style && c.Layout.Options == options) {
+				c.LastUsedFrame = frameNumber;
+				return c.Layout;
 			}
-		} else {
-			key = new string(text);
-			list = new List<CachedLayout>(1);
-			layoutCache.Add(key, list);
 		}
-		TextLayout layout = new(this, fonts, key, in style);
+		TextLayout layout = new(this, new RichText(key, in style), in options);
 		list.Add(new CachedLayout { Layout = layout, LastUsedFrame = frameNumber });
 		return layout;
+	}
+
+	internal TextLayout GetCachedLayout(RichText text, in TextLayoutOptions options) {
+		ThrowIfDisposed();
+		List<CachedLayout> list = cacheListFor(text.Text, out _);
+		foreach (CachedLayout c in list) {
+			if (c.Layout.Text.Equals(text) && c.Layout.Options == options) {
+				c.LastUsedFrame = frameNumber;
+				return c.Layout;
+			}
+		}
+		TextLayout layout = new(this, text, in options);
+		list.Add(new CachedLayout { Layout = layout, LastUsedFrame = frameNumber });
+		return layout;
+	}
+
+	private List<CachedLayout> cacheListFor(ReadOnlySpan<char> text, out string key) {
+		if (layoutLookup.TryGetValue(text, out string? existing, out List<CachedLayout>? list)) {
+			key = existing;
+			return list;
+		}
+		key = new string(text);
+		list = new List<CachedLayout>(1);
+		layoutCache.Add(key, list);
+		return list;
 	}
 
 	/// <summary>

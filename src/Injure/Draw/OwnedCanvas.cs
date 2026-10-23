@@ -118,7 +118,7 @@ namespace Injure.Draw;
 /// <para>
 /// Has optional <see cref="Text.TextSystem"/> integration for convenience; a canvas created with a
 /// <see cref="TextSystem"/> can draw text without a prepared <see cref="TextLayout"/> via
-/// <see cref="Canvas.Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, Vector2, SrgbColor32)"/>.
+/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbColor32?)"/>.
 /// See <see cref="OwnedCanvas(RenderFrame, in CanvasParams, TextSystem?)"/>.
 /// </para>
 /// <para>
@@ -189,13 +189,13 @@ public sealed class OwnedCanvas : IDisposable {
 	/// <paramref name="baseParams"/>.
 	/// </summary>
 	/// <param name="frame">Frame to record into.</param>
-	/// <param name="baseParams">The base of the parameters stack, which can't be popped off.</param>
+	/// <param name="baseParams">The base of the params stack, which can't be popped off.</param>
 	/// <param name="textSystem">
 	/// The text system that
-	/// <see cref="Canvas.Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, Vector2, SrgbColor32)"/>
+	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbColor32?)"/>
 	/// lays text out with and caches layouts in, or <see langword="null"/> for no text system
 	/// integration, which makes that overload unavailable. Layouts passed to
-	/// <see cref="Canvas.Text(TextLayout, Vector2, SrgbColor32)"/> are drawn with the text system
+	/// <see cref="Canvas.Text(TextLayout, Vector2, SrgbColor32?)"/> are drawn with the text system
 	/// that made them either way.
 	/// </param>
 	/// <exception cref="ArgumentNullException">

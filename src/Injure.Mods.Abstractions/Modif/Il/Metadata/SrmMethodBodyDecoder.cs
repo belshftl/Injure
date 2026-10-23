@@ -103,7 +103,7 @@ internal static class SrmMethodBodyDecoder {
 				ImmutableArray<IlAnchorId>.Builder targets = ImmutableArray.CreateBuilder<IlAnchorId>(targetOffsets.Length);
 				foreach (int targetOffset in targetOffsets)
 					targets.Add(getControlTarget(anchorsByOffset, codeSize, targetOffset, decoded.Offset));
-				operand = new IlSwitchOperand(targets.MoveToImmutable());
+				operand = new IlSwitchOperand(targets.DrainToImmutable());
 			}
 			instrs.Add(new IlInstruction(
 				new IlInstructionId((ulong)(i + 1)),

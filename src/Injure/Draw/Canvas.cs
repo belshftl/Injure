@@ -51,9 +51,10 @@ namespace Injure.Draw;
 /// </para>
 /// <para>
 /// Has built-in <see cref="TextSystem"/> integration for convenience:
-/// <see cref="Text(FontFallbackChain, ReadOnlySpan{char}, in TextStyle, Vector2, SrgbColor32)"/>
-/// lays out the text on the spot through a <see cref="TextSystem"/> passed to the
-/// <see cref="OwnedCanvas"/> at creation, and caches the layout for later draws.
+/// <see cref="Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbColor32?)"/>
+/// and <see cref="Text(RichText, Vector2, TextLayoutOptions?, SrgbColor32?)"/> lay out the text on
+/// the spot through a <see cref="TextSystem"/> passed to the <see cref="OwnedCanvas"/> at creation,
+/// and cache the layout for later draws.
 /// </para>
 /// <para>
 /// The name clashes with the <c>Canvas</c> controls of Avalonia and WPF, and is similar to MAUI's
@@ -87,7 +88,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	private static readonly ImmutableArray<uint> quadIndices = [0, 2, 1, 3, 1, 2];
 
 	/// <summary>
-	/// The currently active canvas parameters, i.e. the top of the params stack.
+	/// The top of the params stack, i.e. the currently active canvas parameters.
 	/// </summary>
 	public CanvasParams CurrentParams => o.CurrentParams;
 
@@ -1015,9 +1016,14 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Draws laid out text, running a relayout first if it's stale; see
 	/// <see cref="TextLayout.IsStale"/>.
 	/// </summary>
-	/// <param name="layout">The text to draw.</param>
+	/// <param name="layout">The text.</param>
 	/// <param name="at">Position for the layout's top-left corner.</param>
-	/// <param name="color">Color of the glyphs.</param>
+	/// <param name="tint">
+	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
+	/// <see langword="null"/> for <see cref="SrgbColor32.White"/>, i.e. no tint. Alpha is multiplied
+	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
+	/// type-level docs).
+	/// </param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="layout"/> is <see langword="null"/>.
 	/// </exception>
@@ -1045,65 +1051,123 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// regardless of <see cref="CurrentParams"/>; the other parameters apply as usual.
 	/// </para>
 	/// </remarks>
-	public void Text(TextLayout layout, Vector2 at, SrgbColor32 color) {
+	public void Text(TextLayout layout, Vector2 at, SrgbColor32? tint = null) {
+		OwnedCanvas oc = o;
 		ArgumentNullException.ThrowIfNull(layout);
-		TextRenderer.Draw(o, layout, at, color);
+		TextRenderer.Draw(oc, layout, at, tint ?? SrgbColor32.White);
 	}
 
 	/// <summary>
-	/// Lays out and draws text using the <see cref="TextSystem"/> this canvas was created with.
+	/// Lays out and draws text with a single style, using the <see cref="TextSystem"/> this canvas was
+	/// created with.
 	/// </summary>
-	/// <param name="fonts">
-	/// The font chain to lay the text out with; <see cref="FontSpec"/>, <see cref="FontData"/>, and
-	/// <see cref="Asset{T}"/> of <see cref="FontData"/> implicitly cast to this.
-	/// </param>
 	/// <param name="text">
-	/// The text. Each <c>\n</c> starts a new paragraph. Unpaired surrogates are replaced
-	/// with U+FFFD REPLACEMENT CHARACTER.
+	/// The text. Each <c>\n</c> starts a new paragraph. Unpaired surrogates are replaced with U+FFFD
+	/// REPLACEMENT CHARACTER.
 	/// </param>
-	/// <param name="style">How the text is sized and laid out.</param>
+	/// <param name="style">The style of the whole text.</param>
 	/// <param name="at">Position for the laid out text's top-left corner.</param>
-	/// <param name="color">Color of the glyphs.</param>
+	/// <param name="options">
+	/// Line-breaking/alignment options, or <see langword="null"/> for
+	/// <see cref="TextLayoutOptions.Default"/>.
+	/// </param>
+	/// <param name="tint">
+	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
+	/// <see langword="null"/> for <see cref="SrgbColor32.White"/>, i.e. no tint. Alpha is multiplied
+	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
+	/// type-level docs).
+	/// </param>
 	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="fonts"/> is <see langword="null"/>.
+	/// Thrown if <paramref name="style"/>'s <see cref="TextStyle.Fonts"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="style"/>'s <see cref="TextStyle.Size"/> isn't positive and finite,
-	/// or its <see cref="TextLayoutOptions.MaxWidth"/> is negative or NaN.
+	/// or <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> is negative or NaN.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if the canvas's <see cref="TextSystem"/> has been disposed.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the canvas's <see cref="OwnedCanvas"/> was created without a
-	/// <see cref="TextSystem"/>, or if one of <paramref name="fonts"/> is an asset and the calling
-	/// thread isn't attached to its asset store.
+	/// <see cref="TextSystem"/>, or if one of <paramref name="style"/>'s fonts is an asset and the
+	/// calling thread isn't attached to its asset store.
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// The layout is cached in the <see cref="TextSystem"/>, keyed by <paramref name="fonts"/>,
-	/// <paramref name="text"/>, and <paramref name="style"/>, so drawing the same text every frame
+	/// The layout is cached in the <see cref="TextSystem"/>, keyed by <paramref name="text"/>,
+	/// <paramref name="style"/>, and <paramref name="options"/>, so drawing the same text every frame
 	/// only lays out once and cache-hits afterward. A cached layout is dropped if it's been unused
 	/// for <see cref="TextCacheOptions.LayoutCacheFrames"/> frames.
 	/// </para>
 	/// <para>
-	/// Otherwise the same as <see cref="Text(TextLayout, Vector2, SrgbColor32)"/>; see its docs.
+	/// Otherwise the same as <see cref="Text(TextLayout, Vector2, SrgbColor32?)"/>; see its docs.
 	/// </para>
 	/// </remarks>
-	public void Text(FontFallbackChain fonts, ReadOnlySpan<char> text, in TextStyle style, Vector2 at, SrgbColor32 color) {
+	public void Text(ReadOnlySpan<char> text, in TextStyle style, Vector2 at, TextLayoutOptions? options = null, SrgbColor32? tint = null) {
 		OwnedCanvas oc = o;
-		ArgumentNullException.ThrowIfNull(fonts);
 		TextStyle.Validate(in style, nameof(style));
-		TextSystem ts = oc.TextSystem
-			?? throw new InvalidOperationException("this canvas has no TextSystem, since its OwnedCanvas was created without one");
-		TextRenderer.Draw(oc, ts.GetCachedLayout(fonts, text, in style), at, color);
+		TextLayoutOptions opts = options ?? TextLayoutOptions.Default;
+		TextLayoutOptions.Validate(in opts, nameof(options));
+		TextRenderer.Draw(oc, textSystem(oc).GetCachedLayout(text, in style, in opts), at, tint ?? SrgbColor32.White);
 	}
+
+	/// <summary>
+	/// Lays out and draws rich text, using the <see cref="TextSystem"/> this canvas was created with.
+	/// </summary>
+	/// <param name="text">The text and its styles.</param>
+	/// <param name="at">Position for the laid out text's top-left corner.</param>
+	/// <param name="options">
+	/// Line-breaking/alignment options, or <see langword="null"/> for
+	/// <see cref="TextLayoutOptions.Default"/>.
+	/// </param>
+	/// <param name="tint">
+	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
+	/// <see langword="null"/> for <see cref="SrgbColor32.White"/>, i.e. no tint. Alpha is multiplied
+	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
+	/// type-level docs).
+	/// </param>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="text"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> is negative or
+	/// NaN.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the canvas's <see cref="TextSystem"/> has been disposed.
+	/// </exception>
+	/// <exception cref="InvalidOperationException">
+	/// Thrown if the canvas's <see cref="OwnedCanvas"/> was created without a
+	/// <see cref="TextSystem"/>, or if one of the text's fonts is an asset and the calling thread
+	/// isn't attached to its asset store.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// The layout is cached in the <see cref="TextSystem"/>, keyed by <paramref name="text"/>, which
+	/// compares by value (see <see cref="RichText"/>), and <paramref name="options"/>, so drawing equal
+	/// text every frame only lays out once, even if it's built again each time. A cached layout is
+	/// dropped if it's been unused for <see cref="TextCacheOptions.LayoutCacheFrames"/> frames.
+	/// </para>
+	/// <para>
+	/// Otherwise the same as <see cref="Text(TextLayout, Vector2, SrgbColor32?)"/>; see its docs.
+	/// </para>
+	/// </remarks>
+	public void Text(RichText text, Vector2 at, TextLayoutOptions? options = null, SrgbColor32? tint = null) {
+		OwnedCanvas oc = o;
+		ArgumentNullException.ThrowIfNull(text);
+		TextLayoutOptions opts = options ?? TextLayoutOptions.Default;
+		TextLayoutOptions.Validate(in opts, nameof(options));
+		TextRenderer.Draw(oc, textSystem(oc).GetCachedLayout(text, in opts), at, tint ?? SrgbColor32.White);
+	}
+
+	private static TextSystem textSystem(OwnedCanvas oc) =>
+		oc.TextSystem ?? throw new InvalidOperationException("this canvas has no TextSystem, since its OwnedCanvas was created without one");
 
 	// ==========================================================================
 	// params
 
 	/// <summary>
-	/// Pushes a temporary parameter override onto the parameter stack.
+	/// Pushes an override onto the params stack.
 	/// </summary>
 	/// <param name="ov">Partial override applied on top of <see cref="CurrentParams"/>.</param>
 	/// <returns>
@@ -1133,7 +1197,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	public CanvasParamsScope PushParams(scoped in CanvasParamsOverride ov) => o.PushParams(in ov);
 
 	/// <summary>
-	/// Pushes a temporary parameter override onto the parameter stack.
+	/// Pushes an override onto the params stack.
 	/// </summary>
 	/// <inheritdoc cref="PushParams(in CanvasParamsOverride)" path="/returns"/>
 	/// <remarks>
@@ -1165,8 +1229,8 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	}
 
 	/// <summary>
-	/// Pushes a temporary parameter override onto the parameter stack, or does nothing and returns a
-	/// no-op scope if <paramref name="ov"/> is <see langword="null"/>.
+	/// Pushes an override onto the params stack, or does nothing and returns a no-op scope if
+	/// <paramref name="ov"/> is <see langword="null"/>.
 	/// </summary>
 	/// <param name="ov">
 	/// Partial override applied on top of <see cref="CurrentParams"/>, or <see langword="null"/>.

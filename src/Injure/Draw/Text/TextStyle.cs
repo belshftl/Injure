@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using Injure.Primitives;
+
 namespace Injure.Draw.Text;
 
 /// <summary>
@@ -52,33 +54,59 @@ public readonly record struct TextLayoutOptions(
 	public static TextLayoutOptions Default { get; } =
 		new(float.PositiveInfinity, TextWrapMode.Greedy, TextHorizontalAlign.Left);
 
+	internal static void Validate(in TextLayoutOptions options, string paramName) {
+		ArgumentInvalidDefaultException.ThrowIfDefault(options, paramName);
+		if (options.WrapMode == default)
+			throw ArgumentInvalidDefaultException.For<TextWrapMode>($"{paramName}.WrapMode");
+		if (options.HorizontalAlign == default)
+			throw ArgumentInvalidDefaultException.For<TextHorizontalAlign>($"{paramName}.HorizontalAlign");
+		if (!(options.MaxWidth >= 0f))
+			throw new ArgumentOutOfRangeException(paramName, options.MaxWidth, "text layout max width must not be negative or NaN");
+	}
+
 	bool IHasInvalidDefault.IsDefault => this == default;
 }
 
 /// <summary>
-/// How text is sized and laid out. Color is given when drawing instead.
+/// How a span of text looks: its fonts, size, color, and language.
 /// </summary>
 /// <remarks>
+/// <para>
+/// A plain string is laid out with a single style; a <see cref="RichText"/> gives each span of its
+/// text its own. How the text is broken into lines is given separately, by
+/// <see cref="TextLayoutOptions"/>.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 public readonly record struct TextStyle : IHasInvalidDefault {
 	/// <summary>
 	/// Creates a text style.
 	/// </summary>
+	/// <param name="fonts">
+	/// The fonts to lay the text out with. A <see cref="FontSpec"/>, <see cref="FontData"/>, or
+	/// <see cref="Assets.Asset{T}"/> of <see cref="FontData"/> converts to this implicitly.
+	/// </param>
 	/// <param name="size">The size of one em in drawable units.</param>
-	/// <param name="layout">
-	/// Line-breaking/alignment options, or <see langword="null"/> for
-	/// <see cref="TextLayoutOptions.Default"/>.
+	/// <param name="color">
+	/// The color of the glyphs, or <see langword="null"/> for <see cref="SrgbColor32.White"/>.
 	/// </param>
 	/// <param name="language">
-	/// The BCP 47 language tag of the text, or <see langword="null"/> to leave it unspecified; see
-	/// <see cref="Language"/>.
+	/// The BCP 47 language tag of the text, or <c>"und"</c> (undetermined) to leave it unspecified;
+	/// see <see cref="Language"/>.
 	/// </param>
-	public TextStyle(float size, TextLayoutOptions? layout = null, string? language = null) {
+	public TextStyle(FontFallbackChain fonts, float size, SrgbColor32? color = null, string language = "und") {
+		Fonts = fonts;
 		Size = size;
-		Layout = layout ?? TextLayoutOptions.Default;
+		Color = color ?? SrgbColor32.White;
 		Language = language;
 	}
+
+	/// <summary>
+	/// The fonts to lay the text out with. Must not be <see langword="null"/>.
+	/// </summary>
+	public FontFallbackChain Fonts { get; init; }
 
 	/// <summary>
 	/// The size of one em in drawable units. Must be positive and finite.
@@ -90,41 +118,73 @@ public readonly record struct TextStyle : IHasInvalidDefault {
 	public float Size { get; init; }
 
 	/// <summary>
-	/// Line-breaking/alignment options.
+	/// The color of the glyphs, which drawing multiplies by its tint.
 	/// </summary>
-	public TextLayoutOptions Layout { get; init; }
+	/// <remarks>
+	/// A color change doesn't affect shaping, so text styled differently only in color shapes the
+	/// same as if it weren't. A glyph that represents several characters, e.g. a ligature, gets the
+	/// color of its first character.
+	/// </remarks>
+	public SrgbColor32 Color { get; init; }
 
 	/// <summary>
 	/// The BCP 47 language tag of the text, e.g. <c>"en"</c>, <c>"hu"</c>, <c>"zh-Hant"</c>,
-	/// <c>"es-MX"</c>, etc; or <see langword="null"/> to leave it unspecified. Used for shaping and
-	/// line breaking.
+	/// <c>"es-MX"</c>, etc; or <c>"und"</c> (undetermined) to leave it unspecified. Used for shaping
+	/// and line breaking. Must not be <see langword="null"/>.
 	/// </summary>
 	/// <remarks>
 	/// <para>
 	/// Shaping uses the whole tag to pick language-specific glyph forms. Line breaking uses the
 	/// primary language subtag (case-insensitive) to apply language-specific rules for the languages
 	/// that have them, and the Unicode extension <c>-u-lb-strict</c> (e.g. <c>"ja-u-lb-strict"</c>) to
-	/// break CJK text strictly, i.e. not before small kana and similar characters.
+	/// break CJK text strictly, i.e. not before small kana and similar characters. Whether a line may
+	/// break after a character follows the language of that character.
 	/// </para>
 	/// <para>
-	/// An unspecified language (<see langword="null"/>), or an unrecognized one, uses
-	/// language-neutral shaping / line breaking. Malformed tags are not rejected.
+	/// An unspecified language (<c>"und"</c>), or an unrecognized one, uses language-neutral
+	/// shaping / line breaking. Malformed tags are not rejected.
 	/// </para>
 	/// </remarks>
-	public string? Language { get; init; }
+	public string Language { get; init; }
 
 	internal static void Validate(in TextStyle style, string paramName) {
 		ArgumentInvalidDefaultException.ThrowIfDefault(style, paramName);
+		if (style.Fonts is null)
+			throw new ArgumentNullException($"{paramName}.Fonts");
+		if (style.Language is null)
+			throw new ArgumentNullException($"{paramName}.Language");
 		if (!(style.Size > 0f) || !float.IsFinite(style.Size))
-			throw new ArgumentOutOfRangeException(paramName, style.Size, "text size must be positive and finite");
-		TextLayoutOptions layout = style.Layout;
-		if (layout.WrapMode == default)
-			throw ArgumentInvalidDefaultException.For<TextWrapMode>($"{paramName}.Layout.WrapMode");
-		if (layout.HorizontalAlign == default)
-			throw ArgumentInvalidDefaultException.For<TextHorizontalAlign>($"{paramName}.Layout.HorizontalAlign");
-		if (!(layout.MaxWidth >= 0f))
-			throw new ArgumentOutOfRangeException(paramName, layout.MaxWidth, "text layout max width must not be negative or NaN");
+			throw new ArgumentOutOfRangeException($"{paramName}.Size", style.Size, "text size must be positive and finite");
 	}
 
 	bool IHasInvalidDefault.IsDefault => this == default;
+}
+
+/// <summary>
+/// Changes to some of a <see cref="TextStyle"/>'s values, for <see cref="RichTextBuilder"/>.
+/// </summary>
+/// <param name="Fonts">Replaces <see cref="TextStyle.Fonts"/>.</param>
+/// <param name="Size">Replaces <see cref="TextStyle.Size"/>.</param>
+/// <param name="Color">Replaces <see cref="TextStyle.Color"/>.</param>
+/// <param name="Language">Replaces <see cref="TextStyle.Language"/>.</param>
+/// <remarks>
+/// <para>
+/// A <see langword="null"/> field keeps the current value.
+/// </para>
+/// <para>
+/// The <see langword="default"/> value is valid and doesn't change anything.
+/// </para>
+/// </remarks>
+public readonly record struct TextStyleOverride(
+	FontFallbackChain? Fonts = null,
+	float? Size = null,
+	SrgbColor32? Color = null,
+	string? Language = null
+) {
+	internal TextStyle ApplyTo(in TextStyle style) => new(
+		Fonts ?? style.Fonts,
+		Size ?? style.Size,
+		Color ?? style.Color,
+		Language ?? style.Language
+	);
 }

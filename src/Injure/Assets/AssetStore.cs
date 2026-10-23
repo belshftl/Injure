@@ -982,7 +982,7 @@ public sealed class AssetStore : IDisposable {
 				evictCandidates.TryAdd(s, 0);
 		}
 		collectRetired();
-		return new AssetReloadReport(n, failures.ToImmutable());
+		return new AssetReloadReport(n, failures.DrainToImmutable());
 	}
 
 	/// <summary>

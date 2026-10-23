@@ -556,7 +556,7 @@ public static class IlRefFactory {
 				throw new ArgumentException("generic arguments cannot be void, byref, or pinned", paramName);
 			builder.Add(argument);
 		}
-		return builder.MoveToImmutable();
+		return builder.DrainToImmutable();
 	}
 
 	private static ImmutableArray<IlTypeRef> copyAndValidateParameterTypes(ReadOnlySpan<IlTypeRef> parameterTypes, string paramName) {
@@ -568,7 +568,7 @@ public static class IlRefFactory {
 				throw new ArgumentException("parameter types cannot be void or pinned", paramName);
 			builder.Add(parameterType);
 		}
-		return builder.MoveToImmutable();
+		return builder.DrainToImmutable();
 	}
 
 	private static void validateArrayElementType(IlTypeRef elementType, string paramName) {
