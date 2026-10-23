@@ -10,6 +10,7 @@ ROOT       := .
 AUDIODIR   := $(ROOT)/audio
 CLRPROFDIR := $(ROOT)/clrprof
 MISCDIR    := $(ROOT)/misc
+TEXTDIR    := $(ROOT)/text
 
 ifeq ($(MODE),debug)
 	CARGOFLAGS ?=
@@ -23,12 +24,12 @@ ifneq ($(filter osx-x64 osx-arm64,$(RID)),)
 	AUDIOOUTNAME   := libijaudio.dylib
 	CLRPROFOUTNAME := libijclrprof.dylib
 	MISCOUTNAME    := libijmisc.dylib
-	FRIBIDIOUTNAME := libfribidi.dylib
+	TEXTOUTNAME    := libijtext.dylib
 else ifneq ($(filter linux-x64 linux-arm64,$(RID)),)
 	AUDIOOUTNAME   := libijaudio.so
 	CLRPROFOUTNAME := libijclrprof.so
 	MISCOUTNAME    := libijmisc.so
-	FRIBIDIOUTNAME := libfribidi.so
+	TEXTOUTNAME    := libijtext.so
 else
 	$(error unsupported RID $(RID))
 endif
@@ -38,21 +39,20 @@ OUTDIR     ?= $(ROOT)/pack/$(RID)
 AUDIOOUT   ?= $(OUTDIR)/$(AUDIOOUTNAME)
 CLRPROFOUT ?= $(OUTDIR)/$(CLRPROFOUTNAME)
 MISCOUT    ?= $(OUTDIR)/$(MISCOUTNAME)
-FRIBIDIOUT ?= $(OUTDIR)/$(FRIBIDIOUTNAME)
+TEXTOUT    ?= $(OUTDIR)/$(TEXTOUTNAME)
 
 AUDIOBUILD   := $(AUDIODIR)/target/$(MODE)/$(AUDIOOUTNAME)
 CLRPROFBUILD := $(CLRPROFDIR)/target/$(MODE)/$(CLRPROFOUTNAME)
 MISCBUILD    := $(MISCDIR)/out/$(RID)/$(MISCOUTNAME)
-FRIBIDIBUILD := $(MISCDIR)/out/$(RID)/$(FRIBIDIOUTNAME)
+TEXTBUILD    := $(TEXTDIR)/target/$(MODE)/$(TEXTOUTNAME)
 
 AUDIOSRC   := $(shell find $(AUDIODIR)/src -name '*.rs') $(AUDIODIR)/build.rs
 CLRPROFSRC := $(shell find $(CLRPROFDIR)/src -name '*.rs')
 MISCSRC    := $(MISCDIR)/src/precisewait.c
-FRIBIDISRC := $(wildcard $(MISCDIR)/extern/fribidi/lib/*.c $(MISCDIR)/extern/fribidi/lib/*.h \
-	$(MISCDIR)/extern/fribidi/lib/*.i $(MISCDIR)/fribidi-config/*.h)
+TEXTSRC    := $(shell find $(TEXTDIR)/src -name '*.rs')
 
 .PHONY: all pack clean
-all: $(AUDIOOUT) $(CLRPROFOUT) $(MISCOUT) $(FRIBIDIOUT)
+all: $(AUDIOOUT) $(CLRPROFOUT) $(MISCOUT) $(TEXTOUT)
 
 $(AUDIOBUILD): $(AUDIOSRC) $(AUDIODIR)/Cargo.toml
 	cargo build $(CARGOFLAGS) --manifest-path $(AUDIODIR)/Cargo.toml
@@ -63,8 +63,8 @@ $(CLRPROFBUILD): $(CLRPROFSRC) $(CLRPROFDIR)/Cargo.toml
 $(MISCBUILD): $(MISCSRC) $(MISCDIR)/GNUmakefile
 	make -C $(MISCDIR) RID=$(RID)
 
-$(FRIBIDIBUILD): $(FRIBIDISRC) $(MISCDIR)/GNUmakefile
-	make -C $(MISCDIR) RID=$(RID)
+$(TEXTBUILD): $(TEXTSRC) $(TEXTDIR)/Cargo.toml
+	cargo build $(CARGOFLAGS) --manifest-path $(TEXTDIR)/Cargo.toml
 
 $(AUDIOOUT): $(AUDIOBUILD)
 	mkdir -p $(OUTDIR)
@@ -78,12 +78,13 @@ $(MISCOUT): $(MISCBUILD)
 	mkdir -p $(OUTDIR)
 	cp $(MISCBUILD) $(MISCOUT)
 
-$(FRIBIDIOUT): $(FRIBIDIBUILD)
+$(TEXTOUT): $(TEXTBUILD)
 	mkdir -p $(OUTDIR)
-	cp $(FRIBIDIBUILD) $(FRIBIDIOUT)
+	cp $(TEXTBUILD) $(TEXTOUT)
 
-clean: $(AUDIODIR)/Cargo.toml $(CLRPROFDIR)/Cargo.toml $(MISCDIR)/GNUmakefile
+clean: $(AUDIODIR)/Cargo.toml $(CLRPROFDIR)/Cargo.toml $(TEXTDIR)/Cargo.toml $(MISCDIR)/GNUmakefile
 	rm -rf $(OUTDIR)
 	cargo clean --manifest-path $(AUDIODIR)/Cargo.toml
 	cargo clean --manifest-path $(CLRPROFDIR)/Cargo.toml
+	cargo clean --manifest-path $(TEXTDIR)/Cargo.toml
 	make -C $(MISCDIR) clean RID=$(RID)

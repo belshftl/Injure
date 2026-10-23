@@ -273,8 +273,7 @@ internal static class TextLayouter {
 		public readonly List<LogicalBidiRun> LogicalRuns = new();
 		public readonly List<VisualBidiRun> VisualRuns = new();
 		public readonly List<ResolvedItem> Resolved = new();
-		// libunibreak's language strings, and each paragraph's breaks for them
-		public readonly Dictionary<string, string?> BreakLanguages = new(StringComparer.Ordinal);
+		// each paragraph's breaks, by language
 		public readonly Dictionary<string, LineBreakOpportunity[]> ParagraphBreaks = new(StringComparer.Ordinal);
 	}
 
@@ -414,9 +413,8 @@ internal static class TextLayouter {
 			? stackalloc LineBreakKind[para.Length + 1]
 			: new LineBreakKind[para.Length + 1];
 		breakAfter.Clear();
-		// a break after a character follows that character's language
-		// libunibreak takes a single language, so the paragraph is analyzed once per distinct language
-		// in it, with full context
+		// a break after a character follows that character's language; line breaking takes a single
+		// language, so the paragraph is analyzed once per distinct language in it, with full context
 		ReadOnlySpan<ShapingSpan> shaping = s.Shaping;
 		s.ParagraphBreaks.Clear();
 		int paraLimit = paraStart + para.Length;
@@ -424,11 +422,7 @@ internal static class TextLayouter {
 			ShapingSpan span = shaping[k];
 			string key = span.Language;
 			if (!s.ParagraphBreaks.TryGetValue(key, out LineBreakOpportunity[]? breaks)) {
-				if (!s.BreakLanguages.TryGetValue(key, out string? unibreakLang)) {
-					unibreakLang = TextAnalysis.UnibreakLanguage(span.Language);
-					s.BreakLanguages.Add(key, unibreakLang);
-				}
-				breaks = TextAnalysis.GetLineBreaks(para, unibreakLang);
+				breaks = TextAnalysis.GetLineBreaks(para, key);
 				s.ParagraphBreaks.Add(key, breaks);
 			}
 			// breaks after the span's characters, i.e. at positions (start, limit] relative to the paragraph

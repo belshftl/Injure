@@ -62,9 +62,9 @@
 		<None Include="../../native/pack/linux-x64/libijmisc.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
 		<None Include="../../native/pack/linux-arm64/libijmisc.so" Pack="true" PackagePath="runtimes/linux-arm64/native/" />
 
-		<None Include="../../native/pack/osx-arm64/libfribidi.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
-		<None Include="../../native/pack/linux-x64/libfribidi.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
-		<None Include="../../native/pack/linux-arm64/libfribidi.so" Pack="true" PackagePath="runtimes/linux-arm64/native/" />
+		<None Include="../../native/pack/osx-arm64/libijtext.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
+		<None Include="../../native/pack/linux-x64/libijtext.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
+		<None Include="../../native/pack/linux-arm64/libijtext.so" Pack="true" PackagePath="runtimes/linux-arm64/native/" />
 	</ItemGroup>
 
 	<!-- ====================================================================================== -->

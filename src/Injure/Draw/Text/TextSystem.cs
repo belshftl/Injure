@@ -125,15 +125,6 @@ internal sealed unsafe class FtLibrary {
 /// horizontally.
 /// </description></item>
 /// <item><description>
-/// Dictionary-based line breaking is unsupported; scripts that need it (Thai, Lao, Khmer, Myanmar,
-/// etc.) incorrectly only break at spaces and other explicit break opportunities, and a run of
-/// words without one only breaks if it overflows the line (see <see cref="TextWrapMode.Greedy"/>).
-/// </description></item>
-/// <item><description>
-/// Korean line-breaks between any two syllables, like CJK ideographs; there's no option to break
-/// only between words.
-/// </description></item>
-/// <item><description>
 /// There's no hyphenation. Soft hyphens (U+00AD) are treated as line break opportunities, but no
 /// hyphen actually gets drawn at the break.
 /// </description></item>

@@ -7,24 +7,26 @@ using System.Text.RegularExpressions;
 
 namespace Injure.Tests;
 
-public static class LibmiscNativeLoader {
+// loads the native libraries Injure needs from native/, preferring native/pack/<rid> and falling back
+// to each library's own build output
+public static class NativeLibsLoader {
 	private static int inited = 0;
 	private static nint ijmisc;
-	private static nint fribidi;
+	private static nint ijtext;
 
-	// loads everything native/misc builds
 	public static void Init() {
 		if (Interlocked.Exchange(ref inited, 1) != 0)
 			return;
-		ijmisc = load("ijmisc");
-		fribidi = load("fribidi");
-		NativeLibrary.SetDllImportResolver(typeof(Injure.Draw.Text.Unibreak).Assembly, dllImportResolver);
+		ijmisc = load("ijmisc", Path.Combine("misc", "out", getRid()));
+		ijtext = load("ijtext", Path.Combine("text", "target", "debug"));
+		NativeLibrary.SetDllImportResolver(typeof(Injure.Draw.Text.IjText).Assembly, dllImportResolver);
 	}
 
-	private static nint load(string name) {
-		string path = Path.Combine(Paths.RepoRoot, "native", "misc", "out", getRid(), getLibName(name));
+	private static nint load(string name, string buildDir) {
+		string native = Path.Combine(Paths.RepoRoot, "native");
+		string path = Path.Combine(native, "pack", getRid(), getLibName(name));
 		if (!File.Exists(path))
-			path = Path.Combine(Paths.RepoRoot, "native", "pack", getRid(), getLibName(name));
+			path = Path.Combine(native, buildDir, getLibName(name));
 		if (!File.Exists(path))
 			throw new FileNotFoundException($"'{path}' not found");
 		return NativeLibrary.Load(path);
@@ -64,17 +66,17 @@ public static class LibmiscNativeLoader {
 	private static nint dllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath) {
 		if (matchLib("ijmisc", libraryName))
 			return ijmisc;
-		if (matchLib("fribidi", libraryName))
-			return fribidi;
+		if (matchLib("ijtext", libraryName))
+			return ijtext;
 		return 0;
 	}
 }
 
-public sealed class LibmiscNativeFixture {
-	public LibmiscNativeFixture() {
-		LibmiscNativeLoader.Init();
+public sealed class NativeLibsFixture {
+	public NativeLibsFixture() {
+		NativeLibsLoader.Init();
 	}
 }
 
-[CollectionDefinition("needs_libmisc")]
-public sealed class NeedsLibmiscCollection : ICollectionFixture<LibmiscNativeFixture>;
+[CollectionDefinition("needs_native_libs")]
+public sealed class NeedsNativeLibsCollection : ICollectionFixture<NativeLibsFixture>;

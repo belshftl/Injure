@@ -12,6 +12,11 @@ pub const E_FAIL: HRESULT = -2_147_467_259; // 0x8000_4005
 pub const E_INVALIDARG: HRESULT = -2_147_024_809; // 0x8007_0057
 pub const CLASS_E_CLASSNOTAVAILABLE: HRESULT = -2_147_221_231; // 0x8004_0111
 
+/// The COM definition of `GUID`.
+///
+/// # ABI
+///
+/// As documented in MS-DTYP §2.3.4.1 and §2.3.4.2, subject to native endianness.
 #[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

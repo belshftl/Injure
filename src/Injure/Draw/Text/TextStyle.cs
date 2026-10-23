@@ -104,7 +104,7 @@ public readonly record struct TextStyle : IHasInvalidDefault {
 	}
 
 	/// <summary>
-	/// The fonts to lay the text out with. Must not be <see langword="null"/>.
+	/// The fonts to lay the text out with.
 	/// </summary>
 	public FontFallbackChain Fonts { get; init; }
 
@@ -130,15 +130,35 @@ public readonly record struct TextStyle : IHasInvalidDefault {
 	/// <summary>
 	/// The BCP 47 language tag of the text, e.g. <c>"en"</c>, <c>"hu"</c>, <c>"zh-Hant"</c>,
 	/// <c>"es-MX"</c>, etc; or <c>"und"</c> (undetermined) to leave it unspecified. Used for shaping
-	/// and line breaking. Must not be <see langword="null"/>.
+	/// and line breaking.
 	/// </summary>
 	/// <remarks>
 	/// <para>
-	/// Shaping uses the whole tag to pick language-specific glyph forms. Line breaking uses the
-	/// primary language subtag (case-insensitive) to apply language-specific rules for the languages
-	/// that have them, and the Unicode extension <c>-u-lb-strict</c> (e.g. <c>"ja-u-lb-strict"</c>) to
-	/// break CJK text strictly, i.e. not before small kana and similar characters. Whether a line may
-	/// break after a character follows the language of that character.
+	/// Shaping uses the whole tag to pick language-specific glyph forms. Line breaking follows the
+	/// Unicode line breaking algorithm, which uses dictionaries for Thai, Lao, Khmer, and Myanmar text
+	/// regardless of the tag; the tag affects it through these parts only:
+	/// <list type="bullet">
+	/// <item><description>
+	/// The Unicode extension keyword <c>lb</c> selects the strictness of CJK line breaking.
+	/// <c>strict</c> (the default) doesn't break before small kana, prolonged sound marks, iteration
+	/// marks, and similar characters. <c>normal</c> also breaks before small kana and prolonged sound
+	/// marks, and <c>loose</c> also before iteration marks and hyphens like U+2010 HYPHEN. For
+	/// Japanese and Chinese (primary language subtag <c>ja</c> or <c>zh</c>, case-insensitive),
+	/// <c>normal</c> and <c>loose</c> also break before U+301C WAVE DASH and U+30A0
+	/// KATAKANA-HIRAGANA DOUBLE HYPHEN, and <c>loose</c> also before some postfix symbols and
+	/// punctuation (e.g. U+00B0 DEGREE SIGN, U+FF05 FULLWIDTH PERCENT SIGN, U+FF01 FULLWIDTH
+	/// EXCLAMATION MARK) and after some prefix symbols (e.g. U+FFE5 FULLWIDTH YEN SIGN). Example:
+	/// <c>"ja-u-lb-normal"</c>.
+	/// </description></item>
+	/// <item><description>
+	/// The Unicode extension keyword <c>lw</c> selects where lines may break within words:
+	/// <c>normal</c> (the default) = per the algorithm, <c>keepall</c> = never within words,
+	/// including CJK text, so e.g. Korean only breaks at spaces, and <c>breakall</c> = between any
+	/// two letters. Example: <c>"ko-u-lw-keepall"</c>.
+	/// </description></item>
+	/// </list>
+	/// Other languages have no specific line breaking rules. Whether a line may break after a
+	/// character follows the language of that character.
 	/// </para>
 	/// <para>
 	/// An unspecified language (<c>"und"</c>), or an unrecognized one, uses language-neutral

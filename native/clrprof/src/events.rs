@@ -18,6 +18,22 @@ pub enum EventKind {
     Wakeup = 5,
 }
 
+/// One profiler event received through [`crate::exports::prof_wait_events`].
+///
+/// # ABI
+///
+/// On targets with 64-bit-wide pointers, has a size of 24 bytes and an alignment of 8 bytes:
+///   1. 4 bytes (kind)
+///   2. 4 bytes of padding
+///   3. 8 bytes (module)
+///   4. 4 bytes (token)
+///   5. 4 bytes (hresult)
+///
+/// On targets with 32-bit pointers, has a size of 16 bytes and an alignment of 4 bytes:
+///   1. 4 bytes (kind)
+///   2. 4 bytes (module)
+///   3. 4 bytes (token)
+///   4. 4 bytes (hresult)
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct Event {
@@ -26,17 +42,10 @@ pub struct Event {
     pub module: ModuleID,
     pub token: mdMethodDef,
     pub hresult: HRESULT,
-} // aligned to 8 bytes on 64 bit and 4 bytes on 32 bit
+}
 
 #[cfg(target_pointer_width = "64")]
 const _: () = {
-    // + 4 bytes (kind)
-    // + 4 bytes of padding
-    // + 8 bytes (module)
-    // + 4 bytes (token)
-    // + 4 bytes (hresult)
-    // = 24
-
     assert!(size_of::<Event>() == 24);
 
     assert!(std::mem::align_of::<Event>() == 8);
@@ -49,12 +58,6 @@ const _: () = {
 
 #[cfg(target_pointer_width = "32")]
 const _: () = {
-    // + 4 bytes (kind)
-    // + 4 bytes (module)
-    // + 4 bytes (token)
-    // + 4 bytes (hresult)
-    // = 16
-
     assert!(size_of::<Event>() == 16);
 
     assert!(std::mem::align_of::<Event>() == 4);

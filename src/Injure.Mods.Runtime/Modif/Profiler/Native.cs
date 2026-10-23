@@ -6,8 +6,11 @@ using System.Runtime.InteropServices;
 
 namespace Injure.Mods.Runtime.Modif.Profiler;
 
+/// <summary>
+/// Bindings for <c>ijclrprof</c>; see <c>native/clrprof/include/abi.h</c>.
+/// </summary>
 internal static unsafe partial class Native {
-	internal enum EventKind : int {
+	public enum EventKind : int {
 		ModuleLoaded = 1,
 		ModuleUnloading = 2,
 		ReJitFailed = 3,
@@ -19,7 +22,7 @@ internal static unsafe partial class Native {
 	/// The <see langword="default"/> value is invalid.
 	/// </remarks>
 	[StructLayout(LayoutKind.Sequential)]
-	internal readonly struct Event : IHasInvalidDefault {
+	public readonly struct Event : IHasInvalidDefault {
 		public readonly EventKind Kind;
 		// [+ 4 bytes of padding here on targets with 64 bit wide pointers]
 		public readonly nuint Module;
@@ -29,7 +32,7 @@ internal static unsafe partial class Native {
 		bool IHasInvalidDefault.IsDefault => Kind == 0;
 	} // aligned to 8 bytes on 64 bit and 4 bytes on 32 bit
 
-	private const string clrprof = "ijclrprof";
+	private const string library = "ijclrprof";
 
 	static Native() {
 #if DEBUG
@@ -63,7 +66,7 @@ internal static unsafe partial class Native {
 #endif
 		NativeLibrary.SetDllImportResolver(
 			typeof(Native).Assembly,
-			static (name, assembly, searchPath) => name == clrprof ? load() : 0
+			static (name, assembly, searchPath) => name == library ? load() : 0
 		);
 	}
 
@@ -78,49 +81,49 @@ internal static unsafe partial class Native {
 
 	// ============================================================================================
 	// attachment and events
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_is_attached();
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial nuint prof_wait_events(Event* buf, nuint capacity, ulong timeoutMs);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial void prof_wakeup();
 
 	// ============================================================================================
 	// modules
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial nuint prof_find_module(char* suffix, nuint len);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_module_path(nuint module, char* buf, nuint capacity, nuint* needed);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_module_mvid(nuint module, byte* mvid);
 
 	/// <remarks>
-	/// Tri-state; 1 = collectible, 0 = not collectible, -1 = no such module.
+	/// Tri-state: 1 = collectible, 0 = not collectible, -1 = no such module.
 	/// </remarks>
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_module_is_collectible(nuint module);
 
 	// ============================================================================================
 	// il
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_get_il(nuint module, uint token, byte* buf, nuint capacity, nuint* needed);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_set_prepared(nuint module, uint token, byte* body, nuint len);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_request_rejit(nuint* modules, uint* tokens, nuint count);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_request_revert(nuint* modules, uint* tokens, nuint count);
 
 	// ============================================================================================
 	// metadata
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_define_assembly_ref(
 		nuint module,
 		char* name,
@@ -135,7 +138,7 @@ internal static unsafe partial class Native {
 		uint* token
 	);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_define_type_ref(
 		nuint module,
 		uint scope,
@@ -146,7 +149,7 @@ internal static unsafe partial class Native {
 		uint* token
 	);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_define_member_ref(
 		nuint module,
 		uint parent,
@@ -157,7 +160,7 @@ internal static unsafe partial class Native {
 		uint* token
 	);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_define_type_spec(
 		nuint module,
 		byte* signature,
@@ -165,7 +168,7 @@ internal static unsafe partial class Native {
 		uint* token
 	);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_define_method_spec(
 		nuint module,
 		uint method,
@@ -174,7 +177,7 @@ internal static unsafe partial class Native {
 		uint* token
 	);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_define_standalone_sig(
 		nuint module,
 		byte* signature,
@@ -182,7 +185,7 @@ internal static unsafe partial class Native {
 		uint* token
 	);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_define_user_string(
 		nuint module,
 		char* value,
@@ -190,6 +193,6 @@ internal static unsafe partial class Native {
 		uint* token
 	);
 
-	[LibraryImport(clrprof)]
+	[LibraryImport(library)]
 	public static partial int prof_apply_metadata(nuint module);
 }

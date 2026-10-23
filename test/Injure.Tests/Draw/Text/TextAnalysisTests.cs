@@ -6,7 +6,7 @@ using static Injure.Tests.Draw.Text.Util;
 
 namespace Injure.Tests.Draw.Text;
 
-[Collection("needs_libmisc")]
+[Collection("needs_native_libs")]
 public static class TextAnalysisTests {
 	public static readonly TheoryData<string, (int Start, int Length)[]> GraphemeCases = new() {
 		{ "a", new[] { (0, 1) } },
@@ -25,67 +25,68 @@ public static class TextAnalysisTests {
 
 	[Theory]
 	[InlineData("abc", "abc")]
-	[InlineData("a\ud83d\ude00b", "a\ud83d\ude00b")]
-	[InlineData("a\ud800b", "a\ufffdb")]
-	[InlineData("a\udc00", "a\ufffd")]
-	[InlineData("\ud800", "\ufffd")]
-	[InlineData("\udc00\ud800", "\ufffd\ufffd")]
-	[InlineData("\ud800\ud800\udc00", "\ufffd\ud800\udc00")]
+	[InlineData("a😀b", "a😀b")]
+	[InlineData("a\ud800b", "a�b")]
+	[InlineData("a\udc00", "a�")]
+	[InlineData("\ud800", "�")]
+	[InlineData("\udc00\ud800", "��")]
+	[InlineData("\ud800\ud800\udc00", "�\ud800\udc00")]
 	public static void ReplaceUnpairedSurrogatesWorks(string text, string expected) =>
 		Assert.Equal(expected, TextAnalysis.ReplaceUnpairedSurrogates(text));
 
 	[Fact]
 	public static void ReplaceUnpairedSurrogatesReturnsValidTextItself() {
-		string s = "abc\uD83D\uDE00";
+		string s = "abc😀";
 		Assert.Same(s, TextAnalysis.ReplaceUnpairedSurrogates(s));
 	}
 
-	[Theory]
-	[InlineData(null, null)]
-	[InlineData("", null)]
-	[InlineData("en", "en")]
-	[InlineData("EN-us", "en")]
-	[InlineData("zh-Hant-TW", "zh")]
-	[InlineData("und", null)]
-	// three-letter subtags would otherwise get truncated to the first two
-	[InlineData("kok", null)]
-	[InlineData("ja-u-lb-strict", "ja-strict")]
-	[InlineData("ja-JP-u-ca-japanese-lb-strict", "ja-strict")]
-	[InlineData("und-u-lb-strict", "und-strict")]
-	[InlineData("ja-u-lb-loose", "ja")]
-	// lb-strict only counts within the u extension
-	[InlineData("ja-x-lb-strict", "ja")]
-	[InlineData("ja-u-ca-gregory-x-lb-strict", "ja")]
-	public static void UnibreakLanguageWorks(string? tag, string? expected) =>
-		Assert.Equal(expected, TextAnalysis.UnibreakLanguage(tag));
-
-	[Fact]
-	public static void LanguageSpecificLineBreakingWorks() {
-		// in libunibreak, by default, '«' and '»' are treated as ambiguous quotation marks, but setting
-		// the language to french treats them as opening and closing punctuation respectively, so the
-		// spaces inside them don't allow breaks
-		string text = "a \u00ab b \u00bb c";
-		Assert.Equal([2, 4, 6, 8], TextAnalysis.GetLineBreaks(text, null).Select(static b => b.Position));
-		Assert.Equal([2, 8], TextAnalysis.GetLineBreaks(text, TextAnalysis.UnibreakLanguage("fr")).Select(static b => b.Position));
-	}
-
-	[Fact]
-	public static void StrictLineBreakingWorks() {
-		// 'ゃ', U+3083 HIRAGANA LETTER SMALL YA; small kana is forbidden from starting a line in strict
-		string text = "\u3042\u3083";
-		Assert.Contains(TextAnalysis.GetLineBreaks(text, TextAnalysis.UnibreakLanguage("ja")), static b => b.Position == 1);
-		Assert.DoesNotContain(TextAnalysis.GetLineBreaks(text, TextAnalysis.UnibreakLanguage("ja-u-lb-strict")), static b => b.Position == 1);
-	}
+	private static int[] breakPositions(string text, string language) =>
+		TextAnalysis.GetLineBreaks(text, language).Select(static b => b.Position).ToArray();
 
 	[Fact]
 	public static void GetLineBreaksWorks() {
-		LineBreakOpportunity[] breaks = TextAnalysis.GetLineBreaks("abc def ghi", unibreakLanguage: "en");
+		LineBreakOpportunity[] breaks = TextAnalysis.GetLineBreaks("abc def ghi", "en");
 		AssertBreaks(breaks, (4, LineBreakKind.Soft), (8, LineBreakKind.Soft));
 	}
 
 	[Fact]
-	public static void GetLineBreaksHandlesNbsp() {
-		LineBreakOpportunity[] breaks = TextAnalysis.GetLineBreaks("abc\u00a0def", unibreakLanguage: "en");
-		Assert.Empty(breaks);
+	public static void GetLineBreaksHandlesNbsp() =>
+		Assert.Empty(TextAnalysis.GetLineBreaks("abc\u00a0def", "en"));
+
+	[Fact]
+	public static void MandatoryBreaksAreHard() {
+		AssertBreaks(TextAnalysis.GetLineBreaks("a\u2028b", "und"), (2, LineBreakKind.Hard));
+		// no break between CR and LF, and a mandatory break at the end of the text counts
+		AssertBreaks(TextAnalysis.GetLineBreaks("a\r\nb\r", "und"), (3, LineBreakKind.Hard), (5, LineBreakKind.Hard));
+	}
+
+	[Fact]
+	public static void ThaiBreaksBetweenWords() =>
+		Assert.Equal([3, 6, 11, 15, 18, 21, 24, 29, 32], breakPositions("ฉันกินกระจกได้ แต่มันไม่ทำให้ฉันเจ็บ", "th"));
+
+	[Fact]
+	public static void KeepAllOnlyBreaksKoreanBetweenWords() {
+		const string text = "한국어 텍스트";
+		Assert.Equal([1, 2, 4, 5, 6], breakPositions(text, "ko"));
+		Assert.Equal([4], breakPositions(text, "ko-u-lw-keepall"));
+	}
+
+	[Fact]
+	public static void LineBreakStrictnessWorks() {
+		const string text = "あゃ";
+		Assert.Empty(breakPositions(text, "ja")); // strict is the default
+		Assert.Empty(breakPositions(text, "ja-u-lb-strict"));
+		Assert.Equal([1], breakPositions(text, "ja-u-lb-normal"));
+	}
+
+	[Theory]
+	[InlineData("")]
+	[InlineData("-")]
+	[InlineData("not a tag")]
+	[InlineData("ko-u-lw")]
+	[InlineData("ko-u-lw-bogus")]
+	public static void MalformedLanguageTagsGetTheDefaults(string language) {
+		const string text = "한국어 텍스트";
+		Assert.Equal(breakPositions(text, "und"), breakPositions(text, language));
 	}
 }

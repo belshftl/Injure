@@ -3,6 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/*
+ * This header file is normative. Any deviation between this header and the actual exports or
+ * behavior of the native library is a bug.
+ */
+
 #pragma once
 
 #include <stddef.h>
@@ -19,12 +24,19 @@ extern "C" {
 #endif
 
 /*
- * ============================================================================
+ * ================================================================================================
  * types
  */
 typedef int32_t HRESULT;
 
-typedef struct {
+/*
+ * The COM definition of `GUID`.
+ *
+ * # ABI
+ *
+ * As documented in MS-DTYP §2.3.4.1 and §2.3.4.2, subject to native endianness.
+ */
+typedef struct GUID {
 	uint32_t data1;
 	uint16_t data2;
 	uint16_t data3;
@@ -35,42 +47,118 @@ typedef size_t ModuleID;
 
 typedef uint32_t mdMethodDef;
 
-enum EventKind : int32_t {
+typedef enum EventKind : int32_t {
 	EVENT_KIND_MODULE_LOADED = 1,
 	EVENT_KIND_MODULE_UNLOADING = 2,
 	EVENT_KIND_REJIT_FAILED = 3,
 	EVENT_KIND_SHUTDOWN = 4,
 	EVENT_KIND_WAKEUP = 5,
-};
+} EventKind;
 
-typedef struct {
-	enum EventKind kind;
+/*
+ * One profiler event received through `prof_wait_events`.
+ *
+ * # ABI
+ *
+ * On targets with 64-bit-wide pointers, has a size of 24 bytes and an alignment of 8 bytes:
+ *   1. 4 bytes (kind)
+ *   2. 4 bytes of padding
+ *   3. 8 bytes (module)
+ *   4. 4 bytes (token)
+ *   5. 4 bytes (hresult)
+ *
+ * On targets with 32-bit pointers, has a size of 16 bytes and an alignment of 4 bytes:
+ *   1. 4 bytes (kind)
+ *   2. 4 bytes (module)
+ *   3. 4 bytes (token)
+ *   4. 4 bytes (hresult)
+ */
+typedef struct Event {
+	EventKind kind;
 	/* [+ 4 bytes of padding here on targets with 64 bit wide pointers] */
 	ModuleID module;
 	mdMethodDef token;
 	HRESULT hresult;
-} Event; /* aligned to 8 bytes on 64 bit and 4 bytes on 32 bit */
+} Event;
 
 /*
- * ============================================================================
+ * ================================================================================================
  * attachment and events
  */
+
+/*
+ * Gets whether the profiler loaded and its worker is running, returning a boolean.
+ */
 EXPORT int32_t prof_is_attached(void);
+
+/*
+ * Waits for profiler events and copies as many as fit, returning the amount that was written.
+ *
+ * # Safety
+ *
+ * `buf` must be writable for `capacity` events.
+ */
 EXPORT size_t prof_wait_events(Event *buf, size_t capacity, uint64_t timeout_ms);
+
+/*
+ * Pushes an `EVENT_KIND_WAKEUP` event to the queue, for the purpose of waking a thread blocked in
+ * `prof_wait_events`.
+ */
 EXPORT void prof_wakeup(void);
 
 /*
- * ============================================================================
+ * ================================================================================================
  * modules
  */
+
+/*
+ * Finds a loaded module by a given UTF-16 path suffix.
+ *
+ * # Safety
+ *
+ * `suffix` must point to `len` UTF-16 code units.
+ */
 EXPORT ModuleID prof_find_module(const uint16_t *suffix, size_t len);
+
+/*
+ * Writes a module's path into `buf`, and the required minimum `capacity` value into `needed`.
+ * `buf` may be null, in which case only `needed` will be written into.
+ *
+ * # Safety
+ *
+ * `buf` must be writable for `capacity` **UTF-16 code units** (not bytes) if non-null, and
+ * `needed` must be writable for one `size_t`.
+ */
 EXPORT HRESULT prof_module_path(ModuleID module, uint16_t *buf, size_t capacity, size_t *needed);
+
+/*
+ * Writes a module's MVID into `mvid`.
+ *
+ * # Safety
+ *
+ * `mvid` must be writable for sixteen bytes.
+ */
 EXPORT HRESULT prof_module_mvid(ModuleID module, uint8_t *mvid);
+
+/*
+ * Gets whether a module belongs to a collectible load context. Tri-state; returns either a
+ * boolean or -1 if there is no much module.
+ */
 EXPORT int32_t prof_module_is_collectible(ModuleID module); /* not a bool return */
 
 /*
- * ============================================================================
+ * ================================================================================================
  * il
+ */
+
+/*
+ * Writes a method's original IL into `buf`, and the required minimum `capacity` value into
+ * `needed`. `buf` may be null, in which case only `needed` will be written into.
+ *
+ * # Safety
+ *
+ * `buf` must be writable for `capacity` bytes if non-null, and `needed` must be writable for
+ * one `size_t`.
  */
 EXPORT HRESULT prof_get_il(
 	ModuleID module,
@@ -79,13 +167,49 @@ EXPORT HRESULT prof_get_il(
 	size_t capacity,
 	size_t *needed
 );
+
+/*
+ * Stores the IL to install on a method's next ReJIT. `body` is copied out, and as such need only
+ * remain valid for the duration of the call.
+ *
+ * # Safety
+ *
+ * `body` must be readable for `len` bytes.
+ */
 EXPORT HRESULT prof_set_prepared(ModuleID module, mdMethodDef token, const uint8_t *body, size_t len);
+
+/*
+ * Requests a ReJIT for a batch of methods.
+ *
+ * Asynchronous with respect to running code; already-executing frames continue on the old version.
+ *
+ * # Safety
+ *
+ * `modules` and `tokens` must each be readable for `count` **elements** (not bytes).
+ */
 EXPORT HRESULT prof_request_rejit(const ModuleID *modules, const mdMethodDef *tokens, size_t count);
+
+/*
+ * Reverts a batch of methods to the IL in their modules and forgets their prepared bodies.
+ *
+ * # Safety
+ *
+ * `modules` and `tokens` must each be readable for `count` **elements** (not bytes).
+ */
 EXPORT HRESULT prof_request_revert(const ModuleID *modules, const mdMethodDef *tokens, size_t count);
 
 /*
- * ============================================================================
+ * ================================================================================================
  * metadata
+ */
+
+/*
+ * Defines an `AssemblyRef`, or returns the existing row for the same identity.
+ *
+ * # Safety
+ *
+ * `name` must be readable for `name_len` **UTF-16 code units** (not bytes), and `token` must be
+ * writable for one `uint32_t`.
  */
 EXPORT HRESULT prof_define_assembly_ref(
 	ModuleID module,
@@ -100,6 +224,16 @@ EXPORT HRESULT prof_define_assembly_ref(
 	uint32_t flags,
 	uint32_t *token
 );
+
+/*
+ * Defines a `TypeRef`, or returns the existing row.
+ *
+ * # Safety
+ *
+ * `namespace` must be readable for `namespace_len` **UTF-16 code units** (not bytes), `name` must
+ * be readable for `name_len` **UTF-16 code units** (not bytes), and `token` must be writable for
+ * one `uint32_t`.
+ */
 EXPORT HRESULT prof_define_type_ref(
 	ModuleID module,
 	uint32_t scope,
@@ -109,6 +243,15 @@ EXPORT HRESULT prof_define_type_ref(
 	size_t name_len,
 	uint32_t *token
 );
+
+/*
+ * Defines a `MemberRef`, or returns the existing row.
+ *
+ * # Safety
+ *
+ * `name` must be readable for `name_len` **UTF-16 code units** (not bytes), `signature` must be
+ * readable for `signature_len` bytes, and `token` must be writable for one `uint32_t`.
+ */
 EXPORT HRESULT prof_define_member_ref(
 	ModuleID module,
 	uint32_t parent,
@@ -118,12 +261,30 @@ EXPORT HRESULT prof_define_member_ref(
 	size_t signature_len,
 	uint32_t *token
 );
+
+/*
+ * Defines a `TypeSpec` from an encoded signature.
+ *
+ * # Safety
+ *
+ * `signature` must be readable for `signature_len` bytes, and `token` must be writable for one
+ * `uint32_t`.
+ */
 EXPORT HRESULT prof_define_type_spec(
 	ModuleID module,
 	const uint8_t *signature,
 	size_t signature_len,
 	uint32_t *token
 );
+
+/*
+ * Defines a `MethodSpec` over a method and its generic arguments.
+ *
+ * # Safety
+ *
+ * `signature` must be readable for `signature_len` bytes, and `token` must be writable for one
+ * `uint32_t`.
+ */
 EXPORT HRESULT prof_define_method_spec(
 	ModuleID module,
 	uint32_t method,
@@ -131,25 +292,62 @@ EXPORT HRESULT prof_define_method_spec(
 	size_t signature_len,
 	uint32_t *token
 );
+
+/*
+ * Defines a `StandAloneSig`, which `calli` and locals signatures need.
+ *
+ * # Safety
+ *
+ * `signature` must be readable for `signature_len` bytes, and `token` must be writable for one
+ * `uint32_t`.
+ */
 EXPORT HRESULT prof_define_standalone_sig(
 	ModuleID module,
 	const uint8_t *signature,
 	size_t signature_len,
 	uint32_t *token
 );
+
+/*
+ * Adds a user string, returning its token (prefixed with `0x70`).
+ *
+ * # Safety
+ *
+ * `value` must be readable for `len` **UTF-16 code units** (not bytes), and `token` must be
+ * writable for one `uint32_t`.
+ */
 EXPORT HRESULT prof_define_user_string(
 	ModuleID module,
 	const uint16_t *value,
 	size_t len,
 	uint32_t *token
 );
+
+/*
+ * Publishes rows defined since the last call to this function.
+ *
+ * Tokens handed out by the other functions are usable in IL only after this returns.
+ */
 EXPORT HRESULT prof_apply_metadata(ModuleID module);
 
 /*
- * ============================================================================
+ * ================================================================================================
  * com entrypoint
  */
+
+/*
+ * Called by CoreCLR to obtain the profiler's class factory.
+ *
+ * # Safety
+ *
+ * Called by the runtime with a valid CLSID, IID, and writable out pointer.
+ */
 EXPORT HRESULT DllGetClassObject(const GUID *clsid, const GUID *iid, void **out);
+
+/*
+ * Whether the library can be unloaded. Always `S_FALSE`, as a profiler stays for the lifetime of
+ * the process, and unloading one when ReJIT'd code is still installed would be very problematic.
+ */
 EXPORT HRESULT DllCanUnloadNow(void);
 
 #ifdef __cplusplus

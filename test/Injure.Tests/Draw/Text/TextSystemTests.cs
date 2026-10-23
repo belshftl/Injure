@@ -19,9 +19,9 @@ namespace Injure.Tests.Draw.Text;
 // 1000), the wide variant's letters 700, digits 600, space 300, .notdef 500, with an ascent of 800,
 // a descent of 200, and 1000 units per em, so at size 10 everything is whole drawable units
 public sealed class TextSystemTests : GpuTestBase {
-	// layout uses libunibreak through ijmisc; the libmisc collection can't be used here, since this
-	// class is already in the GPU one
-	public TextSystemTests(GpuDeviceFixture fixture) : base(fixture) => LibmiscNativeLoader.Init();
+	// layout uses ijtext; the native libs collection can't be used here, since this class is already
+	// in the GPU one
+	public TextSystemTests(GpuDeviceFixture fixture) : base(fixture) => NativeLibsLoader.Init();
 
 	private static byte[] fontBytes(string name) {
 		using Stream s = typeof(TextSystemTests).Assembly.GetManifestResourceStream($"fonts/{name}.ttf")
@@ -130,18 +130,15 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void TheLanguageSelectsLineBreakingRules() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		// the font has no guillemets, so they're 500-unit .notdefs, as wide as 'a'
-		// "« b »" is exactly as wide as the box
-		// french doesn't break inside guillemets, so it keeps "« b »" together, while the default rules
-		// break between 'b' and '»'
-		const string s = "a \u00ab b \u00bb c";
-		TextLayoutOptions box = TextLayoutOptions.Default with { MaxWidth = 21 };
+		// the font has no hangul, so each syllable is a 500-unit .notdef, and "가나 다라마" fits the box
+		// up to "다"; by default, korean breaks between any syllables, and with keep-all only at spaces
+		const string s = "가나 다라마";
+		TextLayoutOptions box = TextLayoutOptions.Default with { MaxWidth = 18 };
 		float[] widths(string language) =>
 			text.Layout(s, style(sans, language: language), box).Lines.Select(static l => l.Width).ToArray();
-		Assert.Equal([21f, 13f], widths("und"));
-		Assert.Equal([21f, 13f], widths("en"));
-		Assert.Equal([5f, 21f, 5f], widths("fr"));
-		Assert.Equal([5f, 21f, 5f], widths("fr-CA"));
+		Assert.Equal([18f, 10f], widths("und"));
+		Assert.Equal([18f, 10f], widths("ko"));
+		Assert.Equal([10f, 15f], widths("ko-u-lw-keepall"));
 	}
 
 	[Fact]
@@ -204,16 +201,16 @@ public sealed class TextSystemTests : GpuTestBase {
 		// the test font has no U+FFFD, so it's a 500-unit .notdef
 		TextLayout l = text.Layout("a\ud800b", style(sans));
 		Assert.Equal(15f, l.Width);
-		Assert.Equal("a\ufffdb", l.Text.Text);
+		Assert.Equal("a�b", l.Text.Text);
 		TextLayout lone = text.Layout("\udc00", style(sans));
-		Assert.Equal("\ufffd", lone.Text.Text);
+		Assert.Equal("�", lone.Text.Text);
 		Assert.Equal(5f, lone.Width);
 		// valid text is kept as is, without a copy
-		string valid = "ab\ud83d\ude00";
+		string valid = "ab😀";
 		Assert.Same(valid, text.Layout(valid, style(sans)).Text.Text);
 		// the layout cache still finds the layout by the text as given
 		TextLayout cached = text.GetCachedLayout("a\ud800b", style(sans), TextLayoutOptions.Default);
-		Assert.Equal("a\ufffdb", cached.Text.Text);
+		Assert.Equal("a�b", cached.Text.Text);
 		Assert.Same(cached, text.GetCachedLayout("a\ud800b", style(sans), TextLayoutOptions.Default));
 	}
 
@@ -225,9 +222,9 @@ public sealed class TextSystemTests : GpuTestBase {
 		static int[] visualOrder(TextLayout l) =>
 			l.Glyphs.ToArray().OrderBy(static g => g.X).Select(static g => g.SourceIndex).ToArray();
 		// an LTR paragraph with an RTL run: the run's characters go right to left
-		Assert.Equal([0, 1, 2, 4, 3], visualOrder(text.Layout("ab \u05d0\u05d1", style(sans))));
+		Assert.Equal([0, 1, 2, 4, 3], visualOrder(text.Layout("ab אב", style(sans))));
 		// an RTL paragraph with an LTR run: the paragraph goes right to left, the run left to right
-		Assert.Equal([3, 4, 2, 1, 0], visualOrder(text.Layout("\u05d0\u05d1 ab", style(sans))));
+		Assert.Equal([3, 4, 2, 1, 0], visualOrder(text.Layout("אב ab", style(sans))));
 	}
 
 	[Fact]
@@ -270,19 +267,18 @@ public sealed class TextSystemTests : GpuTestBase {
 	public void LineBreaksFollowEachCharactersLanguage() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
-		// see TheLanguageSelectsLineBreakingRules; only the breaks inside the guillemets differ, so
-		// only the language of what's inside them matters
-		TextLayoutOptions box = TextLayoutOptions.Default with { MaxWidth = 21 };
+		// see TheLanguageSelectsLineBreakingRules; only the breaks inside "다라마" differ, so only its
+		// language matters
+		TextLayoutOptions box = TextLayoutOptions.Default with { MaxWidth = 18 };
 		float[] widths(string outside, string inside) {
 			RichText t = new RichTextBuilder(style(sans, language: outside))
-				.Append("a ")
-				.Append("\u00ab b \u00bb", new TextStyleOverride(Language: inside))
-				.Append(" c")
+				.Append("가나 ")
+				.Append("다라마", new TextStyleOverride(Language: inside))
 				.Build();
 			return text.Layout(t, box).Lines.Select(static l => l.Width).ToArray();
 		}
-		Assert.Equal([5f, 21f, 5f], widths("und", "fr"));
-		Assert.Equal([21f, 13f], widths("fr", "und"));
+		Assert.Equal([10f, 15f], widths("ko", "ko-u-lw-keepall"));
+		Assert.Equal([18f, 10f], widths("ko-u-lw-keepall", "ko"));
 	}
 
 	[Fact]

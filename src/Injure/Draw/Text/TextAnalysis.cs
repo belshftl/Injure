@@ -3,47 +3,105 @@
 
 using System.Buffers;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using HarfBuzzSharp;
-using static Injure.Draw.Text.Fribidi;
 
 namespace Injure.Draw.Text;
 
-internal static unsafe partial class Fribidi {
-	[LibraryImport("fribidi")]
-	public static partial void fribidi_get_bidi_types(uint* str, int len, uint* btypes);
+/// <summary>
+/// Bindings for <c>ijtext</c>; see <c>native/text/include/abi.h</c>.
+/// </summary>
+internal static unsafe partial class IjText {
+	public enum IjtResult : uint {
+		Ok = 0,
+		InvalidArgument = 1,
+	}
 
-	[LibraryImport("fribidi")]
-	public static partial uint fribidi_get_par_direction(uint* bidiTypes, int len);
+	public enum BreakKind : byte {
+		None = 0,
+		Soft = 1,
+		Hard = 2,
+	}
 
-	[LibraryImport("fribidi")]
-	public static partial sbyte fribidi_get_par_embedding_levels_ex(uint* bidiTypes, uint* bracketTypes, int len, uint* pbaseDir, sbyte* embeddingLevels);
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and is an empty LTR run at 0.
+	/// </remarks>
+	[StructLayout(LayoutKind.Sequential)]
+	public struct BidiRun {
+		public uint Start;
+		public uint Len;
+		public uint Rtl;
+	}
 
-	[LibraryImport("fribidi")]
-	public static partial sbyte fribidi_reorder_line(uint flags, uint* bidiTypes, int len, int off, uint baseDir, sbyte* embeddingLevels, uint* visualStr, int* map);
+	private const string library = "ijtext";
 
-	[LibraryImport("fribidi")]
-	public static partial uint fribidi_get_bracket(uint ch);
-}
+#if DEBUG
+	static IjText() {
+		if (Unsafe.SizeOf<BidiRun>() != 12)
+			throw new InternalStateException("expected BidiRun size to be 12 bytes");
+		// c# has no alignof; skip alignment assertion
+		if (Marshal.OffsetOf<BidiRun>(nameof(BidiRun.Start)) != 0)
+			throw new InternalStateException("expected BidiRun Start offset to be 0");
+		if (Marshal.OffsetOf<BidiRun>(nameof(BidiRun.Len)) != 4)
+			throw new InternalStateException("expected BidiRun Len offset to be 4");
+		if (Marshal.OffsetOf<BidiRun>(nameof(BidiRun.Rtl)) != 8)
+			throw new InternalStateException("expected BidiRun Rtl offset to be 8");
+	}
+#endif
 
-internal static unsafe partial class Unibreak {
-	public const sbyte LINEBREAK_MUSTBREAK = 0;
-	public const sbyte LINEBREAK_ALLOWBREAK = 1;
-	public const sbyte LINEBREAK_NOBREAK = 2;
-	public const sbyte LINEBREAK_INSIDEACHAR = 3;
-	public const sbyte LINEBREAK_INDETERMINATE = 4;
+	[LibraryImport(library)]
+	private static partial IjtResult ijt_line_breaks(char* text, nuint len, byte* language, nuint languageLen, BreakKind* kinds);
 
-	// void set_linebreaks_utf16(const utf16_t *s, size_t len, const char *lang, char *brks);
-	[LibraryImport("ijmisc", StringMarshalling = StringMarshalling.Utf8)]
-	public static partial void set_linebreaks_utf16(char* s, nuint len, string? lang, sbyte* brks);
+	[LibraryImport(library)]
+	private static partial IjtResult ijt_bidi_open(char* text, nuint len, nint* @out);
 
-	public static void SetLineBreaks(string text, Span<sbyte> breaks, string? lang = null) {
-		if (breaks.Length < text.Length)
-			throw new InternalStateException("line breaks buffer too small");
+	[LibraryImport(library)]
+	private static partial IjtResult ijt_bidi_levels(nint bidi, byte* levels, nuint len);
+
+	[LibraryImport(library)]
+	private static partial IjtResult ijt_bidi_visual_runs(nint bidi, nuint lineStart, nuint lineLimit, BidiRun* runs, nuint cap, nuint* count);
+
+	[LibraryImport(library)]
+	public static partial void ijt_bidi_close(nint bidi);
+
+	private static void check(IjtResult result, string function) {
+		if (result != 0)
+			throw new InternalStateException($"{function} failed with result {result}");
+	}
+
+	public static void LineBreaks(ReadOnlySpan<char> text, string language, Span<BreakKind> kinds) {
+		if (kinds.Length != text.Length + 1)
+			throw new InternalStateException("line break kinds buffer has the wrong length");
+		int bytes = Encoding.UTF8.GetMaxByteCount(language.Length);
+		Span<byte> lang = bytes <= 2048 ? stackalloc byte[bytes] : new byte[bytes];
+		int langLen = Encoding.UTF8.GetBytes(language, lang);
 		fixed (char* pText = text)
-		fixed (sbyte* pBreaks = breaks)
-			set_linebreaks_utf16(pText, (nuint)text.Length, lang, pBreaks);
+		fixed (byte* pLang = lang)
+		fixed (BreakKind* pKinds = kinds)
+			check(ijt_line_breaks(pText, (nuint)text.Length, pLang, (nuint)langLen, pKinds), nameof(ijt_line_breaks));
+	}
+
+	public static nint BidiOpen(ReadOnlySpan<char> text) {
+		nint bidi;
+		fixed (char* pText = text)
+			check(ijt_bidi_open(pText, (nuint)text.Length, &bidi), nameof(ijt_bidi_open));
+		return bidi;
+	}
+
+	public static void BidiLevels(nint bidi, Span<byte> levels) {
+		fixed (byte* pLevels = levels)
+			check(ijt_bidi_levels(bidi, pLevels, (nuint)levels.Length), nameof(ijt_bidi_levels));
+	}
+
+	public static int BidiVisualRuns(nint bidi, int lineStart, int lineLimit, Span<BidiRun> runs) {
+		if (runs.Length < lineLimit - lineStart)
+			throw new InternalStateException("bidi runs buffer too small");
+		nuint count;
+		fixed (BidiRun* pRuns = runs)
+			check(ijt_bidi_visual_runs(bidi, (nuint)lineStart, (nuint)lineLimit, pRuns, (nuint)runs.Length, &count), nameof(ijt_bidi_visual_runs));
+		return (int)count;
 	}
 }
 
@@ -55,204 +113,81 @@ internal readonly record struct GraphemeSpan(
 	int Length
 );
 
-internal static unsafe class TextAnalysis {
+internal static class TextAnalysis {
+	/// <summary>
+	/// A paragraph analyzed by the Unicode Bidirectional Algorithm, whose direction comes from its
+	/// first strong character (left-to-right if it has none). Positions are UTF-16 code units.
+	/// </summary>
 	public sealed class ParagraphAnalysis : IDisposable {
-		// TODO: a way to pass FRIBIDI_FLAG_REORDER_NSM for rtl combining mark placement
-		private const uint fribidiFlags = 0;
+		private nint handle;
+		private readonly byte[] levels;
 
-		private bool disposed = false;
-		/// <summary>
-		/// Copy of <see cref="Levels"/> that <c>fribidi_reorder_line</c> reorders in place.
-		/// </summary>
-		/// <remarks>
-		/// <c>fribidi_reorder_line</c> indexes this and <see cref="lineMap"/> by position in the
-		/// paragraph and only touches the line's part, so one copy of each serves every line of the
-		/// paragraph.
-		/// </remarks>
-		private sbyte[]? lineLevels;
-
-		/// <summary>
-		/// Visual-to-logical map of the line last passed to <see cref="GetVisualRunsForLine"/>.
-		/// </summary>
-		/// <remarks>
-		/// See <see cref="lineLevels"/>.
-		/// </remarks>
-		private int[]? lineMap;
+		private ParagraphAnalysis(string text, nint handle, byte[] levels) {
+			Text = text;
+			this.handle = handle;
+			this.levels = levels;
+		}
 
 		public string Text { get; }
-		public int ScalarLength { get; }
-		public int[] ScalarStartsUtf16 { get; }
-		public uint[] Scalars { get; }
-		public uint[] BidiTypes { get; }
-		public uint[] BracketTypes { get; }
-		public sbyte[] Levels { get; }
-		public uint BaseDir { get; }
-
-		private ParagraphAnalysis(
-			string text,
-			int scalarLength,
-			int[] scalarStartsUtf16,
-			uint[] scalars,
-			uint[] bidiTypes,
-			uint[] bracketTypes,
-			sbyte[] levels,
-			uint baseDir
-		) {
-			Text = text;
-			ScalarLength = scalarLength;
-			ScalarStartsUtf16 = scalarStartsUtf16;
-			Scalars = scalars;
-			BidiTypes = bidiTypes;
-			BracketTypes = bracketTypes;
-			Levels = levels;
-			BaseDir = baseDir;
-		}
 
 		public static ParagraphAnalysis Create(string text) {
-			int estimatedScalars = text.Length; // XXX this is an upper-bound estimate that may be too blunt
-			int[] scalarStartsUtf16 = ArrayPool<int>.Shared.Rent(estimatedScalars + 1);
-			uint[] scalars = ArrayPool<uint>.Shared.Rent(estimatedScalars);
-			uint[] bidiTypes = ArrayPool<uint>.Shared.Rent(estimatedScalars);
-			uint[] bracketTypes = ArrayPool<uint>.Shared.Rent(estimatedScalars);
-			sbyte[] levels = ArrayPool<sbyte>.Shared.Rent(estimatedScalars);
-			int scalarCount = 0;
-			int utf16Index = 0;
-			scalarStartsUtf16[0] = 0;
-
-			while (utf16Index < text.Length) {
-				if (Rune.DecodeFromUtf16(text.AsSpan(utf16Index), out Rune rune, out int consumed) != OperationStatus.Done)
-					throw new InternalStateException($"invalid utf-16 at index {utf16Index}, which layout should have replaced");
-				scalars[scalarCount] = (uint)rune.Value;
-				utf16Index += consumed;
-				scalarCount++;
-				scalarStartsUtf16[scalarCount] = utf16Index;
+			nint handle = IjText.BidiOpen(text);
+			try {
+				var levels = new byte[text.Length];
+				IjText.BidiLevels(handle, levels);
+				return new ParagraphAnalysis(text, handle, levels);
+			} catch {
+				IjText.ijt_bidi_close(handle);
+				throw;
 			}
-
-			uint baseDir;
-			fixed (uint* pScalars = scalars)
-			fixed (uint* pBidiTypes = bidiTypes)
-			fixed (uint* pBracketTypes = bracketTypes)
-			fixed (sbyte* pLevels = levels) {
-				fribidi_get_bidi_types(pScalars, scalarCount, pBidiTypes);
-				for (int i = 0; i < scalarCount; i++)
-					pBracketTypes[i] = fribidi_get_bracket(pScalars[i]);
-				baseDir = fribidi_get_par_direction(pBidiTypes, scalarCount);
-				if (fribidi_get_par_embedding_levels_ex(pBidiTypes, pBracketTypes, scalarCount, &baseDir, pLevels) == 0)
-					throw new InvalidOperationException("fribidi_get_par_embedding_levels_ex failed");
-			}
-			return new ParagraphAnalysis(text, scalarCount, scalarStartsUtf16, scalars, bidiTypes, bracketTypes, levels, baseDir);
 		}
 
+		private nint h => handle != 0 ? handle : throw new InternalStateException("ParagraphAnalysis already disposed");
+
+		/// <summary>
+		/// Adds the maximal runs of one direction, in logical order.
+		/// </summary>
 		public void GetLogicalRuns(List<LogicalBidiRun> dst) {
-			if (disposed)
-				throw new InternalStateException("ParagraphAnalysis already disposed");
-			int scalarStart = 0;
-			while (scalarStart < ScalarLength) {
-				bool rtl = isRtlLevel(Levels[scalarStart]);
-				int scalarLimit = scalarStart + 1;
-				while (scalarLimit < ScalarLength && isRtlLevel(Levels[scalarLimit]) == rtl)
-					scalarLimit++;
-				int utf16Start = ScalarStartsUtf16[scalarStart];
-				int utf16Limit = ScalarStartsUtf16[scalarLimit];
-				dst.Add(
-					new LogicalBidiRun(
-						Start: utf16Start,
-						Length: utf16Limit - utf16Start,
-						Direction: rtl ? Direction.RightToLeft : Direction.LeftToRight
-					)
-				);
-				scalarStart = scalarLimit;
+			_ = h;
+			int start = 0;
+			while (start < levels.Length) {
+				bool rtl = isRtlLevel(levels[start]);
+				int limit = start + 1;
+				while (limit < levels.Length && isRtlLevel(levels[limit]) == rtl)
+					limit++;
+				dst.Add(new LogicalBidiRun(start, limit - start, rtl ? Direction.RightToLeft : Direction.LeftToRight));
+				start = limit;
 			}
 		}
 
-		public void GetVisualRunsForLine(List<VisualBidiRun> dst, int lineStartUtf16, int lineLimitUtf16) {
-			if (disposed)
-				throw new InternalStateException("ParagraphAnalysis already disposed");
-			int lineScalarStart = utf16ToScalarBoundary(lineStartUtf16);
-			int lineScalarLimit = utf16ToScalarBoundary(lineLimitUtf16);
-			int lineScalarLength = lineScalarLimit - lineScalarStart;
-			if (lineScalarLength <= 0)
+		/// <summary>
+		/// Adds the runs of a line in visual order, left to right.
+		/// </summary>
+		public void GetVisualRunsForLine(List<VisualBidiRun> dst, int lineStart, int lineLimit) {
+			nint para = h;
+			int length = lineLimit - lineStart;
+			if (length <= 0)
 				return;
-
-			if (lineLevels is null || lineMap is null) {
-				lineLevels = ArrayPool<sbyte>.Shared.Rent(ScalarLength);
-				Array.Copy(Levels, 0, lineLevels, 0, ScalarLength);
-				lineMap = ArrayPool<int>.Shared.Rent(ScalarLength);
-			}
-			sbyte[] levels = lineLevels;
-			int[] map = lineMap;
-			for (int i = lineScalarStart; i < lineScalarLimit; i++)
-				map[i] = i;
-
-			fixed (uint* pBidiTypes = BidiTypes)
-			fixed (sbyte* pLevels = levels)
-			fixed (int* pMap = map) {
-				if (fribidi_reorder_line(
-					fribidiFlags,
-					pBidiTypes,
-					lineScalarLength,
-					lineScalarStart,
-					BaseDir,
-					pLevels,
-					null,
-					pMap
-				) == 0)
-					throw new InvalidOperationException("fribidi_reorder_line failed");
-			}
-
-			int visualIndex = lineScalarStart;
-			while (visualIndex < lineScalarLimit) {
-				int firstLogical = map[visualIndex];
-				bool rtl = isRtlLevel(levels[firstLogical]);
-				int delta = rtl ? -1 : 1;
-				int minLogical = firstLogical;
-				int maxLogical = firstLogical;
-				int prevLogical = firstLogical;
-				int nextVisual = visualIndex + 1;
-				while (nextVisual < lineScalarLimit) {
-					int logical = map[nextVisual];
-					if (isRtlLevel(levels[logical]) != rtl)
-						break;
-					if (logical != prevLogical + delta)
-						break;
-					prevLogical = logical;
-					minLogical = Math.Min(minLogical, logical);
-					maxLogical = Math.Max(maxLogical, logical);
-					nextVisual++;
+			IjText.BidiRun[] runs = ArrayPool<IjText.BidiRun>.Shared.Rent(length);
+			try {
+				int count = IjText.BidiVisualRuns(para, lineStart, lineLimit, runs.AsSpan(0, length));
+				foreach (IjText.BidiRun run in runs.AsSpan(0, count)) {
+					dst.Add(new VisualBidiRun(
+						(int)run.Start,
+						(int)run.Len,
+						run.Rtl != 0 ? Direction.RightToLeft : Direction.LeftToRight
+					));
 				}
-				int utf16Start = ScalarStartsUtf16[minLogical];
-				int utf16Limit = ScalarStartsUtf16[maxLogical + 1];
-				dst.Add(
-					new VisualBidiRun(
-						Start: utf16Start,
-						Length: utf16Limit - utf16Start,
-						Direction: rtl ? Direction.RightToLeft : Direction.LeftToRight
-					)
-				);
-				visualIndex = nextVisual;
+			} finally {
+				ArrayPool<IjText.BidiRun>.Shared.Return(runs);
 			}
-		}
-
-		private int utf16ToScalarBoundary(int utf16Offset) {
-			int idx = Array.BinarySearch(ScalarStartsUtf16, 0, ScalarLength + 1, utf16Offset);
-			if (idx < 0)
-				throw new InternalStateException($"offset {utf16Offset} is not on a scalar boundary");
-			return idx;
 		}
 
 		public void Dispose() {
-			if (disposed)
+			if (handle == 0)
 				return;
-			disposed = true;
-			ArrayPool<int>.Shared.Return(ScalarStartsUtf16);
-			ArrayPool<uint>.Shared.Return(Scalars);
-			ArrayPool<uint>.Shared.Return(BidiTypes);
-			ArrayPool<uint>.Shared.Return(BracketTypes);
-			ArrayPool<sbyte>.Shared.Return(Levels);
-			if (lineLevels is not null)
-				ArrayPool<sbyte>.Shared.Return(lineLevels);
-			if (lineMap is not null)
-				ArrayPool<int>.Shared.Return(lineMap);
+			IjText.ijt_bidi_close(handle);
+			handle = 0;
 		}
 	}
 
@@ -292,48 +227,21 @@ internal static unsafe class TextAnalysis {
 	}
 
 	/// <summary>
-	/// Converts a BCP 47 language tag to the language string libunibreak expects.
+	/// Gets the positions after which a line may or must break, for text in the language
+	/// <paramref name="language"/> (a BCP 47 tag; see <see cref="TextStyle.Language"/>).
 	/// </summary>
-	/// <remarks>
-	/// libunibreak compares the first two characters with the languages it has rules for (and with
-	/// <c>zh</c>/<c>ja</c>/<c>ko</c> for CJK handling), case-sensitively, and checks for a
-	/// <c>-strict</c> suffix. So, for example, a three-letter subtag like <c>kok</c> (Konkani) would
-	/// falsely match <c>ko</c> (Korean).
-	/// </remarks>
-	public static string? UnibreakLanguage(string? tag) {
-		if (string.IsNullOrEmpty(tag))
-			return null;
-		string[] subtags = tag.ToLowerInvariant().Split('-');
-		string? lang = subtags[0].Length == 2 ? subtags[0] : null;
-		bool strict = false;
-		// the u extension's keywords run until the next singleton subtag
-		int u = Array.IndexOf(subtags, "u");
-		if (u > 0) {
-			for (int i = u + 1; i + 1 < subtags.Length && subtags[i].Length > 1; i++) {
-				if (subtags[i] == "lb" && subtags[i + 1] == "strict") {
-					strict = true;
-					break;
-				}
-			}
-		}
-		return strict ? (lang ?? "und") + "-strict" : lang;
-	}
-
-	public static LineBreakOpportunity[] GetLineBreaks(string text, string? unibreakLanguage) {
+	public static LineBreakOpportunity[] GetLineBreaks(string text, string language) {
 		if (text.Length == 0)
 			return [];
-		Span<sbyte> raw = text.Length <= 2048 ? stackalloc sbyte[text.Length] : new sbyte[text.Length];
-		Unibreak.SetLineBreaks(text, raw, unibreakLanguage);
+		Span<IjText.BreakKind> kinds = text.Length < 2048
+			? stackalloc IjText.BreakKind[text.Length + 1]
+			: new IjText.BreakKind[text.Length + 1];
+		IjText.LineBreaks(text, language, kinds);
 		List<LineBreakOpportunity> breaks = new();
-		for (int i = 0; i < raw.Length; i++) {
-			LineBreakKind kind = raw[i] switch {
-				Unibreak.LINEBREAK_MUSTBREAK => LineBreakKind.Hard,
-				Unibreak.LINEBREAK_ALLOWBREAK => LineBreakKind.Soft,
-				_ => LineBreakKind.None,
-			};
-			if (kind != LineBreakKind.None)
-				breaks.Add(new LineBreakOpportunity(i + 1, kind));
-		}
+		// XXX: update this if IjText.BreakKind and LineBreakKind ever diverge in numeric values
+		for (int i = 1; i < kinds.Length; i++)
+			if (kinds[i] != IjText.BreakKind.None)
+				breaks.Add(new LineBreakOpportunity(i, (LineBreakKind)kinds[i]));
 		return breaks.ToArray();
 	}
 
@@ -417,5 +325,5 @@ internal static unsafe class TextAnalysis {
 		return items.ToArray();
 	}
 
-	private static bool isRtlLevel(sbyte level) => (level & 1) != 0;
+	private static bool isRtlLevel(byte level) => (level & 1) != 0;
 }

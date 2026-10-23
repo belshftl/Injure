@@ -1,6 +1,0 @@
-[submodule "native/misc/extern/libunibreak"]
-	path = native/misc/extern/libunibreak
-	url = https://github.com/adah1972/libunibreak
-[submodule "native/misc/extern/fribidi"]
-	path = native/misc/extern/fribidi
-	url = https://github.com/fribidi/fribidi

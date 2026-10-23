@@ -10,6 +10,7 @@
 /native/clrprof/target/
 /native/misc/obj/
 /native/misc/out/
+/native/text/target/
 /native/pack/
 /smoke/**/bin/
 /smoke/**/obj/
