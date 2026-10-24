@@ -67,7 +67,7 @@ typedef enum EventKind : int32_t {
  *   4. 4 bytes (token)
  *   5. 4 bytes (hresult)
  *
- * On targets with 32-bit pointers, has a size of 16 bytes and an alignment of 4 bytes:
+ * On targets with 32-bit-wide pointers, has a size of 16 bytes and an alignment of 4 bytes:
  *   1. 4 bytes (kind)
  *   2. 4 bytes (module)
  *   3. 4 bytes (token)
