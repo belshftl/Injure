@@ -17,7 +17,9 @@ namespace Injure.Tests.Draw.Text;
 // the fonts come from Fonts/make_test_fonts.py: every glyph is a box spanning 50 units in from
 // either side of its advance and 700 units up from the baseline, letters advance 500 units ('m'
 // 1000), the wide variant's letters 700, digits 600, space 300, .notdef 500, with an ascent of 800,
-// a descent of 200, and 1000 units per em, so at size 10 everything is whole drawable units
+// a descent of 200, and 1000 units per em, so at size 10 everything is whole drawable units. the
+// gap variant has a line gap of 200, and in the contextual one, 'b' before 'c' and 'c' after 'b'
+// advance 300
 public sealed class TextSystemTests : GpuTestBase {
 	// layout uses ijtext; the native libs collection can't be used here, since this class is already
 	// in the GPU one
@@ -121,6 +123,30 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(20f, l.Height);
 		Assert.Single(text.Layout("aa aa aa", style(sans)).Lines);
 		Assert.Single(text.Layout("aa aa aa", style(sans), TextLayoutOptions.Default with { MaxWidth = 26, WrapMode = TextWrapMode.None }).Lines);
+	}
+
+	[Fact]
+	public void LineEndsAreShapedAgainIfABreakChangesContextualForms() {
+		using TextSystem text = new(Device);
+		FontData ctx = text.LoadFont(fontBytes("InjureTestContextual"));
+		// unbroken, 'b' and 'c' use their 300-unit forms
+		Assert.Equal(11f, text.Layout("abc", style(ctx)).Width);
+		float[] widths(float maxWidth) =>
+			text.Layout("abc", style(ctx), TextLayoutOptions.Default with { MaxWidth = maxWidth }).Lines.Select(static l => l.Width).ToArray();
+		// "ab" fits by its unbroken width, and broken apart, both sides go back to the usual forms
+		Assert.Equal([10f, 5f], widths(10));
+		// "ab" no longer fits once broken from 'c', so the break moves back
+		Assert.Equal([5f, 6f], widths(9));
+	}
+
+	[Fact]
+	public void HeightDoesntIncludeTheLastLinesLineGap() {
+		using TextSystem text = new(Device);
+		FontData gap = text.LoadFont(fontBytes("InjureTestSansGap"));
+		TextLayout l = text.Layout("a\na", style(gap));
+		Assert.Equal(12f, l.Lines[0].Height);
+		Assert.Equal(20f, l.Lines[1].BaselineY);
+		Assert.Equal(22f, l.Height);
 	}
 
 	private static TextLine[] aligned(TextSystem text, FontData sans, string s, float maxWidth, TextHorizontalAlign align) =>

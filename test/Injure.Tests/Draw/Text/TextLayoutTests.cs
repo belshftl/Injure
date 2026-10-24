@@ -8,11 +8,12 @@ namespace Injure.Tests.Draw.Text;
 public static class TextLayoutTests {
 	// one glyph per cluster, 10 wide
 	private static ParagraphCluster c(int i, bool ws = false, LineBreakKind breakAfter = LineBreakKind.None) =>
-		new(Run: 0, GlyphStart: i, GlyphCount: 1, SourceStart: i, SourceLength: 1, Width: 10, IsWhitespaceOnly: ws, BreakAfter: breakAfter);
+		new(Run: 0, GlyphStart: i, GlyphCount: 1, SourceStart: i, SourceLength: 1, Width: 10, IsWhitespaceOnly: ws, UnsafeToBreak: false, BreakAfter: breakAfter);
 
-	private static LineSpan[] wrap(ParagraphCluster[] clusters, float maxWidth, bool wrap = true) {
+	// `extra` stands in for a line getting wider when its ends are shaped again
+	private static LineSpan[] wrap(ParagraphCluster[] clusters, float maxWidth, bool wrap = true, float extra = 0f) {
 		List<LineSpan> spans = new();
-		TextLayouter.Wrap(clusters, maxWidth, wrap, spans);
+		TextLayouter.Wrap(clusters, maxWidth, wrap, (start, end) => 10f * (end - start) + extra, spans);
 		return spans.ToArray();
 	}
 
@@ -50,4 +51,26 @@ public static class TextLayoutTests {
 	[Fact]
 	public static void HardBreaksEndLines() =>
 		Assert.Equal([new LineSpan(0, 2), new LineSpan(2, 3)], wrap([c(0), c(1, breakAfter: LineBreakKind.Hard), c(2)], 100f, wrap: false));
+
+	[Fact]
+	public static void LinesThatGetWiderWhenMeasuredBreakAtAnEarlierOpportunity() {
+		// "a b cc"; by the clusters' widths, "a b" fits, but measured 25 wider, only single words do
+		ParagraphCluster[] clusters = [c(0), c(1, ws: true, LineBreakKind.Soft), c(2), c(3, ws: true, LineBreakKind.Soft), c(4), c(5)];
+		Assert.Equal([new LineSpan(0, 3), new LineSpan(4, 6)], wrap(clusters, 50f));
+		Assert.Equal([new LineSpan(0, 1), new LineSpan(2, 3), new LineSpan(4, 6)], wrap(clusters, 50f, extra: 25f));
+	}
+
+	[Fact]
+	public static void WordsThatGetWiderWhenMeasuredBreakWithinThemselves() {
+		Assert.Equal([new LineSpan(0, 2), new LineSpan(2, 3)], wrap([c(0), c(1), c(2)], 30f, extra: 5f));
+		// also before a hard break
+		Assert.Equal(
+			[new LineSpan(0, 2), new LineSpan(2, 3), new LineSpan(3, 4)],
+			wrap([c(0), c(1), c(2, breakAfter: LineBreakKind.Hard), c(3)], 30f, extra: 5f)
+		);
+	}
+
+	[Fact]
+	public static void ClustersWiderThanTheLineStayOnTheirOwnLine() =>
+		Assert.Equal([new LineSpan(0, 1), new LineSpan(1, 2)], wrap([c(0), c(1)], 5f, extra: 5f));
 }

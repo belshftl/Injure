@@ -51,6 +51,10 @@ internal readonly record struct ShapedGlyph(
 	public static readonly int Size = Unsafe.SizeOf<ShapedGlyph>();
 }
 
+#pragma warning disable CS1573 // parameter has no matching <param> tag
+/// <param name="UnsafeToBreak">
+/// Whether breaking at the cluster's start may shape either side differently.
+/// </param>
 /// <remarks>
 /// The <see langword="default"/> value is valid and is an empty cluster starting at 0.
 /// </remarks>
@@ -60,11 +64,13 @@ internal readonly record struct ShapedCluster(
 	int SourceStart,
 	int SourceLength,
 	float Width,
-	bool IsWhitespaceOnly
+	bool IsWhitespaceOnly,
+	bool UnsafeToBreak
 ) {
 	public static readonly int Size = Unsafe.SizeOf<ShapedCluster>();
 	public int SourceLimit => SourceStart + SourceLength;
 }
+#pragma warning restore CS1573 // parameter has no matching <param> tag
 
 internal sealed class ShapedRun {
 	public required string Text { get; init; }
@@ -199,7 +205,7 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 			);
 			w += glyphs[i].XAdvance;
 		}
-		(TextSegmentProperties properties, ShapedCluster[] sourceOrderClusters) = buildClusters(item, buf, glyphs);
+		(TextSegmentProperties properties, ShapedCluster[] sourceOrderClusters) = buildClusters(item, buf, glyphs, infos);
 		return new ShapedRun {
 			Text = item.Text,
 			Properties = properties,
@@ -213,7 +219,8 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 	private static (TextSegmentProperties Properties, ShapedCluster[] SourceOrderClusters) buildClusters(
 		in TextItem item,
 		Buffer buf,
-		ShapedGlyph[] glyphs
+		ShapedGlyph[] glyphs,
+		GlyphInfo[] infos
 	) {
 		List<ShapedCluster> glyphOrderClusters = new();
 		if (glyphs.Length != 0) {
@@ -233,9 +240,13 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 			while (glyphStart < glyphs.Length) {
 				uint cluster = glyphs[glyphStart].Cluster;
 				float clusterWidth = glyphs[glyphStart].XAdvance;
+				// the flag on any of the cluster's glyphs counts
+				bool unsafeToBreak = (infos[glyphStart].GlyphFlags & GlyphFlags.UnsafeToBreak) != 0;
 				int glyphCount = 1;
-				for (; glyphStart + glyphCount < glyphs.Length && glyphs[glyphStart + glyphCount].Cluster == cluster; glyphCount++)
+				for (; glyphStart + glyphCount < glyphs.Length && glyphs[glyphStart + glyphCount].Cluster == cluster; glyphCount++) {
 					clusterWidth += glyphs[glyphStart + glyphCount].XAdvance;
+					unsafeToBreak |= (infos[glyphStart + glyphCount].GlyphFlags & GlyphFlags.UnsafeToBreak) != 0;
+				}
 				int sourceStart = Math.Clamp(checked((int)cluster), 0, item.Text.Length);
 				int sourceLimit = Math.Max(Math.Clamp(nextClusterMap[cluster], 0, item.Text.Length), sourceStart);
 				ReadOnlySpan<char> sourceText = item.Text.AsSpan(sourceStart, sourceLimit - sourceStart);
@@ -246,7 +257,8 @@ internal sealed class ShapeCache(TextSystem text, int maxEntries, int maxEstimat
 						SourceStart: sourceStart,
 						SourceLength: sourceLimit - sourceStart,
 						Width: clusterWidth,
-						IsWhitespaceOnly: isWsOnly(sourceText)
+						IsWhitespaceOnly: isWsOnly(sourceText),
+						UnsafeToBreak: unsafeToBreak
 					)
 				);
 				glyphStart += glyphCount;

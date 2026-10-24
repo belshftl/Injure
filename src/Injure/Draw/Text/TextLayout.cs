@@ -190,6 +190,7 @@ internal readonly record struct ParagraphCluster(
 	int SourceLength,
 	float Width,
 	bool IsWhitespaceOnly,
+	bool UnsafeToBreak,
 	LineBreakKind BreakAfter
 ) {
 	public int SourceLimit => SourceStart + SourceLength;
@@ -259,8 +260,25 @@ internal sealed class LayoutResult {
 }
 
 internal static class TextLayouter {
+	/// <summary>
+	/// A line's clusters from one run, in [<see cref="Start"/>, <see cref="End"/>) of the
+	/// paragraph's clusters. <see cref="Reshaped"/> is set if the line cuts the run at a cluster
+	/// that's unsafe to break at, and holds the line's part of the run shaped on its own.
+	/// </summary>
+	/// <remarks>
+	/// The <see langword="default"/> value is valid and is an empty piece of run 0.
+	/// </remarks>
+	private readonly record struct LinePiece(
+		int Run,
+		int Start,
+		int End,
+		ParagraphRun? Reshaped
+	);
+
 	private sealed class Scratch {
 		public required RichText Text;
+		public required ResolvedFontFallbackChain[] Chains;
+		public required ShapeCache ShapeCache;
 		public required ShapingSpan[] Shaping;
 		public required FontLineMetrics[][] Metrics; // by chain, then font
 		public readonly List<LaidOutGlyph> Glyphs = new();
@@ -270,6 +288,9 @@ internal static class TextLayouter {
 		public readonly List<ParagraphRun> Runs = new();
 		public readonly List<ParagraphCluster> Clusters = new();
 		public readonly List<LineSpan> Spans = new();
+		public readonly List<LinePiece> Pieces = new();
+		// the current line's clusters, with reshaped runs' clusters in place of the originals
+		public readonly List<ParagraphCluster> LineClusters = new();
 		public readonly List<LogicalBidiRun> LogicalRuns = new();
 		public readonly List<VisualBidiRun> VisualRuns = new();
 		public readonly List<ResolvedItem> Resolved = new();
@@ -287,6 +308,7 @@ internal static class TextLayouter {
 	public static LayoutResult Layout(
 		ITextItemizer itemizer,
 		FallbackResolver resolver,
+		ShapeCache shapeCache,
 		ResolvedFontFallbackChain[] chains,
 		RichText text,
 		int[] spanChains,
@@ -298,7 +320,13 @@ internal static class TextLayouter {
 			for (int f = 0; f < metrics[c].Length; f++)
 				metrics[c][f] = chains[c].States[f].LineMetrics;
 		}
-		Scratch s = new() { Text = text, Shaping = ShapingSpans(text, spanChains), Metrics = metrics };
+		Scratch s = new() {
+			Text = text,
+			Chains = chains,
+			ShapeCache = shapeCache,
+			Shaping = ShapingSpans(text, spanChains),
+			Metrics = metrics,
+		};
 		string str = text.Text;
 		bool wrap = options.WrapMode == TextWrapMode.Greedy && !float.IsPositiveInfinity(options.MaxWidth);
 		float top = 0f;
@@ -317,20 +345,24 @@ internal static class TextLayouter {
 				using var analysis = TextAnalysis.ParagraphAnalysis.Create(para);
 				buildRuns(s, itemizer, resolver, chains, para, paraStart, analysis);
 				buildClusters(s, para, paraStart);
-				Wrap(CollectionsMarshal.AsSpan(s.Clusters), options.MaxWidth, wrap, s.Spans);
-				foreach (LineSpan span in s.Spans)
-					emitLine(s, analysis, paraStart, span, ref top, ref width);
+				Wrap(CollectionsMarshal.AsSpan(s.Clusters), options.MaxWidth, wrap, (start, end) => measureLine(s, start, end), s.Spans);
+				foreach (LineSpan span in s.Spans) {
+					buildLineClusters(s, span);
+					emitLine(s, analysis, paraStart, CollectionsMarshal.AsSpan(s.LineClusters), ref top, ref width);
+				}
 			}
 			if (newline < 0)
 				break;
 			paraStart = newline + 1;
 		}
 		align(s, float.IsPositiveInfinity(options.MaxWidth) ? width : options.MaxWidth, options.HorizontalAlign);
+		// there's always a line, and the last one's line gap isn't part of the text
+		TextLine last = s.Lines[^1];
 		return new LayoutResult {
 			Glyphs = s.Glyphs.ToArray(),
 			Lines = s.Lines.ToArray(),
 			Width = width,
-			Height = top,
+			Height = last.BaselineY + last.Descent,
 		};
 	}
 
@@ -432,21 +464,29 @@ internal static class TextLayouter {
 				if (opp.Position > lo && opp.Position <= hi)
 					breakAfter[opp.Position] = opp.Kind;
 		}
-		for (int r = 0; r < s.Runs.Count; r++) {
-			ParagraphRun run = s.Runs[r];
-			foreach (ShapedCluster c in run.Shaped.SourceOrderClusters) {
-				int start = run.Item.SourceStart + c.SourceStart;
-				s.Clusters.Add(new ParagraphCluster(
-					Run: r,
-					GlyphStart: c.GlyphStart,
-					GlyphCount: c.GlyphCount,
-					SourceStart: start,
-					SourceLength: c.SourceLength,
-					Width: c.Width * run.Size,
-					IsWhitespaceOnly: c.IsWhitespaceOnly,
-					BreakAfter: breakAfter[start + c.SourceLength]
-				));
-			}
+		for (int r = 0; r < s.Runs.Count; r++)
+			appendClusters(s.Clusters, r, s.Runs[r], breakAfter);
+	}
+
+	/// <summary>
+	/// Appends the clusters of run <paramref name="runIndex"/> to <paramref name="dst"/>, reading the
+	/// breaks from <paramref name="breakAfter"/> indexed by paragraph-relative positions, or using
+	/// <see cref="LineBreakKind.None"/> if it's empty.
+	/// </summary>
+	private static void appendClusters(List<ParagraphCluster> dst, int runIndex, ParagraphRun run, ReadOnlySpan<LineBreakKind> breakAfter) {
+		foreach (ShapedCluster c in run.Shaped.SourceOrderClusters) {
+			int start = run.Item.SourceStart + c.SourceStart;
+			dst.Add(new ParagraphCluster(
+				Run: runIndex,
+				GlyphStart: c.GlyphStart,
+				GlyphCount: c.GlyphCount,
+				SourceStart: start,
+				SourceLength: c.SourceLength,
+				Width: c.Width * run.Size,
+				IsWhitespaceOnly: c.IsWhitespaceOnly,
+				UnsafeToBreak: c.UnsafeToBreak,
+				BreakAfter: breakAfter.IsEmpty ? LineBreakKind.None : breakAfter[start + c.SourceLength]
+			));
 		}
 	}
 
@@ -454,40 +494,99 @@ internal static class TextLayouter {
 	/// Breaks a paragraph's clusters into lines; whitespace never causes a wrap by itself, and is
 	/// trimmed from both sides of a wrap.
 	/// </summary>
-	public static void Wrap(ReadOnlySpan<ParagraphCluster> clusters, float maxWidth, bool wrap, List<LineSpan> dst) {
+	/// <remarks>
+	/// <paramref name="measure"/> measures the width of a line made of the clusters in [start, end),
+	/// which is not the same as the sum of their widths if the line's ends are shaped again. Lines
+	/// are filled by the clusters' widths, then each line that may need breaking is checked via
+	/// <paramref name="measure"/>; a line that doesn't fit breaks at an earlier opportunity, or
+	/// within its first word if there still isn't one that fits. Since filling uses the widths in the
+	/// unbroken text, a line whose ends get narrower when shaped again may break earlier than it has
+	/// to.
+	/// </remarks>
+	public static void Wrap(
+		ReadOnlySpan<ParagraphCluster> clusters,
+		float maxWidth,
+		bool wrap,
+		Func<int, int, float> measure,
+		List<LineSpan> dst
+	) {
 		if (clusters.IsEmpty) {
 			dst.Add(default);
 			return;
 		}
 		int start = 0;
 		float width = 0f;
-		int lastBreak = -1; // the last cluster of the line that a soft break may follow
 		int i = 0;
-		while (i < clusters.Length) {
+		for (;;) {
+			if (i == clusters.Length) {
+				if (start == clusters.Length)
+					break;
+				if (wrap && !fits(clusters, start, i, maxWidth, measure)) {
+					start = addWrappedLine(clusters, start, findBreak(clusters, start, i - 1, maxWidth, measure), dst);
+					i = start;
+					width = 0f;
+					continue;
+				}
+				dst.Add(new LineSpan(start, i));
+				break;
+			}
 			ParagraphCluster c = clusters[i];
 			if (wrap && i > start && !c.IsWhitespaceOnly && width + c.Width > maxWidth) {
-				int end = lastBreak >= start ? lastBreak + 1 : i;
-				dst.Add(new LineSpan(start, TrimTrailingWs(clusters, start, end)));
-				start = SkipLeadingWs(clusters, end);
+				start = addWrappedLine(clusters, start, findBreak(clusters, start, i, maxWidth, measure), dst);
+				i = start;
 				width = 0f;
-				for (int k = start; k < i; k++)
-					width += clusters[k].Width;
-				lastBreak = -1;
 				continue;
 			}
 			width += c.Width;
 			if (c.BreakAfter == LineBreakKind.Hard) {
+				if (wrap && !fits(clusters, start, i + 1, maxWidth, measure)) {
+					start = addWrappedLine(clusters, start, findBreak(clusters, start, i, maxWidth, measure), dst);
+					i = start;
+					width = 0f;
+					continue;
+				}
 				dst.Add(new LineSpan(start, i + 1));
 				start = i + 1;
 				width = 0f;
-				lastBreak = -1;
-			} else if (c.BreakAfter == LineBreakKind.Soft) {
-				lastBreak = i;
 			}
 			i++;
 		}
-		if (start < clusters.Length || dst.Count == 0)
-			dst.Add(new LineSpan(start, clusters.Length));
+	}
+
+	// whether the line [start, end) fits, without trailing whitespace
+	// a single cluster always does, since it can't be broken further
+	private static bool fits(ReadOnlySpan<ParagraphCluster> clusters, int start, int end, float maxWidth, Func<int, int, float> measure) {
+		int trimmed = TrimTrailingWs(clusters, start, end);
+		return trimmed - start <= 1 || measure(start, trimmed) <= maxWidth;
+	}
+
+	// adds the line [start, brk) wrapped at brk, and returns where the next one starts
+	private static int addWrappedLine(ReadOnlySpan<ParagraphCluster> clusters, int start, int brk, List<LineSpan> dst) {
+		dst.Add(new LineSpan(start, TrimTrailingWs(clusters, start, brk)));
+		return SkipLeadingWs(clusters, brk);
+	}
+
+	/// <summary>
+	/// Gets the last position in (<paramref name="start"/>, <paramref name="last"/>] to wrap a line
+	/// starting at <paramref name="start"/> at: the last soft break opportunity at which the line
+	/// fits, or if there's none, the last position within the line's first word at which it fits, or
+	/// if there's none, right after the first cluster.
+	/// </summary>
+	private static int findBreak(ReadOnlySpan<ParagraphCluster> clusters, int start, int last, float maxWidth, Func<int, int, float> measure) {
+		int firstSoft = -1;
+		for (int p = last; p > start; p--) {
+			if (clusters[p - 1].BreakAfter != LineBreakKind.Soft)
+				continue;
+			firstSoft = p;
+			int trimmed = TrimTrailingWs(clusters, start, p);
+			if (trimmed > start && measure(start, trimmed) <= maxWidth)
+				return p;
+		}
+		// the first word doesn't fit by itself, so it's broken within
+		for (int p = firstSoft >= 0 ? firstSoft - 1 : last; p > start + 1; p--)
+			if (measure(start, TrimTrailingWs(clusters, start, p)) <= maxWidth)
+				return p;
+		return start + 1;
 	}
 
 	public static int SkipLeadingWs(ReadOnlySpan<ParagraphCluster> clusters, int start) {
@@ -518,6 +617,77 @@ internal static class TextLayouter {
 	}
 
 	/// <summary>
+	/// Splits the line [<paramref name="start"/>, <paramref name="end"/>) of the paragraph's
+	/// clusters into pieces by run, shaping a piece again if the line cuts its run at a cluster
+	/// that's unsafe to break at.
+	/// </summary>
+	private static void linePieces(Scratch s, int start, int end, List<LinePiece> dst) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(s.Clusters);
+		dst.Clear();
+		int a = start;
+		while (a < end) {
+			int r = clusters[a].Run;
+			int b = a + 1;
+			while (b < end && clusters[b].Run == r)
+				b++;
+			// we don't need to do anything for a cut between runs, since they're shaped separately anyways
+			bool cutBefore = a > 0 && clusters[a - 1].Run == r && clusters[a].UnsafeToBreak;
+			bool cutAfter = b < clusters.Length && clusters[b].Run == r && clusters[b].UnsafeToBreak;
+			ParagraphRun? reshaped = cutBefore || cutAfter
+				? reshape(s, s.Runs[r], clusters[a].SourceStart, clusters[b - 1].SourceLimit)
+				: null;
+			dst.Add(new LinePiece(r, a, b, reshaped));
+			a = b;
+		}
+	}
+
+	// independently reshapes the part of `run` in [sourceStart, sourceLimit) (relative to the
+	// paragraph)
+	private static ParagraphRun reshape(Scratch s, ParagraphRun run, int sourceStart, int sourceLimit) {
+		TextItem item = new(
+			SourceStart: sourceStart,
+			Text: run.Item.Text.Substring(sourceStart - run.Item.SourceStart, sourceLimit - sourceStart),
+			Properties: run.Shaped.Properties
+		);
+		return new ParagraphRun {
+			Chain = run.Chain,
+			FontIndex = run.FontIndex,
+			Size = run.Size,
+			Item = item,
+			Shaped = s.ShapeCache.GetOrCreate(s.Chains[run.Chain].Fonts[run.FontIndex], item),
+		};
+	}
+
+	private static float measureLine(Scratch s, int start, int end) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(s.Clusters);
+		linePieces(s, start, end, s.Pieces);
+		float width = 0f;
+		foreach (LinePiece p in s.Pieces) {
+			if (p.Reshaped is not null) {
+				width += p.Reshaped.Shaped.Width * p.Reshaped.Size;
+			} else {
+				for (int k = p.Start; k < p.End; k++)
+					width += clusters[k].Width;
+			}
+		}
+		return width;
+	}
+
+	// fills s.LineClusters with a line's clusters, adding the runs of reshaped pieces to s.Runs
+	private static void buildLineClusters(Scratch s, LineSpan span) {
+		s.LineClusters.Clear();
+		linePieces(s, span.Start, span.End, s.Pieces);
+		foreach (LinePiece p in s.Pieces) {
+			if (p.Reshaped is not null) {
+				s.Runs.Add(p.Reshaped);
+				appendClusters(s.LineClusters, s.Runs.Count - 1, p.Reshaped, default);
+			} else {
+				s.LineClusters.AddRange(CollectionsMarshal.AsSpan(s.Clusters)[p.Start..p.End]);
+			}
+		}
+	}
+
+	/// <summary>
 	/// Lays out one line. Its vertical metrics are the largest of its runs' fonts' metrics scaled by
 	/// the runs' sizes, or, for an empty line, those of the primary font and size at the paragraph's
 	/// start.
@@ -526,15 +696,14 @@ internal static class TextLayouter {
 		Scratch s,
 		TextAnalysis.ParagraphAnalysis? analysis,
 		int paraStart,
-		LineSpan span,
+		ReadOnlySpan<ParagraphCluster> line,
 		ref float top,
 		ref float width
 	) {
-		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(s.Clusters);
 		float ascent = 0f, descent = 0f, lineGap = 0f;
-		if (span.End > span.Start) {
-			for (int k = span.Start; k < span.End; k++) {
-				ParagraphRun run = s.Runs[clusters[k].Run];
+		if (!line.IsEmpty) {
+			foreach (ParagraphCluster c in line) {
+				ParagraphRun run = s.Runs[c.Run];
 				FontLineMetrics m = s.Metrics[run.Chain][run.FontIndex];
 				ascent = MathF.Max(ascent, m.Ascent * run.Size);
 				descent = MathF.Max(descent, m.Descent * run.Size);
@@ -550,18 +719,18 @@ internal static class TextLayouter {
 		float baselineY = top + ascent;
 		s.LineGlyphStarts.Add(s.Glyphs.Count);
 		float penX = 0f;
-		if (span.End > span.Start && analysis is not null) {
+		if (!line.IsEmpty && analysis is not null) {
 			s.VisualRuns.Clear();
-			analysis.GetVisualRunsForLine(s.VisualRuns, clusters[span.Start].SourceStart, clusters[span.End - 1].SourceLimit);
+			analysis.GetVisualRunsForLine(s.VisualRuns, line[0].SourceStart, line[^1].SourceLimit);
 			foreach (VisualBidiRun v in s.VisualRuns) {
-				int a = lowerBound(clusters, span.Start, span.End, v.Start);
-				int b = lowerBound(clusters, a, span.End, v.Start + v.Length);
+				int a = lowerBound(line, 0, line.Length, v.Start);
+				int b = lowerBound(line, a, line.Length, v.Start + v.Length);
 				if (v.Direction == Direction.RightToLeft) {
 					for (int k = b - 1; k >= a; k--)
-						emitCluster(s, clusters[k], paraStart, baselineY, ref penX);
+						emitCluster(s, line[k], paraStart, baselineY, ref penX);
 				} else {
 					for (int k = a; k < b; k++)
-						emitCluster(s, clusters[k], paraStart, baselineY, ref penX);
+						emitCluster(s, line[k], paraStart, baselineY, ref penX);
 				}
 			}
 		}
@@ -711,7 +880,8 @@ public sealed class TextLayout {
 	public float Width { get; private set; }
 
 	/// <summary>
-	/// Total height of the lines.
+	/// Distance from the top of the first line to the bottom of the last line's glyphs, i.e. the
+	/// total height of the lines without the last line's <see cref="TextLine.LineGap"/>.
 	/// </summary>
 	/// <remarks>
 	/// If the layout is stale (see <see cref="IsStale"/>), this still describes the previous layout.

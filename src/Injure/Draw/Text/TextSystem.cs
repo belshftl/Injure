@@ -137,11 +137,6 @@ internal sealed unsafe class FtLibrary {
 /// glyph the font maps them to, or the missing-glyph glyph.
 /// </description></item>
 /// <item><description>
-/// Text is shaped before it's broken into lines and isn't shaped again at line ends, so
-/// contextual forms stay as they were in the unbroken text; for example, an Arabic word broken
-/// because it overflows the line still has the joining forms at the break.
-/// </description></item>
-/// <item><description>
 /// Each paragraph's base direction comes from its first strong character (left-to-right if it
 /// has none), and there's no way to set it explicitly.
 /// </description></item>
@@ -355,9 +350,8 @@ public sealed unsafe class TextSystem : IDisposable {
 
 	// ==========================================================================
 	// layout
-
 	internal LayoutResult RunLayouter(ResolvedFontFallbackChain[] chains, RichText text, int[] spanChains, in TextLayoutOptions options) =>
-		TextLayouter.Layout(itemizer, fallbackResolver, chains, text, spanChains, in options);
+		TextLayouter.Layout(itemizer, fallbackResolver, shapeCache, chains, text, spanChains, in options);
 
 	/// <summary>
 	/// Lays out rich text.
