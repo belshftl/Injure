@@ -134,6 +134,20 @@ EXPORT IjtResult ijt_bidi_open(const uint16_t *text, size_t len, BidiText **out)
 EXPORT IjtResult ijt_bidi_levels(const BidiText *bidi, uint8_t *levels, size_t len);
 
 /*
+ * Writes the embedding level of the paragraph containing the code unit at `index` of the analyzed
+ * string into `level`. The level is 0 for an LTR paragraph and 1 for an RTL one.
+ *
+ * `index` must be less than the length of the analyzed string; otherwise, this function fails with
+ * `IJT_INVALID_ARGUMENT`.
+ *
+ * # Safety
+ *
+ * `bidi` must be a handle obtained from `ijt_bidi_open` that has not been closed, and `level` must
+ * be writable for one byte.
+ */
+EXPORT IjtResult ijt_bidi_paragraph_level(const BidiText *bidi, size_t index, uint8_t *level);
+
+/*
  * Reorders the line `[line_start, line_limit)` of the analyzed string as per UAX #9 rules L1 and
  * L2, writing its runs into `runs` in visual order (left to right) and the total amount of runs
  * into `count`. Only the first `cap` runs are written, so if `count` exceeds `cap`, the caller

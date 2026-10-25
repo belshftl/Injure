@@ -305,6 +305,8 @@ unsafe extern "C" fn process_callback(nframes: JackNFrames, arg: *mut c_void) ->
 
     // SAFETY: JACK guarantees that an output port buffer returned during the process callback is
     // writable for `nframes` samples
+    // TODO: this is currently ub, these should be `&mut [MaybeUninit<f32>]` with `process_stereo`
+    // also being updated accordingly, fix that later
     let left = unsafe { core::slice::from_raw_parts_mut(left_ptr, n) };
     let right = unsafe { core::slice::from_raw_parts_mut(right_ptr, n) };
 

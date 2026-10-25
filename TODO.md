@@ -129,7 +129,7 @@ anyhow, to v0.1:
   - [x] pt 2.5, switch from libunibreak + fribidi to icu4x + unicode-bidi
   - [ ] pt 3, layout features
     - [x] reshape at line breaks where HarfBuzz flags a glyph as unsafe to break, re-measuring the line and moving the break back if it no longer fits (removes the documented limitation on `TextSystem`); also stop counting the last line's line gap in the layout's height
-    - [ ] max lines/height + truncation: `int? MaxLines` and `float? MaxHeight` on `TextLayoutOptions`; `TextHorizontalOverflow`; rename `TextOverflowMode` to `TextTruncationMarker { None, Ellipsis }` (default `Ellipsis`); `{TextLayout,TextLine}.IsTruncated`
+    - [x] max lines/height + truncation: `int? MaxLines` and `float? MaxHeight` on `TextLayoutOptions`; `TextHorizontalOverflow`; rename `TextOverflowMode` to `TextTruncationMarker { None, Ellipsis }` (default `Ellipsis`); `{TextLayout,TextLine}.IsTruncated`
     - [ ] soft hyphens; probably use U+2010 HYPHEN and fall back to `-`
     - [ ] proper paragraph separators (`\r\n`, U+2028, U+2029)
     - [ ] start/end/justify alignment; also switch over `TextLayoutOptions.Default` to `Start` rather than `Left` afterward

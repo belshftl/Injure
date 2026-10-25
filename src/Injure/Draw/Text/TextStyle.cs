@@ -6,38 +6,43 @@ using Injure.Primitives;
 namespace Injure.Draw.Text;
 
 /// <summary>
-/// Text line-breaking/alignment options.
+/// Text line-breaking, alignment, and truncation options.
 /// </summary>
-/// <param name="MaxWidth">
-/// Width of the box the text is laid out in, in drawable units, which
-/// <see cref="TextWrapMode.Greedy"/> wraps lines at and <see cref="HorizontalAlign"/> aligns them
-/// within. May be <see cref="float.PositiveInfinity"/> to not wrap any lines and use the widest
-/// line's width as the width of the box used for alignment. Must not be negative or NaN.
-/// </param>
-/// <param name="WrapMode">How lines wrap beyond explicit line breaks.</param>
-/// <param name="HorizontalAlign">
-/// How lines are aligned within the box, including lines that overflow it; see
-/// <see cref="TextHorizontalAlign"/>.
-/// </param>
 /// <remarks>
 /// <para>
-/// A <see langword="with"/> expression can be used with <see cref="Default"/> to only change some
-/// options, e.g.
-/// <c>TextLayoutOptions.Default with { HorizontalAlign = TextHorizontalAlign.Center }</c>.
+/// Constructed using a <see langword="with"/> expression on <see cref="Default"/>, e.g.
+/// <c>TextLayoutOptions.Default with { MaxWidth = 200, MaxLines = 2 }</c>.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly record struct TextLayoutOptions(
-	float MaxWidth,
-	TextWrapMode WrapMode,
-	TextHorizontalAlign HorizontalAlign
-) : IHasInvalidDefault {
+public readonly record struct TextLayoutOptions : IHasInvalidDefault {
 	/// <summary>
-	/// Default/neutral-ish options; a <see cref="MaxWidth"/> of <see cref="float.PositiveInfinity"/>,
-	/// <see cref="TextWrapMode.Greedy"/> wrapping, and <see cref="TextHorizontalAlign.Left"/>
-	/// alignment.
+	/// Default/neutral-ish options:
+	/// <list type="bullet">
+	/// <item><description>
+	/// a <see cref="MaxWidth"/> of <see cref="float.PositiveInfinity"/>;
+	/// </description></item>
+	/// <item><description>
+	/// <see cref="TextWrapMode.Greedy"/> wrapping;
+	/// </description></item>
+	/// <item><description>
+	/// <see cref="TextHorizontalAlign.Left"/> alignment;
+	/// </description></item>
+	/// <item><description>
+	/// no <see cref="MaxLines"/> (left at <see langword="null"/>);
+	/// </description></item>
+	/// <item><description>
+	/// a <see cref="MaxHeight"/> of <see cref="float.PositiveInfinity"/>;
+	/// </description></item>
+	/// <item><description>
+	/// <see cref="TextHorizontalOverflow.Overflow"/>;
+	/// </description></item>
+	/// <item><description>
+	/// and <see cref="TextTruncationMarker.Ellipsis"/>.
+	/// </description></item>
+	/// </list>
 	/// </summary>
 	/// <remarks>
 	/// <para>
@@ -50,9 +55,79 @@ public readonly record struct TextLayoutOptions(
 	/// <see cref="TextHorizontalAlign.Left"/> is "neutral" because it's the natural alignment from
 	/// not adding an X offset, and in practice only looks neutral for LTR text.
 	/// </para>
+	/// <para>
+	/// The truncation marker has no effect unless text is truncated, which requires changing at least
+	/// one of <see cref="MaxLines"/>, <see cref="MaxHeight"/>, or <see cref="HorizontalOverflow"/>
+	/// from the default values.
+	/// </para>
 	/// </remarks>
-	public static TextLayoutOptions Default { get; } =
-		new(float.PositiveInfinity, TextWrapMode.Greedy, TextHorizontalAlign.Left);
+	public static TextLayoutOptions Default { get; } = new() {
+		MaxWidth = float.PositiveInfinity,
+		MaxHeight = float.PositiveInfinity,
+		WrapMode = TextWrapMode.Greedy,
+		HorizontalAlign = TextHorizontalAlign.Left,
+		HorizontalOverflow = TextHorizontalOverflow.Overflow,
+		TruncationMarker = TextTruncationMarker.Ellipsis,
+	};
+
+	/// <summary>
+	/// Width of the box the text is laid out in, in drawable units, which
+	/// <see cref="TextWrapMode.Greedy"/> wraps lines at and <see cref="HorizontalAlign"/> aligns them
+	/// within. May be <see cref="float.PositiveInfinity"/> to not wrap any lines and use the widest
+	/// line's width as the width of the box used for alignment. Must not be negative or NaN.
+	/// </summary>
+	public float MaxWidth { get; init; }
+
+	/// <summary>
+	/// How lines wrap beyond explicit line breaks.
+	/// </summary>
+	public TextWrapMode WrapMode { get; init; }
+
+	/// <summary>
+	/// How lines are aligned within the box, including lines that overflow it; see
+	/// <see cref="TextHorizontalAlign"/>.
+	/// </summary>
+	public TextHorizontalAlign HorizontalAlign { get; init; }
+
+	/// <summary>
+	/// The most lines to lay out, or <see langword="null"/> for no limit. Must be at least 1 if not
+	/// <see langword="null"/>.
+	/// </summary>
+	/// <remarks>
+	/// Lines past the limit are dropped, and the last kept line is truncated (see
+	/// <see cref="TextLine.IsTruncated"/>), even if all of the lines that got dropped were empty. If
+	/// <see cref="MaxHeight"/> is finite, the first reached limit wins.
+	/// </remarks>
+	public int? MaxLines { get; init; }
+
+	/// <summary>
+	/// The most vertical space the lines may take up, in drawable units. May be
+	/// <see cref="float.PositiveInfinity"/> for no limit. Must not be negative or NaN.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A line fits if its bottom, i.e. <see cref="TextLine.BaselineY"/> +
+	/// <see cref="TextLine.Descent"/>, is at most this. The lines from the first one that doesn't fit
+	/// onward are dropped, and the last kept line is truncated (see
+	/// <see cref="TextLine.IsTruncated"/>), even if all of the lines that got dropped were empty. If
+	/// <see cref="MaxLines"/> is non-<see langword="null"/>, the first reached limit wins.
+	/// </para>
+	/// <para>
+	/// The first line is always kept, even if it doesn't fit. This is so that text never lays out to
+	/// no lines, but could be surprising if this is used as a "never overflow this box" knob.
+	/// </para>
+	/// </remarks>
+	public float MaxHeight { get; init; }
+
+	/// <summary>
+	/// What happens to lines wider than the box.
+	/// </summary>
+	public TextHorizontalOverflow HorizontalOverflow { get; init; }
+
+	/// <summary>
+	/// Marker appended to truncated lines.
+	/// </summary>
+	public TextTruncationMarker TruncationMarker { get; init; }
 
 	internal static void Validate(in TextLayoutOptions options, string paramName) {
 		ArgumentInvalidDefaultException.ThrowIfDefault(options, paramName);
@@ -60,8 +135,16 @@ public readonly record struct TextLayoutOptions(
 			throw ArgumentInvalidDefaultException.For<TextWrapMode>($"{paramName}.WrapMode");
 		if (options.HorizontalAlign == default)
 			throw ArgumentInvalidDefaultException.For<TextHorizontalAlign>($"{paramName}.HorizontalAlign");
+		if (options.HorizontalOverflow == default)
+			throw ArgumentInvalidDefaultException.For<TextHorizontalOverflow>($"{paramName}.HorizontalOverflow");
+		if (options.TruncationMarker == default)
+			throw ArgumentInvalidDefaultException.For<TextTruncationMarker>($"{paramName}.TruncationMarker");
 		if (!(options.MaxWidth >= 0f))
-			throw new ArgumentOutOfRangeException(paramName, options.MaxWidth, "text layout max width must not be negative or NaN");
+			throw new ArgumentOutOfRangeException($"{paramName}.MaxWidth", options.MaxWidth, "text layout max width must not be negative or NaN");
+		if (options.MaxLines < 1)
+			throw new ArgumentOutOfRangeException($"{paramName}.MaxLines", options.MaxLines, "text layout max lines must be at least 1");
+		if (!(options.MaxHeight >= 0f))
+			throw new ArgumentOutOfRangeException($"{paramName}.MaxHeight", options.MaxHeight, "text layout max height must not be negative or NaN");
 	}
 
 	bool IHasInvalidDefault.IsDefault => this == default;

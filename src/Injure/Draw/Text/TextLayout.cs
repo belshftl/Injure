@@ -76,28 +76,75 @@ public readonly partial struct TextHorizontalAlign {
 }
 
 /// <summary>
-/// What happens to text past a maximum number of lines.
+/// What happens to lines wider than the layout's box.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Currently unused.
-/// </para>
-/// <para>
 /// The <see langword="default"/> value is invalid.
-/// </para>
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
-public readonly partial struct TextOverflowMode {
-	/// <summary>Raw switch tag for <see cref="TextOverflowMode"/>.</summary>
+public readonly partial struct TextHorizontalOverflow {
+	/// <summary>Raw switch tag for <see cref="TextHorizontalOverflow"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// Lines past the maximum are left out.
+		/// Lines overflow the box on the side or sides their alignment leaves open (see
+		/// <see cref="TextHorizontalAlign"/>).
 		/// </summary>
-		Clip = 1,
+		Overflow = 1,
 
 		/// <summary>
-		/// Lines past the maximum are left out, and the last line ends in an ellipsis.
+		/// Lines wider than <see cref="TextLayoutOptions.MaxWidth"/> are truncated (see
+		/// <see cref="TextLine.IsTruncated"/>) to fit it; the end is cut off, and
+		/// in the <see cref="TextLayoutOptions.TruncationMarker"/> is added. If even the marker alone is
+		/// wider than the box, it's left out too. If <see cref="TextLayoutOptions.MaxWidth"/> is
+		/// infinite, a horizontal overflow can't happen in the first place, so this option never gets
+		/// used.
 		/// </summary>
+		/// <remarks>
+		/// With <see cref="TextWrapMode.Greedy"/>, a line can only become wider than the box if there's
+		/// a single cluster wider than the whole box; this leaves such lines empty.
+		/// </remarks>
+		Cut,
+	}
+}
+
+/// <summary>
+/// Marker appended to truncated lines (see <see cref="TextLine.IsTruncated"/>).
+/// </summary>
+/// <remarks>
+/// The <see langword="default"/> value is invalid.
+/// </remarks>
+[ClosedEnum(DefaultIsInvalid = true)]
+public readonly partial struct TextTruncationMarker {
+	/// <summary>Raw switch tag for <see cref="TextTruncationMarker"/>.</summary>
+	public enum Case {
+		/// <summary>
+		/// Truncated lines end without any marker.
+		/// </summary>
+		None = 1,
+
+		/// <summary>
+		/// Truncated lines end in an ellipsis.
+		/// </summary>
+		/// <remarks>
+		/// <para>
+		/// The ellipsis has the style of the line's last kept character (or its first character, if
+		/// none is kept), and is U+2026 HORIZONTAL ELLIPSIS from the style's primary font, or
+		/// <c>"..."</c> in said font if it lacks U+2026. If the primary font lacks <c>'.'</c> too, then
+		/// U+2026 is tried going through the rest of the fallback chain, then <c>"..."</c>. If no font
+		/// has either, the ellipsis is <c>"..."</c> drawn with the primary font's missing glyph.
+		/// </para>
+		/// <para>
+		/// The ellipsis goes at the end of the line in the direction of its paragraph, i.e. on the right
+		/// for LTR text and on the left for RTL text. Trailing whitespace is dropped before placement of
+		/// the ellipsis. With a finite <see cref="TextLayoutOptions.MaxWidth"/>, more of the line's text
+		/// is dropped to make room for it, unless the line is already wider than the box (with
+		/// <see cref="TextHorizontalOverflow.Overflow"/>), in which case it overflows the box fruther.
+		/// If the ellipsis just by itself is wider than the box, then with
+		/// <see cref="TextHorizontalOverflow.Overflow"/>, all of the line's text is dropped and the
+		/// ellipsis overflows the box, and with <see cref="TextHorizontalOverflow.Cut"/>, the
+		/// ellipsis is left out and the line is cut to fit without it.
+		/// </para>
+		/// </remarks>
 		Ellipsis,
 	}
 }
@@ -118,14 +165,23 @@ public readonly partial struct TextOverflowMode {
 /// X coordinate of the line's left edge, from alignment (see <see cref="TextHorizontalAlign"/>);
 /// negative for a line that overflows the layout's box to the left.
 /// </param>
+/// <param name="IsTruncated">
+/// Whether the line was truncated, i.e. whether the end of its text was dropped to fit the box
+/// (see <see cref="TextHorizontalOverflow.Cut"/> and <see cref="TextTruncationMarker.Ellipsis"/>),
+/// or the lines after it were dropped (see <see cref="TextLayoutOptions.MaxLines"/> and
+/// <see cref="TextLayoutOptions.MaxHeight"/>). A truncated line ends in the
+/// <see cref="TextLayoutOptions.TruncationMarker"/>.
+/// </param>
 /// <remarks>
 /// <para>
 /// The vertical metrics are the largest of the line's fonts' metrics, each scaled by the size of
 /// the text using it, or, for an empty line, those of the primary font and size at its position.
+/// A truncated line keeps the metrics of all of its text, including the dropped part, and the
+/// ellipsis's fonts don't count.
 /// </para>
 /// <para>
-/// The <see langword="default"/> value is valid and is an empty line at the origin with every
-/// metric at 0.
+/// The <see langword="default"/> value is valid and is an empty, untruncated line at the origin
+/// with every metric at 0.
 /// </para>
 /// </remarks>
 public readonly record struct TextLine(
@@ -135,7 +191,8 @@ public readonly record struct TextLine(
 	float Descent,
 	float LineGap,
 	float Height,
-	float OffsetX
+	float OffsetX,
+	bool IsTruncated
 );
 
 internal enum LineBreakKind : byte {
@@ -257,9 +314,13 @@ internal sealed class LayoutResult {
 	public required TextLine[] Lines { get; init; }
 	public required float Width { get; init; }
 	public required float Height { get; init; }
+	public required bool IsTruncated { get; init; }
 }
 
 internal static class TextLayouter {
+	private const string ellipsisString = "…";
+	private const string ellipsisFallbackString = "...";
+
 	/// <summary>
 	/// A line's clusters from one run, in [<see cref="Start"/>, <see cref="End"/>) of the
 	/// paragraph's clusters. <see cref="Reshaped"/> is set if the line cuts the run at a cluster
@@ -275,19 +336,65 @@ internal static class TextLayouter {
 		ParagraphRun? Reshaped
 	);
 
+	/// <summary>
+	/// What an ellipsis depends on: the index of the rich text span it takes its style from, the
+	/// direction of its paragraph, and the script of the text before it.
+	/// </summary>
+	/// <remarks>
+	/// The <see langword="default"/> value is invalid.
+	/// </remarks>
+	private readonly record struct EllipsisKey(
+		int Span,
+		Direction Direction,
+		Script Script
+	) : IHasInvalidDefault {
+		bool IHasInvalidDefault.IsDefault => Direction == default;
+	}
+
+	/// <summary>
+	/// A shaped ellipsis, U+2026 or <c>"..."</c> from a single font.
+	/// </summary>
+	private sealed class Ellipsis {
+		public required ParagraphRun Run;
+		public required Direction Direction;
+		public required float Width;
+		public required SrgbColor32 Color;
+	}
+
+	/// <summary>
+	/// One paragraph's analysis, runs, clusters, and lines. Positions other than
+	/// <see cref="Start"/> are relative to the paragraph.
+	/// </summary>
+	private sealed class Paragraph : IDisposable {
+		public int Start; // absolute
+		public string Text = "";
+		public TextAnalysis.ParagraphAnalysis? Analysis; // null for an empty paragraph
+		public bool IsLast;
+		public readonly List<ParagraphRun> Runs = new();
+		public readonly List<ParagraphCluster> Clusters = new();
+		public readonly List<LineSpan> Spans = new();
+
+		public void Dispose() {
+			Analysis?.Dispose();
+			Analysis = null;
+		}
+	}
+
 	private sealed class Scratch {
 		public required RichText Text;
+		public required int[] SpanChains;
 		public required ResolvedFontFallbackChain[] Chains;
+		public required ITextItemizer Itemizer;
+		public required FallbackResolver Resolver;
 		public required ShapeCache ShapeCache;
 		public required ShapingSpan[] Shaping;
 		public required FontLineMetrics[][] Metrics; // by chain, then font
+		public required TextLayoutOptions Options;
+		public required bool Wrap;
 		public readonly List<LaidOutGlyph> Glyphs = new();
 		public readonly List<TextLine> Lines = new();
 		// index of each line's first glyph in Glyphs
 		public readonly List<int> LineGlyphStarts = new();
-		public readonly List<ParagraphRun> Runs = new();
-		public readonly List<ParagraphCluster> Clusters = new();
-		public readonly List<LineSpan> Spans = new();
 		public readonly List<LinePiece> Pieces = new();
 		// the current line's clusters, with reshaped runs' clusters in place of the originals
 		public readonly List<ParagraphCluster> LineClusters = new();
@@ -296,6 +403,7 @@ internal static class TextLayouter {
 		public readonly List<ResolvedItem> Resolved = new();
 		// each paragraph's breaks, by language
 		public readonly Dictionary<string, LineBreakOpportunity[]> ParagraphBreaks = new(StringComparer.Ordinal);
+		public readonly Dictionary<EllipsisKey, Ellipsis> Ellipses = new();
 	}
 
 	/// <summary>
@@ -322,38 +430,57 @@ internal static class TextLayouter {
 		}
 		Scratch s = new() {
 			Text = text,
+			SpanChains = spanChains,
 			Chains = chains,
+			Itemizer = itemizer,
+			Resolver = resolver,
 			ShapeCache = shapeCache,
 			Shaping = ShapingSpans(text, spanChains),
 			Metrics = metrics,
+			Options = options,
+			Wrap = options.WrapMode == TextWrapMode.Greedy && !float.IsPositiveInfinity(options.MaxWidth),
 		};
-		string str = text.Text;
-		bool wrap = options.WrapMode == TextWrapMode.Greedy && !float.IsPositiveInfinity(options.MaxWidth);
+		int maxLines = options.MaxLines ?? int.MaxValue;
 		float top = 0f;
 		float width = 0f;
-		int paraStart = 0;
-		for (;;) {
-			int newline = str.IndexOf('\n', paraStart);
-			int paraLimit = newline < 0 ? str.Length : newline;
-			string para = str[paraStart..paraLimit];
-			s.Runs.Clear();
-			s.Clusters.Clear();
-			s.Spans.Clear();
-			if (para.Length == 0) {
-				emitLine(s, null, paraStart, default, ref top, ref width);
-			} else {
-				using var analysis = TextAnalysis.ParagraphAnalysis.Create(para);
-				buildRuns(s, itemizer, resolver, chains, para, paraStart, analysis);
-				buildClusters(s, para, paraStart);
-				Wrap(CollectionsMarshal.AsSpan(s.Clusters), options.MaxWidth, wrap, (start, end) => measureLine(s, start, end), s.Spans);
-				foreach (LineSpan span in s.Spans) {
-					buildLineClusters(s, span);
-					emitLine(s, analysis, paraStart, CollectionsMarshal.AsSpan(s.LineClusters), ref top, ref width);
+		bool truncated = false;
+		// the paragraph after the current one is prepared early if MaxHeight needs its first line
+		using Paragraph para0 = new(), para1 = new();
+		Paragraph cur = para0, next = para1;
+		bool nextReady = false;
+		prepare(s, cur, 0);
+		for (bool done = false; !done;) {
+			for (int j = 0; j < cur.Spans.Count; j++) {
+				FontLineMetrics m = lineMetrics(s, cur, cur.Spans[j]);
+				bool dropAfter = false;
+				if (j + 1 < cur.Spans.Count || !cur.IsLast) {
+					if (s.Lines.Count + 1 >= maxLines) {
+						dropAfter = true;
+					} else if (!float.IsPositiveInfinity(options.MaxHeight)) {
+						FontLineMetrics nextM;
+						if (j + 1 < cur.Spans.Count) {
+							nextM = lineMetrics(s, cur, cur.Spans[j + 1]);
+						} else {
+							if (!nextReady)
+								prepare(s, next, cur.Start + cur.Text.Length + 1);
+							nextReady = true;
+							nextM = lineMetrics(s, next, next.Spans[0]);
+						}
+						dropAfter = top + m.Height + nextM.Ascent + nextM.Descent > options.MaxHeight;
+					}
+				}
+				truncated |= emitLine(s, cur, cur.Spans[j], m, dropAfter, ref top, ref width);
+				if (dropAfter) {
+					done = true;
+					break;
 				}
 			}
-			if (newline < 0)
+			if (done || cur.IsLast)
 				break;
-			paraStart = newline + 1;
+			if (!nextReady)
+				prepare(s, next, cur.Start + cur.Text.Length + 1);
+			nextReady = false;
+			(cur, next) = (next, cur);
 		}
 		align(s, float.IsPositiveInfinity(options.MaxWidth) ? width : options.MaxWidth, options.HorizontalAlign);
 		// there's always a line, and the last one's line gap isn't part of the text
@@ -363,6 +490,7 @@ internal static class TextLayouter {
 			Lines = s.Lines.ToArray(),
 			Width = width,
 			Height = last.BaselineY + last.Descent,
+			IsTruncated = truncated,
 		};
 	}
 
@@ -400,34 +528,47 @@ internal static class TextLayouter {
 		return lo;
 	}
 
-	private static void buildRuns(
-		Scratch s,
-		ITextItemizer itemizer,
-		FallbackResolver resolver,
-		ResolvedFontFallbackChain[] chains,
-		string para,
-		int paraStart,
-		TextAnalysis.ParagraphAnalysis analysis
-	) {
+	// analyzes, shapes, and wraps the paragraph starting at `start`
+	private static void prepare(Scratch s, Paragraph p, int start) {
+		p.Dispose();
+		p.Runs.Clear();
+		p.Clusters.Clear();
+		p.Spans.Clear();
+		string str = s.Text.Text;
+		int newline = str.IndexOf('\n', start);
+		p.Start = start;
+		p.Text = str[start..(newline < 0 ? str.Length : newline)];
+		p.IsLast = newline < 0;
+		if (p.Text.Length == 0) {
+			p.Spans.Add(default);
+			return;
+		}
+		p.Analysis = TextAnalysis.ParagraphAnalysis.Create(p.Text);
+		buildRuns(s, p, p.Analysis);
+		buildClusters(s, p);
+		Wrap(CollectionsMarshal.AsSpan(p.Clusters), s.Options.MaxWidth, s.Wrap, (lineStart, lineEnd) => measureLine(s, p, lineStart, lineEnd), p.Spans);
+	}
+
+	private static void buildRuns(Scratch s, Paragraph p, TextAnalysis.ParagraphAnalysis analysis) {
 		ReadOnlySpan<ShapingSpan> shaping = s.Shaping;
 		s.LogicalRuns.Clear();
 		analysis.GetLogicalRuns(s.LogicalRuns);
 		foreach (LogicalBidiRun bidiRun in s.LogicalRuns) {
-			int runStart = paraStart + bidiRun.Start;
+			int runStart = p.Start + bidiRun.Start;
 			int runLimit = runStart + bidiRun.Length;
 			// each bidi run is cut further where the fonts, size, or language change
 			for (int k = shapingSpanAt(shaping, runStart); k < shaping.Length && shaping[k].Start < runLimit; k++) {
 				ShapingSpan span = shaping[k];
-				int segStart = Math.Max(runStart, span.Start) - paraStart;
-				int segLimit = Math.Min(runLimit, span.Limit) - paraStart;
+				int segStart = Math.Max(runStart, span.Start) - p.Start;
+				int segLimit = Math.Min(runLimit, span.Limit) - p.Start;
 				if (segLimit <= segStart)
 					continue;
-				TextItem[] items = itemizer.Itemize(para.AsSpan(segStart, segLimit - segStart), segStart, bidiRun.Direction, span.Language);
+				TextItem[] items = s.Itemizer.Itemize(p.Text.AsSpan(segStart, segLimit - segStart), segStart, bidiRun.Direction, span.Language);
 				foreach (TextItem item in items) {
 					s.Resolved.Clear();
-					resolver.ResolveItems(chains[span.Chain], item, s.Resolved);
+					s.Resolver.ResolveItems(s.Chains[span.Chain], item, s.Resolved);
 					foreach (ResolvedItem r in s.Resolved) {
-						s.Runs.Add(new ParagraphRun {
+						p.Runs.Add(new ParagraphRun {
 							Chain = span.Chain,
 							FontIndex = r.FontIndex,
 							Size = span.Size,
@@ -440,7 +581,8 @@ internal static class TextLayouter {
 		}
 	}
 
-	private static void buildClusters(Scratch s, string para, int paraStart) {
+	private static void buildClusters(Scratch s, Paragraph p) {
+		string para = p.Text;
 		Span<LineBreakKind> breakAfter = (para.Length + 1) <= 2048
 			? stackalloc LineBreakKind[para.Length + 1]
 			: new LineBreakKind[para.Length + 1];
@@ -449,8 +591,8 @@ internal static class TextLayouter {
 		// language, so the paragraph is analyzed once per distinct language in it, with full context
 		ReadOnlySpan<ShapingSpan> shaping = s.Shaping;
 		s.ParagraphBreaks.Clear();
-		int paraLimit = paraStart + para.Length;
-		for (int k = shapingSpanAt(shaping, paraStart); k < shaping.Length && shaping[k].Start < paraLimit; k++) {
+		int paraLimit = p.Start + para.Length;
+		for (int k = shapingSpanAt(shaping, p.Start); k < shaping.Length && shaping[k].Start < paraLimit; k++) {
 			ShapingSpan span = shaping[k];
 			string key = span.Language;
 			if (!s.ParagraphBreaks.TryGetValue(key, out LineBreakOpportunity[]? breaks)) {
@@ -458,14 +600,14 @@ internal static class TextLayouter {
 				s.ParagraphBreaks.Add(key, breaks);
 			}
 			// breaks after the span's characters, i.e. at positions (start, limit] relative to the paragraph
-			int lo = Math.Max(span.Start, paraStart) - paraStart;
-			int hi = Math.Min(span.Limit, paraLimit) - paraStart;
+			int lo = Math.Max(span.Start, p.Start) - p.Start;
+			int hi = Math.Min(span.Limit, paraLimit) - p.Start;
 			foreach (LineBreakOpportunity opp in breaks)
 				if (opp.Position > lo && opp.Position <= hi)
 					breakAfter[opp.Position] = opp.Kind;
 		}
-		for (int r = 0; r < s.Runs.Count; r++)
-			appendClusters(s.Clusters, r, s.Runs[r], breakAfter);
+		for (int r = 0; r < p.Runs.Count; r++)
+			appendClusters(p.Clusters, r, p.Runs[r], breakAfter);
 	}
 
 	/// <summary>
@@ -621,8 +763,8 @@ internal static class TextLayouter {
 	/// clusters into pieces by run, shaping a piece again if the line cuts its run at a cluster
 	/// that's unsafe to break at.
 	/// </summary>
-	private static void linePieces(Scratch s, int start, int end, List<LinePiece> dst) {
-		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(s.Clusters);
+	private static void linePieces(Scratch s, Paragraph p, int start, int end, List<LinePiece> dst) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
 		dst.Clear();
 		int a = start;
 		while (a < end) {
@@ -634,7 +776,7 @@ internal static class TextLayouter {
 			bool cutBefore = a > 0 && clusters[a - 1].Run == r && clusters[a].UnsafeToBreak;
 			bool cutAfter = b < clusters.Length && clusters[b].Run == r && clusters[b].UnsafeToBreak;
 			ParagraphRun? reshaped = cutBefore || cutAfter
-				? reshape(s, s.Runs[r], clusters[a].SourceStart, clusters[b - 1].SourceLimit)
+				? reshape(s, p.Runs[r], clusters[a].SourceStart, clusters[b - 1].SourceLimit)
 				: null;
 			dst.Add(new LinePiece(r, a, b, reshaped));
 			a = b;
@@ -658,104 +800,256 @@ internal static class TextLayouter {
 		};
 	}
 
-	private static float measureLine(Scratch s, int start, int end) {
-		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(s.Clusters);
-		linePieces(s, start, end, s.Pieces);
+	private static float measureLine(Scratch s, Paragraph p, int start, int end) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
+		linePieces(s, p, start, end, s.Pieces);
 		float width = 0f;
-		foreach (LinePiece p in s.Pieces) {
-			if (p.Reshaped is not null) {
-				width += p.Reshaped.Shaped.Width * p.Reshaped.Size;
+		foreach (LinePiece piece in s.Pieces) {
+			if (piece.Reshaped is not null) {
+				width += piece.Reshaped.Shaped.Width * piece.Reshaped.Size;
 			} else {
-				for (int k = p.Start; k < p.End; k++)
+				for (int k = piece.Start; k < piece.End; k++)
 					width += clusters[k].Width;
 			}
 		}
 		return width;
 	}
 
-	// fills s.LineClusters with a line's clusters, adding the runs of reshaped pieces to s.Runs
-	private static void buildLineClusters(Scratch s, LineSpan span) {
+	// fills s.LineClusters with a line's clusters, adding the runs of reshaped pieces to p.Runs
+	private static void buildLineClusters(Scratch s, Paragraph p, int start, int end) {
 		s.LineClusters.Clear();
-		linePieces(s, span.Start, span.End, s.Pieces);
-		foreach (LinePiece p in s.Pieces) {
-			if (p.Reshaped is not null) {
-				s.Runs.Add(p.Reshaped);
-				appendClusters(s.LineClusters, s.Runs.Count - 1, p.Reshaped, default);
+		linePieces(s, p, start, end, s.Pieces);
+		foreach (LinePiece piece in s.Pieces) {
+			if (piece.Reshaped is not null) {
+				p.Runs.Add(piece.Reshaped);
+				appendClusters(s.LineClusters, p.Runs.Count - 1, piece.Reshaped, default);
 			} else {
-				s.LineClusters.AddRange(CollectionsMarshal.AsSpan(s.Clusters)[p.Start..p.End]);
+				s.LineClusters.AddRange(CollectionsMarshal.AsSpan(p.Clusters)[piece.Start..piece.End]);
 			}
 		}
 	}
 
 	/// <summary>
-	/// Lays out one line. Its vertical metrics are the largest of its runs' fonts' metrics scaled by
-	/// the runs' sizes, or, for an empty line, those of the primary font and size at the paragraph's
-	/// start.
+	/// Gets a line's vertical metrics: the largest of its runs' fonts' metrics scaled by the runs'
+	/// sizes, or, for an empty line, those of the primary font and size at the paragraph's start.
 	/// </summary>
-	private static void emitLine(
+	private static FontLineMetrics lineMetrics(Scratch s, Paragraph p, LineSpan span) {
+		if (span.End == span.Start) {
+			ShapingSpan at = s.Shaping[shapingSpanAt(s.Shaping, p.Start)];
+			FontLineMetrics m = s.Metrics[at.Chain][0];
+			return new FontLineMetrics(m.Ascent * at.Size, m.Descent * at.Size, m.LineGap * at.Size);
+		}
+		float ascent = 0f, descent = 0f, lineGap = 0f;
+		foreach (ParagraphCluster c in CollectionsMarshal.AsSpan(p.Clusters)[span.Start..span.End]) {
+			ParagraphRun run = p.Runs[c.Run];
+			FontLineMetrics m = s.Metrics[run.Chain][run.FontIndex];
+			ascent = MathF.Max(ascent, m.Ascent * run.Size);
+			descent = MathF.Max(descent, m.Descent * run.Size);
+			lineGap = MathF.Max(lineGap, m.LineGap * run.Size);
+		}
+		return new FontLineMetrics(ascent, descent, lineGap);
+	}
+
+	/// <summary>
+	/// Lays out one line with the vertical metrics <paramref name="m"/>, truncating it if it's wider
+	/// than the box with <see cref="TextHorizontalOverflow.Cut"/> or if
+	/// <paramref name="dropAfter"/>, i.e. the lines after it get dropped. Returns whether it was
+	/// truncated.
+	/// </summary>
+	private static bool emitLine(
 		Scratch s,
-		TextAnalysis.ParagraphAnalysis? analysis,
-		int paraStart,
-		ReadOnlySpan<ParagraphCluster> line,
+		Paragraph p,
+		LineSpan span,
+		in FontLineMetrics m,
+		bool dropAfter,
 		ref float top,
 		ref float width
 	) {
-		float ascent = 0f, descent = 0f, lineGap = 0f;
-		if (!line.IsEmpty) {
-			foreach (ParagraphCluster c in line) {
-				ParagraphRun run = s.Runs[c.Run];
-				FontLineMetrics m = s.Metrics[run.Chain][run.FontIndex];
-				ascent = MathF.Max(ascent, m.Ascent * run.Size);
-				descent = MathF.Max(descent, m.Descent * run.Size);
-				lineGap = MathF.Max(lineGap, m.LineGap * run.Size);
-			}
-		} else {
-			ShapingSpan at = s.Shaping[shapingSpanAt(s.Shaping, paraStart)];
-			FontLineMetrics m = s.Metrics[at.Chain][0];
-			ascent = m.Ascent * at.Size;
-			descent = m.Descent * at.Size;
-			lineGap = m.LineGap * at.Size;
-		}
-		float baselineY = top + ascent;
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
+		int full = TrimTrailingWs(clusters, span.Start, span.End);
+		bool cut = s.Options.HorizontalOverflow == TextHorizontalOverflow.Cut
+			&& full > span.Start
+			&& measureLine(s, p, span.Start, full) > s.Options.MaxWidth;
+		bool truncated = cut || dropAfter;
+		int keptEnd = span.End;
+		Ellipsis? ellipsis = null;
+		if (truncated)
+			(keptEnd, ellipsis) = truncate(s, p, span, full, cut);
+		buildLineClusters(s, p, span.Start, keptEnd);
+		ReadOnlySpan<ParagraphCluster> line = CollectionsMarshal.AsSpan(s.LineClusters);
+		float baselineY = top + m.Ascent;
 		s.LineGlyphStarts.Add(s.Glyphs.Count);
 		float penX = 0f;
-		if (!line.IsEmpty && analysis is not null) {
+		int ellipsisSource = ellipsis is not null ? firstDropped(p, span.Start, keptEnd) : 0;
+		if (ellipsis is not null && ellipsis.Direction == Direction.RightToLeft)
+			emitEllipsis(s, ellipsis, ellipsisSource, baselineY, ref penX);
+		if (!line.IsEmpty && p.Analysis is not null) {
 			s.VisualRuns.Clear();
-			analysis.GetVisualRunsForLine(s.VisualRuns, line[0].SourceStart, line[^1].SourceLimit);
+			p.Analysis.GetVisualRunsForLine(s.VisualRuns, line[0].SourceStart, line[^1].SourceLimit);
 			foreach (VisualBidiRun v in s.VisualRuns) {
 				int a = lowerBound(line, 0, line.Length, v.Start);
 				int b = lowerBound(line, a, line.Length, v.Start + v.Length);
 				if (v.Direction == Direction.RightToLeft) {
 					for (int k = b - 1; k >= a; k--)
-						emitCluster(s, line[k], paraStart, baselineY, ref penX);
+						emitCluster(s, p, line[k], baselineY, ref penX);
 				} else {
 					for (int k = a; k < b; k++)
-						emitCluster(s, line[k], paraStart, baselineY, ref penX);
+						emitCluster(s, p, line[k], baselineY, ref penX);
 				}
 			}
 		}
-		float height = ascent + descent + lineGap;
+		if (ellipsis is not null && ellipsis.Direction == Direction.LeftToRight)
+			emitEllipsis(s, ellipsis, ellipsisSource, baselineY, ref penX);
 		s.Lines.Add(new TextLine(
 			Width: penX,
 			BaselineY: baselineY,
-			Ascent: ascent,
-			Descent: descent,
-			LineGap: lineGap,
-			Height: height,
-			OffsetX: 0f // set by align()
+			Ascent: m.Ascent,
+			Descent: m.Descent,
+			LineGap: m.LineGap,
+			Height: m.Height,
+			OffsetX: 0f, // set by align()
+			IsTruncated: truncated
 		));
-		top += height;
+		top += m.Height;
 		width = MathF.Max(width, penX);
+		return truncated;
+	}
+
+	/// <summary>
+	/// Gets where a truncated line's kept clusters end, and its ellipsis, if any.
+	/// <paramref name="full"/> is the end of the line without trailing whitespace, and
+	/// <paramref name="cut"/> is whether it's wider than the box with
+	/// <see cref="TextHorizontalOverflow.Cut"/>.
+	/// </summary>
+	private static (int KeptEnd, Ellipsis? Ellipsis) truncate(Scratch s, Paragraph p, LineSpan span, int full, bool cut) {
+		bool marker = s.Options.TruncationMarker == TextTruncationMarker.Ellipsis;
+		// with no marker and nothing to cut, the line stays as it is
+		if (!marker && !cut)
+			return (span.End, null);
+		// with an infinite width, or a line already wider than the box with Overflow, the ellipsis
+		// goes after all of the text
+		if (float.IsPositiveInfinity(s.Options.MaxWidth) || !cut && measureLine(s, p, span.Start, full) > s.Options.MaxWidth)
+			return (full, ellipsisAt(s, p, span.Start, full));
+		if (fitEnd(s, p, span.Start, full, marker, out int keptEnd, out Ellipsis? ellipsis))
+			return (keptEnd, ellipsis);
+		// only an ellipsis wider than the box doesn't fit even without any text, which Cut drops
+		if (s.Options.HorizontalOverflow == TextHorizontalOverflow.Overflow)
+			return (span.Start, ellipsisAt(s, p, span.Start, span.Start));
+		fitEnd(s, p, span.Start, full, false, out keptEnd, out _);
+		return (keptEnd, null);
+	}
+
+	/// <summary>
+	/// Gets the last end in [<paramref name="start"/>, <paramref name="full"/>] for a line's kept
+	/// clusters at which the line, without trailing whitespace, plus an added ellipsis if
+	/// <paramref name="withEllipsis"/>, fits the box. Returns <see langword="false"/> if none does,
+	/// which can only happen if there's an ellipsis and said ellipsis just by itself is wider than
+	/// the box.
+	/// </summary>
+	private static bool fitEnd(Scratch s, Paragraph p, int start, int full, bool withEllipsis, out int keptEnd, out Ellipsis? ellipsis) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
+		float maxWidth = s.Options.MaxWidth;
+		// the sum of the clusters' widths only skips ends that can't fit, since measuring isn't free
+		float sum = 0f;
+		for (int k = start; k < full; k++)
+			sum += clusters[k].Width;
+		for (int e = full; e >= start; e--) {
+			if (e < full)
+				sum -= clusters[e].Width;
+			// ends after whitespace are the same as the end before it
+			if (e > start && clusters[e - 1].IsWhitespaceOnly)
+				continue;
+			Ellipsis? el = withEllipsis ? ellipsisAt(s, p, start, e) : null;
+			float ellipsisWidth = el?.Width ?? 0f;
+			if (sum + ellipsisWidth > maxWidth)
+				continue;
+			if (e == start || measureLine(s, p, start, e) + ellipsisWidth <= maxWidth) {
+				keptEnd = e;
+				ellipsis = el;
+				return true;
+			}
+		}
+		keptEnd = start;
+		ellipsis = null;
+		return false;
+	}
+
+	// the absolute position of the first character a line truncated at `keptEnd` leaves out
+	private static int firstDropped(Paragraph p, int start, int keptEnd) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
+		if (keptEnd > start)
+			return p.Start + clusters[keptEnd - 1].SourceLimit;
+		return p.Start + (start < clusters.Length ? clusters[start].SourceStart : 0);
+	}
+
+	/// <summary>
+	/// Gets the ellipsis for a line starting at cluster <paramref name="start"/> whose kept clusters
+	/// end at <paramref name="keptEnd"/>. The ellipsis gets the style of the last kept cluster's
+	/// first character, or of the line's first character if none is kept.
+	/// </summary>
+	private static Ellipsis ellipsisAt(Scratch s, Paragraph p, int start, int keptEnd) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
+		int styleIndex = p.Start;
+		Script script = Script.Common;
+		Direction direction = Direction.LeftToRight;
+		if (start < clusters.Length) {
+			ParagraphCluster c = clusters[keptEnd > start ? keptEnd - 1 : start];
+			styleIndex = p.Start + c.SourceStart;
+			script = p.Runs[c.Run].Shaped.Properties.Script ?? Script.Common;
+			// a line never spans bidi paragraphs, since their separators are hard breaks
+			direction = p.Analysis!.BaseDirectionAt(clusters[start].SourceStart);
+		}
+		EllipsisKey key = new(s.Text.SpanIndexAt(styleIndex), direction, script);
+		if (!s.Ellipses.TryGetValue(key, out Ellipsis? ellipsis)) {
+			ellipsis = makeEllipsis(s, key);
+			s.Ellipses.Add(key, ellipsis);
+		}
+		return ellipsis;
+	}
+
+	// if no font even has '.', "..." from the primary font as .notdefs
+	private static Ellipsis makeEllipsis(Scratch s, EllipsisKey key) {
+		TextStyle style = s.Text.SpansSpan[key.Span].Style;
+		int chain = s.SpanChains[key.Span];
+		ResolvedFontFallbackChain fonts = s.Chains[chain];
+		TextSegmentProperties props = new(key.Direction, key.Script, style.Language);
+		TextItem normal = new(0, ellipsisString, props);
+		TextItem fallback = new(0, ellipsisFallbackString, props);
+		ParagraphRun? run = tryFont(0, normal) ?? tryFont(0, fallback);
+		for (int f = 1; run is null && f < fonts.Fonts.Length; f++)
+			run = tryFont(f, normal);
+		for (int f = 1; run is null && f < fonts.Fonts.Length; f++)
+			run = tryFont(f, fallback);
+		run ??= newRun(0, fallback, s.ShapeCache.GetOrCreate(fonts.Primary, fallback));
+		return new Ellipsis {
+			Run = run,
+			Direction = key.Direction,
+			Width = run.Shaped.Width * style.Size,
+			Color = style.Color,
+		};
+
+		ParagraphRun? tryFont(int font, TextItem item) {
+			ShapedRun shaped = s.ShapeCache.GetOrCreate(fonts.Fonts[font], item);
+			return FallbackResolver.NoNotdefs(shaped) ? newRun(font, item, shaped) : null;
+		}
+
+		ParagraphRun newRun(int font, TextItem item, ShapedRun shaped) => new() {
+			Chain = chain,
+			FontIndex = font,
+			Size = style.Size,
+			Item = item,
+			Shaped = shaped,
+		};
 	}
 
 	// each glyph takes the color of its cluster's first character
-	private static void emitCluster(Scratch s, in ParagraphCluster c, int paraStart, float baselineY, ref float penX) {
-		ParagraphRun run = s.Runs[c.Run];
+	private static void emitCluster(Scratch s, Paragraph p, in ParagraphCluster c, float baselineY, ref float penX) {
+		ParagraphRun run = p.Runs[c.Run];
 		ReadOnlySpan<RichTextSpan> spans = s.Text.SpansSpan;
 		ReadOnlySpan<ShapedGlyph> glyphs = run.Shaped.Glyphs.AsSpan(c.GlyphStart, c.GlyphCount);
 		float size = run.Size;
 		foreach (ShapedGlyph g in glyphs) {
-			int source = paraStart + run.Item.SourceStart + (int)g.Cluster;
+			int source = p.Start + run.Item.SourceStart + (int)g.Cluster;
 			s.Glyphs.Add(new LaidOutGlyph(
 				Chain: run.Chain,
 				FontIndex: run.FontIndex,
@@ -768,6 +1062,25 @@ internal static class TextLayouter {
 			));
 			penX += g.XAdvance * size;
 			// TODO: YAdvance, for vertical text
+		}
+	}
+
+	// every glyph of an ellipsis has `source` as its source index
+	private static void emitEllipsis(Scratch s, Ellipsis ellipsis, int source, float baselineY, ref float penX) {
+		ParagraphRun run = ellipsis.Run;
+		float size = run.Size;
+		foreach (ShapedGlyph g in run.Shaped.Glyphs) {
+			s.Glyphs.Add(new LaidOutGlyph(
+				Chain: run.Chain,
+				FontIndex: run.FontIndex,
+				GlyphId: g.GlyphId,
+				X: penX + g.XOffset * size,
+				Y: baselineY - g.YOffset * size,
+				Size: size,
+				SourceIndex: source,
+				Color: ellipsis.Color
+			));
+			penX += g.XAdvance * size;
 		}
 	}
 
@@ -821,7 +1134,7 @@ internal static class TextLayouter {
 /// reloaded, the layout becomes <i>stale</i>, which is queryable through <see cref="IsStale"/>;
 /// drawing it lays it out again first, which is also doable manually via
 /// <see cref="RelayoutIfStale()"/>. Until it is re-laid-out, <see cref="Lines"/>,
-/// <see cref="Width"/>, and <see cref="Height"/> are out of date and still describe the previous
+/// <see cref="Width"/>, <see cref="Height"/>, and <see cref="IsTruncated"/> are out of date and still describe the previous
 /// layout.
 /// </para>
 /// <para>
@@ -849,7 +1162,7 @@ public sealed class TextLayout {
 	public RichText Text { get; }
 
 	/// <summary>
-	/// How the text is broken into lines and aligned.
+	/// How the text is broken into lines, aligned, and truncated.
 	/// </summary>
 	public TextLayoutOptions Options { get; }
 
@@ -887,6 +1200,15 @@ public sealed class TextLayout {
 	/// If the layout is stale (see <see cref="IsStale"/>), this still describes the previous layout.
 	/// </remarks>
 	public float Height { get; private set; }
+
+	/// <summary>
+	/// Whether any text was left out, i.e. whether any of <see cref="Lines"/> is truncated (see
+	/// <see cref="TextLine.IsTruncated"/>).
+	/// </summary>
+	/// <remarks>
+	/// If the layout is stale (see <see cref="IsStale"/>), this still describes the previous layout.
+	/// </remarks>
+	public bool IsTruncated { get; private set; }
 
 	/// <summary>
 	/// Whether one of the fonts of <see cref="Text"/>'s styles is an asset that was reloaded since the
@@ -944,6 +1266,7 @@ public sealed class TextLayout {
 		LayoutResult r = owner.RunLayouter(chainArray, Text, spanChains, Options);
 		Width = r.Width;
 		Height = r.Height;
+		IsTruncated = r.IsTruncated;
 		return (chainArray, r.Glyphs, ImmutableArray.Create(r.Lines));
 	}
 }

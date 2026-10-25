@@ -30,7 +30,11 @@ unsafe fn slice_or_empty<'a, T>(p: *const T, len: usize) -> Option<&'a [T]> {
     Some(unsafe { slice::from_raw_parts(p, len) })
 }
 
-unsafe fn slice_or_empty_mut<'a, T>(p: *mut T, len: usize) -> Option<&'a mut [T]> {
+// output buffers only have to be writable, not initialized, so creating a `&mut [T]` would be ub
+unsafe fn slice_or_empty_uninit<'a, T>(
+    p: *mut MaybeUninit<T>,
+    len: usize,
+) -> Option<&'a mut [MaybeUninit<T>]> {
     if len == 0 {
         return Some(&mut []);
     }
@@ -67,7 +71,7 @@ pub unsafe extern "C" fn ijt_line_breaks(
     let (Some(text), Some(language), Some(kinds)) = (
         unsafe { slice_or_empty(text, len) },
         unsafe { slice_or_empty(language, language_len) },
-        unsafe { slice_or_empty_mut(kinds, len + 1) },
+        unsafe { slice_or_empty_uninit(kinds, len + 1) },
     ) else {
         return IjtResult::InvalidArgument;
     };
@@ -101,7 +105,7 @@ pub unsafe extern "C" fn ijt_bidi_open(
     let Some(text) = (unsafe { slice_or_empty(text, len) }) else {
         return IjtResult::InvalidArgument;
     };
-    unsafe { *out = Box::into_raw(Box::new(BidiText::from_utf16(text))) };
+    unsafe { out.write(Box::into_raw(Box::new(BidiText::from_utf16(text)))) };
     IjtResult::Ok
 }
 
@@ -119,19 +123,48 @@ pub unsafe extern "C" fn ijt_bidi_open(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ijt_bidi_levels(
     bidi: *const BidiText,
-    levels: *mut u8,
+    levels: *mut MaybeUninit<u8>,
     len: usize,
 ) -> IjtResult {
     let Some(bidi) = (unsafe { bidi.as_ref() }) else {
         return IjtResult::InvalidArgument;
     };
-    let Some(levels) = (unsafe { slice_or_empty_mut(levels, len) }) else {
+    let Some(levels) = (unsafe { slice_or_empty_uninit(levels, len) }) else {
         return IjtResult::InvalidArgument;
     };
     if len != bidi.len() {
         return IjtResult::InvalidArgument;
     }
     bidi.levels(levels);
+    IjtResult::Ok
+}
+
+/// Writes the embedding level of the paragraph containing the code unit at `index` of the analyzed
+/// string into `level`. The level is 0 for an LTR paragraph and 1 for an RTL one.
+///
+/// `index` must be less than the length of the analyzed string; otherwise, this function fails
+/// with [`IjtResult::InvalidArgument`].
+///
+/// # Safety
+///
+/// `bidi` must be a handle obtained from [`ijt_bidi_open`] that has not been closed, and `level`
+/// must be writable for one byte.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ijt_bidi_paragraph_level(
+    bidi: *const BidiText,
+    index: usize,
+    level: *mut u8,
+) -> IjtResult {
+    let Some(bidi) = (unsafe { bidi.as_ref() }) else {
+        return IjtResult::InvalidArgument;
+    };
+    if level.is_null() {
+        return IjtResult::InvalidArgument;
+    }
+    let Some(l) = bidi.paragraph_level(index) else {
+        return IjtResult::InvalidArgument;
+    };
+    unsafe { level.write(l) };
     IjtResult::Ok
 }
 
@@ -156,20 +189,20 @@ pub unsafe extern "C" fn ijt_bidi_visual_runs(
     bidi: *const BidiText,
     line_start: usize,
     line_limit: usize,
-    runs: *mut bidi::BidiRun,
+    runs: *mut MaybeUninit<bidi::BidiRun>,
     cap: usize,
     count: *mut usize,
 ) -> IjtResult {
     let Some(bidi) = (unsafe { bidi.as_ref() }) else {
         return IjtResult::InvalidArgument;
     };
-    let Some(runs) = (unsafe { slice_or_empty_mut(runs, cap) }) else {
+    let Some(runs) = (unsafe { slice_or_empty_uninit(runs, cap) }) else {
         return IjtResult::InvalidArgument;
     };
     if count.is_null() || line_start > line_limit || line_limit > bidi.len() {
         return IjtResult::InvalidArgument;
     }
-    unsafe { *count = bidi.visual_runs(line_start, line_limit, runs) };
+    unsafe { count.write(bidi.visual_runs(line_start, line_limit, runs)) };
     IjtResult::Ok
 }
 

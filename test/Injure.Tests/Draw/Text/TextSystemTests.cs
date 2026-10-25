@@ -19,7 +19,7 @@ namespace Injure.Tests.Draw.Text;
 // 1000), the wide variant's letters 700, digits 600, space 300, .notdef 500, with an ascent of 800,
 // a descent of 200, and 1000 units per em, so at size 10 everything is whole drawable units. the
 // gap variant has a line gap of 200, and in the contextual one, 'b' before 'c' and 'c' after 'b'
-// advance 300
+// advance 300. the ellipsis variant adds an 800-unit U+2026, and the dots one a 200-unit '.'
 public sealed class TextSystemTests : GpuTestBase {
 	// layout uses ijtext; the native libs collection can't be used here, since this class is already
 	// in the GPU one
@@ -108,6 +108,15 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal("options.HorizontalAlign", e.ParamName);
 		e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout("a", style(sans), default(TextLayoutOptions)));
 		Assert.Equal("options", e.ParamName);
+		e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout("a", style(sans), TextLayoutOptions.Default with { HorizontalOverflow = default }));
+		Assert.Equal("options.HorizontalOverflow", e.ParamName);
+		e = Assert.Throws<ArgumentInvalidDefaultException>(() => text.Layout("a", style(sans), TextLayoutOptions.Default with { TruncationMarker = default }));
+		Assert.Equal("options.TruncationMarker", e.ParamName);
+		ArgumentOutOfRangeException r = Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout("a", style(sans), TextLayoutOptions.Default with { MaxLines = 0 }));
+		Assert.Equal("options.MaxLines", r.ParamName);
+		r = Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout("a", style(sans), TextLayoutOptions.Default with { MaxHeight = -1 }));
+		Assert.Equal("options.MaxHeight", r.ParamName);
+		Assert.Throws<ArgumentOutOfRangeException>(() => text.Layout("a", style(sans), TextLayoutOptions.Default with { MaxHeight = float.NaN }));
 	}
 
 	[Fact]
@@ -137,6 +146,14 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal([10f, 5f], widths(10));
 		// "ab" no longer fits once broken from 'c', so the break moves back
 		Assert.Equal([5f, 6f], widths(9));
+		// same goes for truncation
+		TextLayoutOptions cut = TextLayoutOptions.Default with {
+			MaxWidth = 9,
+			WrapMode = TextWrapMode.None,
+			HorizontalOverflow = TextHorizontalOverflow.Cut,
+			TruncationMarker = TextTruncationMarker.None,
+		};
+		Assert.Equal(5f, text.Layout("abc", style(ctx), cut).Width);
 	}
 
 	[Fact]
@@ -147,6 +164,139 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(12f, l.Lines[0].Height);
 		Assert.Equal(20f, l.Lines[1].BaselineY);
 		Assert.Equal(22f, l.Height);
+	}
+
+	private static float[] widths(TextLayout l) => l.Lines.Select(static line => line.Width).ToArray();
+
+	private static bool[] truncated(TextLayout l) => l.Lines.Select(static line => line.IsTruncated).ToArray();
+
+	[Fact]
+	public void LinesPastMaxLinesAreDroppedAndTheLastKeptOneEndsInAnEllipsis() {
+		using TextSystem text = new(Device);
+		FontData ell = text.LoadFont(fontBytes("InjureTestEllipsis"));
+		TextLayout l = text.Layout("aa\nbb\ncc", style(ell), TextLayoutOptions.Default with { MaxLines = 2 });
+		Assert.Equal([10f, 18f], widths(l));
+		Assert.Equal([false, true], truncated(l));
+		Assert.True(l.IsTruncated);
+		Assert.Equal(20f, l.Height);
+		l = text.Layout("aa\nbb\ncc", style(ell), TextLayoutOptions.Default with { MaxLines = 3 });
+		Assert.Equal([10f, 10f, 10f], widths(l));
+		Assert.False(l.IsTruncated);
+		// empty lines count too
+		Assert.Equal([18f], widths(text.Layout("aa\n", style(ell), TextLayoutOptions.Default with { MaxLines = 1 })));
+		// the line stays as-is with no marker
+		l = text.Layout("aa \nbb", style(ell), TextLayoutOptions.Default with { MaxLines = 1, TruncationMarker = TextTruncationMarker.None });
+		Assert.Equal([13f], widths(l));
+		Assert.True(l.IsTruncated);
+	}
+
+	[Fact]
+	public void TheEllipsisReplacesTextToFitTheBox() {
+		using TextSystem text = new(Device);
+		FontData ell = text.LoadFont(fontBytes("InjureTestEllipsis"));
+		TextLayoutOptions opts = TextLayoutOptions.Default with { MaxWidth = 25, MaxLines = 1 };
+		// the first line is "aaaa", and "aaaa…" is 28 wide
+		Assert.Equal([23f], widths(text.Layout("aaaa aaaa", style(ell), opts)));
+		// "aa …" would fit, but the space before the ellipsis is dropped
+		Assert.Equal([18f], widths(text.Layout("aa a\nb", style(ell), opts with { MaxWidth = 21 })));
+		// with Overflow, a line already wider than the box gets the ellipsis after all of its text
+		opts = opts with { MaxWidth = 10, WrapMode = TextWrapMode.None };
+		Assert.Equal([38f], widths(text.Layout("aaaaaa\nb", style(ell), opts)));
+		// and an ellipsis wider than the box replaces all of the text
+		Assert.Equal([8f], widths(text.Layout("a\nb", style(ell), opts with { MaxWidth = 6 })));
+	}
+
+	[Fact]
+	public void LinesStopAtMaxHeight() {
+		using TextSystem text = new(Device);
+		FontData ell = text.LoadFont(fontBytes("InjureTestEllipsis"));
+		// "a a" wraps into two lines, and lines are 10 apart; the second line's bottom is at 20
+		TextLayoutOptions opts = TextLayoutOptions.Default with { MaxWidth = 5, TruncationMarker = TextTruncationMarker.None };
+		int lines(float maxHeight, int? maxLines = null) =>
+			text.Layout("a a\na", style(ell), opts with { MaxHeight = maxHeight, MaxLines = maxLines }).Lines.Count;
+		Assert.Equal(3, lines(30));
+		Assert.Equal(2, lines(20));
+		Assert.Equal(1, lines(19.5f));
+		// the first line is always kept
+		Assert.Equal(1, lines(0));
+		Assert.True(text.Layout("a a\na", style(ell), opts with { MaxHeight = 0 }).IsTruncated);
+		// with both limits, whichever is reached first applies
+		Assert.Equal(1, lines(30, maxLines: 1));
+		Assert.Equal(2, lines(20, maxLines: 3));
+		Assert.Equal(3, lines(float.PositiveInfinity));
+	}
+
+	[Fact]
+	public void CutTruncatesLinesWiderThanTheBox() {
+		using TextSystem text = new(Device);
+		FontData ell = text.LoadFont(fontBytes("InjureTestEllipsis"));
+		TextLayoutOptions opts = TextLayoutOptions.Default with { MaxWidth = 22, WrapMode = TextWrapMode.None, HorizontalOverflow = TextHorizontalOverflow.Cut };
+		// "aaa…" is 23 wide, so only "aa" fits next to the ellipsis
+		TextLayout l = text.Layout("aaaaaa\naa", style(ell), opts);
+		Assert.Equal([18f, 10f], widths(l));
+		Assert.Equal([true, false], truncated(l));
+		Assert.Equal([20f], widths(text.Layout("aaaaaa", style(ell), opts with { TruncationMarker = TextTruncationMarker.None })));
+		// an ellipsis wider than the box is left out
+		Assert.Equal([5f], widths(text.Layout("aaaaaa", style(ell), opts with { MaxWidth = 7 })));
+		// with Greedy, a single cluster wider than the box is cut entirely
+		l = text.Layout("m", style(ell), opts with { MaxWidth = 9, WrapMode = TextWrapMode.Greedy, TruncationMarker = TextTruncationMarker.None });
+		Assert.Equal([0f], widths(l));
+		Assert.True(l.IsTruncated);
+		Assert.False(text.Layout("aaaaaa", style(ell), opts with { MaxWidth = float.PositiveInfinity }).IsTruncated);
+	}
+
+	[Fact]
+	public void TheEllipsisGoesAtTheEndOfTheLineInItsParagraphsDirection() {
+		using TextSystem text = new(Device);
+		FontData ell = text.LoadFont(fontBytes("InjureTestEllipsis"));
+		TextLayoutOptions opts = TextLayoutOptions.Default with { MaxLines = 1 };
+		// the ellipsis's glyph is the one whose source index is the first dropped character
+		// here that's the '\n'
+		TextLayout ltr = text.Layout("ab\nc", style(ell), opts);
+		Assert.Equal(2, ltr.Glyphs[^1].SourceIndex);
+		Assert.Equal(10f, ltr.Glyphs[^1].X);
+		// the font doesn't have hebrew so these become .notdefs
+		TextLayout rtl = text.Layout("אב\nc", style(ell), opts);
+		Assert.Equal(2, rtl.Glyphs[0].SourceIndex);
+		Assert.Equal(0f, rtl.Glyphs[0].X);
+		Assert.Equal(18f, rtl.Width);
+	}
+
+	[Fact]
+	public void TheEllipsisTakesTheStyleOfTheLastKeptCharacter() {
+		using TextSystem text = new(Device);
+		FontData ell = text.LoadFont(fontBytes("InjureTestEllipsis"));
+		RichText t = new RichTextBuilder(style(ell))
+			.Append("aa", new TextStyleOverride(Color: SrgbColor32.Red))
+			.Append("aaaa", new TextStyleOverride(Color: SrgbColor32.Blue, Size: 20f))
+			.Build();
+		TextLayoutOptions opts = TextLayoutOptions.Default with { MaxWidth = 30, WrapMode = TextWrapMode.None, HorizontalOverflow = TextHorizontalOverflow.Cut };
+		// "aa" + a 20-unit 'a' + a 16-unit ellipsis is 46 wide, so only "aa" is kept, with a 10-size red ellipsis
+		TextLayout l = text.Layout(t, opts);
+		Assert.Equal([18f], widths(l));
+		Assert.Equal(SrgbColor32.Red, l.Glyphs[^1].Color);
+		// a wider box keeps blue 'a's, so the ellipsis is blue and at size 20
+		l = text.Layout(t, opts with { MaxWidth = 47 });
+		Assert.Equal([46f], widths(l));
+		Assert.Equal(SrgbColor32.Blue, l.Glyphs[^1].Color);
+	}
+
+	[Fact]
+	public void TheEllipsisPrefersThePrimaryFont() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		FontData ell = text.LoadFont(fontBytes("InjureTestEllipsis"));
+		FontData dots = text.LoadFont(fontBytes("InjureTestDots"));
+		float ellipsisWidth(FontFallbackChain fonts) =>
+			text.Layout("a\nb", style(fonts), TextLayoutOptions.Default with { MaxLines = 1 }).Width - 5f;
+		Assert.Equal(8f, ellipsisWidth(ell));
+		// "..." from the primary font over U+2026 from a fallback
+		Assert.Equal(6f, ellipsisWidth(new FontFallbackChain(dots, ell)));
+		// U+2026 from a fallback over "..." from an earlier one
+		Assert.Equal(8f, ellipsisWidth(new FontFallbackChain(sans, dots, ell)));
+		Assert.Equal(6f, ellipsisWidth(new FontFallbackChain(sans, dots)));
+		// if neither are found anywhere "..." is three .notdefs
+		Assert.Equal(15f, ellipsisWidth(sans));
 	}
 
 	private static TextLine[] aligned(TextSystem text, FontData sans, string s, float maxWidth, TextHorizontalAlign align) =>

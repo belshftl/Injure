@@ -164,13 +164,6 @@ public sealed unsafe class TextSystem : IDisposable {
 	}
 
 	private readonly FtLibrary library = new();
-	/// <summary>
-	/// Guards <see cref="probeLibrary"/>.
-	/// </summary>
-	/// <remarks>
-	/// FreeType libraries aren't thread-safe, and <see cref="LoadFont(byte[], string?)"/> runs on
-	/// asset loading threads.
-	/// </remarks>
 	private readonly Lock probeLock = new();
 	private readonly FtLibrary probeLibrary = new();
 	private readonly Dictionary<ResolvedFontKey, IResolvedFont> fonts = new();
@@ -323,8 +316,7 @@ public sealed unsafe class TextSystem : IDisposable {
 	/// the faces, but invalid data past that can still only fail once the font is actually used.
 	/// </para>
 	/// <para>
-	/// Thread-safe, since font asset creators call it from loading threads. The returned font can be
-	/// used with any text system.
+	/// Thread-safe. The returned font can be used with any <see cref="TextSystem"/>.
 	/// </para>
 	/// </remarks>
 	public FontData LoadFont(byte[] data, string? debugName = null) {
@@ -358,7 +350,7 @@ public sealed unsafe class TextSystem : IDisposable {
 	/// </summary>
 	/// <param name="text">The text and its styles.</param>
 	/// <param name="options">
-	/// How the text is broken into lines and aligned, or <see langword="null"/> for
+	/// Line-breaking, alignment, and truncation options, or <see langword="null"/> for
 	/// <see cref="TextLayoutOptions.Default"/>.
 	/// </param>
 	/// <returns>The layout.</returns>
@@ -366,8 +358,9 @@ public sealed unsafe class TextSystem : IDisposable {
 	/// Thrown if <paramref name="text"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> is negative
-	/// or NaN.
+	/// Thrown if <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> or
+	/// <see cref="TextLayoutOptions.MaxHeight"/> is negative or NaN, or its
+	/// <see cref="TextLayoutOptions.MaxLines"/> is less than 1.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this text system has been disposed.
@@ -393,7 +386,7 @@ public sealed unsafe class TextSystem : IDisposable {
 	/// </param>
 	/// <param name="style">The style of the whole text.</param>
 	/// <param name="options">
-	/// How the text is broken into lines and aligned, or <see langword="null"/> for
+	/// Line-breaking, alignment, and truncation options, or <see langword="null"/> for
 	/// <see cref="TextLayoutOptions.Default"/>.
 	/// </param>
 	/// <returns>The layout, whose <see cref="TextLayout.Text"/> has a single span.</returns>
@@ -403,7 +396,9 @@ public sealed unsafe class TextSystem : IDisposable {
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="style"/>'s <see cref="TextStyle.Size"/> isn't positive and finite,
-	/// or <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> is negative or NaN.
+	/// or <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> or
+	/// <see cref="TextLayoutOptions.MaxHeight"/> is negative or NaN, or its
+	/// <see cref="TextLayoutOptions.MaxLines"/> is less than 1.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if this text system has been disposed.
@@ -489,7 +484,6 @@ public sealed unsafe class TextSystem : IDisposable {
 
 	// ==========================================================================
 	// caches
-
 	internal void OnCacheActivity() {
 		ThrowIfDisposed();
 		if (++opCounter < cacheOptions.TrimEveryNOperations)

@@ -1068,7 +1068,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="style">The style of the whole text.</param>
 	/// <param name="at">Position for the laid out text's top-left corner.</param>
 	/// <param name="options">
-	/// Line-breaking/alignment options, or <see langword="null"/> for
+	/// Line-breaking, alignment, and truncation options, or <see langword="null"/> for
 	/// <see cref="TextLayoutOptions.Default"/>.
 	/// </param>
 	/// <param name="tint">
@@ -1082,7 +1082,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="style"/>'s <see cref="TextStyle.Size"/> isn't positive and finite,
-	/// or <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> is negative or NaN.
+	/// or <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> or
+	/// <see cref="TextLayoutOptions.MaxHeight"/> is negative or NaN, or its
+	/// <see cref="TextLayoutOptions.MaxLines"/> is less than 1.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if the canvas's <see cref="TextSystem"/> has been disposed.
@@ -1117,7 +1119,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="text">The text and its styles.</param>
 	/// <param name="at">Position for the laid out text's top-left corner.</param>
 	/// <param name="options">
-	/// Line-breaking/alignment options, or <see langword="null"/> for
+	/// Line-breaking, alignment, and truncation options, or <see langword="null"/> for
 	/// <see cref="TextLayoutOptions.Default"/>.
 	/// </param>
 	/// <param name="tint">
@@ -1130,8 +1132,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Thrown if <paramref name="text"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> is negative or
-	/// NaN.
+	/// Thrown if <paramref name="options"/>'s <see cref="TextLayoutOptions.MaxWidth"/> or
+	/// <see cref="TextLayoutOptions.MaxHeight"/> is negative or NaN, or its
+	/// <see cref="TextLayoutOptions.MaxLines"/> is less than 1.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if the canvas's <see cref="TextSystem"/> has been disposed.

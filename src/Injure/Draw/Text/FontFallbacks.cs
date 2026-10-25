@@ -260,7 +260,7 @@ internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache
 		// shape without caching, single graphemes would only crowd out the shape cache
 		fontIndex = 0;
 		for (int i = 0; i < fonts.Fonts.Length; i++) {
-			if (noNotdefs(shapeCache.ShapeUncached(fonts.Fonts[i], graphemeItem))) {
+			if (NoNotdefs(shapeCache.ShapeUncached(fonts.Fonts[i], graphemeItem))) {
 				fontIndex = i;
 				break;
 			}
@@ -269,7 +269,7 @@ internal sealed class FallbackResolver(ShapeCache shapeCache, FallbackProbeCache
 		return fontIndex;
 	}
 
-	private static bool noNotdefs(ShapedRun shaped) {
+	public static bool NoNotdefs(ShapedRun shaped) {
 		foreach (ShapedGlyph glyph in shaped.Glyphs)
 			if (glyph.GlyphId == 0)
 				return false;

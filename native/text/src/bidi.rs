@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use self_cell::self_cell;
+use std::mem::MaybeUninit;
 use unicode_bidi::utf16::BidiInfo;
 
 self_cell!(
@@ -64,13 +65,28 @@ impl BidiText {
         self.text().len()
     }
 
-    pub fn levels(&self, out: &mut [u8]) {
+    /// `out` must be as long as the string, so that every element gets written.
+    pub fn levels(&self, out: &mut [MaybeUninit<u8>]) {
+        debug_assert_eq!(out.len(), self.info().levels.len());
         for (o, l) in out.iter_mut().zip(&self.info().levels) {
-            *o = l.number();
+            o.write(l.number());
         }
     }
 
-    pub fn visual_runs(&self, start: usize, limit: usize, out: &mut [BidiRun]) -> usize {
+    pub fn paragraph_level(&self, index: usize) -> Option<u8> {
+        self.info()
+            .paragraphs
+            .iter()
+            .find(|para| para.range.contains(&index))
+            .map(|para| para.level.number())
+    }
+
+    pub fn visual_runs(
+        &self,
+        start: usize,
+        limit: usize,
+        out: &mut [MaybeUninit<BidiRun>],
+    ) -> usize {
         let mut n = 0;
         for para in &self.info().paragraphs {
             let s = start.max(para.range.start);
@@ -81,11 +97,11 @@ impl BidiText {
             let (levels, runs) = self.info().visual_runs(para, s..e);
             for run in runs {
                 if let Some(slot) = out.get_mut(n) {
-                    *slot = BidiRun {
+                    slot.write(BidiRun {
                         start: count(run.start),
                         len: count(run.end - run.start),
                         rtl: u32::from(levels[run.start].is_rtl()),
-                    };
+                    });
                 }
                 n += 1;
             }

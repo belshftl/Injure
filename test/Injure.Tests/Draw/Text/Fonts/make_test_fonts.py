@@ -92,6 +92,8 @@ def main():
 		'InjureTestSansWide.ttf': build('Injure Test Sans Wide', {c: 700 for c in 'abcdefghijklmnopqrstuvwxyz'}),
 		'InjureTestDigits.ttf': build('Injure Test Digits', {c: 600 for c in '0123456789'}),
 		'InjureTestSansGap.ttf': build('Injure Test Sans Gap', letters, line_gap=200),
+		'InjureTestEllipsis.ttf': build('Injure Test Ellipsis', letters | {'\u2026': 800}),
+		'InjureTestDots.ttf': build('Injure Test Dots', letters | {'.': 200}),
 		'InjureTestContextual.ttf': build(
 			'Injure Test Contextual',
 			{c: 500 for c in 'abcdefghijklmnopqrstuvwxyz'},

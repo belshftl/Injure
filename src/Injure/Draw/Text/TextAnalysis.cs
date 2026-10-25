@@ -61,6 +61,9 @@ internal static unsafe partial class IjText {
 	private static partial IjtResult ijt_bidi_levels(nint bidi, byte* levels, nuint len);
 
 	[LibraryImport(library)]
+	private static partial IjtResult ijt_bidi_paragraph_level(nint bidi, nuint index, byte* level);
+
+	[LibraryImport(library)]
 	private static partial IjtResult ijt_bidi_visual_runs(nint bidi, nuint lineStart, nuint lineLimit, BidiRun* runs, nuint cap, nuint* count);
 
 	[LibraryImport(library)]
@@ -93,6 +96,12 @@ internal static unsafe partial class IjText {
 	public static void BidiLevels(nint bidi, Span<byte> levels) {
 		fixed (byte* pLevels = levels)
 			check(ijt_bidi_levels(bidi, pLevels, (nuint)levels.Length), nameof(ijt_bidi_levels));
+	}
+
+	public static byte BidiParagraphLevel(nint bidi, int index) {
+		byte level;
+		check(ijt_bidi_paragraph_level(bidi, (nuint)index, &level), nameof(ijt_bidi_paragraph_level));
+		return level;
 	}
 
 	public static int BidiVisualRuns(nint bidi, int lineStart, int lineLimit, Span<BidiRun> runs) {
@@ -159,6 +168,14 @@ internal static class TextAnalysis {
 				start = limit;
 			}
 		}
+
+		/// <summary>
+		/// Gets the base direction of the (bidi) paragraph containing the code unit at
+		/// <paramref name="index"/>. The text can hold several of them, since the algorithm also
+		/// starts a new paragraph after e.g. U+2029 PARAGRAPH SEPARATOR.
+		/// </summary>
+		public Direction BaseDirectionAt(int index) =>
+			isRtlLevel(IjText.BidiParagraphLevel(h, index)) ? Direction.RightToLeft : Direction.LeftToRight;
 
 		/// <summary>
 		/// Adds the runs of a line in visual order, left to right.
