@@ -8,6 +8,26 @@
  * behavior of the native library is a bug.
  */
 
+/*
+ * Unless stated otherwise, `T` is the pointee type, and terms such as "events" or "UTF-16 code
+ * units" refer to elements of that type.
+ *
+ * A pointer is *readable* for `N` elements of type `T` if either:
+ * - `N` is 0 (informative: this means the pointer may be any value, e.g. null)
+ * - it is properly aligned for `T` and points to `N * sizeof(T)` initialized, readable bytes that
+ *   form N valid values of type `T`
+ *
+ * A pointer is *writable* for `N` elements of type `T` if either:
+ * - `N` is 0 (informative: this means the pointer may be any value, e.g. null)
+ * - it is properly aligned for `T` and points to `N * sizeof(T)` writable bytes; the bytes need
+ *   not be initialized
+ *
+ * Both properties must hold for the duration of the call. Writable regions must not overlap any
+ * other region passed to the same call.
+ *
+ * A pointer with a corresponding length argument is *empty* if the length is 0.
+ */
+
 #pragma once
 
 #include <stddef.h>
@@ -92,7 +112,8 @@ typedef struct Event {
 EXPORT int32_t prof_is_attached(void);
 
 /*
- * Waits for profiler events and copies as many as fit, returning the amount that was written.
+ * Waits for profiler events and copies as many as fit, returning the number of events written.
+ * Returns 0 without waiting if `buf` is null or empty.
  *
  * # Safety
  *
@@ -112,11 +133,12 @@ EXPORT void prof_wakeup(void);
  */
 
 /*
- * Finds a loaded module by a given UTF-16 path suffix.
+ * Finds a loaded module by a given UTF-16 path suffix. Returns 0 if there's no such module, or if
+ * `suffix` is empty.
  *
  * # Safety
  *
- * `suffix` must point to `len` UTF-16 code units.
+ * `suffix` must be readable for `len` **UTF-16 code units** (not bytes).
  */
 EXPORT ModuleID prof_find_module(const uint16_t *suffix, size_t len);
 
@@ -141,7 +163,7 @@ EXPORT HRESULT prof_module_path(ModuleID module, uint16_t *buf, size_t capacity,
 EXPORT HRESULT prof_module_mvid(ModuleID module, uint8_t *mvid);
 
 /*
- * Gets whether a module belongs to a collectible load context. Tri-state; returns either a
+ * Gets whether a module belongs to a collectible load context. Tri-state: returns either a
  * boolean or -1 if there is no much module.
  */
 EXPORT int32_t prof_module_is_collectible(ModuleID module); /* not a bool return */
@@ -170,7 +192,7 @@ EXPORT HRESULT prof_get_il(
 
 /*
  * Stores the IL to install on a method's next ReJIT. `body` is copied out, and as such need only
- * remain valid for the duration of the call.
+ * remain valid for the duration of the call. An empty `body` fails with `E_INVALIDARG`.
  *
  * # Safety
  *
@@ -182,6 +204,7 @@ EXPORT HRESULT prof_set_prepared(ModuleID module, mdMethodDef token, const uint8
  * Requests a ReJIT for a batch of methods.
  *
  * Asynchronous with respect to running code; already-executing frames continue on the old version.
+ * If `modules`/`tokens` are empty, does nothing and succeeds.
  *
  * # Safety
  *
@@ -190,7 +213,8 @@ EXPORT HRESULT prof_set_prepared(ModuleID module, mdMethodDef token, const uint8
 EXPORT HRESULT prof_request_rejit(const ModuleID *modules, const mdMethodDef *tokens, size_t count);
 
 /*
- * Reverts a batch of methods to the IL in their modules and forgets their prepared bodies.
+ * Reverts a batch of methods to the IL in their modules and forgets their prepared bodies. If
+ * `modules`/`tokens` are empty, does nothing and succeeds.
  *
  * # Safety
  *
@@ -204,12 +228,13 @@ EXPORT HRESULT prof_request_revert(const ModuleID *modules, const mdMethodDef *t
  */
 
 /*
- * Defines an `AssemblyRef`, or returns the existing row for the same identity.
+ * Defines an `AssemblyRef`, or returns the existing row for the same identity. An empty `name`
+ * fails with `E_INVALIDARG`; `public_key` may be empty.
  *
  * # Safety
  *
- * `name` must be readable for `name_len` **UTF-16 code units** (not bytes), and `token` must be
- * writable for one `uint32_t`.
+ * `name` must be readable for `name_len` **UTF-16 code units** (not bytes), `public_key` must
+ * be readable for `public_key_len` bytes, and `token` must be writable for one `uint32_t`.
  */
 EXPORT HRESULT prof_define_assembly_ref(
 	ModuleID module,
@@ -226,7 +251,8 @@ EXPORT HRESULT prof_define_assembly_ref(
 );
 
 /*
- * Defines a `TypeRef`, or returns the existing row.
+ * Defines a `TypeRef`, or returns the existing row. An empty `name` fails with `E_INVALIDARG`;
+ * `namespace` may be empty.
  *
  * # Safety
  *
@@ -245,7 +271,8 @@ EXPORT HRESULT prof_define_type_ref(
 );
 
 /*
- * Defines a `MemberRef`, or returns the existing row.
+ * Defines a `MemberRef`, or returns the existing row. An empty `name` or `signature` fails with
+ * `E_INVALIDARG`.
  *
  * # Safety
  *
@@ -263,7 +290,7 @@ EXPORT HRESULT prof_define_member_ref(
 );
 
 /*
- * Defines a `TypeSpec` from an encoded signature.
+ * Defines a `TypeSpec` from an encoded signature. An empty `signature` fails with `E_INVALIDARG`.
  *
  * # Safety
  *
@@ -278,7 +305,8 @@ EXPORT HRESULT prof_define_type_spec(
 );
 
 /*
- * Defines a `MethodSpec` over a method and its generic arguments.
+ * Defines a `MethodSpec` over a method and its generic arguments. An empty `signature` fails with
+ * `E_INVALIDARG`.
  *
  * # Safety
  *
@@ -294,7 +322,7 @@ EXPORT HRESULT prof_define_method_spec(
 );
 
 /*
- * Defines a `StandAloneSig`, which `calli` and locals signatures need.
+ * Defines a `StandAloneSig`. An empty `signature` fails with `E_INVALIDARG`.
  *
  * # Safety
  *
@@ -309,7 +337,7 @@ EXPORT HRESULT prof_define_standalone_sig(
 );
 
 /*
- * Adds a user string, returning its token (prefixed with `0x70`).
+ * Adds a user string, returning its token (prefixed with `0x70`). `value` may be empty.
  *
  * # Safety
  *

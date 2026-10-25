@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::ffi::c_void;
+use std::mem::MaybeUninit;
 
 use crate::com::{GUID, HRESULT, S_OK};
 
@@ -32,8 +33,9 @@ define_stubs!(
     Stub9 stub9(usize, usize, usize, usize, usize, usize, usize, usize, usize),
 );
 
+// the out pointer only has to be writable, since it's the callee that implements this
 pub type QueryInterfaceFn =
-    unsafe extern "system" fn(*mut c_void, *const GUID, *mut *mut c_void) -> HRESULT;
+    unsafe extern "system" fn(*mut c_void, *const GUID, *mut MaybeUninit<*mut c_void>) -> HRESULT;
 pub type AddRefFn = unsafe extern "system" fn(*mut c_void) -> u32;
 pub type ReleaseFn = unsafe extern "system" fn(*mut c_void) -> u32;
 pub type InitializeFn = unsafe extern "system" fn(*mut c_void, *mut c_void) -> HRESULT;

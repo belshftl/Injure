@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::collections::VecDeque;
+use std::mem::MaybeUninit;
 use std::sync::{Condvar, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -146,8 +147,8 @@ pub fn publish(event: Event) {
     queue.ready.notify_one();
 }
 
-pub unsafe fn wait(buffer: *mut Event, capacity: usize, timeout_ms: u64) -> usize {
-    if buffer.is_null() || capacity == 0 {
+pub fn wait(out: &mut [MaybeUninit<Event>], timeout_ms: u64) -> usize {
+    if out.is_empty() {
         return 0;
     }
     let queue = queue();
@@ -161,10 +162,9 @@ pub unsafe fn wait(buffer: *mut Event, capacity: usize, timeout_ms: u64) -> usiz
             .unwrap();
     }
 
-    let n = state.events.len().min(capacity);
-    for i in 0..n {
-        let ev = state.events.pop_front().expect("length was just checked");
-        unsafe { buffer.add(i).write(ev) };
+    let n = state.events.len().min(out.len());
+    for (slot, ev) in out.iter_mut().zip(state.events.drain(..n)) {
+        slot.write(ev);
     }
     n
 }

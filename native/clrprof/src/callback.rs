@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::ffi::c_void;
+use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -15,6 +16,7 @@ use crate::info::{
     FunctionControl, IID_ICorProfilerInfo7, ProfilerInfo,
 };
 use crate::state;
+use crate::uninit::UninitPtr;
 use crate::vtable::{CallbackVtable, FunctionID, ModuleID, callback_vtable, mdMethodDef};
 use crate::worker;
 
@@ -36,7 +38,7 @@ static PROFILER_VTABLE: CallbackVtable = callback_vtable! {
     ReJITError: rejit_error,
 };
 
-pub fn create(iid: *const GUID, out: *mut *mut c_void) -> HRESULT {
+pub fn create(iid: *const GUID, out: *mut MaybeUninit<*mut c_void>) -> HRESULT {
     if out.is_null() {
         return E_POINTER;
     }
@@ -50,12 +52,12 @@ pub fn create(iid: *const GUID, out: *mut *mut c_void) -> HRESULT {
 unsafe extern "system" fn query_interface(
     this: *mut c_void,
     iid: *const GUID,
-    out: *mut *mut c_void,
+    out: *mut MaybeUninit<*mut c_void>,
 ) -> HRESULT {
     if out.is_null() {
         return E_POINTER;
     }
-    unsafe { *out = std::ptr::null_mut() };
+    unsafe { out.write_value(std::ptr::null_mut()) };
 
     if !iid_eq(iid, &IID_IUnknown)
         && !IID_ICorProfilerCallback
@@ -66,7 +68,7 @@ unsafe extern "system" fn query_interface(
     }
     unsafe {
         add_ref(this);
-        *out = this;
+        out.write_value(this);
     }
     S_OK
 }

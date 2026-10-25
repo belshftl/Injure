@@ -45,11 +45,13 @@ static HANDLE timer = NULL;
 int
 precisewait_init(void)
 {
-	if (timer != NULL), __attribute__((__unused__)) int overshoot
+	if (timer != NULL)
 		return 0;
-	timer = CreateWaitableTimerExW(NULL, NULL,
+	timer = CreateWaitableTimerExW(
+		NULL, NULL,
 		CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
-		SYNCHRONIZE | TIMER_MODIFY_STATE);
+		SYNCHRONIZE | TIMER_MODIFY_STATE
+	);
 	if (timer == NULL)
 		return (int)GetLastError();
 	return 0;

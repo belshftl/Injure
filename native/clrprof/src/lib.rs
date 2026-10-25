@@ -14,16 +14,20 @@ mod exports;
 mod info;
 mod metadata;
 mod state;
+mod uninit;
 mod vtable;
 mod worker;
 
 use std::ffi::c_void;
+use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use com::{
     CLASS_E_CLASSNOTAVAILABLE, CLSID_PROFILER, E_NOINTERFACE, E_POINTER, GUID, HRESULT,
     IID_IClassFactory, IID_IUnknown, S_FALSE, S_OK, iid_eq,
 };
+use uninit::UninitPtr;
+use vtable::QueryInterfaceFn;
 
 // ==============================================================================================
 // class factory
@@ -31,15 +35,14 @@ use com::{
 #[allow(non_snake_case)]
 #[repr(C)]
 struct ClassFactoryVtable {
-    QueryInterface:
-        unsafe extern "system" fn(*mut c_void, *const GUID, *mut *mut c_void) -> HRESULT,
+    QueryInterface: QueryInterfaceFn,
     AddRef: unsafe extern "system" fn(*mut c_void) -> u32,
     Release: unsafe extern "system" fn(*mut c_void) -> u32,
     CreateInstance: unsafe extern "system" fn(
         *mut c_void,
         *mut c_void,
         *const GUID,
-        *mut *mut c_void,
+        *mut MaybeUninit<*mut c_void>,
     ) -> HRESULT,
     LockServer: unsafe extern "system" fn(*mut c_void, i32) -> HRESULT,
 }
@@ -61,18 +64,18 @@ static FACTORY_VTABLE: ClassFactoryVtable = ClassFactoryVtable {
 unsafe extern "system" fn factory_query_interface(
     this: *mut c_void,
     iid: *const GUID,
-    out: *mut *mut c_void,
+    out: *mut MaybeUninit<*mut c_void>,
 ) -> HRESULT {
     if out.is_null() {
         return E_POINTER;
     }
-    unsafe { *out = std::ptr::null_mut() };
+    unsafe { out.write_value(std::ptr::null_mut()) };
     if !iid_eq(iid, &IID_IUnknown) && !iid_eq(iid, &IID_IClassFactory) {
         return E_NOINTERFACE;
     }
     unsafe {
         factory_add_ref(this);
-        *out = this;
+        out.write_value(this);
     }
     S_OK
 }
@@ -95,12 +98,12 @@ unsafe extern "system" fn factory_create_instance(
     _this: *mut c_void,
     outer: *mut c_void,
     iid: *const GUID,
-    out: *mut *mut c_void,
+    out: *mut MaybeUninit<*mut c_void>,
 ) -> HRESULT {
     if out.is_null() {
         return E_POINTER;
     }
-    unsafe { *out = std::ptr::null_mut() };
+    unsafe { out.write_value(std::ptr::null_mut()) };
     if !outer.is_null() {
         // aggregation, which a profiler is never asked for
         return E_NOINTERFACE;
@@ -124,12 +127,12 @@ unsafe extern "system" fn factory_lock_server(_this: *mut c_void, _lock: i32) ->
 pub unsafe extern "system" fn DllGetClassObject(
     clsid: *const GUID,
     iid: *const GUID,
-    out: *mut *mut c_void,
+    out: *mut MaybeUninit<*mut c_void>,
 ) -> HRESULT {
     if out.is_null() {
         return E_POINTER;
     }
-    unsafe { *out = std::ptr::null_mut() };
+    unsafe { out.write_value(std::ptr::null_mut()) };
 
     if !iid_eq(clsid, &CLSID_PROFILER) {
         return CLASS_E_CLASSNOTAVAILABLE;

@@ -7,12 +7,14 @@
 
 mod bidi;
 mod linebreak;
+mod uninit;
 
 use std::mem::MaybeUninit;
 use std::slice;
 
 use bidi::BidiText;
 use linebreak::BreakKind;
+use uninit::UninitPtr;
 
 #[repr(u32)]
 pub enum IjtResult {
@@ -97,7 +99,7 @@ pub unsafe extern "C" fn ijt_line_breaks(
 pub unsafe extern "C" fn ijt_bidi_open(
     text: *const u16,
     len: usize,
-    out: *mut *mut BidiText,
+    out: *mut MaybeUninit<*mut BidiText>,
 ) -> IjtResult {
     if out.is_null() || u32::try_from(len).is_err() {
         return IjtResult::InvalidArgument;
@@ -105,7 +107,7 @@ pub unsafe extern "C" fn ijt_bidi_open(
     let Some(text) = (unsafe { slice_or_empty(text, len) }) else {
         return IjtResult::InvalidArgument;
     };
-    unsafe { out.write(Box::into_raw(Box::new(BidiText::from_utf16(text)))) };
+    unsafe { out.write_value(Box::into_raw(Box::new(BidiText::from_utf16(text)))) };
     IjtResult::Ok
 }
 
@@ -153,7 +155,7 @@ pub unsafe extern "C" fn ijt_bidi_levels(
 pub unsafe extern "C" fn ijt_bidi_paragraph_level(
     bidi: *const BidiText,
     index: usize,
-    level: *mut u8,
+    level: *mut MaybeUninit<u8>,
 ) -> IjtResult {
     let Some(bidi) = (unsafe { bidi.as_ref() }) else {
         return IjtResult::InvalidArgument;
@@ -164,7 +166,7 @@ pub unsafe extern "C" fn ijt_bidi_paragraph_level(
     let Some(l) = bidi.paragraph_level(index) else {
         return IjtResult::InvalidArgument;
     };
-    unsafe { level.write(l) };
+    unsafe { level.write_value(l) };
     IjtResult::Ok
 }
 
@@ -191,7 +193,7 @@ pub unsafe extern "C" fn ijt_bidi_visual_runs(
     line_limit: usize,
     runs: *mut MaybeUninit<bidi::BidiRun>,
     cap: usize,
-    count: *mut usize,
+    count: *mut MaybeUninit<usize>,
 ) -> IjtResult {
     let Some(bidi) = (unsafe { bidi.as_ref() }) else {
         return IjtResult::InvalidArgument;
@@ -202,7 +204,7 @@ pub unsafe extern "C" fn ijt_bidi_visual_runs(
     if count.is_null() || line_start > line_limit || line_limit > bidi.len() {
         return IjtResult::InvalidArgument;
     }
-    unsafe { count.write(bidi.visual_runs(line_start, line_limit, runs)) };
+    unsafe { count.write_value(bidi.visual_runs(line_start, line_limit, runs)) };
     IjtResult::Ok
 }
 

@@ -8,6 +8,24 @@
  * behavior of the native library is a bug.
  */
 
+/*
+ * Unless stated otherwise, `T` is the pointee type, and terms such as "events" or "UTF-16 code
+ * units" refer to elements of that type.
+ *
+ * A pointer is *readable* for `N` elements of type `T` if either:
+ * - `N` is 0 (informative: this means the pointer may be any value, e.g. null)
+ * - it is properly aligned for `T` and points to `N * sizeof(T)` initialized, readable bytes that
+ *   form N valid values of type `T`
+ *
+ * A pointer is *writable* for `N` elements of type `T` if either:
+ * - `N` is 0 (informative: this means the pointer may be any value, e.g. null)
+ * - it is properly aligned for `T` and points to `N * sizeof(T)` writable bytes; the bytes need
+ *   not be initialized
+ *
+ * Both properties must hold for the duration of the call. Writable regions must not overlap any
+ * other region passed to the same call.
+ */
+
 #pragma once
 
 #include <stddef.h>
