@@ -28,7 +28,7 @@ public readonly record struct TextLayoutOptions : IHasInvalidDefault {
 	/// <see cref="TextWrapMode.Greedy"/> wrapping;
 	/// </description></item>
 	/// <item><description>
-	/// <see cref="TextHorizontalAlign.Left"/> alignment;
+	/// <see cref="TextHorizontalAlign.Start"/> alignment;
 	/// </description></item>
 	/// <item><description>
 	/// no <see cref="MaxLines"/> (left at <see langword="null"/>);
@@ -52,20 +52,16 @@ public readonly record struct TextLayoutOptions : IHasInvalidDefault {
 	/// <see cref="MaxWidth"/>, lines only break at explicit line breaks.
 	/// </para>
 	/// <para>
-	/// <see cref="TextHorizontalAlign.Left"/> is "neutral" because it's the natural alignment from
-	/// not adding an X offset, and in practice only looks neutral for LTR text.
-	/// </para>
-	/// <para>
-	/// The truncation marker has no effect unless text is truncated, which requires changing at least
-	/// one of <see cref="MaxLines"/>, <see cref="MaxHeight"/>, or <see cref="HorizontalOverflow"/>
-	/// from the default values.
+	/// The truncation marker has no effect unless text is truncated, which doesn't happen at the
+	/// default values, and requires either setting a max lines/height cap, or a configuration that
+	/// truncates overlong lines and allows them to happen in the first place.
 	/// </para>
 	/// </remarks>
 	public static TextLayoutOptions Default { get; } = new() {
 		MaxWidth = float.PositiveInfinity,
 		MaxHeight = float.PositiveInfinity,
 		WrapMode = TextWrapMode.Greedy,
-		HorizontalAlign = TextHorizontalAlign.Left,
+		HorizontalAlign = TextHorizontalAlign.Start,
 		HorizontalOverflow = TextHorizontalOverflow.Overflow,
 		TruncationMarker = TextTruncationMarker.Ellipsis,
 	};

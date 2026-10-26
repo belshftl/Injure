@@ -57,8 +57,8 @@ public sealed class RichText : IEquatable<RichText> {
 	/// Creates rich text with a single style.
 	/// </summary>
 	/// <param name="text">
-	/// The text. Each <c>\n</c> starts a new paragraph. Unpaired surrogates are replaced with U+FFFD
-	/// REPLACEMENT CHARACTER (see type-level docs).
+	/// The text. Paragraphs and lines are separated as described on <see cref="TextSystem"/>. Unpaired
+	/// surrogates are replaced with U+FFFD REPLACEMENT CHARACTER (see type-level docs).
 	/// </param>
 	/// <param name="style">The style of the whole text.</param>
 	/// <exception cref="ArgumentNullException">
@@ -237,8 +237,8 @@ public sealed class RichTextBuilder {
 	/// Appends text with the current style.
 	/// </summary>
 	/// <param name="text">
-	/// The text to append. Each <c>\n</c> starts a new paragraph. Unpaired surrogates are replaced
-	/// with U+FFFD REPLACEMENT CHARACTER.
+	/// The text to append. Paragraphs and lines are separated as described on
+	/// <see cref="TextSystem"/>. Unpaired surrogates are replaced with U+FFFD REPLACEMENT CHARACTER.
 	/// </param>
 	/// <returns>This builder.</returns>
 	public RichTextBuilder Append(ReadOnlySpan<char> text) {
@@ -259,8 +259,8 @@ public sealed class RichTextBuilder {
 	/// <see cref="Pop()"/>.
 	/// </summary>
 	/// <param name="text">
-	/// The text to append. Each <c>\n</c> starts a new paragraph. Unpaired surrogates are replaced
-	/// with U+FFFD REPLACEMENT CHARACTER.
+	/// The text to append. Paragraphs and lines are separated as described on
+	/// <see cref="TextSystem"/>. Unpaired surrogates are replaced with U+FFFD REPLACEMENT CHARACTER.
 	/// </param>
 	/// <param name="style">Partial override applied on top of <see cref="CurrentStyle"/>.</param>
 	/// <returns>This builder.</returns>

@@ -14,12 +14,18 @@ using Injure.Tests.Gpu;
 
 namespace Injure.Tests.Draw.Text;
 
-// the fonts come from Fonts/make_test_fonts.py: every glyph is a box spanning 50 units in from
-// either side of its advance and 700 units up from the baseline, letters advance 500 units ('m'
-// 1000), the wide variant's letters 700, digits 600, space 300, .notdef 500, with an ascent of 800,
-// a descent of 200, and 1000 units per em, so at size 10 everything is whole drawable units. the
-// gap variant has a line gap of 200, and in the contextual one, 'b' before 'c' and 'c' after 'b'
-// advance 300. the ellipsis variant adds an 800-unit U+2026, and the dots one a 200-unit '.'
+// the fonts come from Fonts/make_test_fonts.py
+//
+// every glyph is a box spanning 50 units in from either side of its advance and 700 units up from
+// the baseline, letters advance 500 units ('m' 1000), the wide variant's letters 700, digits 600,
+// space 300, .notdef 500, with an ascent of 800, a descent of 200, and 1000 units per em, so at
+// size 10 everything is whole drawable units
+//
+// the gap variant has a line gap of 200
+// the contextual variant has 'b' before 'c' and 'c' after 'b' advance 300
+// the ellipsis variant adds an 800-unit U+2026
+// the dots variant adds a 200-unit '.' and a 300-unit '-'
+// the hyphen variant adds a 400-unit U+2010, a 300-unit '-', and an 800-unit U+2026
 public sealed class TextSystemTests : GpuTestBase {
 	// layout uses ijtext; the native libs collection can't be used here, since this class is already
 	// in the GPU one
@@ -299,6 +305,68 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(15f, ellipsisWidth(sans));
 	}
 
+	[Fact]
+	public void LinesBreakingAtSoftHyphensEndInAHyphen() {
+		using TextSystem text = new(Device);
+		FontData hy = text.LoadFont(fontBytes("InjureTestHyphen"));
+		// "aa aaa" plus the 4-wide U+2010 just fits 32
+		TextLayout l = text.Layout("aa aaa\u00ADaa", style(hy), TextLayoutOptions.Default with { MaxWidth = 32 });
+		Assert.Equal([32f, 10f], widths(l));
+		// the hyphen's glyph has the soft hyphen's source index, and comes after the soft hyphen's own
+		// zero-width glyph
+		LaidOutGlyph[] fromSoftHyphen = l.Glyphs.ToArray().Where(static g => g.SourceIndex == 6).ToArray();
+		Assert.Equal(2, fromSoftHyphen.Length);
+		Assert.Equal(28f, fromSoftHyphen[1].X);
+		// it counts towards the width, so at 30, the line breaks at the space instead
+		Assert.Equal([10f, 25f], widths(text.Layout("aa aaa\u00ADaa", style(hy), TextLayoutOptions.Default with { MaxWidth = 30 })));
+		// soft hyphens that don't end a line aren't drawn
+		Assert.Equal(20f, text.Layout("aa\u00ADaa", style(hy)).Width);
+	}
+
+	[Fact]
+	public void TheHyphenGoesAfterTheSoftHyphenInItsRunsDirection() {
+		using TextSystem text = new(Device);
+		FontData hy = text.LoadFont(fontBytes("InjureTestHyphen"));
+		// the font doesn't have arabic so there become .notdefs; the first line is two letters plus
+		// the hyphen, which goes on their left
+		// use arabic rather than hebrew to test because a line can't break after a hebrew letter and a
+		// soft hyphen
+		TextLayout l = text.Layout("\u0627\u0628\u00AD\u062A\u062B", style(hy), TextLayoutOptions.Default with { MaxWidth = 15 });
+		Assert.Equal([14f, 10f], widths(l));
+		Assert.Equal(2, l.Glyphs[0].SourceIndex);
+		Assert.Equal(l.Lines[0].OffsetX, l.Glyphs[0].X);
+	}
+
+	[Fact]
+	public void TruncatedLinesKeepTheirHyphenUnlessTextIsDroppedForTheEllipsis() {
+		using TextSystem text = new(Device);
+		FontData hy = text.LoadFont(fontBytes("InjureTestHyphen"));
+		// the first line is "aaa" plus the hyphen; with the ellipsis, that's 27 wide
+		TextLayoutOptions opts = TextLayoutOptions.Default with { MaxWidth = 27, MaxLines = 1 };
+		Assert.Equal([27f], widths(text.Layout("aaa\u00ADaaaa", style(hy), opts)));
+		Assert.Equal([19f], widths(text.Layout("aaa\u00ADaaaa", style(hy), opts with { TruncationMarker = TextTruncationMarker.None })));
+		// at 26, the hyphen doesn't fit, so the soft hyphen is dropped for the ellipsis, taking the
+		// hyphen with it
+		Assert.Equal([23f], widths(text.Layout("aaa\u00ADaaaa", style(hy), opts with { MaxWidth = 26 })));
+	}
+
+	[Fact]
+	public void TheHyphenPrefersThePrimaryFont() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		FontData hy = text.LoadFont(fontBytes("InjureTestHyphen"));
+		FontData dots = text.LoadFont(fontBytes("InjureTestDots"));
+		// the first line is "aaa" and the hyphen
+		float hyphenWidth(FontFallbackChain fonts) =>
+			text.Layout("aaa\u00ADaaa", style(fonts), TextLayoutOptions.Default with { MaxWidth = 20 }).Lines[0].Width - 15f;
+		Assert.Equal(4f, hyphenWidth(hy));
+		Assert.Equal(3f, hyphenWidth(new FontFallbackChain(dots, hy)));
+		// only '-' is tried from fallbacks, even if one has U+2010
+		Assert.Equal(3f, hyphenWidth(new FontFallbackChain(sans, hy)));
+		// with neither anywhere, '-' is a .notdef
+		Assert.Equal(5f, hyphenWidth(sans));
+	}
+
 	private static TextLine[] aligned(TextSystem text, FontData sans, string s, float maxWidth, TextHorizontalAlign align) =>
 		text.Layout(s, style(sans), TextLayoutOptions.Default with { MaxWidth = maxWidth, WrapMode = TextWrapMode.None, HorizontalAlign = align }).Lines.ToArray();
 
@@ -371,23 +439,58 @@ public sealed class TextSystemTests : GpuTestBase {
 	}
 
 	[Fact]
+	public void ParagraphAndLineSeparatorsEndLinesWithoutBeingDrawn() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		TextLayout l = text.Layout("a\r\nb\rc\u0085d\u2029e\u2028f\vg\fh", style(sans));
+		Assert.Equal([5f, 5f, 5f, 5f, 5f, 5f, 5f, 5f], widths(l));
+		Assert.Equal(8, l.Glyphs.Length);
+		// two line separators in a row make an empty line, and one at the end starts one too
+		Assert.Equal([5f, 0f, 5f, 0f], widths(text.Layout("a\u2028\u2028b\u2028", style(sans))));
+	}
+
+	[Fact]
+	public void EmptyLinesAtTheEndOfAParagraphTakeTheSizeThere() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		RichText t = new RichTextBuilder(style(sans)).Append("a").Append("\u2028", new TextStyleOverride(Size: 20f)).Build();
+		Assert.Equal(16f, text.Layout(t).Lines[1].Ascent);
+	}
+
+	[Fact]
+	public void StartAndEndFollowParagraphDirection() {
+		using TextSystem text = new(Device);
+		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
+		// the font doesn't have hebrew so these become .notdefs; a paragraph separator starts an ltr
+		// paragraph, while a line separator stays in the existing rtl one
+		float[] offsets(string s, TextHorizontalAlign align) =>
+			text.Layout(s, style(sans), TextLayoutOptions.Default with { MaxWidth = 20, HorizontalAlign = align })
+				.Lines.Select(static l => l.OffsetX).ToArray();
+		Assert.Equal([10f, 0f], offsets("אב\u2029ab", TextHorizontalAlign.Start));
+		Assert.Equal([0f, 10f], offsets("אב\u2029ab", TextHorizontalAlign.End));
+		Assert.Equal([10f, 10f], offsets("אב\u2028ab", TextHorizontalAlign.Start));
+		Assert.Equal([0f, 0f], offsets("אב\u2028ab", TextHorizontalAlign.Left));
+		Assert.Equal([10f, 10f], offsets("אב\u2029ab", TextHorizontalAlign.Right));
+	}
+
+	[Fact]
 	public void UnpairedSurrogatesAreReplacedWithReplacementCharacters() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
 		// the test font has no U+FFFD, so it's a 500-unit .notdef
-		TextLayout l = text.Layout("a\ud800b", style(sans));
+		TextLayout l = text.Layout("a\uD800b", style(sans));
 		Assert.Equal(15f, l.Width);
 		Assert.Equal("a�b", l.Text.Text);
-		TextLayout lone = text.Layout("\udc00", style(sans));
+		TextLayout lone = text.Layout("\uDC00", style(sans));
 		Assert.Equal("�", lone.Text.Text);
 		Assert.Equal(5f, lone.Width);
 		// valid text is kept as is, without a copy
 		string valid = "ab😀";
 		Assert.Same(valid, text.Layout(valid, style(sans)).Text.Text);
 		// the layout cache still finds the layout by the text as given
-		TextLayout cached = text.GetCachedLayout("a\ud800b", style(sans), TextLayoutOptions.Default);
+		TextLayout cached = text.GetCachedLayout("a\uD800b", style(sans), TextLayoutOptions.Default);
 		Assert.Equal("a�b", cached.Text.Text);
-		Assert.Same(cached, text.GetCachedLayout("a\ud800b", style(sans), TextLayoutOptions.Default));
+		Assert.Same(cached, text.GetCachedLayout("a\uD800b", style(sans), TextLayoutOptions.Default));
 	}
 
 	[Fact]
@@ -397,9 +500,9 @@ public sealed class TextSystemTests : GpuTestBase {
 		// the glyphs are all .notdefs since the font doesn't have hebrew, tell apart by source indices
 		static int[] visualOrder(TextLayout l) =>
 			l.Glyphs.ToArray().OrderBy(static g => g.X).Select(static g => g.SourceIndex).ToArray();
-		// an LTR paragraph with an RTL run: the run's characters go right to left
+		// ltr paragraph with an rtl run
 		Assert.Equal([0, 1, 2, 4, 3], visualOrder(text.Layout("ab אב", style(sans))));
-		// an RTL paragraph with an LTR run: the paragraph goes right to left, the run left to right
+		// rtl paragraph with an ltr run
 		Assert.Equal([3, 4, 2, 1, 0], visualOrder(text.Layout("אב ab", style(sans))));
 	}
 

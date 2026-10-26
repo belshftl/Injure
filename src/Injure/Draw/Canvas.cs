@@ -1062,8 +1062,8 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// created with.
 	/// </summary>
 	/// <param name="text">
-	/// The text. Each <c>\n</c> starts a new paragraph. Unpaired surrogates are replaced with U+FFFD
-	/// REPLACEMENT CHARACTER.
+	/// The text. Paragraphs and lines are separated as described on <see cref="TextSystem"/>. Unpaired
+	/// surrogates are replaced with U+FFFD REPLACEMENT CHARACTER.
 	/// </param>
 	/// <param name="style">The style of the whole text.</param>
 	/// <param name="at">Position for the laid out text's top-left corner.</param>

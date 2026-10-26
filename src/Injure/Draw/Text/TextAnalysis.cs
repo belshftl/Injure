@@ -225,7 +225,7 @@ internal static class TextAnalysis {
 				continue;
 			}
 			chars ??= s.ToCharArray();
-			chars[i] = '\ufffd';
+			chars[i] = '\uFFFD';
 		}
 		return chars is null ? s : new string(chars);
 	}

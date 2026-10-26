@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -30,6 +31,13 @@ public readonly partial struct TextWrapMode {
 		/// <see cref="TextLayoutOptions.MaxWidth"/>, or within a word if a single word is wider. Spaces
 		/// at the end of a wrapped line don't count towards its width.
 		/// </summary>
+		/// <remarks>
+		/// A line that breaks at a soft hyphen (U+00AD) ends in a hyphen, which counts towards its
+		/// width. The hyphen has the style of the soft hyphen character, and is drawn as U+2010 HYPHEN
+		/// from the style's primary font, or <c>'-'</c> in said font if it lacks U+2010. If the primary
+		/// font lacks <c>'-'</c> too, then <c>'-'</c> is tried going through the rest of the fallback
+		/// chain. Soft hyphens in any other position are not drawn.
+		/// </remarks>
 		Greedy,
 	}
 }
@@ -45,10 +53,10 @@ public readonly partial struct TextWrapMode {
 /// X = 0 and the other lines are aligned relative to it.
 /// </para>
 /// <para>
-/// A line wider than the box, e.g. a single word wider than a finite
-/// <see cref="TextLayoutOptions.MaxWidth"/>, overflows it on the side or sides its alignment doesn't
-/// hold in place: a <see cref="Left"/> line past the right edge, a <see cref="Right"/> line past the
-/// left edge (to negative X coordinates), and a <see cref="Center"/> line equally past both.
+/// A line wider than the box overflows it on the side/sides that its alignment doesn't hold in
+/// place: a line aligned to the left edge overflows past the right edge, a line aligned to the
+/// right edge overflows past the left dege (into negative X), and a <see cref="Center"/> line
+/// overflows equally past both.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
@@ -59,9 +67,11 @@ public readonly partial struct TextHorizontalAlign {
 	/// <summary>Raw switch tag for <see cref="TextHorizontalAlign"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// Lines start at the left edge.
+		/// Lines start at the left edge within an LTR paragraph, and at the right edge within an RTL
+		/// paragraph. The direction of a paragraph comes from its first strong character, or LTR if it
+		/// doesn't have any.
 		/// </summary>
-		Left = 1,
+		Start = 1,
 
 		/// <summary>
 		/// Lines are centered.
@@ -69,7 +79,19 @@ public readonly partial struct TextHorizontalAlign {
 		Center,
 
 		/// <summary>
-		/// Lines end at the right edge.
+		/// Lines end at the right edge within an LTR paragraph, and at the left edge within an RTL
+		/// paragraph. The direction of a paragraph comes from its first strong character, or LTR if it
+		/// doesn't have any.
+		/// </summary>
+		End,
+
+		/// <summary>
+		/// Lines start at the left edge, regardless of text direction.
+		/// </summary>
+		Left,
+
+		/// <summary>
+		/// Lines end at the right edge, regardless of text direction.
 		/// </summary>
 		Right,
 	}
@@ -138,11 +160,15 @@ public readonly partial struct TextTruncationMarker {
 		/// for LTR text and on the left for RTL text. Trailing whitespace is dropped before placement of
 		/// the ellipsis. With a finite <see cref="TextLayoutOptions.MaxWidth"/>, more of the line's text
 		/// is dropped to make room for it, unless the line is already wider than the box (with
-		/// <see cref="TextHorizontalOverflow.Overflow"/>), in which case it overflows the box fruther.
+		/// <see cref="TextHorizontalOverflow.Overflow"/>), in which case it overflows the box further.
 		/// If the ellipsis just by itself is wider than the box, then with
 		/// <see cref="TextHorizontalOverflow.Overflow"/>, all of the line's text is dropped and the
 		/// ellipsis overflows the box, and with <see cref="TextHorizontalOverflow.Cut"/>, the
 		/// ellipsis is left out and the line is cut to fit without it.
+		/// </para>
+		/// <para>
+		/// A line that breaks at a soft hyphen keeps said hyphen (see <see cref="TextWrapMode.Greedy"/>)
+		/// before the ellipsis, unless text is dropped to make room for the ellipsis.
 		/// </para>
 		/// </remarks>
 		Ellipsis,
@@ -320,6 +346,13 @@ internal sealed class LayoutResult {
 internal static class TextLayouter {
 	private const string ellipsisString = "…";
 	private const string ellipsisFallbackString = "...";
+	private const string hyphenString = "\u2010"; // U+2010 HYPHEN; it looks identical to '-' in most fonts
+	private const string hyphenFallbackString = "-";
+	private const char softHyphen = '\u00AD';
+	private static readonly SearchValues<char> paraSeparators = SearchValues.Create("\n\r\u0085\u2029");
+
+	// line separators that end a line within a paragraph, i.e. LS/VT/FF
+	private static bool isLineSeparator(char c) => c is '\u2028' or '\v' or '\f';
 
 	/// <summary>
 	/// A line's clusters from one run, in [<see cref="Start"/>, <see cref="End"/>) of the
@@ -337,13 +370,13 @@ internal static class TextLayouter {
 	);
 
 	/// <summary>
-	/// What an ellipsis depends on: the index of the rich text span it takes its style from, the
-	/// direction of its paragraph, and the script of the text before it.
+	/// What added text depends on: the index of the rich text span it takes its style from, the
+	/// direction it's shaped in, and the script of the text before it.
 	/// </summary>
 	/// <remarks>
 	/// The <see langword="default"/> value is invalid.
 	/// </remarks>
-	private readonly record struct EllipsisKey(
+	private readonly record struct AddedTextKey(
 		int Span,
 		Direction Direction,
 		Script Script
@@ -352,9 +385,10 @@ internal static class TextLayouter {
 	}
 
 	/// <summary>
-	/// A shaped ellipsis, U+2026 or <c>"..."</c> from a single font.
+	/// Additional text not in the source, shaped from a single font. Used for an ellipsis or a soft
+	/// hyphen's drawn hyphen.
 	/// </summary>
-	private sealed class Ellipsis {
+	private sealed class AddedText {
 		public required ParagraphRun Run;
 		public required Direction Direction;
 		public required float Width;
@@ -370,6 +404,7 @@ internal static class TextLayouter {
 		public string Text = "";
 		public TextAnalysis.ParagraphAnalysis? Analysis; // null for an empty paragraph
 		public bool IsLast;
+		public int Next; // absolute start of the next paragraph, if not IsLast
 		public readonly List<ParagraphRun> Runs = new();
 		public readonly List<ParagraphCluster> Clusters = new();
 		public readonly List<LineSpan> Spans = new();
@@ -395,6 +430,8 @@ internal static class TextLayouter {
 		public readonly List<TextLine> Lines = new();
 		// index of each line's first glyph in Glyphs
 		public readonly List<int> LineGlyphStarts = new();
+		// each line's paragraph's direction, for Start/End alignment
+		public readonly List<Direction> LineDirections = new();
 		public readonly List<LinePiece> Pieces = new();
 		// the current line's clusters, with reshaped runs' clusters in place of the originals
 		public readonly List<ParagraphCluster> LineClusters = new();
@@ -403,7 +440,8 @@ internal static class TextLayouter {
 		public readonly List<ResolvedItem> Resolved = new();
 		// each paragraph's breaks, by language
 		public readonly Dictionary<string, LineBreakOpportunity[]> ParagraphBreaks = new(StringComparer.Ordinal);
-		public readonly Dictionary<EllipsisKey, Ellipsis> Ellipses = new();
+		public readonly Dictionary<AddedTextKey, AddedText> Ellipses = new();
+		public readonly Dictionary<AddedTextKey, AddedText> Hyphens = new();
 	}
 
 	/// <summary>
@@ -462,7 +500,7 @@ internal static class TextLayouter {
 							nextM = lineMetrics(s, cur, cur.Spans[j + 1]);
 						} else {
 							if (!nextReady)
-								prepare(s, next, cur.Start + cur.Text.Length + 1);
+								prepare(s, next, cur.Next);
 							nextReady = true;
 							nextM = lineMetrics(s, next, next.Spans[0]);
 						}
@@ -478,7 +516,7 @@ internal static class TextLayouter {
 			if (done || cur.IsLast)
 				break;
 			if (!nextReady)
-				prepare(s, next, cur.Start + cur.Text.Length + 1);
+				prepare(s, next, cur.Next);
 			nextReady = false;
 			(cur, next) = (next, cur);
 		}
@@ -535,10 +573,13 @@ internal static class TextLayouter {
 		p.Clusters.Clear();
 		p.Spans.Clear();
 		string str = s.Text.Text;
-		int newline = str.IndexOf('\n', start);
+		int sep = str.AsSpan(start).IndexOfAny(paraSeparators);
+		int limit = sep < 0 ? str.Length : start + sep;
 		p.Start = start;
-		p.Text = str[start..(newline < 0 ? str.Length : newline)];
-		p.IsLast = newline < 0;
+		p.Text = str[start..limit];
+		p.IsLast = sep < 0;
+		// crlf is the only separator wider than one char
+		p.Next = limit + (str.AsSpan(limit).StartsWith("\r\n") ? 2 : 1);
 		if (p.Text.Length == 0) {
 			p.Spans.Add(default);
 			return;
@@ -546,7 +587,13 @@ internal static class TextLayouter {
 		p.Analysis = TextAnalysis.ParagraphAnalysis.Create(p.Text);
 		buildRuns(s, p, p.Analysis);
 		buildClusters(s, p);
-		Wrap(CollectionsMarshal.AsSpan(p.Clusters), s.Options.MaxWidth, s.Wrap, (lineStart, lineEnd) => measureLine(s, p, lineStart, lineEnd), p.Spans);
+		Wrap(
+			CollectionsMarshal.AsSpan(p.Clusters),
+			s.Options.MaxWidth,
+			s.Wrap,
+			(lineStart, lineEnd) => measureLine(s, p, lineStart, lineEnd) + hyphenWidth(s, p, lineEnd),
+			p.Spans
+		);
 	}
 
 	private static void buildRuns(Scratch s, Paragraph p, TextAnalysis.ParagraphAnalysis analysis) {
@@ -610,6 +657,10 @@ internal static class TextLayouter {
 			appendClusters(p.Clusters, r, p.Runs[r], breakAfter);
 	}
 
+	// line separators are shaped like any other character but mustn't be drawn
+	private static bool isHidden(ParagraphRun run, in ShapedCluster c) =>
+		c.SourceLength == 1 && isLineSeparator(run.Item.Text[c.SourceStart]);
+
 	/// <summary>
 	/// Appends the clusters of run <paramref name="runIndex"/> to <paramref name="dst"/>, reading the
 	/// breaks from <paramref name="breakAfter"/> indexed by paragraph-relative positions, or using
@@ -618,13 +669,14 @@ internal static class TextLayouter {
 	private static void appendClusters(List<ParagraphCluster> dst, int runIndex, ParagraphRun run, ReadOnlySpan<LineBreakKind> breakAfter) {
 		foreach (ShapedCluster c in run.Shaped.SourceOrderClusters) {
 			int start = run.Item.SourceStart + c.SourceStart;
+			bool hidden = isHidden(run, c);
 			dst.Add(new ParagraphCluster(
 				Run: runIndex,
 				GlyphStart: c.GlyphStart,
-				GlyphCount: c.GlyphCount,
+				GlyphCount: hidden ? 0 : c.GlyphCount,
 				SourceStart: start,
 				SourceLength: c.SourceLength,
-				Width: c.Width * run.Size,
+				Width: hidden ? 0f : c.Width * run.Size,
 				IsWhitespaceOnly: c.IsWhitespaceOnly,
 				UnsafeToBreak: c.UnsafeToBreak,
 				BreakAfter: breakAfter.IsEmpty ? LineBreakKind.None : breakAfter[start + c.SourceLength]
@@ -634,7 +686,8 @@ internal static class TextLayouter {
 
 	/// <summary>
 	/// Breaks a paragraph's clusters into lines; whitespace never causes a wrap by itself, and is
-	/// trimmed from both sides of a wrap.
+	/// trimmed from both sides of a wrap. A hard break at the end of the paragraph is followed by an
+	/// empty line.
 	/// </summary>
 	/// <remarks>
 	/// <paramref name="measure"/> measures the width of a line made of the clusters in [start, end),
@@ -661,8 +714,12 @@ internal static class TextLayouter {
 		int i = 0;
 		for (;;) {
 			if (i == clusters.Length) {
-				if (start == clusters.Length)
+				// text after a line separator starts a new line, even if it's empty
+				if (start == clusters.Length) {
+					if (clusters[^1].BreakAfter == LineBreakKind.Hard)
+						dst.Add(new LineSpan(start, start));
 					break;
+				}
 				if (wrap && !fits(clusters, start, i, maxWidth, measure)) {
 					start = addWrappedLine(clusters, start, findBreak(clusters, start, i - 1, maxWidth, measure), dst);
 					i = start;
@@ -806,7 +863,9 @@ internal static class TextLayouter {
 		float width = 0f;
 		foreach (LinePiece piece in s.Pieces) {
 			if (piece.Reshaped is not null) {
-				width += piece.Reshaped.Shaped.Width * piece.Reshaped.Size;
+				foreach (ShapedCluster c in piece.Reshaped.Shaped.SourceOrderClusters)
+					if (!isHidden(piece.Reshaped, c))
+						width += c.Width * piece.Reshaped.Size;
 			} else {
 				for (int k = piece.Start; k < piece.End; k++)
 					width += clusters[k].Width;
@@ -829,13 +888,22 @@ internal static class TextLayouter {
 		}
 	}
 
+	// the position (relative to the paragraph) of cluster `index`, or the paragraph's end for the
+	// index after the last cluster
+	private static int positionOf(Paragraph p, int index) =>
+		index < p.Clusters.Count ? p.Clusters[index].SourceStart : p.Text.Length;
+
+	// the base direction of the paragraph's text at cluster `index` (see positionOf)
+	private static Direction directionAt(Paragraph p, int index) =>
+		p.Analysis?.BaseDirectionAt(Math.Min(positionOf(p, index), p.Text.Length - 1)) ?? Direction.LeftToRight;
+
 	/// <summary>
 	/// Gets a line's vertical metrics: the largest of its runs' fonts' metrics scaled by the runs'
-	/// sizes, or, for an empty line, those of the primary font and size at the paragraph's start.
+	/// sizes, or, for an empty line, those of the primary font and size at its position.
 	/// </summary>
 	private static FontLineMetrics lineMetrics(Scratch s, Paragraph p, LineSpan span) {
 		if (span.End == span.Start) {
-			ShapingSpan at = s.Shaping[shapingSpanAt(s.Shaping, p.Start)];
+			ShapingSpan at = s.Shaping[shapingSpanAt(s.Shaping, p.Start + positionOf(p, span.Start))];
 			FontLineMetrics m = s.Metrics[at.Chain][0];
 			return new FontLineMetrics(m.Ascent * at.Size, m.Descent * at.Size, m.LineGap * at.Size);
 		}
@@ -867,39 +935,55 @@ internal static class TextLayouter {
 	) {
 		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
 		int full = TrimTrailingWs(clusters, span.Start, span.End);
+		// a soft hyphen isn't whitespace, so a line breaking at one has full == span.End
+		AddedText? hyphen = breaksAtSoftHyphen(p, full) ? hyphenAt(s, p, full) : null;
+		float hyphenW = hyphen?.Width ?? 0f;
 		bool cut = s.Options.HorizontalOverflow == TextHorizontalOverflow.Cut
 			&& full > span.Start
-			&& measureLine(s, p, span.Start, full) > s.Options.MaxWidth;
+			&& measureLine(s, p, span.Start, full) + hyphenW > s.Options.MaxWidth;
 		bool truncated = cut || dropAfter;
 		int keptEnd = span.End;
-		Ellipsis? ellipsis = null;
+		AddedText? ellipsis = null;
 		if (truncated)
-			(keptEnd, ellipsis) = truncate(s, p, span, full, cut);
+			(keptEnd, ellipsis) = truncate(s, p, span, full, cut, hyphenW);
+		// a line keeps the hyphen only if truncation didn't cut it before the soft hyphen
+		if (keptEnd != full)
+			hyphen = null;
 		buildLineClusters(s, p, span.Start, keptEnd);
 		ReadOnlySpan<ParagraphCluster> line = CollectionsMarshal.AsSpan(s.LineClusters);
 		float baselineY = top + m.Ascent;
 		s.LineGlyphStarts.Add(s.Glyphs.Count);
+		s.LineDirections.Add(directionAt(p, span.Start));
 		float penX = 0f;
 		int ellipsisSource = ellipsis is not null ? firstDropped(p, span.Start, keptEnd) : 0;
 		if (ellipsis is not null && ellipsis.Direction == Direction.RightToLeft)
-			emitEllipsis(s, ellipsis, ellipsisSource, baselineY, ref penX);
+			emitAddedText(s, ellipsis, ellipsisSource, baselineY, ref penX);
 		if (!line.IsEmpty && p.Analysis is not null) {
 			s.VisualRuns.Clear();
 			p.Analysis.GetVisualRunsForLine(s.VisualRuns, line[0].SourceStart, line[^1].SourceLimit);
+			// the hyphen goes right after the soft hyphen, which ends the line logically, in the
+			// direction of its run
+			int hyphenSource = hyphen is not null ? p.Start + line[^1].SourceLimit - 1 : 0;
 			foreach (VisualBidiRun v in s.VisualRuns) {
 				int a = lowerBound(line, 0, line.Length, v.Start);
 				int b = lowerBound(line, a, line.Length, v.Start + v.Length);
 				if (v.Direction == Direction.RightToLeft) {
-					for (int k = b - 1; k >= a; k--)
+					for (int k = b - 1; k >= a; k--) {
+						if (hyphen is not null && k == line.Length - 1)
+							emitAddedText(s, hyphen, hyphenSource, baselineY, ref penX);
 						emitCluster(s, p, line[k], baselineY, ref penX);
+					}
 				} else {
-					for (int k = a; k < b; k++)
+					for (int k = a; k < b; k++) {
 						emitCluster(s, p, line[k], baselineY, ref penX);
+						if (hyphen is not null && k == line.Length - 1)
+							emitAddedText(s, hyphen, hyphenSource, baselineY, ref penX);
+					}
 				}
 			}
 		}
 		if (ellipsis is not null && ellipsis.Direction == Direction.LeftToRight)
-			emitEllipsis(s, ellipsis, ellipsisSource, baselineY, ref penX);
+			emitAddedText(s, ellipsis, ellipsisSource, baselineY, ref penX);
 		s.Lines.Add(new TextLine(
 			Width: penX,
 			BaselineY: baselineY,
@@ -917,36 +1001,47 @@ internal static class TextLayouter {
 
 	/// <summary>
 	/// Gets where a truncated line's kept clusters end, and its ellipsis, if any.
-	/// <paramref name="full"/> is the end of the line without trailing whitespace, and
+	/// <paramref name="full"/> is the end of the line without trailing whitespace,
 	/// <paramref name="cut"/> is whether it's wider than the box with
-	/// <see cref="TextHorizontalOverflow.Cut"/>.
+	/// <see cref="TextHorizontalOverflow.Cut"/>, and <paramref name="hyphenWidth"/> is the width of
+	/// the hyphen it ends in if it's kept up to <paramref name="full"/>.
 	/// </summary>
-	private static (int KeptEnd, Ellipsis? Ellipsis) truncate(Scratch s, Paragraph p, LineSpan span, int full, bool cut) {
+	private static (int KeptEnd, AddedText? Ellipsis) truncate(Scratch s, Paragraph p, LineSpan span, int full, bool cut, float hyphenWidth) {
 		bool marker = s.Options.TruncationMarker == TextTruncationMarker.Ellipsis;
 		// with no marker and nothing to cut, the line stays as it is
 		if (!marker && !cut)
 			return (span.End, null);
 		// with an infinite width, or a line already wider than the box with Overflow, the ellipsis
 		// goes after all of the text
-		if (float.IsPositiveInfinity(s.Options.MaxWidth) || !cut && measureLine(s, p, span.Start, full) > s.Options.MaxWidth)
+		if (float.IsPositiveInfinity(s.Options.MaxWidth) || !cut && measureLine(s, p, span.Start, full) + hyphenWidth > s.Options.MaxWidth)
 			return (full, ellipsisAt(s, p, span.Start, full));
-		if (fitEnd(s, p, span.Start, full, marker, out int keptEnd, out Ellipsis? ellipsis))
+		if (fitEnd(s, p, span.Start, full, hyphenWidth, marker, out int keptEnd, out AddedText? ellipsis))
 			return (keptEnd, ellipsis);
 		// only an ellipsis wider than the box doesn't fit even without any text, which Cut drops
 		if (s.Options.HorizontalOverflow == TextHorizontalOverflow.Overflow)
 			return (span.Start, ellipsisAt(s, p, span.Start, span.Start));
-		fitEnd(s, p, span.Start, full, false, out keptEnd, out _);
+		fitEnd(s, p, span.Start, full, hyphenWidth, false, out keptEnd, out _);
 		return (keptEnd, null);
 	}
 
 	/// <summary>
 	/// Gets the last end in [<paramref name="start"/>, <paramref name="full"/>] for a line's kept
 	/// clusters at which the line, without trailing whitespace, plus an added ellipsis if
-	/// <paramref name="withEllipsis"/>, fits the box. Returns <see langword="false"/> if none does,
+	/// <paramref name="withEllipsis"/>, fits the box. Ending at <paramref name="full"/> also keeps
+	/// a hyphen <paramref name="hyphenWidth"/> wide. Returns <see langword="false"/> if none does,
 	/// which can only happen if there's an ellipsis and said ellipsis just by itself is wider than
 	/// the box.
 	/// </summary>
-	private static bool fitEnd(Scratch s, Paragraph p, int start, int full, bool withEllipsis, out int keptEnd, out Ellipsis? ellipsis) {
+	private static bool fitEnd(
+		Scratch s,
+		Paragraph p,
+		int start,
+		int full,
+		float hyphenWidth,
+		bool withEllipsis,
+		out int keptEnd,
+		out AddedText? ellipsis
+	) {
 		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
 		float maxWidth = s.Options.MaxWidth;
 		// the sum of the clusters' widths only skips ends that can't fit, since measuring isn't free
@@ -959,11 +1054,11 @@ internal static class TextLayouter {
 			// ends after whitespace are the same as the end before it
 			if (e > start && clusters[e - 1].IsWhitespaceOnly)
 				continue;
-			Ellipsis? el = withEllipsis ? ellipsisAt(s, p, start, e) : null;
-			float ellipsisWidth = el?.Width ?? 0f;
-			if (sum + ellipsisWidth > maxWidth)
+			AddedText? el = withEllipsis ? ellipsisAt(s, p, start, e) : null;
+			float extra = (el?.Width ?? 0f) + (e == full ? hyphenWidth : 0f);
+			if (sum + extra > maxWidth)
 				continue;
-			if (e == start || measureLine(s, p, start, e) + ellipsisWidth <= maxWidth) {
+			if (e == start || measureLine(s, p, start, e) + extra <= maxWidth) {
 				keptEnd = e;
 				ellipsis = el;
 				return true;
@@ -977,9 +1072,7 @@ internal static class TextLayouter {
 	// the absolute position of the first character a line truncated at `keptEnd` leaves out
 	private static int firstDropped(Paragraph p, int start, int keptEnd) {
 		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
-		if (keptEnd > start)
-			return p.Start + clusters[keptEnd - 1].SourceLimit;
-		return p.Start + (start < clusters.Length ? clusters[start].SourceStart : 0);
+		return p.Start + (keptEnd > start ? clusters[keptEnd - 1].SourceLimit : positionOf(p, start));
 	}
 
 	/// <summary>
@@ -987,41 +1080,61 @@ internal static class TextLayouter {
 	/// end at <paramref name="keptEnd"/>. The ellipsis gets the style of the last kept cluster's
 	/// first character, or of the line's first character if none is kept.
 	/// </summary>
-	private static Ellipsis ellipsisAt(Scratch s, Paragraph p, int start, int keptEnd) {
+	private static AddedText ellipsisAt(Scratch s, Paragraph p, int start, int keptEnd) {
 		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
-		int styleIndex = p.Start;
+		int styleIndex = p.Start + positionOf(p, start);
 		Script script = Script.Common;
-		Direction direction = Direction.LeftToRight;
 		if (start < clusters.Length) {
 			ParagraphCluster c = clusters[keptEnd > start ? keptEnd - 1 : start];
 			styleIndex = p.Start + c.SourceStart;
 			script = p.Runs[c.Run].Shaped.Properties.Script ?? Script.Common;
-			// a line never spans bidi paragraphs, since their separators are hard breaks
-			direction = p.Analysis!.BaseDirectionAt(clusters[start].SourceStart);
 		}
-		EllipsisKey key = new(s.Text.SpanIndexAt(styleIndex), direction, script);
-		if (!s.Ellipses.TryGetValue(key, out Ellipsis? ellipsis)) {
-			ellipsis = makeEllipsis(s, key);
+		// the style at the end of the text, for an empty line there
+		styleIndex = Math.Min(styleIndex, s.Text.Text.Length - 1);
+		AddedTextKey key = new(s.Text.SpanIndexAt(styleIndex), directionAt(p, start), script);
+		if (!s.Ellipses.TryGetValue(key, out AddedText? ellipsis)) {
+			ellipsis = makeAddedText(s, key, ellipsisString, ellipsisFallbackString, true);
 			s.Ellipses.Add(key, ellipsis);
 		}
 		return ellipsis;
 	}
 
-	// if no font even has '.', "..." from the primary font as .notdefs
-	private static Ellipsis makeEllipsis(Scratch s, EllipsisKey key) {
+	/// <summary>
+	/// Shapes added text, trying, in order:
+	/// <list type="bullet">
+	/// <item><description>
+	/// <paramref name="normal"/> from the primary font;
+	/// </description></item>
+	/// <item><description>
+	/// <paramref name="fallback"/> from the primary font;
+	/// </description></item>
+	/// <item><description>
+	/// if <paramref name="normalFromFallbacks"/> is true, <paramref name="normal"/> from the first
+	/// fallback font that has it;
+	/// </description></item>
+	/// <item><description>
+	/// <paramref name="fallback"/> from the first fallback font that has it.
+	/// </description></item>
+	/// </list>
+	/// </summary>
+	/// <remarks>
+	/// If no font has either of these, the result is <paramref name="fallback"/> from the primary
+	/// font as .notdefs.
+	/// </remarks>
+	private static AddedText makeAddedText(Scratch s, AddedTextKey key, string normal, string fallback, bool normalFromFallbacks) {
 		TextStyle style = s.Text.SpansSpan[key.Span].Style;
 		int chain = s.SpanChains[key.Span];
 		ResolvedFontFallbackChain fonts = s.Chains[chain];
 		TextSegmentProperties props = new(key.Direction, key.Script, style.Language);
-		TextItem normal = new(0, ellipsisString, props);
-		TextItem fallback = new(0, ellipsisFallbackString, props);
-		ParagraphRun? run = tryFont(0, normal) ?? tryFont(0, fallback);
+		TextItem normalItem = new(0, normal, props);
+		TextItem fallbackItem = new(0, fallback, props);
+		ParagraphRun? run = tryFont(0, normalItem) ?? tryFont(0, fallbackItem);
+		for (int f = 1; normalFromFallbacks && run is null && f < fonts.Fonts.Length; f++)
+			run = tryFont(f, normalItem);
 		for (int f = 1; run is null && f < fonts.Fonts.Length; f++)
-			run = tryFont(f, normal);
-		for (int f = 1; run is null && f < fonts.Fonts.Length; f++)
-			run = tryFont(f, fallback);
-		run ??= newRun(0, fallback, s.ShapeCache.GetOrCreate(fonts.Primary, fallback));
-		return new Ellipsis {
+			run = tryFont(f, fallbackItem);
+		run ??= newRun(0, fallbackItem, s.ShapeCache.GetOrCreate(fonts.Primary, fallbackItem));
+		return new AddedText {
 			Run = run,
 			Direction = key.Direction,
 			Width = run.Shaped.Width * style.Size,
@@ -1041,6 +1154,32 @@ internal static class TextLayouter {
 			Shaped = shaped,
 		};
 	}
+
+	// whether a line ending at cluster `end` breaks at a soft hyphen, and so ends in a hyphen
+	private static bool breaksAtSoftHyphen(Paragraph p, int end) {
+		ReadOnlySpan<ParagraphCluster> clusters = CollectionsMarshal.AsSpan(p.Clusters);
+		return end > 0 && end < clusters.Length && p.Text[clusters[end - 1].SourceLimit - 1] == softHyphen;
+	}
+
+	// the hyphen of a line ending at cluster `end`, right after a soft hyphen, in its style
+	private static AddedText hyphenAt(Scratch s, Paragraph p, int end) {
+		ParagraphCluster c = p.Clusters[end - 1];
+		ShapedRun shaped = p.Runs[c.Run].Shaped;
+		AddedTextKey key = new(
+			s.Text.SpanIndexAt(p.Start + c.SourceLimit - 1),
+			shaped.Properties.Direction ?? Direction.LeftToRight,
+			shaped.Properties.Script ?? Script.Common
+		);
+		if (!s.Hyphens.TryGetValue(key, out AddedText? hyphen)) {
+			hyphen = makeAddedText(s, key, hyphenString, hyphenFallbackString, false);
+			s.Hyphens.Add(key, hyphen);
+		}
+		return hyphen;
+	}
+
+	// the width of the hyphen a line ending at cluster `end` ends in, or 0 if it doesn't
+	private static float hyphenWidth(Scratch s, Paragraph p, int end) =>
+		breaksAtSoftHyphen(p, end) ? hyphenAt(s, p, end).Width : 0f;
 
 	// each glyph takes the color of its cluster's first character
 	private static void emitCluster(Scratch s, Paragraph p, in ParagraphCluster c, float baselineY, ref float penX) {
@@ -1065,9 +1204,9 @@ internal static class TextLayouter {
 		}
 	}
 
-	// every glyph of an ellipsis has `source` as its source index
-	private static void emitEllipsis(Scratch s, Ellipsis ellipsis, int source, float baselineY, ref float penX) {
-		ParagraphRun run = ellipsis.Run;
+	// every glyph of added text has `source` as its source index
+	private static void emitAddedText(Scratch s, AddedText added, int source, float baselineY, ref float penX) {
+		ParagraphRun run = added.Run;
 		float size = run.Size;
 		foreach (ShapedGlyph g in run.Shaped.Glyphs) {
 			s.Glyphs.Add(new LaidOutGlyph(
@@ -1078,7 +1217,7 @@ internal static class TextLayouter {
 				Y: baselineY - g.YOffset * size,
 				Size: size,
 				SourceIndex: source,
-				Color: ellipsis.Color
+				Color: added.Color
 			));
 			penX += g.XAdvance * size;
 		}
@@ -1092,7 +1231,7 @@ internal static class TextLayouter {
 		Span<TextLine> lines = CollectionsMarshal.AsSpan(s.Lines);
 		Span<LaidOutGlyph> glyphs = CollectionsMarshal.AsSpan(s.Glyphs);
 		for (int i = 0; i < lines.Length; i++) {
-			float offsetX = alignOffset(lines[i].Width, boxWidth, align);
+			float offsetX = alignOffset(lines[i].Width, boxWidth, align, s.LineDirections[i]);
 			if (offsetX == 0f)
 				continue;
 			int end = i + 1 < lines.Length ? s.LineGlyphStarts[i + 1] : glyphs.Length;
@@ -1105,11 +1244,14 @@ internal static class TextLayouter {
 	/// <remarks>
 	/// Negative for lines wider than the box that overflow it to the left.
 	/// </remarks>
-	private static float alignOffset(float lineWidth, float boxWidth, TextHorizontalAlign align) {
+	private static float alignOffset(float lineWidth, float boxWidth, TextHorizontalAlign align, Direction direction) {
 		float free = boxWidth - lineWidth;
+		bool rtl = direction == Direction.RightToLeft;
 		return align.Tag switch {
-			TextHorizontalAlign.Case.Left => 0f,
+			TextHorizontalAlign.Case.Start => rtl ? free : 0f,
 			TextHorizontalAlign.Case.Center => free * 0.5f,
+			TextHorizontalAlign.Case.End => rtl ? 0f : free,
+			TextHorizontalAlign.Case.Left => 0f,
 			TextHorizontalAlign.Case.Right => free,
 			_ => throw new UnreachableException(),
 		};

@@ -45,7 +45,7 @@ public static class DirectoryAssetSourceTests {
 	[Fact]
 	public static void PathsMustMatchTheFilesUnicodeNormalization() {
 		using TempDir dir = new();
-		string composed = "caf\u00e9.txt";
+		string composed = "caf\u00E9.txt";
 		string decomposed = "cafe\u0301.txt";
 		File.WriteAllText(Path.Combine(dir.Path, composed), "coffee");
 		using TestStore ts = new();

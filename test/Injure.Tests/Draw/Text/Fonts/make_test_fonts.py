@@ -93,7 +93,8 @@ def main():
 		'InjureTestDigits.ttf': build('Injure Test Digits', {c: 600 for c in '0123456789'}),
 		'InjureTestSansGap.ttf': build('Injure Test Sans Gap', letters, line_gap=200),
 		'InjureTestEllipsis.ttf': build('Injure Test Ellipsis', letters | {'\u2026': 800}),
-		'InjureTestDots.ttf': build('Injure Test Dots', letters | {'.': 200}),
+		'InjureTestDots.ttf': build('Injure Test Dots', letters | {'.': 200, '-': 300}),
+		'InjureTestHyphen.ttf': build('Injure Test Hyphen', letters | {'\u2010': 400, '-': 300, '\u2026': 800}),
 		'InjureTestContextual.ttf': build(
 			'Injure Test Contextual',
 			{c: 500 for c in 'abcdefghijklmnopqrstuvwxyz'},

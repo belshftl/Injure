@@ -85,7 +85,7 @@ anyhow, to v0.1:
     - [x] make `StandardGame` build the pixel-density view matrix for the primary target, with an opt-out
   - [x] area-weighted upscaling (sharp-bilinear-like) as a shader, exposed as `TexFilter.AreaWeighted`
   - [x] replace view matrices with a uniform scale + transform + drawable area size, named something like `Viewport`, and introduce the concept of drawable units; also make scissors work in drawable units
-  - [ ] antialiasing; there's no msaa for render targets or the primary target yet, so shape edges alias and sub-pixel lines flicker
+  - [ ] antialiasing, e.g. msaa render targets, i'm not sure if the primary target should have that as an option too but it probably should
   - [ ] custom shaders/materials, shader assets
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`
@@ -123,20 +123,16 @@ anyhow, to v0.1:
   - [x] some kind of convenience for a typed catalog of assets, probably sourcegen-backed, as the asset system is a bit of a pain to use right now for the overwhelmingly common case of just having a bunch of assets known ahead of time used in the game/scene/entity/whatever. it also needs careful management between "load all the textures ahead of time and use a lot of vram idle" vs "load them too lazily and have micro-stutters during gameplay"
   - [x] an analyzer flagging `AssetBorrow<T>.Value` being stored into fields, properties, indexers, arrays, or collections, or captured by closures (origin-based rather than reusing the type-based `[DontCache]` analyzer, since the value's type is arbitrary)
   - [x] tests for `Injure.Analyzers` (none exist yet), in a new `Injure.Analyzers.Tests`
-- [ ] revisit the text renderer
+- [x] revisit the text renderer:
   - [x] pt 1, foundations: float font sizes in drawable units with unhinted layout metrics; rasterize at draw time from the effective transform's scale; layouts as plain data, with atlas pages pinned per frame instead of per layout; one layout result type instead of three; put raster options somewhere like the face to split them from per-span style; drop `LiveText`; add `cv.Text(...)` backed by a per-`TextSystem` layout cache; fix some bugs
   - [x] pt 2, attributed text: a builder with per-span font, size, and color; line metrics for mixed sizes; `cv.Text(...)` taking built text
   - [x] pt 2.5, switch from libunibreak + fribidi to icu4x + unicode-bidi
-  - [ ] pt 3, layout features
+  - [x] pt 3, basic layout features
     - [x] reshape at line breaks where HarfBuzz flags a glyph as unsafe to break, re-measuring the line and moving the break back if it no longer fits (removes the documented limitation on `TextSystem`); also stop counting the last line's line gap in the layout's height
     - [x] max lines/height + truncation: `int? MaxLines` and `float? MaxHeight` on `TextLayoutOptions`; `TextHorizontalOverflow`; rename `TextOverflowMode` to `TextTruncationMarker { None, Ellipsis }` (default `Ellipsis`); `{TextLayout,TextLine}.IsTruncated`
-    - [ ] soft hyphens; probably use U+2010 HYPHEN and fall back to `-`
-    - [ ] proper paragraph separators (`\r\n`, U+2028, U+2029)
-    - [ ] start/end/justify alignment; also switch over `TextLayoutOptions.Default` to `Start` rather than `Left` afterward
-    - [ ] line height
-    - [ ] letter spacing
-    - [ ] knuth-plass line wrap mode
-  - [ ] dedicated docs, `docs/draw/text/`; it may be best to wait for the main `docs/draw/` docs to exist first
+    - [x] soft hyphens; probably use U+2010 HYPHEN and fall back to `-`
+    - [x] proper paragraph separators (`\r\n`, U+2028, U+2029)
+    - [x] start/end alignment; also switch over `TextLayoutOptions.Default` to `Start` rather than `Left` afterward
 - [ ] redesign `IReloadTeardown` from the mod infrastructure
 - [ ] update the ticker system with a more rigorous scheduling/priority/deadline model and proper docs/tests
 - [ ] revise the `Layers` system, make sure it's up to date and holds up well in real usage, write tests
@@ -162,8 +158,14 @@ anyhow, to v0.1:
   - [ ] revisit the pixel converter, pt 3: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement
   - [ ] pixel converter dedicated docs
 - [ ] get back to the text renderer and add more:
-  - [ ] pt 4, queries: hit testing, caret positions, selection rects; text input would need this
-  - [ ] pt 5, rendering features: underline/strikethrough, outlines/shadows, color glyphs (RGBA atlas pages and a non-mask material)
+  - [ ] pt 4, more layout features:
+    - [ ] justify
+    - [ ] line height
+    - [ ] letter spacing
+    - [ ] knuth-plass line wrap mode
+  - [ ] pt 5, queries: hit testing, caret positions, selection rects; text input would need this
+  - [ ] pt 6, rendering features: underline/strikethrough, outlines/shadows, color glyphs (RGBA atlas pages and a non-mask material)
+  - [ ] dedicated docs, `docs/draw/text/`
 - [ ] add support for more things to the input system:
   - [ ] support per-gamepad bindings
   - [ ] support text input

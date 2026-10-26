@@ -12,7 +12,7 @@ public static class TextAnalysisTests {
 		{ "a", new[] { (0, 1) } },
 		{ "ab", new[] { (0, 1), (1, 1) } },
 		{ "e\u0301", new[] { (0, 2) } },
-		{ "A\u030a", new[] { (0, 2) } },
+		{ "A\u030A", new[] { (0, 2) } },
 		{ "x\r\ny", new[] { (0, 1), (1, 2), (3, 1) } },
 	};
 
@@ -26,11 +26,11 @@ public static class TextAnalysisTests {
 	[Theory]
 	[InlineData("abc", "abc")]
 	[InlineData("a😀b", "a😀b")]
-	[InlineData("a\ud800b", "a�b")]
-	[InlineData("a\udc00", "a�")]
-	[InlineData("\ud800", "�")]
-	[InlineData("\udc00\ud800", "��")]
-	[InlineData("\ud800\ud800\udc00", "�\ud800\udc00")]
+	[InlineData("a\uD800b", "a�b")]
+	[InlineData("a\uDC00", "a�")]
+	[InlineData("\uD800", "�")]
+	[InlineData("\uDC00\uD800", "��")]
+	[InlineData("\uD800\uD800\uDC00", "�\uD800\uDC00")]
 	public static void ReplaceUnpairedSurrogatesWorks(string text, string expected) =>
 		Assert.Equal(expected, TextAnalysis.ReplaceUnpairedSurrogates(text));
 
@@ -51,7 +51,7 @@ public static class TextAnalysisTests {
 
 	[Fact]
 	public static void GetLineBreaksHandlesNbsp() =>
-		Assert.Empty(TextAnalysis.GetLineBreaks("abc\u00a0def", "en"));
+		Assert.Empty(TextAnalysis.GetLineBreaks("abc\u00A0def", "en"));
 
 	[Fact]
 	public static void MandatoryBreaksAreHard() {

@@ -78,14 +78,14 @@ public static class RichTextTests {
 	[Fact]
 	public static void SurrogatePairsAreNeverSplitBetweenSpans() {
 		// the pair's halves are appended with different styles, so it takes the first half's
-		RichText t = new RichTextBuilder(baseStyle).Append("a\ud83d").Append("\ude00b", red).Build();
+		RichText t = new RichTextBuilder(baseStyle).Append("a\uD83D").Append("\uDE00b", red).Build();
 		Assert.Equal("a😀b", t.Text);
 		Assert.Equal([(0, 3, baseStyle), (3, 1, baseStyle with { Color = SrgbColor32.Red })], spans(t));
 		// a span left empty by that disappears
-		t = new RichTextBuilder(baseStyle).Append("a\ud83d").Append("\ude00", red).Append("b").Build();
+		t = new RichTextBuilder(baseStyle).Append("a\uD83D").Append("\uDE00", red).Append("b").Build();
 		Assert.Equal([(0, 4, baseStyle)], spans(t));
 		// unpaired halves are replaced
-		Assert.Equal("a�", new RichTextBuilder(baseStyle).Append("a\ud83d").Build().Text);
+		Assert.Equal("a�", new RichTextBuilder(baseStyle).Append("a\uD83D").Build().Text);
 	}
 
 	[Fact]

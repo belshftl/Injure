@@ -117,7 +117,15 @@ internal sealed unsafe class FtLibrary {
 /// entries that haven't been drawn for a while (see <see cref="TextCacheOptions.LayoutCacheFrames"/>).
 /// </para>
 /// <para>
-/// Current limitations:
+/// Text is split into paragraphs at <c>'\n'</c>, <c>'\r'</c>, <c>"\r\n"</c>, U+0085 NEXT LINE, and
+/// U+2029 PARAGRAPH SEPARATOR, and into lines within a paragraph at U+2028 LINE SEPARATOR,
+/// <c>'\v'</c>, and <c>'\f'</c>. Each paragraph has its own direction; see
+/// <see cref="TextHorizontalAlign"/>. Separators aren't drawn, and text after one starts a new
+/// line even if said line is empty, so e.g. <c>"a\n"</c> lays out to two lines.
+/// </para>
+/// <para>
+/// Current limitations that exist simply due to something being unimplemented, rather than an
+/// intentional design decision:
 /// <list type="bullet">
 /// <item><description>
 /// Only horizontal text is supported, so e.g. vertical CJK layouts are impossible, and scripts
@@ -125,16 +133,14 @@ internal sealed unsafe class FtLibrary {
 /// horizontally.
 /// </description></item>
 /// <item><description>
-/// There's no hyphenation. Soft hyphens (U+00AD) are treated as line break opportunities, but no
-/// hyphen actually gets drawn at the break.
+/// There is no automatic hyphenation. Manual hyphenation is supported (lines can break at U+00AD
+/// SOFT HYPHEN, which draws a hyphen there; see <see cref="TextWrapMode.Greedy"/>), but the drawn
+/// hyphen is always U+2010 HYPHEN or <c>'-'</c>, even in scripts that use a different character
+/// (e.g. Armenian or Hebrew) or don't hyphenate words at all.
 /// </description></item>
 /// <item><description>
-/// Only <c>'\n'</c> is supported as a paragraph separator; <c>'\r'</c>, U+2028 LINE SEPARATOR, and
-/// U+2029 PARAGRAPH SEPARATOR aren't, though U+2028 and U+2029 still break the line.
-/// </description></item>
-/// <item><description>
-/// <c>'\t'</c> has no tab stops. Additionally, <c>'\r'</c> and <c>'\t'</c> are drawn with whatever
-/// glyph the font maps them to, or the missing-glyph glyph.
+/// <c>'\t'</c> has no tab stops, and is drawn with whatever glyph the font maps it to, or the
+/// missing-glyph glyph.
 /// </description></item>
 /// <item><description>
 /// Each paragraph's base direction comes from its first strong character (left-to-right if it
@@ -145,11 +151,21 @@ internal sealed unsafe class FtLibrary {
 /// HarfBuzz's defaults for the script and language.
 /// </description></item>
 /// <item><description>
-/// Fonts fall back only within a <see cref="FontFallbackChain"/>; system fonts are never used.
-/// Variable fonts are used at their default instance, and there's no synthetic bold or italic.
+/// Variable fonts are always used at their default instance.
 /// </description></item>
 /// <item><description>
 /// Color glyphs, e.g. color emoji, are unsupported.
+/// </description></item>
+/// </list>
+/// </para>
+/// <para>
+/// Deliberate limitations:
+/// <list type="bullet">
+/// <item><description>
+/// Fonts fall back only within a <see cref="FontFallbackChain"/>; system fonts are never used.
+/// </description></item>
+/// <item><description>
+/// There's no synthetic bold/italic.
 /// </description></item>
 /// </list>
 /// </para>
@@ -381,8 +397,8 @@ public sealed unsafe class TextSystem : IDisposable {
 	/// Lays out text with a single style.
 	/// </summary>
 	/// <param name="text">
-	/// The text. Each <c>'\n'</c> starts a new paragraph. Unpaired surrogates are replaced
-	/// with U+FFFD REPLACEMENT CHARACTER.
+	/// The text. Paragraphs and lines are separated as described on <see cref="TextSystem"/>. Unpaired
+	/// surrogates are replaced with U+FFFD REPLACEMENT CHARACTER.
 	/// </param>
 	/// <param name="style">The style of the whole text.</param>
 	/// <param name="options">
