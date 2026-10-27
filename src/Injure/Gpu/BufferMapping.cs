@@ -23,6 +23,10 @@ public readonly partial struct MapMode {
 		/// <summary>
 		/// Writing data on the CPU, for the GPU; requires <see cref="BufferUsage.MapWrite"/>.
 		/// </summary>
+		/// <remarks>
+		/// The mapped range is write-only, and reading from it causes undefined behavior. There is no
+		/// read-write mapping mode.
+		/// </remarks>
 		Write,
 	}
 }

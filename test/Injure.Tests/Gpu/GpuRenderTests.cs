@@ -117,6 +117,26 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		Assert.Equal(green, GpuRig.At(GpuRig.Read(dev, target), 4, 0, 0));
 	}
 
+	// regression test, a default Attributes array used to throw NullReferenceException
+	[Fact]
+	public void VertexBuffersMayHaveNoAttributes() {
+		using GpuShaderModule sm = dev.CreateShaderModuleWgsl("""
+			@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+				return vec4f(f32(i & 1u) * 4.0 - 1.0, f32(i >> 1u) * 4.0 - 1.0, 0.0, 1.0);
+			}
+			@fragment fn fs() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
+			""");
+		using GpuPipelineLayout pl = dev.CreatePipelineLayout([]);
+		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineParams(
+			pl,
+			new VertexState(sm, "vs", [
+				new VertexBufferLayout(16, VertexStepMode.Vertex, default),
+				new VertexBufferLayout(16, VertexStepMode.Vertex, []),
+			]),
+			new FragmentState(sm, "fs", [GpuRig.Opaque()])
+		));
+	}
+
 	[Fact]
 	public void BindGroupValidationWorks() {
 		using GpuBindGroupLayout layout = dev.CreateUniformBufferBindGroupLayout(ShaderStage.Fragment);

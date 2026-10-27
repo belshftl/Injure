@@ -918,11 +918,10 @@ public sealed class ModRuntime<TGameApi> : IModuleOwnerResolver, IIlOwnerInfoPro
 	}
 
 	private static void block(ValueTask task) {
-		if (task.IsCompletedSuccessfully) {
+		if (task.IsCompleted)
 			task.GetAwaiter().GetResult();
-			return;
-		}
-		task.AsTask().GetAwaiter().GetResult();
+		else
+			task.AsTask().GetAwaiter().GetResult();
 	}
 
 	private PendingOp[] peekPendingBatch(ReloadBoundaryKind boundary) {

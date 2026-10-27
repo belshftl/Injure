@@ -27,11 +27,11 @@ namespace Injure.Draw;
 //
 // (Note: the above only works if the arena isn't written for a new frame before the previous frame
 // that used it was submitted, so an arena is only returned to the pool once the frame that was
-// using it is done with it, via RenderFrame.AddOrderedDisposable. This also has the useful property
-// of letting two canvases draw into the same frame one-after-another: if a canvas draws into a
-// frame, is disposed, and then another canvas is opened for that frame to draw into it, the arena
-// the first canvas has rented hasn't been returned to the pool yet, so the second canvas will rent
-// a different arena.)
+// using it is done with it, via RenderFrame.AddDisp. This also has the useful property of letting
+// two canvases draw into the same frame one after another: if a canvas draws into a frame, is
+// disposed, and then another canvas is opened for that frame to draw into it, the arena the first
+// canvas has rented hasn't been returned to the pool yet, so the second canvas will rent a
+// different arena.)
 //
 // The geometry chunk list, within one use of an arena, looks like:
 //   [ used this arena use ... | current | leftovers from earlier arena uses, all empty ... ]
@@ -311,7 +311,7 @@ internal sealed class CanvasArenaPool(CanvasDeviceResources res) : IDisposable {
 			trimFree();
 		}
 		try {
-			frame.AddOrderedDisposable(new Lease(this, arena));
+			frame.AddDisp(new Lease(this, arena));
 		} catch {
 			ret(arena);
 			throw;

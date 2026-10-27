@@ -40,6 +40,7 @@ public sealed class GpuBufferTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		Assert.Equal(0ul, buf.MappedOffset);
 		Assert.Equal(16ul, buf.MappedSize);
 		buf.WriteMapped(0, new uint[] { 5, 6, 7, 8 }.AsSpan());
+		Assert.Throws<InvalidOperationException>(() => buf.ReadMapped(0, new uint[4].AsSpan()));
 		buf.Unmap();
 		Assert.Equal(new uint[] { 5, 6, 7, 8 }, readBack(buf, 4));
 	}
@@ -159,11 +160,12 @@ public sealed class GpuBufferTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	}
 
 	[Fact]
-	public void DisposedBufferThrows() {
+	public unsafe void DisposedBufferThrows() {
 		GpuBuffer buf = dev.CreateBuffer(16, BufferUsage.MapRead | BufferUsage.CopyDst);
 		buf.Dispose();
 		buf.Dispose();
 		Assert.Throws<ObjectDisposedException>(() => buf.BeginMap(MapMode.Read));
 		Assert.Throws<ObjectDisposedException>(buf.Unmap);
+		Assert.Throws<ObjectDisposedException>(() => { _ = buf.DangerousGetMappedPointer(); });
 	}
 }

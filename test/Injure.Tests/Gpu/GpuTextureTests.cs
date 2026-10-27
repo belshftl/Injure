@@ -57,6 +57,15 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 	}
 
 	[Fact]
+	public void ViewsRejectNonexistentBaseSubresources() {
+		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
+			16, 16, 4, 3, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
+		));
+		Assert.Throws<ArgumentException>(() => tex.CreateView(new GpuTextureViewParams() with { BaseMipLevel = 3 }));
+		Assert.Throws<ArgumentException>(() => tex.CreateView(new GpuTextureViewParams() with { BaseArrayLayer = 4 }));
+	}
+
+	[Fact]
 	public void AspectViewsOfDepthStencilPickAspectFormats() {
 		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
 			4, 4, 1, 1, 1, TextureDimension.Dimension2d, TextureFormat.Depth24PlusStencil8, TextureUsage.TextureBinding

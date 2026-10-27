@@ -12,6 +12,11 @@ namespace Injure.Gpu;
 /// Common base type for texture wrappers, allowing APIs to accept both owning and non-owning
 /// wrappers.
 /// </summary>
+/// <remarks>
+/// Once the owning object is disposed, anything that needs the underlying WebGPU object throws
+/// <see cref="ObjectDisposedException"/>, whether it's reached through the owning object or a
+/// non-owning wrapper, or passed to another API.
+/// </remarks>
 public abstract class GpuTextureHandle {
 	internal abstract WGPUTexture WgpuTexture { get; }
 
@@ -19,6 +24,9 @@ public abstract class GpuTextureHandle {
 	/// Returns the underlying <see cref="WGPUTexture"/>, bypassing ownership/lifetime. Dangles once
 	/// freed by <see cref="GpuTexture.Dispose()"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the texture has been disposed.
+	/// </exception>
 	/// <remarks>
 	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
@@ -29,14 +37,16 @@ public abstract class GpuTextureHandle {
 	/// Checks if another <see cref="GpuTextureHandle"/> points to the same underlying WebGPU texture
 	/// object as this one.
 	/// </summary>
-	/// <remarks>
-	/// Not strict equality: if both this object and <paramref name="other"/> have been disposed and,
-	/// as such, had the pointers to their underlying resources nulled, always returns false even
-	/// though <c>null == null</c>. It follows that a <see cref="GpuTextureHandle"/> would be deemed
-	/// not the same texture as itself if it's a disposed handle, <b>violating reflexivity.</b>
-	/// </remarks>
-	public bool SameTexture(GpuTextureHandle other) =>
-		other.WgpuTexture.IsNotNull && WgpuTexture.Handle == other.WgpuTexture.Handle;
+	/// <exception cref="ArgumentNullException">
+	/// Thrown if <paramref name="other"/> is <see langword="null"/>.
+	/// </exception>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if this texture or <paramref name="other"/> has been disposed.
+	/// </exception>
+	public bool SameTexture(GpuTextureHandle other) {
+		ArgumentNullException.ThrowIfNull(other);
+		return WgpuTexture.Handle == other.WgpuTexture.Handle;
+	}
 
 	/// <summary>
 	/// Parameters the texture was created with. <see cref="GpuTextureParams.ViewFormats"/> is empty
@@ -48,6 +58,12 @@ public abstract class GpuTextureHandle {
 	/// A view of the whole texture, with the texture's format and <see cref="DefaultViewDimension"/>.
 	/// The texture owns it and disposes it along with itself.
 	/// </summary>
+	/// <remarks>
+	/// Since <see cref="DefaultViewDimension"/> is <see cref="TextureViewDimension.Dimension2d"/>
+	/// for 2D textures unless <see cref="DepthOrArrayLayers"/> &gt; 1, the default view of a
+	/// single-layer 2D texture can't be bound as <c>texture_2d_array</c> inside a shader, and a
+	/// separate view with <see cref="TextureViewDimension.Dimension2dArray"/> must be created.
+	/// </remarks>
 	public abstract GpuTextureViewRef DefaultView { get; }
 
 	/// <summary>
@@ -114,8 +130,10 @@ public abstract class GpuTextureHandle {
 	/// <see cref="GpuTextureViewParams.Dimension"/> is the <see langword="default"/> value.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <see cref="GpuTextureViewParams.Format"/> is <see langword="null"/> and the
-	/// texture's format has no default format for <see cref="GpuTextureViewParams.Aspect"/>.
+	/// Thrown if <see cref="GpuTextureViewParams.BaseMipLevel"/> or
+	/// <see cref="GpuTextureViewParams.BaseArrayLayer"/> doesn't exist in the texture, or
+	/// <see cref="GpuTextureViewParams.Format"/> is <see langword="null"/> and the texture's format
+	/// has no default format for <see cref="GpuTextureViewParams.Aspect"/>.
 	/// </exception>
 	/// <remarks>
 	/// The other requirements on <paramref name="params"/> are only validated by WebGPU.
@@ -160,7 +178,12 @@ public sealed unsafe class GpuTexture : GpuTextureHandle, IDisposable {
 		DefaultView = defaultView.AsRef();
 	}
 
-	internal override WGPUTexture WgpuTexture => tex;
+	internal override WGPUTexture WgpuTexture {
+		get {
+			ObjectDisposedException.ThrowIf(tex.IsNull, this);
+			return tex;
+		}
+	}
 	/// <inheritdoc/>
 	public override GpuTextureParams Params { get; }
 	/// <inheritdoc/>
@@ -181,8 +204,13 @@ public sealed unsafe class GpuTexture : GpuTextureHandle, IDisposable {
 			(_, TextureAspect.Case.All) => Format,
 			_ => throw new ArgumentException("texture format/aspect combination has no aspect-specific view format", nameof(@params)),
 		};
+		// check upfront since the defaults below and the view's size are derived from them
+		if (@params.BaseMipLevel >= MipLevelCount)
+			throw new ArgumentException($"base mip level {@params.BaseMipLevel} doesn't exist; the texture has {MipLevelCount}", nameof(@params));
+		if (@params.BaseArrayLayer >= DepthOrArrayLayers)
+			throw new ArgumentException($"base array layer {@params.BaseArrayLayer} doesn't exist; the texture has {DepthOrArrayLayers}", nameof(@params));
 		TextureViewDimension dim = @params.Dimension ?? DefaultViewDimension;
-		uint mipLvCount = @params.MipLevelCount ?? checked(MipLevelCount - @params.BaseMipLevel);
+		uint mipLvCount = @params.MipLevelCount ?? MipLevelCount - @params.BaseMipLevel;
 		uint arrLayerCount = @params.ArrayLayerCount ?? dim.Tag switch {
 			TextureViewDimension.Case.Dimension1d or TextureViewDimension.Case.Dimension2d or TextureViewDimension.Case.Dimension3d => 1,
 			TextureViewDimension.Case.DimensionCube => 6,

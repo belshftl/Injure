@@ -10,6 +10,11 @@ namespace Injure.Gpu;
 /// Common base type for bind group wrappers, allowing APIs to accept both owning and non-owning
 /// wrappers.
 /// </summary>
+/// <remarks>
+/// Once the owning object is disposed, anything that needs the underlying WebGPU object throws
+/// <see cref="ObjectDisposedException"/>, whether it's reached through the owning object or a
+/// non-owning wrapper, or passed to another API.
+/// </remarks>
 public abstract class GpuBindGroupHandle {
 	internal abstract WGPUBindGroup WgpuBindGroup { get; }
 
@@ -20,6 +25,9 @@ public abstract class GpuBindGroupHandle {
 	/// Returns the underlying <see cref="WGPUBindGroup"/>, bypassing ownership/lifetime. Dangles once
 	/// freed by <see cref="GpuBindGroup.Dispose()"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the bind group has been disposed.
+	/// </exception>
 	/// <remarks>
 	/// <b>The return type is not a stable API and may change without notice.</b> See
 	/// <c>docs/conventions/dangerous-get-create.md</c>.
@@ -38,7 +46,12 @@ public sealed class GpuBindGroup : GpuBindGroupHandle, IDisposable {
 		DynamicBindings = dynamicBindings;
 	}
 
-	internal override WGPUBindGroup WgpuBindGroup => bindGroup;
+	internal override WGPUBindGroup WgpuBindGroup {
+		get {
+			ObjectDisposedException.ThrowIf(bindGroup.IsNull, this);
+			return bindGroup;
+		}
+	}
 	internal override BufferBindingType[] DynamicBindings { get; }
 
 	/// <summary>

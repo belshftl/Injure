@@ -53,7 +53,7 @@ public sealed class RenderFrameTests(GpuDeviceFixture fixture) : GpuTestBase(fix
 		Assert.Throws<InvalidOperationException>(() => frame.Encoder);
 		Assert.Throws<InvalidOperationException>(() => frame.PrimaryView);
 		Assert.Throws<InvalidOperationException>(frame.Submit);
-		Assert.Throws<InvalidOperationException>(() => frame.AddOrderedDisposable(new GpuRig.FakeOutput(target)));
+		Assert.Throws<InvalidOperationException>(() => frame.AddDisp(new GpuRig.FakeOutput(target)));
 		// the ref handed out earlier is revoked along with the frame's encoder
 		Assert.Throws<InvalidOperationException>(() => enc.PushDebugGroup("x"));
 	}
@@ -96,13 +96,66 @@ public sealed class RenderFrameTests(GpuDeviceFixture fixture) : GpuTestBase(fix
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
 		GpuRig.FakeOutput a = new(target), b = new(target);
 		using (RenderFrame frame = new(dev, null)) {
-			Assert.Same(a, frame.AddOrderedDisposable(a));
+			Assert.Same(a, frame.AddDisp(a));
 			frame.Submit();
 		}
 		using (RenderFrame frame = new(dev, null))
-			frame.AddOrderedDisposable(b);
+			frame.AddDisp(b);
 		Assert.Equal(["dispose"], a.Calls);
 		Assert.Equal(["dispose"], b.Calls);
+	}
+
+	[Fact]
+	public void OrderedDisposablesAreDisposedInReverseOrder() {
+		List<string> log = new();
+		using (RenderFrame frame = new(dev, null)) {
+			frame.AddDisp(new Logged(log, "a"));
+			frame.AddDisp(new Logged(log, "b"));
+			frame.Submit();
+		}
+		using (RenderFrame frame = new(dev, null)) {
+			frame.AddDisp(new Logged(log, "c"));
+			frame.AddDisp(new Logged(log, "d"));
+		}
+		Assert.Equal(["b", "a", "d", "c"], log);
+	}
+
+	[Fact]
+	public void FailedSubmitStillEndsTheFrame() {
+		using GpuTexture target = GpuRig.Target(dev, 4, 4);
+		GpuRig.FakeOutput output = new(target) { OnFinal = _ => throw new InvalidTimeZoneException("final") };
+		List<string> log = new();
+		RenderFrame frame = new(dev, output);
+		frame.AddDisp(new Logged(log, "a"));
+		InvalidTimeZoneException e = Assert.Throws<InvalidTimeZoneException>(frame.Submit);
+		Assert.Equal("final", e.Message);
+		Assert.Equal(["final", "dispose"], output.Calls);
+		Assert.Equal(["a"], log);
+		Assert.Throws<InvalidOperationException>(frame.Submit);
+		frame.Dispose();
+		Assert.Equal(["a"], log);
+	}
+
+	[Fact]
+	public void EndingFailuresAreAggregatedAndDontStopDisposal() {
+		using GpuTexture target = GpuRig.Target(dev, 4, 4);
+		GpuRig.FakeOutput output = new(target) { OnFinal = _ => throw new InvalidTimeZoneException("final") };
+		List<string> log = new();
+		RenderFrame frame = new(dev, output);
+		frame.AddDisp(new Logged(log, "a"));
+		frame.AddDisp(new Throwing("b"));
+		frame.AddDisp(new Logged(log, "c"));
+		AggregateException e = Assert.Throws<AggregateException>(frame.Submit);
+		Assert.Equal(["final", "b"], e.InnerExceptions.Select(x => x.Message));
+		Assert.Equal(["c", "a"], log);
+	}
+
+	private sealed class Logged(List<string> log, string name) : IDisposable {
+		public void Dispose() => log.Add(name);
+	}
+
+	private sealed class Throwing(string name) : IDisposable {
+		public void Dispose() => throw new InvalidTimeZoneException(name);
 	}
 
 	[Fact]

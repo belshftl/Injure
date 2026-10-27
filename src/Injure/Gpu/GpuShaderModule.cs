@@ -10,6 +10,11 @@ namespace Injure.Gpu;
 /// Common base type for shader module wrappers, allowing APIs to accept both owning and non-owning
 /// wrappers.
 /// </summary>
+/// <remarks>
+/// Once the owning object is disposed, anything that needs the underlying WebGPU object throws
+/// <see cref="ObjectDisposedException"/>, whether it's reached through the owning object or a
+/// non-owning wrapper, or passed to another API.
+/// </remarks>
 public abstract class GpuShaderModuleHandle {
 	internal abstract WGPUShaderModule WgpuShaderModule { get; }
 
@@ -17,6 +22,9 @@ public abstract class GpuShaderModuleHandle {
 	/// Returns the underlying <see cref="WGPUShaderModule"/>, bypassing ownership/lifetime. Dangles
 	/// once freed by <see cref="GpuShaderModule.Dispose()"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the shader module has been disposed.
+	/// </exception>
 	/// <remarks>
 	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
@@ -34,7 +42,12 @@ public sealed class GpuShaderModule : GpuShaderModuleHandle, IDisposable {
 		this.shaderModule = shaderModule;
 	}
 
-	internal override WGPUShaderModule WgpuShaderModule => shaderModule;
+	internal override WGPUShaderModule WgpuShaderModule {
+		get {
+			ObjectDisposedException.ThrowIf(shaderModule.IsNull, this);
+			return shaderModule;
+		}
+	}
 
 	/// <summary>
 	/// Creates a non-owning view of this shader module.

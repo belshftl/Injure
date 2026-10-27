@@ -10,6 +10,11 @@ namespace Injure.Gpu;
 /// Common base type for render pipeline wrappers, allowing APIs to accept both owning and
 /// non-owning wrappers.
 /// </summary>
+/// <remarks>
+/// Once the owning object is disposed, anything that needs the underlying WebGPU object throws
+/// <see cref="ObjectDisposedException"/>, whether it's reached through the owning object or a
+/// non-owning wrapper, or passed to another API.
+/// </remarks>
 public abstract class GpuRenderPipelineHandle {
 	internal abstract WGPURenderPipeline WgpuRenderPipeline { get; }
 
@@ -17,6 +22,9 @@ public abstract class GpuRenderPipelineHandle {
 	/// Returns the underlying <see cref="WGPURenderPipeline"/>, bypassing ownership/lifetime. Dangles
 	/// once freed by <see cref="GpuRenderPipeline.Dispose()"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the render pipeline has been disposed.
+	/// </exception>
 	/// <remarks>
 	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
@@ -34,7 +42,12 @@ public sealed class GpuRenderPipeline : GpuRenderPipelineHandle, IDisposable {
 		this.renderPipeline = renderPipeline;
 	}
 
-	internal override WGPURenderPipeline WgpuRenderPipeline => renderPipeline;
+	internal override WGPURenderPipeline WgpuRenderPipeline {
+		get {
+			ObjectDisposedException.ThrowIf(renderPipeline.IsNull, this);
+			return renderPipeline;
+		}
+	}
 
 	/// <summary>
 	/// Creates a non-owning view of this render pipeline.

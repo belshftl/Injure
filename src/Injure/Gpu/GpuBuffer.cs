@@ -11,6 +11,11 @@ namespace Injure.Gpu;
 /// Common base type for GPU buffer wrappers, allowing APIs to accept both owning and non-owning
 /// wrappers.
 /// </summary>
+/// <remarks>
+/// Once the owning object is disposed, anything that needs the underlying WebGPU object throws
+/// <see cref="ObjectDisposedException"/>, whether it's reached through the owning object or a
+/// non-owning wrapper, or passed to another API.
+/// </remarks>
 public abstract class GpuBufferHandle {
 	internal abstract WGPUBuffer WgpuBuffer { get; }
 
@@ -18,6 +23,9 @@ public abstract class GpuBufferHandle {
 	/// Returns the underlying <see cref="WGPUBuffer"/>, bypassing ownership/lifetime. Dangles once
 	/// freed by <see cref="GpuBuffer.Dispose()"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the buffer has been disposed.
+	/// </exception>
 	/// <remarks>
 	/// <b>The return type is not a stable API and may change without notice.</b> See
 	/// <c>docs/conventions/dangerous-get-create.md</c>.
@@ -65,7 +73,12 @@ public sealed unsafe class GpuBuffer : GpuBufferHandle, IDisposable {
 			setMapped(MapMode.Write, 0, size);
 	}
 
-	internal override WGPUBuffer WgpuBuffer => buffer;
+	internal override WGPUBuffer WgpuBuffer {
+		get {
+			ObjectDisposedException.ThrowIf(buffer.IsNull, this);
+			return buffer;
+		}
+	}
 	/// <inheritdoc/>
 	public override ulong Size { get; }
 	/// <inheritdoc/>
@@ -184,10 +197,9 @@ public sealed unsafe class GpuBuffer : GpuBufferHandle, IDisposable {
 	/// </exception>
 	/// <inheritdoc cref="BeginMap(MapMode, ulong, ulong?, Action{BufferMapStatus})" path="/exception"/>
 	/// <remarks>
-	/// Blocks until all work submitted to the device so far has completed, so it's best used
-	/// sparingly, e.g. for one-off readbacks or tools; per-frame readback should use
-	/// <see cref="BeginMap(MapMode, ulong, ulong?, Action{BufferMapStatus})"/>. Also dispatches other
-	/// pending map completions, see
+	/// Blocks until <b>all work</b> submitted to the device so far has completed, <b>including
+	/// potentially other buffers' map callbacks</b>, so it's best used sparingly, e.g. for one-off
+	/// readbacks or tools; per-frame readback should use
 	/// <see cref="BeginMap(MapMode, ulong, ulong?, Action{BufferMapStatus})"/>.
 	/// </remarks>
 	public void Map(MapMode mode, ulong offset = 0, ulong? size = null) {
@@ -272,13 +284,15 @@ public sealed unsafe class GpuBuffer : GpuBufferHandle, IDisposable {
 	/// Thrown if the bytes to read aren't all inside the mapped range.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
-	/// Thrown if the buffer isn't mapped.
+	/// Thrown if the buffer isn't mapped for <see cref="MapMode.Read"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if the buffer has been disposed.
 	/// </exception>
 	public void ReadMapped<T>(ulong offset, Span<T> dst) where T : unmanaged {
 		byte* p = mappedRangeAt(offset, (ulong)dst.Length * (ulong)sizeof(T));
+		if (MappedMode != MapMode.Read)
+			throw new InvalidOperationException("buffer is mapped for writing");
 		new ReadOnlySpan<T>(p, dst.Length).CopyTo(dst);
 	}
 
@@ -315,10 +329,15 @@ public sealed unsafe class GpuBuffer : GpuBufferHandle, IDisposable {
 	/// Thrown if the buffer has been disposed.
 	/// </exception>
 	/// <remarks>
-	/// The memory must not be written to if the buffer is mapped for <see cref="MapMode.Read"/>.
-	/// See <c>docs/conventions/dangerous-get-create.md</c>.
+	/// The memory may only be read if the buffer is mapped for <see cref="MapMode.Read"/>, and may
+	/// only be written to if it's mapped for <see cref="MapMode.Write"/>. See
+	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
-	public void* DangerousGetMappedPointer() => mappedRangeAt(MappedOffset, MappedSize);
+	public void* DangerousGetMappedPointer() {
+		// MappedOffset's getter would throw InvalidOperationException for a disposed buffer
+		ObjectDisposedException.ThrowIf(buffer.IsNull, this);
+		return mappedRangeAt(MappedOffset, MappedSize);
+	}
 
 	private byte* mappedRangeAt(ulong offset, ulong size) {
 		ObjectDisposedException.ThrowIf(buffer.IsNull, this);

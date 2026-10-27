@@ -402,7 +402,7 @@ public sealed class OwnedCanvas : IDisposable {
 	// keeps a glyph atlas page alive until the frame is submitted or discarded
 	internal void PinGlyphPage(GlyphAtlasPage page) {
 		chk();
-		glyphPins ??= frame.AddOrderedDisposable(new GlyphPagePins());
+		glyphPins ??= frame.AddDisp(new GlyphPagePins());
 		glyphPins.Pin(page);
 	}
 

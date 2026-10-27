@@ -75,8 +75,7 @@ public sealed class BoundedScopeException : Exception {
 /// The order in which the disposals/teardowns are performed is as follows:
 /// <list type="bullet">
 /// <item><description>First, all <see cref="IReloadTeardown"/>s are torn down in parallel.</description></item>
-/// <item><description>Second, all parallel disposals are performed.</description></item>
-/// <item><description>Finally, all ordered disposals are performed in reverse registration order.</description></item>
+/// <item><description>Then, all registered disposables are disposed in reverse registration order.</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -93,12 +92,12 @@ public sealed class BoundedScopeException : Exception {
 /// disposal.
 /// </para>
 /// <para>
-/// The maximum degree of parallelism for <see cref="IReloadTeardown"/> teardown or parallel
-/// disposals is configured by the mod runtime.
+/// The maximum degree of parallelism for <see cref="IReloadTeardown"/> teardown is configured by
+/// the mod runtime.
 /// </para>
 /// </remarks>
 [DontImplement]
-public interface IUntypedBoundedScope : IParallelDisposalScope {
+public interface IUntypedBoundedScope : IDisposalScope {
 	/// <summary>
 	/// Generation that this scope is bounded over. This property remains available after scope
 	/// invalidation has already begun or finished.
@@ -157,8 +156,8 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 	T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown;
 
 	/// <summary>
-	/// Registers a synchronous resource for unordered, parallel disposal when this reload generation
-	/// ends.
+	/// Registers a synchronous resource to be disposed, in reverse registration order, when this
+	/// reload generation ends.
 	/// </summary>
 	/// <typeparam name="T">The type of the resource.</typeparam>
 	/// <param name="disposable">The resource to register.</param>
@@ -173,11 +172,11 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 	/// Thrown if invalidation of this scope has already begun or finished.
 	/// </exception>
 	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
-	new T AddDisposable<T>(T disposable) where T : notnull, IDisposable;
+	new T AddDisp<T>(T disposable) where T : notnull, IDisposable;
 
 	/// <summary>
-	/// Registers an asynchronous resource for unordered, parallel disposal when this reload generation
-	/// ends.
+	/// Registers an asynchronous resource to be disposed, in reverse registration order, when this
+	/// reload generation ends.
 	/// </summary>
 	/// <typeparam name="T">The type of the resource.</typeparam>
 	/// <param name="disposable">The resource to register.</param>
@@ -191,50 +190,13 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 	/// <exception cref="ReloadGenerationExpiredException">
 	/// Thrown if invalidation of this scope has already begun or finished.
 	/// </exception>
-	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
-	new T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable;
-
-	/// <summary>
-	/// Registers a synchronous resource for ordered disposal in reverse registration
-	/// order when this reload generation ends.
-	/// </summary>
-	/// <typeparam name="T">The type of the resource.</typeparam>
-	/// <param name="disposable">The resource to register.</param>
-	/// <returns>
-	/// <paramref name="disposable"/>. The passed value is returned back as-is for
-	/// construct-and-register ergonomics.
-	/// </returns>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="disposable"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="ReloadGenerationExpiredException">
-	/// Thrown if invalidation of this scope has already begun or finished.
-	/// </exception>
-	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
-	new T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable;
-
-	/// <summary>
-	/// Registers an asynchronous resource for ordered disposal in reverse registration
-	/// order when this reload generation ends.
-	/// </summary>
-	/// <typeparam name="T">The type of the resource.</typeparam>
-	/// <param name="disposable">The resource to register.</param>
-	/// <returns>
-	/// <paramref name="disposable"/>. The passed value is returned back as-is for
-	/// construct-and-register ergonomics.
-	/// </returns>
 	/// <remarks>
-	/// The <see cref="IAsyncDisposable.DisposeAsync()"/> call is awaited before moving on to the next
-	/// one; no concurrency is performed by the scope.
+	/// Shares one registration order with <see cref="AddDisp{T}(T)"/>. The
+	/// <see cref="IAsyncDisposable.DisposeAsync()"/> call is awaited before the next resource is
+	/// disposed; the scope doesn't dispose anything concurrently.
 	/// </remarks>
-	/// <exception cref="ArgumentNullException">
-	/// Thrown if <paramref name="disposable"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="ReloadGenerationExpiredException">
-	/// Thrown if invalidation of this scope has already begun or finished.
-	/// </exception>
 	[SatisfiesAndReturnsObligation(nameof(disposable), ObligationSatisfactionLevel.Generation)]
-	new T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable;
+	T AddAsyncDisp<T>(T disposable) where T : notnull, IAsyncDisposable;
 }
 
 /// <summary>
@@ -246,8 +208,7 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 /// The order in which the disposals/teardowns are performed is as follows:
 /// <list type="bullet">
 /// <item><description>First, all <see cref="IReloadTeardown"/>s are torn down in parallel.</description></item>
-/// <item><description>Second, all parallel disposals are performed.</description></item>
-/// <item><description>Finally, all ordered disposals are performed in reverse registration order.</description></item>
+/// <item><description>Then, all registered disposables are disposed in reverse registration order.</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -264,8 +225,8 @@ public interface IUntypedBoundedScope : IParallelDisposalScope {
 /// disposal.
 /// </para>
 /// <para>
-/// The maximum degree of parallelism for <see cref="IReloadTeardown"/> teardown or parallel
-/// disposals is configured by the runtime.
+/// The maximum degree of parallelism for <see cref="IReloadTeardown"/> teardown is configured by
+/// the runtime.
 /// </para>
 /// </remarks>
 [DontImplement]

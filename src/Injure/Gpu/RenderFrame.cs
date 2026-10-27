@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.ExceptionServices;
 using Injure.Common;
 
 namespace Injure.Gpu;
@@ -23,7 +24,7 @@ namespace Injure.Gpu;
 /// </para>
 /// <para>
 /// Temporary resources that must survive up to the submission (or discard via disposal) can be
-/// registered with <see cref="AddOrderedDisposable{T}(T)"/>.
+/// registered with <see cref="AddDisp{T}(T)"/>.
 /// </para>
 /// </remarks>
 public sealed class RenderFrame : IDisposable, IDisposalScope {
@@ -32,7 +33,6 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 	private readonly IAcquiredOutput? primaryOutput;
 	private readonly List<IDisposable> deferred = new();
 	private bool done = false;
-	private bool finalCommandsRecorded = false;
 
 	/// <summary>
 	/// Begins a frame, taking ownership of <paramref name="primaryOutput"/> (<b>including if this
@@ -145,11 +145,17 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 	/// Thrown if the frame has already been submitted/disposed.
 	/// </exception>
 	/// <remarks>
+	/// <para>
 	/// Typically used for temporary resources that are no longer needed by CPU code after command
 	/// recording, but must remain alive until the submit is complete because encoded GPU work
 	/// references them.
+	/// </para>
+	/// <para>
+	/// Registered objects are disposed in reverse registration order, after the primary output. See
+	/// <see cref="Submit()"/> for how failures are reported.
+	/// </para>
 	/// </remarks>
-	public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable {
+	public T AddDisp<T>(T disposable) where T : notnull, IDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
 		if (done)
 			throw new InvalidOperationException("frame already submitted/disposed");
@@ -164,30 +170,39 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the frame has already been submitted/disposed, or if a render pass is still active.
 	/// </exception>
+	/// <exception cref="AggregateException">
+	/// Thrown if more than one failure happened while ending the frame; see the remarks.
+	/// </exception>
 	/// <remarks>
+	/// <para>
 	/// Calls <see cref="IAcquiredOutput.RecordFinalCommands(GpuCommandEncoderHandle)"/> on the primary
-	/// output before finishing the encoder. Any disposables registered with
-	/// <see cref="AddOrderedDisposable{T}(T)"/> are disposed once submission is complete.
+	/// output before finishing the encoder, then submits, then presents. Afterwards, the primary
+	/// output and the disposables registered with <see cref="AddDisp{T}(T)"/> are disposed.
+	/// </para>
+	/// <para>
+	/// The two <see cref="InvalidOperationException"/> cases above leave the frame as it was. Past
+	/// them, the frame always ends: if recording the final commands, finishing, submitting, or
+	/// presenting throws, the rest of those steps are skipped, but the primary output and the
+	/// registered disposables are still disposed. Every disposal runs even if an earlier one throws.
+	/// A single failure is rethrown as-is; several are thrown together as an
+	/// <see cref="AggregateException"/>, with the failure that ended the frame first.
+	/// </para>
 	/// </remarks>
 	public void Submit() {
 		if (done)
 			throw new InvalidOperationException("frame already submitted/disposed");
 		if (encoder.State.ActivePass)
 			throw new InvalidOperationException("frame still has an active render pass");
-		// IAcquiredOutput promises at most one call, even if finishing fails and Submit is retried
-		if (!finalCommandsRecorded) {
-			finalCommandsRecorded = true;
-			primaryOutput?.RecordFinalCommands(Encoder);
-		}
-		GpuCommandBuffer cmdbuf = encoder.Finish();
-		done = true;
+		Exception? failure = null;
 		try {
-			using (cmdbuf)
-				device.Submit(cmdbuf);
+			primaryOutput?.RecordFinalCommands(Encoder);
+			using GpuCommandBuffer cmdbuf = encoder.Finish();
+			device.Submit(cmdbuf);
 			primaryOutput?.Present();
-		} finally {
-			releaseResources();
+		} catch (Exception e) {
+			failure = e;
 		}
+		end(failure);
 	}
 
 	/// <summary>
@@ -196,6 +211,9 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if a render pass is still active.
 	/// </exception>
+	/// <exception cref="AggregateException">
+	/// Thrown if more than one disposal failed; a single failure is rethrown as-is.
+	/// </exception>
 	/// <remarks>
 	/// <para>
 	/// Callers should structure usage such that this always runs, typically via <c>using</c>, rather
@@ -203,22 +221,46 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 	/// </para>
 	/// <para>
 	/// The primary output is released without being presented, and any disposables registered with
-	/// <see cref="AddOrderedDisposable{T}(T)"/> are disposed. Disposing a frame with an active pass is
-	/// a bug and throws instead of silently ending the pass.
+	/// <see cref="AddDisp{T}(T)"/> are disposed, even if an earlier disposal throws. Disposing a frame
+	/// with an active pass is a bug and throws instead of silently ending the pass; the frame is left
+	/// as it was then.
 	/// </para>
 	/// </remarks>
 	public void Dispose() {
 		if (done)
 			return;
-		encoder.Dispose(); // throws if a pass is still active
-		done = true;
-		releaseResources();
+		if (encoder.State.ActivePass)
+			throw new InvalidOperationException("frame still has an active render pass");
+		end(null);
 	}
 
-	private void releaseResources() {
-		primaryOutput?.Dispose();
-		foreach (IDisposable disp in deferred)
-			disp.Dispose();
+	// releases everything the frame owns, then throws `failure` along with any disposal failures
+	private void end(Exception? failure) {
+		done = true;
+		List<Exception>? failures = failure is null ? null : [failure];
+		// no-op if Finish already ran. RecordFinalCommands throwing mid-pass is the only way to get
+		// here with an active pass; the encoder can't be released then, so it's left to leak
+		if (!encoder.State.ActivePass)
+			run(encoder.Dispose, ref failures);
+		if (primaryOutput is not null)
+			run(primaryOutput.Dispose, ref failures);
+		// reverse registration order, as IDisposalScope promises
+		for (int i = deferred.Count - 1; i >= 0; i--)
+			run(deferred[i].Dispose, ref failures);
 		deferred.Clear();
+
+		if (failures is null)
+			return;
+		if (failures.Count == 1)
+			ExceptionDispatchInfo.Throw(failures[0]);
+		throw new AggregateException(failures);
+
+		static void run(Action dispose, ref List<Exception>? failures) {
+			try {
+				dispose();
+			} catch (Exception e) {
+				(failures ??= []).Add(e);
+			}
+		}
 	}
 }

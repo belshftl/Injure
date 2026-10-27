@@ -46,7 +46,7 @@ namespace Injure.Draw;
 /// <para>
 /// Colors are sRGB-encoded, and blending happens on the encoded values. Targets must therefore have
 /// non-sRGB formats, so the values reach them unchanged; see
-/// <see cref="SurfaceFormatPolicy.PreferNonSrgb"/>. Texture texels are likewise taken as stored, so
+/// <see cref="SurfaceFormatPolicy.NonSrgb"/>. Texture texels are likewise taken as stored, so
 /// textures should hold sRGB-encoded colors in non-sRGB formats.
 /// </para>
 /// <para>

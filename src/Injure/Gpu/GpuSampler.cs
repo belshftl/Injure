@@ -10,6 +10,11 @@ namespace Injure.Gpu;
 /// Common base type for sampler wrappers, allowing APIs to accept both owning and non-owning
 /// wrappers.
 /// </summary>
+/// <remarks>
+/// Once the owning object is disposed, anything that needs the underlying WebGPU object throws
+/// <see cref="ObjectDisposedException"/>, whether it's reached through the owning object or a
+/// non-owning wrapper, or passed to another API.
+/// </remarks>
 public abstract class GpuSamplerHandle {
 	internal abstract WGPUSampler WgpuSampler { get; }
 
@@ -17,6 +22,9 @@ public abstract class GpuSamplerHandle {
 	/// Returns the underlying <see cref="WGPUSampler"/>, bypassing ownership/lifetime. Dangles once
 	/// freed by <see cref="GpuSampler.Dispose()"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the sampler has been disposed.
+	/// </exception>
 	/// <remarks>
 	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
@@ -70,7 +78,12 @@ public sealed class GpuSampler : GpuSamplerHandle, IDisposable {
 		Params = @params;
 	}
 
-	internal override WGPUSampler WgpuSampler => sampler;
+	internal override WGPUSampler WgpuSampler {
+		get {
+			ObjectDisposedException.ThrowIf(sampler.IsNull, this);
+			return sampler;
+		}
+	}
 	/// <inheritdoc/>
 	public override GpuSamplerParams Params { get; }
 

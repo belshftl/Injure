@@ -380,7 +380,7 @@ public abstract class StandardGame {
 			sdl = SdlInstance.Init(options.Sdl);
 			window = SdlWindow.Create(sdl, options.Window);
 			gpuDevice = new GpuDevice(options.GpuDevice with { CompatibleHost = window.SurfaceHost, ErrorHandler = gpuErrorHandler() });
-			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, SurfaceFormatPolicy.PreferNonSrgb, options.PresentModePolicy);
+			renderOutput = new SurfaceRenderOutput(gpuDevice, window.SurfaceHost, SurfaceFormatPolicy.NonSrgb, options.PresentModePolicy);
 			if (options.Assets) {
 				assets = new AssetStore();
 				// likely stutters; making the asset's group resident beforehand avoids them

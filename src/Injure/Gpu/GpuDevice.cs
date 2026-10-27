@@ -283,9 +283,12 @@ public sealed unsafe class GpuDevice : IDisposable {
 		var st = (CallbackState)h.Target!;
 		if (Volatile.Read(ref st.Owner.disposed) != 0)
 			return;
-		// TODO: this just happens to rely on the fact that the enum members match with an offset of 1, it
-		// needs something less fragile
-		DeviceLossEventReason r = DeviceLossEventReason.Enum.FromTag((DeviceLossEventReason.Case)((int)reason - 1));
+		DeviceLossEventReason r = reason switch {
+			WGPUDeviceLostReason.Destroyed => DeviceLossEventReason.Destroyed,
+			WGPUDeviceLostReason.InstanceDropped => DeviceLossEventReason.InstanceDropped,
+			WGPUDeviceLostReason.FailedCreation => DeviceLossEventReason.FailedCreation,
+			_ => DeviceLossEventReason.Unknown,
+		};
 		st.Owner.NotifyLost(new DeviceLostInfo(DeviceLossInfoKind.Final, r, message.ToString()));
 	}
 
@@ -488,9 +491,10 @@ public sealed unsafe class GpuDevice : IDisposable {
 		ArgumentNullException.ThrowIfNull(buffer);
 		if (data.IsEmpty)
 			return;
-		requireWritable(buffer, offset, (ulong)data.Length * (ulong)sizeof(T));
+		ulong size = (ulong)data.Length * (ulong)sizeof(T);
+		requireWritable(buffer, offset, size);
 		fixed (T* p = data)
-			wgpuQueueWriteBuffer(Queue, buffer.WgpuBuffer, offset, p, (nuint)(data.Length * sizeof(T)));
+			wgpuQueueWriteBuffer(Queue, buffer.WgpuBuffer, offset, p, (nuint)size);
 	}
 
 	/// <summary>
@@ -546,7 +550,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 		ReadOnlySpan<TextureFormat> viewFormats = @params.ViewFormats.IsDefault
 			? []
 			: @params.ViewFormats.AsSpan();
-		WGPUTextureFormat[] wgpuViewFormats;
+		WGPUTextureFormat[]? wgpuViewFormats = null;
 		if (viewFormats.Length > 0) {
 			wgpuViewFormats = new WGPUTextureFormat[viewFormats.Length];
 			HashSet<TextureFormat> tmp = new(viewFormats.Length);
@@ -866,6 +870,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 		foreach (GpuBindGroupLayoutEntry e in entries)
 			if (e.Layout is GpuBufferBindingLayout { HasDynamicOffset: true } b)
 				dynamic.Add((e.Binding, b.Type));
+		// webgpu expects dynamic offsets in increasing binding-number order
 		dynamic.Sort(static (x, y) => x.Binding.CompareTo(y.Binding));
 		BufferBindingType[] dynamicBindings = dynamic.ConvertAll(static d => d.Type).ToArray();
 		return new GpuBindGroupLayout(Check(wgpuDeviceCreateBindGroupLayout(Device, &desc)), dynamicBindings);
@@ -1214,7 +1219,8 @@ public sealed unsafe class GpuDevice : IDisposable {
 		ReadOnlySpan<VertexBufferLayout> vertBuffers = vert.Buffers.IsDefault ? [] : vert.Buffers.AsSpan();
 		int totalVertAttrCount = 0;
 		for (int i = 0; i < vertBuffers.Length; i++)
-			totalVertAttrCount += vertBuffers[i].Attributes.Length;
+			if (!vertBuffers[i].Attributes.IsDefault)
+				totalVertAttrCount += vertBuffers[i].Attributes.Length;
 
 		ReadOnlySpan<ColorTargetState> colorTargets = haveFrag && !frag.Targets.IsDefault ? frag.Targets.AsSpan() : [];
 

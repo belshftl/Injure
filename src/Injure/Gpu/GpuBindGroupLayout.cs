@@ -10,6 +10,11 @@ namespace Injure.Gpu;
 /// Common base type for bind group layout wrappers, allowing APIs to accept both owning and
 /// non-owning wrappers.
 /// </summary>
+/// <remarks>
+/// Once the owning object is disposed, anything that needs the underlying WebGPU object throws
+/// <see cref="ObjectDisposedException"/>, whether it's reached through the owning object or a
+/// non-owning wrapper, or passed to another API.
+/// </remarks>
 public abstract class GpuBindGroupLayoutHandle {
 	internal abstract WGPUBindGroupLayout WgpuBindGroupLayout { get; }
 
@@ -21,6 +26,9 @@ public abstract class GpuBindGroupLayoutHandle {
 	/// Returns the underlying <see cref="WGPUBindGroupLayout"/>, bypassing ownership/lifetime. Dangles
 	/// once freed by <see cref="GpuBindGroupLayout.Dispose()"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the bind group layout has been disposed.
+	/// </exception>
 	/// <remarks>
 	/// <b>The return type is not a stable API and may change without notice.</b> See
 	/// <c>docs/conventions/dangerous-get-create.md</c>.
@@ -39,7 +47,12 @@ public sealed class GpuBindGroupLayout : GpuBindGroupLayoutHandle, IDisposable {
 		DynamicBindings = dynamicBindings;
 	}
 
-	internal override WGPUBindGroupLayout WgpuBindGroupLayout => bindGroupLayout;
+	internal override WGPUBindGroupLayout WgpuBindGroupLayout {
+		get {
+			ObjectDisposedException.ThrowIf(bindGroupLayout.IsNull, this);
+			return bindGroupLayout;
+		}
+	}
 	internal override BufferBindingType[] DynamicBindings { get; }
 
 	/// <summary>

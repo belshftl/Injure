@@ -47,8 +47,7 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 	private readonly CancellationToken stoppingToken;
 
 	private List<IReloadTeardown>? teardowns = new();
-	private List<OwnedDisposable>? parallel = new();
-	private List<OwnedDisposable>? ordered = new();
+	private List<OwnedDisposable>? disposables = new();
 
 	private int invalidationClaimed;
 
@@ -77,7 +76,7 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 			: CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
 		BoundedCtsCore source = new(Generation, linked);
 		try {
-			AddDisposable(source);
+			AddDisp(source);
 			return new BoundedCts<L>(source);
 		} catch {
 			source.Dispose();
@@ -103,40 +102,25 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 		}
 	}
 
-	public T AddDisposable<T>(T disposable) where T : notnull, IDisposable {
+	public T AddDisp<T>(T disposable) where T : notnull, IDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
-		add(new OwnedDisposable(disposable), ordered: false);
+		add(new OwnedDisposable(disposable));
 		return disposable;
 	}
 
-	public T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable {
+	public T AddAsyncDisp<T>(T disposable) where T : notnull, IAsyncDisposable {
 		ArgumentNullException.ThrowIfNull(disposable);
-		add(new OwnedDisposable(disposable), ordered: false);
+		add(new OwnedDisposable(disposable));
 		return disposable;
 	}
 
-	public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable {
-		ArgumentNullException.ThrowIfNull(disposable);
-		add(new OwnedDisposable(disposable), ordered: true);
-		return disposable;
-	}
-
-	public T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable {
-		ArgumentNullException.ThrowIfNull(disposable);
-		add(new OwnedDisposable(disposable), ordered: true);
-		return disposable;
-	}
-
-	private void add(OwnedDisposable disp, bool ordered) {
+	private void add(OwnedDisposable disp) {
 		if (IsInvalidatingOrInvalidated)
 			throw new ReloadGenerationExpiredException(Generation);
 		lock (@lock) {
-			if (IsInvalidatingOrInvalidated || parallel is null || this.ordered is null)
+			if (IsInvalidatingOrInvalidated || disposables is null)
 				throw new ReloadGenerationExpiredException(Generation);
-			if (ordered)
-				this.ordered.Add(disp);
-			else
-				parallel.Add(disp);
+			disposables.Add(disp);
 		}
 	}
 
@@ -150,12 +134,10 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 		Task cancellationTask = stoppingCts.CancelAsync();
 
 		IReloadTeardown[] tear;
-		OwnedDisposable[] par;
-		OwnedDisposable[] ord;
+		OwnedDisposable[] disp;
 		lock (@lock) {
 			tear = snapshotReverseAndClear(ref teardowns);
-			par = snapshotAndClear(ref parallel);
-			ord = snapshotAndClear(ref ordered);
+			disp = snapshotAndClear(ref disposables);
 		}
 
 		List<BoundedScopeFailure>? failures = null;
@@ -175,12 +157,10 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 			}
 
 			await teardownAsync(tear, reason, maxParallelism, f => (failures ??= []).Add(f)).ConfigureAwait(false);
-			await disposeParallelAsync(par, maxParallelism, f => (failures ??= []).Add(f)).ConfigureAwait(false);
-			await disposeOrderedAsync(ord, f => (failures ??= []).Add(f)).ConfigureAwait(false);
+			await disposeAsync(disp, f => (failures ??= []).Add(f)).ConfigureAwait(false);
 		} finally {
 			Array.Clear(tear);
-			Array.Clear(par);
-			Array.Clear(ord);
+			Array.Clear(disp);
 			stoppingCts.Dispose();
 		}
 
@@ -222,46 +202,13 @@ internal sealed class UntypedBoundedScopeImpl : IUntypedBoundedScope {
 		await Task.WhenAll(workers).ConfigureAwait(false);
 	}
 
-	private async ValueTask disposeParallelAsync(OwnedDisposable[] items, int maxWorkerCount, Action<BoundedScopeFailure> addFailure) {
-		if (items.Length == 0)
-			return;
-
-		Lock failureLock = new();
-		int nextIndex = -1;
-		int workerCount = Math.Min(maxWorkerCount, items.Length);
-		var workers = new Task[workerCount];
-		for (int worker = 0; worker < workerCount; worker++)
-			workers[worker] = Task.Run(async () => {
-					for (;;) {
-						int i = Interlocked.Increment(ref nextIndex);
-						if (i >= items.Length)
-							return;
-						string typeName = items[i].TypeName;
-						try {
-							await items[i].DisposeAsync().ConfigureAwait(false);
-						} catch (Exception ex) {
-							var failure = BoundedScopeFailure.FromException(Generation, i, "dispose parallel-disposal IDisposable item", typeName, ex);
-							lock (failureLock)
-								addFailure(failure);
-						} finally {
-							// drops the references once disposed; the slot is never read again
-#pragma warning disable IJDEV0100
-							items[i] = default;
-#pragma warning restore IJDEV0100
-						}
-					}
-				}
-			);
-		await Task.WhenAll(workers).ConfigureAwait(false);
-	}
-
-	private async ValueTask disposeOrderedAsync(OwnedDisposable[] items, Action<BoundedScopeFailure> addFailure) {
+	private async ValueTask disposeAsync(OwnedDisposable[] items, Action<BoundedScopeFailure> addFailure) {
 		for (int i = items.Length - 1; i >= 0; i--) {
 			string typeName = items[i].TypeName;
 			try {
 				await items[i].DisposeAsync().ConfigureAwait(false);
 			} catch (Exception ex) {
-				addFailure(BoundedScopeFailure.FromException(Generation, i, "dispose ordered-disposal IDisposable item", typeName, ex));
+				addFailure(BoundedScopeFailure.FromException(Generation, i, "dispose IDisposable item", typeName, ex));
 			} finally {
 				// drops the references once disposed; the slot is never read again
 #pragma warning disable IJDEV0100
@@ -310,8 +257,6 @@ internal sealed class BoundedScopeView<L> : IBoundedScope<L> where L : struct, I
 	public BoundedCts<L> CreateCts() => core.CreateCts<L>();
 	public BoundedCts<L> CreateLinkedCts(CancellationToken cancellationToken) => core.CreateLinkedCts<L>(cancellationToken);
 	public T AddTeardown<T>(T teardown) where T : notnull, IReloadTeardown => core.AddTeardown(teardown);
-	public T AddDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddDisposable(disposable);
-	public T AddAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddAsyncDisposable(disposable);
-	public T AddOrderedDisposable<T>(T disposable) where T : notnull, IDisposable => core.AddOrderedDisposable(disposable);
-	public T AddOrderedAsyncDisposable<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddOrderedAsyncDisposable(disposable);
+	public T AddDisp<T>(T disposable) where T : notnull, IDisposable => core.AddDisp(disposable);
+	public T AddAsyncDisp<T>(T disposable) where T : notnull, IAsyncDisposable => core.AddAsyncDisp(disposable);
 }

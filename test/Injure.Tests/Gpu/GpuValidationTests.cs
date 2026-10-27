@@ -188,6 +188,25 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 	}
 
 	[Fact]
+	public void DisposedObjectsThrowThroughRefs() {
+		GpuTexture tex = GpuRig.Target(Device, 4, 4);
+		GpuTextureRef texRef = tex.AsRef();
+		GpuTextureViewRef viewRef = tex.DefaultView;
+		tex.Dispose();
+		Assert.Throws<ObjectDisposedException>(() => texRef.CreateView(new GpuTextureViewParams()));
+		Assert.Throws<ObjectDisposedException>(() => texRef.SameTexture(texRef));
+		Assert.Throws<ObjectDisposedException>(() => viewRef.DangerousGetNative());
+
+		using GpuTexture target = GpuRig.Target(Device, 4, 4);
+		GpuBuffer buf = Device.CreateBuffer(16, BufferUsage.Vertex);
+		GpuBufferRef bufRef = buf.AsRef();
+		buf.Dispose();
+		using GpuCommandEncoder enc = Device.CreateCommandEncoder();
+		using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Load);
+		Assert.Throws<ObjectDisposedException>(() => pass.SetVertexBuffer(0, bufRef));
+	}
+
+	[Fact]
 	public void CommandsRejectDefaults() {
 		using GpuTexture tex = GpuRig.Target(Device, 4, 4, extraUsage: TextureUsage.CopyDst);
 		using GpuBuffer buf = Device.CreateBuffer(1024 * 4, BufferUsage.CopySrc);

@@ -91,7 +91,7 @@ public sealed class MainWindow : Window {
 
 	private void onSurfaceReady(GpuView view) {
 		device ??= createDevice(view);
-		surface = new SurfaceRenderOutput(device, view, SurfaceFormatPolicy.PreferNonSrgb, SurfacePresentModePolicy.AutoMailbox);
+		surface = new SurfaceRenderOutput(device, view, SurfaceFormatPolicy.NonSrgb, SurfacePresentModePolicy.AutoMailbox);
 		if (!loopRunning) {
 			loopRunning = true;
 			RequestAnimationFrame(onFrame);

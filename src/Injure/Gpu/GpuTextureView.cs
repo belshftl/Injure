@@ -10,6 +10,11 @@ namespace Injure.Gpu;
 /// Common base type for texture view wrappers, allowing APIs to accept both owning and non-owning
 /// wrappers.
 /// </summary>
+/// <remarks>
+/// Once the owning object is disposed, anything that needs the underlying WebGPU object throws
+/// <see cref="ObjectDisposedException"/>, whether it's reached through the owning object or a
+/// non-owning wrapper, or passed to another API.
+/// </remarks>
 public abstract class GpuTextureViewHandle {
 	internal abstract WGPUTextureView WgpuTextureView { get; }
 
@@ -17,6 +22,9 @@ public abstract class GpuTextureViewHandle {
 	/// Returns the underlying <see cref="WGPUTextureView"/>, bypassing ownership/lifetime. Dangles
 	/// once freed by <see cref="GpuTextureView.Dispose()"/>.
 	/// </summary>
+	/// <exception cref="ObjectDisposedException">
+	/// Thrown if the texture view has been disposed.
+	/// </exception>
 	/// <remarks>
 	/// <b>The return type is not a stable API and may change without notice.</b>
 	/// See <c>docs/conventions/dangerous-get-create.md</c>.
@@ -118,7 +126,12 @@ public sealed class GpuTextureView : GpuTextureViewHandle, IDisposable {
 		SampleCount = sampleCount;
 	}
 
-	internal override WGPUTextureView WgpuTextureView => texView;
+	internal override WGPUTextureView WgpuTextureView {
+		get {
+			ObjectDisposedException.ThrowIf(texView.IsNull, this);
+			return texView;
+		}
+	}
 	/// <inheritdoc/>
 	public override GpuTextureViewParams Params { get; }
 	/// <inheritdoc/>

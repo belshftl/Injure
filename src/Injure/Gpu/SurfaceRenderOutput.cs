@@ -53,27 +53,39 @@ public readonly partial struct SurfacePresentModePolicy {
 /// Policy for selecting a surface format in <see cref="SurfaceRenderOutput"/>.
 /// </summary>
 /// <remarks>
+/// <para>
+/// The formats that the surface supports are enumerated from most preferred to least preferred,
+/// and the first format whose sRGB-ness matches is used. If not a single one matches in sRGB-ness,
+/// the most preferred format that has a counterpart that differs only in sRGB-ness is used, and
+/// its sRGB/non-sRGB counterpart is used as a view format. If there still isn't one like that,
+///
+/// A format fits if its sRGB-ness matches, or if it has a counterpart that differs only in
+/// sRGB-ness, which is then used as a view format. If the surface supports no fitting format,
+/// <see cref="SurfaceRenderOutput"/> throws <see cref="WebgpuException"/>.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct SurfaceFormatPolicy {
 	/// <summary>Raw switch tag for <see cref="SurfaceFormatPolicy"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// Prefer a non-sRGB format, so values written to it reach the display unchanged.
+		/// A non-sRGB format, so values written to it reach the display unchanged.
 		/// </summary>
 		/// <remarks>
 		/// Use this when rendering sRGB-encoded values, e.g. with <see cref="Draw.Canvas"/>.
 		/// </remarks>
-		PreferNonSrgb = 1,
+		NonSrgb = 1,
 
 		/// <summary>
-		/// Prefer an sRGB format, so linear values written to it are encoded for the display.
+		/// An sRGB format, so linear values written to it are encoded for the display.
 		/// </summary>
 		/// <remarks>
 		/// Use this when rendering linear values.
 		/// </remarks>
-		PreferSrgb,
+		Srgb,
 	}
 }
 
@@ -85,7 +97,8 @@ public readonly partial struct SurfaceFormatPolicy {
 /// <para>
 /// Picks a format according to a <see cref="SurfaceFormatPolicy"/> and a present mode according
 /// to a <see cref="SurfacePresentModePolicy"/>, reconfigures the surface when it becomes outdated or
-/// suboptimal or the host's drawable size changes, and recreates it when it's lost.
+/// suboptimal or the host's drawable size changes, and recreates it when it's lost. If recreating
+/// it fails, the next <see cref="TryAcquire(out IAcquiredOutput?)"/> tries again.
 /// </para>
 /// <para>
 /// Images acquired from it must be presented or disposed before it's disposed; see
@@ -177,7 +190,8 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	/// <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="WebgpuException">
-	/// Thrown if the surface can't be created or reports no supported formats or present modes.
+	/// Thrown if the surface can't be created, doesn't report any supported present modes, or
+	/// doesn't support any format that fits <paramref name="formatPolicy"/>.
 	/// </exception>
 	public SurfaceRenderOutput(GpuDevice device, ISurfaceHost surfaceHost, SurfaceFormatPolicy formatPolicy, SurfacePresentModePolicy presentPolicy) {
 		ArgumentNullException.ThrowIfNull(device);
@@ -189,9 +203,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		this.formatPolicy = formatPolicy;
 		this.presentPolicy = presentPolicy;
 
-		surface = surfaceHost.GetSurfaceSource().CreateWgpuSurface(device.Instance);
-		(format, viewFormat) = getSurfaceFormat();
-		presentMode = getSurfacePresentMode();
+		createSurface();
 		reconfigure();
 	}
 
@@ -202,46 +214,64 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		ArgumentInvalidDefaultException.ThrowIfDefault(policy);
 		presentPolicy = policy;
-		presentMode = getSurfacePresentMode();
+		// otherwise, a recreation after a loss is pending and picks the mode itself
+		if (surface.IsNotNull) {
+			presentMode = getSurfacePresentMode(surface);
+			needReconfigure = true;
+		}
+	}
+
+	/// <remarks>
+	/// On failure, leaves <see cref="surface"/> untouched and releases the surface it created, so
+	/// that a failed recreation leaves it at <see langword="default"/> and
+	/// <see cref="TryAcquire(out IAcquiredOutput?)"/> retries.
+	/// </remarks>
+	private void createSurface() {
+		WGPUSurface s = surfaceHost.GetSurfaceSource().CreateWgpuSurface(device.Instance);
+		try {
+			(format, viewFormat) = getSurfaceFormat(s);
+			presentMode = getSurfacePresentMode(s);
+		} catch {
+			wgpuSurfaceRelease(s);
+			throw;
+		}
+		surface = s;
 		needReconfigure = true;
 	}
 
-	private (WGPUTextureFormat Format, WGPUTextureFormat ViewFormat) getSurfaceFormat() {
+	private (WGPUTextureFormat Format, WGPUTextureFormat ViewFormat) getSurfaceFormat(WGPUSurface s) {
 		WGPUSurfaceCapabilities caps;
-		wgpuSurfaceGetCapabilities(surface, device.Adapter, &caps);
+		wgpuSurfaceGetCapabilities(s, device.Adapter, &caps);
 		try {
 			if (caps.formatCount == 0)
-				throw new WebgpuException("SurfaceGetCapabilities", "surface doesn't report any supported formats");
+				throw new WebgpuException("wgpuSurfaceGetCapabilities", "surface doesn't report any supported formats");
 			ReadOnlySpan<WGPUTextureFormat> formats = new(caps.formats, (int)caps.formatCount);
-			bool wantSrgb = formatPolicy.Tag switch {
-				SurfaceFormatPolicy.Case.PreferNonSrgb => false,
-				SurfaceFormatPolicy.Case.PreferSrgb => true,
-				_ => throw new UnreachableException(),
-			};
-			// wgpu says the formats are in order of preference, so take the first fitting one, then
-			// the first one with a fitting view format, then the most preferred one
-			foreach (WGPUTextureFormat f in formats)
-				if (TextureFormat.Enum.TryFromMirror(f, out TextureFormat tf) && tf.IsSrgb() == wantSrgb)
-					return (f, f);
+			bool wantSrgb = formatPolicy == SurfaceFormatPolicy.Srgb;
+			(WGPUTextureFormat, WGPUTextureFormat)? viaViewFormat = null;
 			foreach (WGPUTextureFormat f in formats) {
 				if (!TextureFormat.Enum.TryFromMirror(f, out TextureFormat tf))
 					continue;
+				if (tf.IsSrgb() == wantSrgb)
+					return (f, f);
 				TextureFormat other = wantSrgb ? tf.ToSrgb() : tf.ToNonSrgb();
-				if (other != tf)
-					return (f, other.ToWebgpuType());
+				if (viaViewFormat is null && other != tf)
+					viaViewFormat = (f, other.ToWebgpuType());
 			}
-			return (formats[0], formats[0]);
+			return viaViewFormat ?? throw new WebgpuException(
+				"wgpuSurfaceGetCapabilities",
+				$"surface doesn't support any {(wantSrgb ? "sRGB" : "non-sRGB")} formats, directly or as a view format; it only supports {string.Join(", ", formats.ToArray())}"
+			);
 		} finally {
 			wgpuSurfaceCapabilitiesFreeMembers(caps);
 		}
 	}
 
-	private WGPUPresentMode getSurfacePresentMode() {
+	private WGPUPresentMode getSurfacePresentMode(WGPUSurface s) {
 		WGPUSurfaceCapabilities caps;
-		wgpuSurfaceGetCapabilities(surface, device.Adapter, &caps);
+		wgpuSurfaceGetCapabilities(s, device.Adapter, &caps);
 		try {
 			if (caps.presentModeCount == 0)
-				throw new WebgpuException("SurfaceGetCapabilities", "surface doesn't report any supported present modes");
+				throw new WebgpuException("wgpuSurfaceGetCapabilities", "surface doesn't report any supported present modes");
 			ReadOnlySpan<WGPUPresentMode> modes = new(caps.presentModes, (int)caps.presentModeCount);
 			bool haveRelaxed = modes.Contains(WGPUPresentMode.FifoRelaxed);
 			bool haveMailbox = modes.Contains(WGPUPresentMode.Mailbox);
@@ -338,10 +368,8 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 			return from(tex.status);
 		case WGPUSurfaceGetCurrentTextureStatus.Lost:
 			wgpuSurfaceRelease(surface);
-			surface = default;
-			surface = surfaceHost.GetSurfaceSource().CreateWgpuSurface(device.Instance);
-			(format, viewFormat) = getSurfaceFormat();
-			presentMode = getSurfacePresentMode();
+			surface = default; // see createSurface doc comment
+			createSurface();
 			if (!reconfigure()) {
 				outTex = default;
 				return AcquireStatus.SkipFrame;
@@ -353,7 +381,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 			outTex = default;
 			return AcquireStatus.DeviceLost;
 		case WGPUSurfaceGetCurrentTextureStatus.OutOfMemory:
-			throw new OutOfMemoryException("WebGPU: wgpuSurfaceGetCurrentTexture out of memory");
+			throw new OutOfMemoryException("wgpuSurfaceGetCurrentTexture out of memory");
 		default:
 			throw new WebgpuException("wgpuSurfaceGetCurrentTexture", tex.status.ToString());
 		}
@@ -373,15 +401,24 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 	/// <para>
 	/// If the surface was lost, it's recreated through <see cref="ISurfaceHost.GetSurfaceSource()"/>,
 	/// and anything that throws propagates from here. That happens e.g. when the host's native
-	/// object was destroyed before this output was disposed.
+	/// object was destroyed before this output was disposed. The next call tries the recreation
+	/// again.
 	/// </para>
 	/// </remarks>
 	/// <exception cref="DeviceLostException">
 	/// Thrown if the device was lost.
 	/// </exception>
+	/// <exception cref="WebgpuException">
+	/// Thrown if the surface had to be recreated, and the new one doesn't report any supported
+	/// present modes, or doesn't support any formats that fit the configured format policy.
+	/// </exception>
 	public bool TryAcquire([NotNullWhen(true)] out IAcquiredOutput? output) {
 		ObjectDisposedException.ThrowIf(disposed, this);
 		output = null;
+
+		// earlier recreation after a loss failed, retry it
+		if (surface.IsNull)
+			createSurface();
 
 		(uint w, uint h) = surfaceHost.GetDrawableSize();
 		if ((needReconfigure || w != Width || h != Height) && !reconfigure(w, h))
