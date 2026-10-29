@@ -11,8 +11,8 @@ namespace Injure.Tests.Draw;
 
 // Canvas works on sRGB-encoded values, so they have to reach a non-sRGB target unchanged
 public sealed class CanvasColorTests(GpuDeviceFixture fixture) : GpuTestBase(fixture) {
-	private static readonly SrgbColor32 clear = new(30, 30, 40);
-	private static readonly SrgbColor32 fill = new(80, 200, 120);
+	private static readonly SrgbStraight32 clear = new(30, 30, 40);
+	private static readonly SrgbStraight32 fill = new(80, 200, 120);
 
 	private static CanvasParams baseParams() => CanvasParams.Primary(Viewport.Whole(new Vector2(4, 4)), clear);
 

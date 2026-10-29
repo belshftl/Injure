@@ -46,7 +46,7 @@ public readonly record struct RichTextSpan(
 /// <para>
 /// Two <see cref="RichText"/> are equal if their texts and spans are equal, so one that's built
 /// again with the same contents every frame still hits the cache of
-/// <see cref="Canvas.Text(RichText, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbColor32?)"/>.
+/// <see cref="Canvas.Text(RichText, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbStraight32?)"/>.
 /// </para>
 /// </remarks>
 public sealed class RichText : IEquatable<RichText> {
@@ -152,7 +152,7 @@ public sealed class RichText : IEquatable<RichText> {
 /// <code>
 /// RichText t = new RichTextBuilder(baseStyle)
 /// 	.Append("HP: ")
-/// 	.Push(new TextStyleOverride(Color: SrgbColor32.Red))
+/// 	.Push(new TextStyleOverride(Color: SrgbStraight32.Red))
 /// 	.Append("12")
 /// 	.Pop()
 /// 	.Append(" / 25")

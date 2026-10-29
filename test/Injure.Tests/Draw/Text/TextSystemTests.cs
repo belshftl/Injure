@@ -43,13 +43,13 @@ public sealed class TextSystemTests : GpuTestBase {
 	private static FontSpec spec(FontData font, FontRasterMode mode = default) =>
 		new(font, raster: new FontRasterOptions(FontHinting.None, mode));
 
-	private static TextStyle style(FontFallbackChain fonts, float size = 10f, SrgbColor32? color = null, string language = "und") =>
+	private static TextStyle style(FontFallbackChain fonts, float size = 10f, SrgbStraight32? color = null, string language = "und") =>
 		new(fonts, size, color, language);
 
 	private byte[] render(uint w, uint h, float pixelsPerUnit, Action<OwnedCanvas> draw, TextSystem? text = null) {
 		using GpuTexture target = GpuRig.Target(Device, w, h);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
-			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(w, h), pixelsPerUnit), SrgbColor32.Black);
+			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(w, h), pixelsPerUnit), SrgbStraight32.Black);
 			using (OwnedCanvas canvas = new(frame, in p, text))
 				draw(canvas);
 			frame.Submit();
@@ -273,18 +273,18 @@ public sealed class TextSystemTests : GpuTestBase {
 		using TextSystem text = new(Device);
 		FontData ell = text.LoadFont(fontBytes("InjureTestEllipsis"));
 		RichText t = new RichTextBuilder(style(ell))
-			.Append("aa", new TextStyleOverride(Color: SrgbColor32.Red))
-			.Append("aaaa", new TextStyleOverride(Color: SrgbColor32.Blue, Size: 20f))
+			.Append("aa", new TextStyleOverride(Color: SrgbStraight32.Red))
+			.Append("aaaa", new TextStyleOverride(Color: SrgbStraight32.Blue, Size: 20f))
 			.Build();
 		TextLayoutOptions opts = TextLayoutOptions.Default with { MaxWidth = 30, WrapMode = TextWrapMode.None, HorizontalOverflow = TextHorizontalOverflow.Cut };
 		// "aa" + a 20-unit 'a' + a 16-unit ellipsis is 46 wide, so only "aa" is kept, with a 10-size red ellipsis
 		TextLayout l = text.Layout(t, opts);
 		Assert.Equal([18f], widths(l));
-		Assert.Equal(SrgbColor32.Red, l.Glyphs[^1].Color);
+		Assert.Equal(SrgbStraight32.Red, l.Glyphs[^1].Color);
 		// a wider box keeps blue 'a's, so the ellipsis is blue and at size 20
 		l = text.Layout(t, opts with { MaxWidth = 47 });
 		Assert.Equal([46f], widths(l));
-		Assert.Equal(SrgbColor32.Blue, l.Glyphs[^1].Color);
+		Assert.Equal(SrgbStraight32.Blue, l.Glyphs[^1].Color);
 	}
 
 	[Fact]
@@ -419,7 +419,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(-10f, aligned(text, sans, "aaaa", 10, TextHorizontalAlign.Right)[0].OffsetX);
 		// the glyphs move with the line; drawn at 15.5, the line starts at 5.5, and 'a' starts 0.5 in
 		// from its origin, so the boxes cover exactly pixels 6..9 through 21..24
-		byte[] px = render(32, 12, 1f, oc => oc.Canvas.Text(text.Layout("aaaa", style(sans), TextLayoutOptions.Default with { MaxWidth = 10, WrapMode = TextWrapMode.None, HorizontalAlign = TextHorizontalAlign.Right }), new Vector2(15.5f, 0f), SrgbColor32.White));
+		byte[] px = render(32, 12, 1f, oc => oc.Canvas.Text(text.Layout("aaaa", style(sans), TextLayoutOptions.Default with { MaxWidth = 10, WrapMode = TextWrapMode.None, HorizontalAlign = TextHorizontalAlign.Right }), new Vector2(15.5f, 0f), SrgbStraight32.White));
 		Assert.Equal(0, GpuRig.At(px, 32, 5, 4).R);
 		Assert.Equal(255, GpuRig.At(px, 32, 6, 4).R);
 		Assert.Equal(255, GpuRig.At(px, 32, 24, 4).R);
@@ -536,7 +536,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
 		FontData digits = text.LoadFont(fontBytes("InjureTestDigits"));
 		// no fallbacks needed: '1' is in the digits font, and the last span's fonts equal the first's
-		RichText t = new RichTextBuilder(style(sans)).Append("a").Append("1", new TextStyleOverride(Fonts: digits)).Append("a", new TextStyleOverride(Color: SrgbColor32.Red)).Build();
+		RichText t = new RichTextBuilder(style(sans)).Append("a").Append("1", new TextStyleOverride(Fonts: digits)).Append("a", new TextStyleOverride(Color: SrgbStraight32.Red)).Build();
 		TextLayout l = text.Layout(t);
 		Assert.Equal(16f, l.Width);
 		Assert.Equal(2, l.Chains.Length);
@@ -565,8 +565,8 @@ public sealed class TextSystemTests : GpuTestBase {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
 		RichText t = new RichTextBuilder(style(spec(sans)))
-			.Append("a", new TextStyleOverride(Color: SrgbColor32.Red))
-			.Append("b", new TextStyleOverride(Color: new SrgbColor32(0, 200, 100)))
+			.Append("a", new TextStyleOverride(Color: SrgbStraight32.Red))
+			.Append("b", new TextStyleOverride(Color: new SrgbStraight32(0, 200, 100)))
 			.Build();
 		TextLayout layout = text.Layout(t);
 		// 'a' covers pixel 2 and 'b' pixel 7, both fully
@@ -574,7 +574,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(RawColor32.Red, GpuRig.At(px, 16, 2, 4));
 		Assert.Equal(new RawColor32(0, 200, 100, 255), GpuRig.At(px, 16, 7, 4));
 		// 200 * 128 / 255 = 100.39 and 100 * 128 / 255 = 50.20 round down; red's 0 channels stay 0
-		px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, new SrgbColor32(128, 128, 128)));
+		px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, new SrgbStraight32(128, 128, 128)));
 		Assert.Equal(new RawColor32(128, 0, 0, 255), GpuRig.At(px, 16, 2, 4));
 		Assert.Equal(new RawColor32(0, 100, 50, 255), GpuRig.At(px, 16, 7, 4));
 	}
@@ -608,7 +608,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
 		TextLayout layout = text.Layout("ab", style(spec(sans)));
-		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, SrgbColor32.White));
+		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, SrgbStraight32.White));
 		// 'a' spans 0.5..4.5 px horizontally and 7 px up from the baseline at y = 8
 		Assert.True(GpuRig.At(px, 16, 2, 4).R > 200);
 		Assert.True(GpuRig.At(px, 16, 7, 4).R > 200);
@@ -623,7 +623,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		TextLayout layout = text.Layout("a", style(spec(sans)));
 		// at 2 pixels per unit, the box covers exactly pixels 1..8 and rows 2..15; stretching a
 		// 10px rasterization would blur its edges over neighboring pixels instead
-		byte[] px = render(32, 24, 2f, oc => oc.Canvas.Text(layout, Vector2.Zero, SrgbColor32.White));
+		byte[] px = render(32, 24, 2f, oc => oc.Canvas.Text(layout, Vector2.Zero, SrgbStraight32.White));
 		Assert.Equal(255, GpuRig.At(px, 32, 1, 8).R);
 		Assert.Equal(255, GpuRig.At(px, 32, 8, 8).R);
 		Assert.Equal(0, GpuRig.At(px, 32, 0, 8).R);
@@ -641,7 +641,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		TextLayout layout = text.Layout("a", style(spec(sans)));
 		// half a pixel to the right, the box covers exactly pixels 1..4, rather than being blurred
 		// or snapped to a whole pixel
-		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, new Vector2(0.5f, 0f), SrgbColor32.White));
+		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, new Vector2(0.5f, 0f), SrgbStraight32.White));
 		Assert.Equal(0, GpuRig.At(px, 16, 0, 4).R);
 		Assert.Equal(255, GpuRig.At(px, 16, 1, 4).R);
 		Assert.Equal(255, GpuRig.At(px, 16, 4, 4).R);
@@ -653,7 +653,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
 		TextLayout layout = text.Layout("ab", style(spec(sans, FontRasterMode.Monochrome)));
-		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, new Vector2(0.25f, 0f), SrgbColor32.White));
+		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, new Vector2(0.25f, 0f), SrgbStraight32.White));
 		bool any = false;
 		for (uint y = 0; y < 12; y++) {
 			for (uint x = 0; x < 16; x++) {
@@ -675,7 +675,7 @@ public sealed class TextSystemTests : GpuTestBase {
 			Canvas cv = oc.Canvas;
 			var rot = Matrix3x2.CreateRotation(MathF.PI / 2f, new Vector2(8f, 8f));
 			using (cv.PushParams(transform: CanvasTransformOverride.Set(rot)))
-				cv.Text(layout, new Vector2(8f, 0f), SrgbColor32.White);
+				cv.Text(layout, new Vector2(8f, 0f), SrgbStraight32.White);
 		});
 		Assert.True(GpuRig.At(px, 16, 11, 10).R > 200);
 		Assert.Equal(0, GpuRig.At(px, 16, 11, 6).R);
@@ -689,10 +689,10 @@ public sealed class TextSystemTests : GpuTestBase {
 		TextLayout layout = text.Layout("ab", style(spec(sans)));
 		using GpuTexture target = GpuRig.Target(Device, 16, 12);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
-			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(16, 12)), SrgbColor32.Black);
+			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(16, 12)), SrgbStraight32.Black);
 			using (OwnedCanvas canvas = new(frame, in p)) {
-				canvas.Canvas.Text(layout, Vector2.Zero, SrgbColor32.White);
-				canvas.Canvas.Text(layout, new Vector2(0f, 2f), SrgbColor32.White);
+				canvas.Canvas.Text(layout, Vector2.Zero, SrgbStraight32.White);
+				canvas.Canvas.Text(layout, new Vector2(0f, 2f), SrgbStraight32.White);
 			}
 			// pinned once per frame, however many draws use the page
 			Assert.Equal(1, Assert.Single(text.Atlas.Pages).Refcount);
@@ -729,9 +729,9 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.NotSame(a, text.GetCachedLayout("ba", style(fonts), opts));
 		Assert.NotSame(a, text.GetCachedLayout("ab", style(fonts), opts with { MaxWidth = 5 }));
 		// so do equal rich texts, and a plain string and a single-span rich text are equal inputs
-		RichText rich = new RichTextBuilder(style(fonts)).Append("a").Append("b", new TextStyleOverride(Color: SrgbColor32.Red)).Build();
+		RichText rich = new RichTextBuilder(style(fonts)).Append("a").Append("b", new TextStyleOverride(Color: SrgbStraight32.Red)).Build();
 		TextLayout r = text.GetCachedLayout(rich, opts);
-		Assert.Same(r, text.GetCachedLayout(new RichTextBuilder(style(fonts)).Append("a").Append("b", new TextStyleOverride(Color: SrgbColor32.Red)).Build(), opts));
+		Assert.Same(r, text.GetCachedLayout(new RichTextBuilder(style(fonts)).Append("a").Append("b", new TextStyleOverride(Color: SrgbStraight32.Red)).Build(), opts));
 		Assert.NotSame(a, r);
 		Assert.Same(a, text.GetCachedLayout(new RichText("ab", style(fonts)), opts));
 		nextFrame();
@@ -794,7 +794,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		att.AtReloadBoundary();
 		fs.Store.ApplyQueuedReloads();
 		Assert.True(layout.IsStale);
-		render(32, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, SrgbColor32.White));
+		render(32, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, SrgbStraight32.White));
 		Assert.False(layout.IsStale);
 		Assert.Equal(15f, layout.Width);
 	}
@@ -817,6 +817,6 @@ public sealed class TextSystemTests : GpuTestBase {
 		TextLayout layout = text.Layout("a", style(sans));
 		text.Dispose();
 		Assert.Throws<ObjectDisposedException>(() => layout.IsStale);
-		render(16, 12, 1f, oc => Assert.Throws<ObjectDisposedException>(() => oc.Canvas.Text(layout, Vector2.Zero, SrgbColor32.White)));
+		render(16, 12, 1f, oc => Assert.Throws<ObjectDisposedException>(() => oc.Canvas.Text(layout, Vector2.Zero, SrgbStraight32.White)));
 	}
 }

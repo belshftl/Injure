@@ -85,8 +85,21 @@ anyhow, to v0.1:
     - [x] make `StandardGame` build the pixel-density view matrix for the primary target, with an opt-out
   - [x] area-weighted upscaling (sharp-bilinear-like) as a shader, exposed as `TexFilter.AreaWeighted`
   - [x] replace view matrices with a uniform scale + transform + drawable area size, named something like `Viewport`, and introduce the concept of drawable units; also make scissors work in drawable units
+  - [ ] move the load op from `CanvasParams.ColorAttachmentOps` onto `CanvasTarget` as a required `CanvasLoadOp` (`CanvasLoadOp.Load`, `CanvasLoadOp.Clear(SrgbStraight32)`) and remove the implicit cast from `RenderTarget2d`
+  - [ ] blend in linear light and document as such, and key everything on the target so encoded blending can be added as an option later
+  - [ ] premultiplied alpha internally, straight alpha in public api inputs
+    - [x] rename `SrgbColor32` to `SrgbStraight32` and make it specifically straight alpha
+    - [ ] premultiply texture uploads (in linear light) unless flagged as already premultiplied
+    - [ ] replace raw `BlendState`s in `CanvasOutputState` with a `CanvasBlendMode`, with `static readonly` presets plus a `Raw(BlendState)` factory with the "operating on premul alpha" note documented; drop `CanvasOutputState`/`CanvasOutputStates`. make the blend mode and the write mask separate params
+  - [ ] fix the sdf shader (it currently adds the fill's rgb into the outline-only region), after the premul/linear items since that changes the right formula
   - [ ] antialiasing, e.g. msaa render targets, i'm not sure if the primary target should have that as an option too but it probably should
+    - [ ] msaa offscreen render targets; make them own the multisampled texture and the single-sample resolve texture, and expose the latter as their color texture; store the multisampled samples rather than discarding them, since any later `Load` (also in later frames) needs them; revisit that later once our wgpu-native bindings are updated to v28, where transient attachments are added
+    - [ ] msaa on the primary output; it should require the caller to provide a suitable multisampled texture rather than internally manage one
   - [ ] custom shaders/materials, shader assets
+    - [ ] rework materials: make `TextureInterpretation` internal and `CanvasMaterial` opaque, with `Color`, `ColorAreaWeighted`, `Rmask`, `RmaskAreaWeighted`, and `Sdf(SdfParams)`, moving `AreaWeighted` out of `TexFilter` into the materials; the area-weighted materials and `Sdf` should require `TexFilter.Linear` through one shared restriction mechanism
+    - [ ] custom materials from a user-supplied fragment module (wgsl or spir-v), with the public shader api contract being fixed input locations (uv, color), the canvas texture/sampler at groups 1/2, user bindings at group 3, and one premultiplied linear color output
+    - [ ] a system to let each material declare whether it applies to shapes (untextured draws) or not, and a filter restriction (unrestricted / nearest only / linear only); add `TexFilter.PreferNearest`/`PreferLinear`, resolving to the material's allowed filter if there's a restriction and the namesake filter otherwise, with `PreferNearest` as the default sampling, which should also fix the current `Sdf` annoyance where you have to explicitly specify `Linear`
+    - [ ] add some kind of low-level api that ends the current draw range and gives you the `RenderPass` with the current scissor applied, for a draw with a user-built pipeline
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`
   - [ ] primary docs for `Draw`, `docs/draw/`
@@ -152,7 +165,6 @@ anyhow, to v0.1:
   - [ ] masking/clipping beyond rects, e.g. stencil-based clip to shape (`RenderTarget2d` already supports a depth/stencil format but `Canvas` never attaches it)
   - [ ] layering/sorting by depth or explicit layer instead of strict call order
   - [ ] retained geometry: static meshes, tilemaps, instancing for many identical sprites
-  - [ ] linear-space blending (`LinearColorF128`)
   - [ ] revisit the pixel converter, pt 1: revisit the api (though i'm not sure if it actually needs a redesign or if it's fine as is)
   - [ ] revisit the pixel converter, pt 2: write benchmarks, it's probably the part of the whole library that benefits the most from having benchmarks
   - [ ] revisit the pixel converter, pt 3: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement

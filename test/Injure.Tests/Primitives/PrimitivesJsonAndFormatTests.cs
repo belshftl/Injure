@@ -16,7 +16,7 @@ namespace Injure.Tests.Primitives;
 [JsonSerializable(typeof(RectI))]
 [JsonSerializable(typeof(Vector2Int))]
 [JsonSerializable(typeof(RawColor32))]
-[JsonSerializable(typeof(SrgbColor32))]
+[JsonSerializable(typeof(SrgbStraight32))]
 internal sealed partial class PrimitivesJsonContext : JsonSerializerContext;
 
 public static class PrimitivesJsonAndFormatTests {
@@ -56,7 +56,7 @@ public static class PrimitivesJsonAndFormatTests {
 
 	[Fact]
 	public static void ColorsFormatWithALeadingHashByDefault() {
-		SrgbColor32 c = new(0xcb, 0xa6, 0xf7);
+		SrgbStraight32 c = new(0xcb, 0xa6, 0xf7);
 		Assert.Equal("#CBA6F7FF", c.ToString());
 		Assert.Equal("#CBA6F7FF", c.ToHexCode());
 		Assert.Equal("CBA6F7", c.ToHexCode(includeAlpha: false, leadingHash: false));
@@ -65,13 +65,13 @@ public static class PrimitivesJsonAndFormatTests {
 
 	[Fact]
 	public static void ColorsRoundTripThroughJsonAsHexStrings() {
-		SrgbColor32 c = new(0xcb, 0xa6, 0xf7, 0x80);
+		SrgbStraight32 c = new(0xcb, 0xa6, 0xf7, 0x80);
 		string json = ser(c);
 		Assert.Equal("\"#CBA6F780\"", json);
-		Assert.Equal(c, de<SrgbColor32>(json));
+		Assert.Equal(c, de<SrgbStraight32>(json));
 		Assert.Equal(new RawColor32(1, 2, 3, 4), de<RawColor32>(ser(new RawColor32(1, 2, 3, 4))));
 		// the same inputs Parse accepts
-		Assert.Equal(new SrgbColor32(0xcb, 0xa6, 0xf7), de<SrgbColor32>("\"cba6f7\""));
+		Assert.Equal(new SrgbStraight32(0xcb, 0xa6, 0xf7), de<SrgbStraight32>("\"cba6f7\""));
 	}
 
 	[Theory]
@@ -80,7 +80,7 @@ public static class PrimitivesJsonAndFormatTests {
 	[InlineData("123")]
 	[InlineData("{}")]
 	public static void InvalidColorJsonIsRejected(string json) =>
-		Assert.Throws<JsonException>(() => de<SrgbColor32>(json));
+		Assert.Throws<JsonException>(() => de<SrgbStraight32>(json));
 
 	[Fact]
 	public static void RectsAndVectorsRoundTripThroughJson() {

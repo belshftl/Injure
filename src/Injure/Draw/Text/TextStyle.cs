@@ -169,16 +169,16 @@ public readonly record struct TextStyle : IHasInvalidDefault {
 	/// </param>
 	/// <param name="size">The size of one em in drawable units.</param>
 	/// <param name="color">
-	/// The color of the glyphs, or <see langword="null"/> for <see cref="SrgbColor32.White"/>.
+	/// The color of the glyphs, or <see langword="null"/> for <see cref="SrgbStraight32.White"/>.
 	/// </param>
 	/// <param name="language">
 	/// The BCP 47 language tag of the text, or <c>"und"</c> (undetermined) to leave it unspecified;
 	/// see <see cref="Language"/>.
 	/// </param>
-	public TextStyle(FontFallbackChain fonts, float size, SrgbColor32? color = null, string language = "und") {
+	public TextStyle(FontFallbackChain fonts, float size, SrgbStraight32? color = null, string language = "und") {
 		Fonts = fonts;
 		Size = size;
-		Color = color ?? SrgbColor32.White;
+		Color = color ?? SrgbStraight32.White;
 		Language = language;
 	}
 
@@ -204,7 +204,7 @@ public readonly record struct TextStyle : IHasInvalidDefault {
 	/// same as if it weren't. A glyph that represents several characters, e.g. a ligature, gets the
 	/// color of its first character.
 	/// </remarks>
-	public SrgbColor32 Color { get; init; }
+	public SrgbStraight32 Color { get; init; }
 
 	/// <summary>
 	/// The BCP 47 language tag of the text, e.g. <c>"en"</c>, <c>"hu"</c>, <c>"zh-Hant"</c>,
@@ -277,7 +277,7 @@ public readonly record struct TextStyle : IHasInvalidDefault {
 public readonly record struct TextStyleOverride(
 	FontFallbackChain? Fonts = null,
 	float? Size = null,
-	SrgbColor32? Color = null,
+	SrgbStraight32? Color = null,
 	string? Language = null
 ) {
 	internal TextStyle ApplyTo(in TextStyle style) => new(

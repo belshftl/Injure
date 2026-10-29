@@ -332,7 +332,7 @@ internal readonly record struct LaidOutGlyph(
 	float Y,
 	float Size,
 	int SourceIndex,
-	SrgbColor32 Color
+	SrgbStraight32 Color
 );
 
 internal sealed class LayoutResult {
@@ -392,7 +392,7 @@ internal static class TextLayouter {
 		public required ParagraphRun Run;
 		public required Direction Direction;
 		public required float Width;
-		public required SrgbColor32 Color;
+		public required SrgbStraight32 Color;
 	}
 
 	/// <summary>
@@ -1260,7 +1260,7 @@ internal static class TextLayouter {
 
 /// <summary>
 /// Text laid out into positioned glyphs and lines, ready to draw with
-/// <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, SrgbColor32?)"/>.
+/// <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, SrgbStraight32?)"/>.
 /// Obtained from <see cref="TextSystem.Layout(RichText, TextLayoutOptions?)"/> or
 /// <see cref="TextSystem.Layout(string, in TextStyle, TextLayoutOptions?)"/>.
 /// </summary>

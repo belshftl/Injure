@@ -56,7 +56,8 @@ internal sealed class Texture2dMipGenerator : IDisposable {
 				}
 				src = dst;
 			}
-			device.Submit(enc.Finish());
+			using GpuCommandBuffer cmdbuf = enc.Finish();
+			device.Submit(cmdbuf);
 		} finally {
 			foreach (IDisposable d in tmp)
 				d.Dispose();

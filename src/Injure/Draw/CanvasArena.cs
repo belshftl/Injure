@@ -272,7 +272,7 @@ internal sealed class CanvasArenaPool(CanvasDeviceResources res) : IDisposable {
 	}
 
 	private readonly Lock poolLock = new();
-	private readonly List<FreeArena> free = new(); // used as a stack, the most recently returned last
+	private readonly List<FreeArena> free = new(); // used as a stack, most recently returned last
 	private readonly List<CanvasArena> all = new();
 	private CanvasMemoryPolicy policy = CanvasMemoryPolicy.Default;
 	private long rentCount;
@@ -293,8 +293,8 @@ internal sealed class CanvasArenaPool(CanvasDeviceResources res) : IDisposable {
 	/// Rents an arena for a canvas drawing into <paramref name="frame"/>.
 	/// </summary>
 	/// <remarks>
-	/// The arena is returned once <paramref name="frame"/> disposes its ordered disposables, i.e.
-	/// after it was submitted or dropped.
+	/// A lease is signed up into the <paramref name="frame"/> disposal scope to return the arena once
+	/// the frame ends.
 	/// </remarks>
 	public CanvasArena Rent(RenderFrame frame) {
 		CanvasArena arena;

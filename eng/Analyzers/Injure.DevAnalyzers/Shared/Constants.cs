@@ -150,7 +150,12 @@ internal static class Constants {
 		public const string Color32AttributeFilename = "Color32TypeAttribute.g.cs";
 		public static readonly string Color32AttributeSource = attributeSource(
 			"global::System.AttributeTargets.Struct",
-			"\tinternal sealed class Color32TypeAttribute : global::System.Attribute {}"
+			"\tinternal sealed class Color32TypeAttribute : global::System.Attribute {\n" +
+			"\t\t/// <summary>\n" +
+			"\t\t/// Documents the type as holding straight alpha rather than unspecified.\n" +
+			"\t\t/// </summary>\n" +
+			"\t\tpublic bool StraightAlpha { get; set; }\n" +
+			"\t}"
 		);
 
 		public const string ColorF128AttributeMetadataName = AttributeNamespace + ".ColorF128TypeAttribute";
@@ -166,7 +171,7 @@ internal static class Constants {
 		// implementations that come with Equals
 		public static readonly FrozenSet<string> Color32MemberNames = new HashSet<string>(StringComparer.Ordinal) {
 			"R", "G", "B", "A", "Size",
-			"GetByteUnchecked", "WithR", "WithG", "WithB", "WithA",
+			"DangerousGetByteUnchecked", "WithR", "WithG", "WithB", "WithA",
 			"ToLogicalRgba32", "ToLogicalArgb32", "ToLogicalAbgr32", "ToLogicalBgra32",
 			"FromLogicalRgba32", "FromLogicalArgb32", "FromLogicalAbgr32", "FromLogicalBgra32",
 			"ReinterpretToU32", "ReinterpretFromU32",

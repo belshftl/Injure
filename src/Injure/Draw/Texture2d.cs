@@ -397,8 +397,7 @@ public sealed class Texture2d : IAssetStoreDisposable {
 /// aliasing with <see cref="TexFilter.Linear"/>; see <see cref="TexSampling"/>.
 /// </param>
 /// <remarks>
-/// The <see langword="default"/> value is invalid, since its width and height are 0 and its
-/// <see cref="Format"/> is invalid.
+/// The <see langword="default"/> value is invalid, since its width and height are 0.
 /// </remarks>
 public readonly record struct Texture2dParams(
 	uint Width,

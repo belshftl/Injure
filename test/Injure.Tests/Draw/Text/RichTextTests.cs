@@ -11,7 +11,7 @@ public static class RichTextTests {
 	private static readonly FontFallbackChain fonts = new FontData([0, 1, 0, 0], null, 1);
 	private static readonly FontFallbackChain otherFonts = new FontData([0, 1, 0, 0], null, 1);
 	private static readonly TextStyle baseStyle = new(fonts, 10f);
-	private static readonly TextStyleOverride red = new(Color: SrgbColor32.Red);
+	private static readonly TextStyleOverride red = new(Color: SrgbStraight32.Red);
 
 	private static (int Start, int Length, TextStyle Style)[] spans(RichText t) =>
 		t.Spans.Select(static s => (s.Start, s.Length, s.Style)).ToArray();
@@ -30,7 +30,7 @@ public static class RichTextTests {
 			.Append("e")
 			.Build();
 		Assert.Equal("abcde", t.Text);
-		TextStyle redStyle = baseStyle with { Color = SrgbColor32.Red };
+		TextStyle redStyle = baseStyle with { Color = SrgbStraight32.Red };
 		Assert.Equal([
 			(0, 1, baseStyle),
 			(1, 1, redStyle),
@@ -80,7 +80,7 @@ public static class RichTextTests {
 		// the pair's halves are appended with different styles, so it takes the first half's
 		RichText t = new RichTextBuilder(baseStyle).Append("a\uD83D").Append("\uDE00b", red).Build();
 		Assert.Equal("a😀b", t.Text);
-		Assert.Equal([(0, 3, baseStyle), (3, 1, baseStyle with { Color = SrgbColor32.Red })], spans(t));
+		Assert.Equal([(0, 3, baseStyle), (3, 1, baseStyle with { Color = SrgbStraight32.Red })], spans(t));
 		// a span left empty by that disappears
 		t = new RichTextBuilder(baseStyle).Append("a\uD83D").Append("\uDE00", red).Append("b").Build();
 		Assert.Equal([(0, 4, baseStyle)], spans(t));
@@ -93,7 +93,7 @@ public static class RichTextTests {
 		static RichText build(TextStyleOverride o) => new RichTextBuilder(baseStyle).Append("a").Append("b", o).Build();
 		Assert.Equal(build(red), build(red));
 		Assert.Equal(build(red).GetHashCode(), build(red).GetHashCode());
-		Assert.NotEqual(build(red), build(new TextStyleOverride(Color: SrgbColor32.Green)));
+		Assert.NotEqual(build(red), build(new TextStyleOverride(Color: SrgbStraight32.Green)));
 		Assert.NotEqual(build(red), build(new TextStyleOverride(Fonts: otherFonts)));
 		Assert.Equal(new RichText("ab", baseStyle), build(default));
 		Assert.True(build(red) == build(red));
@@ -105,7 +105,7 @@ public static class RichTextTests {
 			.Append("a")
 			.Append("b", red)
 			.Append("c", new TextStyleOverride(Size: 20f))
-			.Append("d", new TextStyleOverride(Size: 20f, Color: SrgbColor32.Green))
+			.Append("d", new TextStyleOverride(Size: 20f, Color: SrgbStraight32.Green))
 			.Append("e", new TextStyleOverride(Language: "fr"))
 			.Build();
 		Assert.Equal(5, t.Spans.Count);

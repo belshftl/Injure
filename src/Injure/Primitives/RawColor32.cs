@@ -17,28 +17,31 @@ namespace Injure.Primitives;
 [JsonConverter(typeof(RawColor32JsonConverter))]
 public readonly partial struct RawColor32 {
 	/// <summary>
-	/// Reinterprets this value as if it is sRGB-encoded, without changing the bytes.
+	/// Reinterprets this value as if it is sRGB-encoded with straight alpha, without changing the
+	/// bytes.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public ref readonly SrgbColor32 AssumeSrgb() =>
+	public ref readonly SrgbStraight32 AssumeSrgbStraight() =>
 		// tests with Godbolt confirm this is a real optimization:
 		// - on CoreCLR, a byte-by-byte copy via shl/or turns into `mov eax, dword ptr [rdi]; ret`
 		// - on NativeAOT, movzx-ing the four args byte-by-byte into rdi/rsi/rdx/rcx + a
-		//   `call SrgbColor32:.ctor` turns into the same `mov eax, dword ptr [rax]`
+		//   `call SrgbStraight32:.ctor` turns into the same `mov eax, dword ptr [rax]`
 		// it's certainly interesting that CoreCLR manages to elide the call but not the byte-by-byte copy
-		ref Unsafe.As<RawColor32, SrgbColor32>(ref Unsafe.AsRef(in this));
+		ref Unsafe.As<RawColor32, SrgbStraight32>(ref Unsafe.AsRef(in this));
 
 	/// <summary>
-	/// Reinterprets the span as if all of its values are sRGB-encoded, without changing the bytes.
+	/// Reinterprets the span as if all of its values are sRGB-encoded with straight alpha, without
+	/// changing the bytes.
 	/// </summary>
-	public static ReadOnlySpan<SrgbColor32> SpanAssumeSrgb(ReadOnlySpan<RawColor32> span) =>
-		MemoryMarshal.Cast<RawColor32, SrgbColor32>(span);
+	public static ReadOnlySpan<SrgbStraight32> SpanAssumeSrgbStraight(ReadOnlySpan<RawColor32> span) =>
+		MemoryMarshal.Cast<RawColor32, SrgbStraight32>(span);
 
 	/// <summary>
-	/// Reinterprets the span as if all of its values are sRGB-encoded, without changing the bytes.
+	/// Reinterprets the span as if all of its values are sRGB-encoded with straight alpha, without
+	/// changing the bytes.
 	/// </summary>
-	public static Span<SrgbColor32> SpanAssumeSrgb(Span<RawColor32> span) =>
-		MemoryMarshal.Cast<RawColor32, SrgbColor32>(span);
+	public static Span<SrgbStraight32> SpanAssumeSrgbStraight(Span<RawColor32> span) =>
+		MemoryMarshal.Cast<RawColor32, SrgbStraight32>(span);
 
 	/// <summary>
 	/// Normalizes this value to a <see cref="RawColorF128"/>, with each channel mapped from [0, 255]

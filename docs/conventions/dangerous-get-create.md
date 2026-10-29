@@ -6,9 +6,9 @@ This document describes `DangerousGet*` and `DangerousCreate*` members: what mak
 
 ## What "dangerous" means
 
-Injure's APIs enforce invariants: an owning object releases its resource exactly once, a revoked asset becomes unusable, a `HostTick` only ever comes from a clock (and usually the same clock throughout the whole program), etc. A member prefixed with `Dangerous` lets the caller bypass such an invariant. Calling one means taking on a responsibility that the API normally handles itself.
+Injure's APIs enforce invariants: an owning object releases its resource exactly once, a `HostTick` only ever comes from a clock (and usually the same clock throughout the whole program), etc. A member prefixed with `Dangerous` lets the caller bypass such an invariant. Calling one means taking on a responsibility that the API normally handles itself.
 
-"Dangerous" does not mean memory-unsafe, and it is unrelated to the `unsafe` keyword. `GpuDevice.WriteToBuffer(GpuBufferHandle buffer, ulong offset, void* data, nuint size)` takes a pointer and needs an `unsafe` context, but it is not dangerous: its pointer only has to be valid for the duration of the call, which is the ordinary contract of any pointer parameter. Conversely, `Texture2d.DangerousGetGpuTexture()` involves no pointers at all, but it is dangerous, because the returned texture keeps working after the `Texture2d` it came from has been revoked.
+"Dangerous" does not necessarily mean memory-unsafe (though it can be), and it is unrelated to the `unsafe` keyword. `GpuDevice.WriteToBuffer(GpuBufferHandle buffer, ulong offset, void* data, nuint size)` takes a pointer and needs an `unsafe` context, but it is not dangerous: its pointer only has to be valid for the duration of the call, which is the ordinary contract of any pointer parameter. Conversely, `Texture2d.DangerousGetGpuTexture()` involves no pointers at all, but it fits this definition of "dangerous", because the returned texture may potentially have out-of-date mip levels, since they're regenerated lazily on draw.
 
 These members exist because the alternative is worse. Being able to reach the native WebGPU object behind a `GpuBuffer`, or the GPU resources behind a `Texture2d`, is sometimes necessary, and hiding them in the name of safety only pushes people to fish them out of private fields with reflection, which ends up not buying any extra safety and breaking on every internal refactor. So they are public, under a name that says plainly that the caller has to know what they're doing.
 
@@ -18,11 +18,11 @@ A member gets the prefix if, and only if, it lets the caller break an invariant 
 - **Outliving a lifetime.** The member hands out something that stays usable, or at least reachable, after the lifetime it belongs to has ended.
   - `Gpu*Handle.DangerousGetNative()` returns the native WebGPU object, which dangles once the owning wrapper is disposed. Nothing stops the caller from releasing it through the bindings either, even if it was obtained through a non-owning `*Ref`.
   - `GpuBuffer.DangerousGetMappedPointer()` returns a pointer into mapped memory, which dangles once the buffer is unmapped or disposed.
-  - `Texture2d.DangerousGetBindGroup()` returns a bind group that keeps working after the texture has been revoked, which defeats the point of revocation.
 - **Unverifiable input.** The member accepts a value that Injure can't check, and trusts the caller that it is valid.
   - `DangerousCreateFromRaw(ulong ns)` trusts that the raw value comes from the same clock as every other `HostTick` in the program. A value from any other clock creates a bogus value that's, on the surface, indistinguishable from a correct one.
   - `SurfaceSource.DangerousCreateFrom*` trusts that the native handles are valid and stay valid while a surface uses them; only null handles are rejected.
   - `SdlWindow.DangerousCreateFromProperties(SdlInstance context, uint props)` trusts the caller with raw SDL window creation properties, including setting the ones Injure relies on.
+  - `RawColor32.DangerousGetByteUnchecked(nuint n)` is just a plain old memory access with no bounds checking, and `color.DangerousGetByteUnchecked(4)` is undefined behavior.
 - **Bypassing engine processing.** The member gives access to data before, or instead of, the processing Injure would normally do on it.
   - `SdlEventSource.DangerousGetNextRaw()` removes an SDL event from the queue before Injure translates it. The caller becomes responsible for passing every such event to `DangerousCreateHostEvent(in SDL.Event ev, out HostEvent result)` exactly once, in order to keep things such as Injure's gamepad tracking up to date.
 - **Foreign types.** The member exposes a type from a dependency, such as the WebGPU or SDL bindings, as a return value or parameter. This is never the only reason for the prefix: a foreign type always comes with one of the reasons above, typically an unmanaged lifetime. It does, however, affect stability; see [Stability](#stability).
@@ -38,7 +38,7 @@ Members that are merely low-level are not dangerous as long as Injure still enfo
 
 When using a `DangerousGet*` member, the caller must not:
 - release, destroy, or otherwise end the lifetime of the returned value, unless the member's docs say otherwise;
-- use the returned value after the lifetime it belongs to has ended (the owner is disposed, the asset is revoked, the buffer is unmapped, the device is lost, etc.);
+- use the returned value after the lifetime it belongs to has ended (the owner is disposed, the buffer is unmapped, the device is lost, etc.);
 - change state that Injure tracks through the returned value, e.g. reconfiguring a WebGPU surface behind a `SurfaceRenderOutput`'s back;
 - use the returned value from threads other than the ones the owning object allows; a dangerous member doesn't change an object's thread-safety rules.
 

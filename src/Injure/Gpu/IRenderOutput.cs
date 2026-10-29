@@ -77,7 +77,16 @@ public interface IAcquiredOutput : IDisposable {
 	/// The encoder the frame's rendering was recorded into, with no render pass active.
 	/// </param>
 	/// <remarks>
+	/// <para>
 	/// The default implementation is a no-op.
+	/// </para>
+	/// <para>
+	/// Implementations must not leave a render pass active when they return.
+	/// </para>
+	/// <para>
+	/// If an implementation throws while a render pass it began is still active,
+	/// <see cref="RenderFrame"/> can't release the encoder, so it simply gets leaked.
+	/// </para>
 	/// </remarks>
 	void RecordFinalCommands(GpuCommandEncoderHandle encoder) {
 	}

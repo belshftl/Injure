@@ -51,8 +51,8 @@ namespace Injure.Draw;
 /// </para>
 /// <para>
 /// Has built-in <see cref="TextSystem"/> integration for convenience:
-/// <see cref="Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbColor32?)"/>
-/// and <see cref="Text(RichText, Vector2, TextLayoutOptions?, SrgbColor32?)"/> lay out the text on
+/// <see cref="Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbStraight32?)"/>
+/// and <see cref="Text(RichText, Vector2, TextLayoutOptions?, SrgbStraight32?)"/> lay out the text on
 /// the spot through a <see cref="TextSystem"/> passed to the <see cref="OwnedCanvas"/> at creation,
 /// and cache the layout for later draws.
 /// </para>
@@ -166,7 +166,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// including alpha. Unlike clearing through <see cref="ColorAttachmentOps"/>, this doesn't end the
 	/// current render pass.
 	/// </remarks>
-	public void Clear(SrgbColor32 color) => o.Clear(color);
+	public void Clear(SrgbStraight32 color) => o.Clear(color);
 
 	// ==========================================================================
 	// primitives
@@ -187,7 +187,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="b">Second vertex of the triangle.</param>
 	/// <param name="c">Third vertex of the triangle.</param>
 	/// <param name="color">Fill color.</param>
-	public void Triangle(Vector2 a, Vector2 b, Vector2 c, SrgbColor32 color) =>
+	public void Triangle(Vector2 a, Vector2 b, Vector2 c, SrgbStraight32 color) =>
 		o.AddPrimitive([a, b, c], color, triangleIndices.AsSpan());
 
 	/// <summary>
@@ -218,7 +218,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// being rejected. The quad is split into two triangles along the diagonal from
 	/// <paramref name="topRight"/> to <paramref name="bottomLeft"/>.
 	/// </remarks>
-	public void ConvexQuad(Vector2 topLeft, Vector2 topRight, Vector2 bottomLeft, Vector2 bottomRight, SrgbColor32 color) =>
+	public void ConvexQuad(Vector2 topLeft, Vector2 topRight, Vector2 bottomLeft, Vector2 bottomRight, SrgbStraight32 color) =>
 		o.AddPrimitive([topLeft, topRight, bottomLeft, bottomRight], color, quadIndices.AsSpan());
 
 	/// <summary>
@@ -229,7 +229,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="colorTopRight">Color for the top-right corner.</param>
 	/// <param name="colorBottomLeft">Color for the bottom-left corner.</param>
 	/// <param name="colorBottomRight">Color for the bottom-right corner.</param>
-	public void Rect(RectF rect, SrgbColor32 colorTopLeft, SrgbColor32 colorTopRight, SrgbColor32 colorBottomLeft, SrgbColor32 colorBottomRight) =>
+	public void Rect(RectF rect, SrgbStraight32 colorTopLeft, SrgbStraight32 colorTopRight, SrgbStraight32 colorBottomLeft, SrgbStraight32 colorBottomRight) =>
 		o.AddPrimitive(
 			[
 				new Vertex2dColor(rect.X, rect.Y, colorTopLeft),
@@ -245,7 +245,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </summary>
 	/// <param name="rect">The rectangle.</param>
 	/// <param name="color">Fill color.</param>
-	public void Rect(RectF rect, SrgbColor32 color) =>
+	public void Rect(RectF rect, SrgbStraight32 color) =>
 		Rect(rect, color, color, color, color);
 
 	/// <summary>
@@ -253,7 +253,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </summary>
 	/// <param name="a">Line start point.</param>
 	/// <param name="b">Line end point.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="cap">How the line is drawn at both ends.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is not finite and positive.
@@ -261,7 +263,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <remarks>
 	/// <para>
 	/// Generates the geometry rather than using a line primitive. Round caps get as many edges as the
-	/// matching part of <see cref="Circle(Vector2, float, SrgbColor32, int?)"/> would.
+	/// matching part of <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/> would.
 	/// </para>
 	/// <para>
 	/// If the endpoints coincide, or almost coincide (currently, distance &lt; 1e-4), nothing is
@@ -279,13 +281,15 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="a">Line start point.</param>
 	/// <param name="b">Line end point.</param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="cap">How the line is drawn at both ends.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
 	/// <inheritdoc cref="Line(Vertex2dColor, Vertex2dColor, float, LineCap)" path="/remarks"/>
-	public void Line(Vector2 a, Vector2 b, SrgbColor32 color, float thickness = 1f, LineCap cap = default) {
+	public void Line(Vector2 a, Vector2 b, SrgbStraight32 color, float thickness = 1f, LineCap cap = default) {
 		chkThickness(thickness);
 		stroke(o, [], [a, b], color, thickness, closed: false, default, cap);
 	}
@@ -320,7 +324,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Non-convex polygons produce incorrect visual output rather than being rejected. The polygon is
 	/// triangulated as a fan from the first point.
 	/// </remarks>
-	public void ConvexPoly(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
+	public void ConvexPoly(ReadOnlySpan<Vector2> points, SrgbStraight32 color) {
 		OwnedCanvas oc = o;
 		if (points.Length < 3)
 			throw new ArgumentException("a polygon needs at least 3 points", nameof(points));
@@ -349,7 +353,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="points"/> is empty or its length is not a multiple of 3.
 	/// </exception>
-	public void TriangleList(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
+	public void TriangleList(ReadOnlySpan<Vector2> points, SrgbStraight32 color) {
 		OwnedCanvas oc = o;
 		if (points.Length == 0 || points.Length % 3 != 0)
 			throw new ArgumentException("triangle list vertex count must be a positive multiple of 3", nameof(points));
@@ -390,7 +394,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Thrown if <paramref name="points"/> has fewer than 3 points.
 	/// </exception>
 	/// <inheritdoc cref="TriangleStrip(ReadOnlySpan{Vertex2dColor})" path="/remarks"/>
-	public void TriangleStrip(ReadOnlySpan<Vector2> points, SrgbColor32 color) {
+	public void TriangleStrip(ReadOnlySpan<Vector2> points, SrgbStraight32 color) {
 		OwnedCanvas oc = o;
 		if (points.Length < 3)
 			throw new ArgumentException("a triangle strip needs at least 3 points", nameof(points));
@@ -401,7 +405,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Draws a line list with interpolated per-endpoint colors.
 	/// </summary>
 	/// <param name="verts">Points forming the lines, two per line.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="cap">How each line is drawn at both ends.</param>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="verts"/> is empty or its length is not a multiple of 2.
@@ -430,7 +436,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </summary>
 	/// <param name="points">Points forming the lines, two per line.</param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="cap">How each line is drawn at both ends.</param>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="points"/> is empty or its length is not a multiple of 2.
@@ -440,12 +448,12 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </exception>
 	/// <remarks>
 	/// Generates the geometry rather than using a line list primitive; each line is drawn as by
-	/// <see cref="Line(Vector2, Vector2, SrgbColor32, float, LineCap)"/>. The lines are independent,
+	/// <see cref="Line(Vector2, Vector2, SrgbStraight32, float, LineCap)"/>. The lines are independent,
 	/// so lines that touch or cross overlap there, and translucent ones blend twice. Use
-	/// <see cref="LineStrip(ReadOnlySpan{Vector2}, SrgbColor32, float, LineJoin, LineCap)"/> for
+	/// <see cref="LineStrip(ReadOnlySpan{Vector2}, SrgbStraight32, float, LineJoin, LineCap)"/> for
 	/// connected lines.
 	/// </remarks>
-	public void LineList(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f, LineCap cap = default) {
+	public void LineList(ReadOnlySpan<Vector2> points, SrgbStraight32 color, float thickness = 1f, LineCap cap = default) {
 		chkThickness(thickness);
 		if (points.Length == 0 || points.Length % 2 != 0)
 			throw new ArgumentException("line list vertex count must be a positive multiple of 2", nameof(points));
@@ -458,7 +466,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Draws a line strip with interpolated per-vertex colors.
 	/// </summary>
 	/// <param name="verts">Points forming the line strip.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="join">How the strip is drawn where two segments meet.</param>
 	/// <param name="cap">How the strip is drawn at its first and last points.</param>
 	/// <exception cref="ArgumentException">
@@ -470,7 +480,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <remarks>
 	/// <para>
 	/// Generates the geometry rather than using a line strip primitive. Round joins and caps get as
-	/// many edges as the matching part of <see cref="Circle(Vector2, float, SrgbColor32, int?)"/>
+	/// many edges as the matching part of <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/>
 	/// would. Joints where the strip goes on (almost) straight use a miter join regardless of
 	/// <paramref name="join"/>, since the choice doesn't matter there.
 	/// </para>
@@ -496,7 +506,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </summary>
 	/// <param name="points">Points forming the line strip.</param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="join">How the strip is drawn where two segments meet.</param>
 	/// <param name="cap">How the strip is drawn at its first and last points.</param>
 	/// <exception cref="ArgumentException">
@@ -506,7 +518,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
 	/// <inheritdoc cref="LineStrip(ReadOnlySpan{Vertex2dColor}, float, LineJoin, LineCap)" path="/remarks"/>
-	public void LineStrip(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f, LineJoin join = default, LineCap cap = default) {
+	public void LineStrip(ReadOnlySpan<Vector2> points, SrgbStraight32 color, float thickness = 1f, LineJoin join = default, LineCap cap = default) {
 		chkThickness(thickness);
 		if (points.Length < 2)
 			throw new ArgumentException("a line strip needs at least 2 points", nameof(points));
@@ -518,7 +530,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// interpolated per-vertex colors.
 	/// </summary>
 	/// <param name="verts">Points forming the loop.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="join">How the loop is drawn where two segments meet.</param>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="verts"/> has fewer than 2 vertices.
@@ -550,7 +564,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </summary>
 	/// <param name="points">Points forming the loop.</param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="join">How the loop is drawn where two segments meet.</param>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="points"/> has fewer than 2 points.
@@ -559,7 +575,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
 	/// <inheritdoc cref="LineLoop(ReadOnlySpan{Vertex2dColor}, float, LineJoin)" path="/remarks"/>
-	public void LineLoop(ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness = 1f, LineJoin join = default) {
+	public void LineLoop(ReadOnlySpan<Vector2> points, SrgbStraight32 color, float thickness = 1f, LineJoin join = default) {
 		chkThickness(thickness);
 		if (points.Length < 2)
 			throw new ArgumentException("a line loop needs at least 2 points", nameof(points));
@@ -574,16 +590,18 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </summary>
 	/// <param name="rect">Rectangle to outline.</param>
 	/// <param name="color">Outline color.</param>
-	/// <param name="thickness">Outline thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Outline thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <paramref name="thickness"/> is not finite and positive.
 	/// </exception>
 	/// <remarks>
 	/// The outline lies inside <paramref name="rect"/>, i.e. it covers the outermost drawable units
-	/// of what <see cref="Rect(RectF, SrgbColor32)"/> would fill. If the outline is at least half as
+	/// of what <see cref="Rect(RectF, SrgbStraight32)"/> would fill. If the outline is at least half as
 	/// thick as the shorter side, it fills the whole rectangle.
 	/// </remarks>
-	public void RectOutline(RectF rect, SrgbColor32 color, float thickness = 1f) {
+	public void RectOutline(RectF rect, SrgbStraight32 color, float thickness = 1f) {
 		chkThickness(thickness);
 		roundedRectOutline(o, rect, 0f, color, thickness, 0);
 	}
@@ -616,7 +634,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// A radius of 0 draws nothing.
 	/// </para>
 	/// </remarks>
-	public void Circle(Vector2 center, float radius, SrgbColor32 color, int? segments = null) {
+	public void Circle(Vector2 center, float radius, SrgbStraight32 color, int? segments = null) {
 		chkRadius(radius, nameof(radius));
 		chkSegments(segments, 3);
 		ellipse(o, center, new Vector2(radius), color, segments);
@@ -638,7 +656,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// The polygon is the "circle" polygon of <see cref="Circle(Vector2, float, SrgbColor32, int?)"/>,
+	/// The polygon is the "circle" polygon of <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/>,
 	/// scaled along the axes, and gets the same default number of edges as a circle with the larger of
 	/// the two radii. Rotated ellipses can be drawn via a transform matrix.
 	/// </para>
@@ -646,7 +664,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// A radius of 0 draws nothing.
 	/// </para>
 	/// </remarks>
-	public void Ellipse(Vector2 center, Vector2 radii, SrgbColor32 color, int? segments = null) {
+	public void Ellipse(Vector2 center, Vector2 radii, SrgbStraight32 color, int? segments = null) {
 		chkRadius(radii.X, nameof(radii));
 		chkRadius(radii.Y, nameof(radii));
 		chkSegments(segments, 3);
@@ -659,7 +677,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="center">Center of the circle.</param>
 	/// <param name="radius">Radius of the circle.</param>
 	/// <param name="color">Outline color.</param>
-	/// <param name="thickness">Outline thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Outline thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="segments">
 	/// Number of edges of the polygon approximating the circle, or <see langword="null"/> to pick one
 	/// from the radius.
@@ -672,15 +692,15 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <remarks>
 	/// <para>
 	/// The outline lies inside the circle, i.e. it covers the outermost drawable units of what
-	/// <see cref="Circle(Vector2, float, SrgbColor32, int?)"/> with the same arguments would fill. If
+	/// <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/> with the same arguments would fill. If
 	/// the outline is at least as thick as the radius, it fills the whole circle.
 	/// </para>
 	/// <para>
 	/// The "circle" polygon and its default number of edges are the same as for
-	/// <see cref="Circle(Vector2, float, SrgbColor32, int?)"/>. A radius of 0 draws nothing.
+	/// <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/>. A radius of 0 draws nothing.
 	/// </para>
 	/// </remarks>
-	public void CircleOutline(Vector2 center, float radius, SrgbColor32 color, float thickness = 1f, int? segments = null) {
+	public void CircleOutline(Vector2 center, float radius, SrgbStraight32 color, float thickness = 1f, int? segments = null) {
 		chkRadius(radius, nameof(radius));
 		chkThickness(thickness);
 		chkSegments(segments, 3);
@@ -693,7 +713,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="center">Center of the ellipse.</param>
 	/// <param name="radii">Radii along the X and Y axes.</param>
 	/// <param name="color">Outline color.</param>
-	/// <param name="thickness">Outline thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Outline thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="segments">
 	/// Number of edges of the polygon approximating the ellipse, or <see langword="null"/> to pick one
 	/// from the larger radius.
@@ -712,10 +734,10 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </para>
 	/// <para>
 	/// The "circle" polygon and its default number of edges are the same as for
-	/// <see cref="Ellipse(Vector2, Vector2, SrgbColor32, int?)"/>. A radius of 0 draws nothing.
+	/// <see cref="Ellipse(Vector2, Vector2, SrgbStraight32, int?)"/>. A radius of 0 draws nothing.
 	/// </para>
 	/// </remarks>
-	public void EllipseOutline(Vector2 center, Vector2 radii, SrgbColor32 color, float thickness = 1f, int? segments = null) {
+	public void EllipseOutline(Vector2 center, Vector2 radii, SrgbStraight32 color, float thickness = 1f, int? segments = null) {
 		chkRadius(radii.X, nameof(radii));
 		chkRadius(radii.Y, nameof(radii));
 		chkThickness(thickness);
@@ -744,10 +766,10 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </para>
 	/// <para>
 	/// By default, the corners get as many edges as the matching quarter of
-	/// <see cref="Circle(Vector2, float, SrgbColor32, int?)"/> would.
+	/// <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/> would.
 	/// </para>
 	/// </remarks>
-	public void RoundedRect(RectF rect, float radius, SrgbColor32 color, int? segments = null) {
+	public void RoundedRect(RectF rect, float radius, SrgbStraight32 color, int? segments = null) {
 		chkRadius(radius, nameof(radius));
 		chkSegments(segments, 1);
 		OwnedCanvas oc = o;
@@ -761,7 +783,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="rect">Rectangle to outline.</param>
 	/// <param name="radius">Corner radius of the outer edge.</param>
 	/// <param name="color">Outline color.</param>
-	/// <param name="thickness">Outline thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Outline thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="segments">
 	/// Number of edges approximating each corner, or <see langword="null"/> to pick one from the
 	/// radius.
@@ -774,17 +798,17 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <remarks>
 	/// <para>
 	/// The outline lies inside the shape that
-	/// <see cref="RoundedRect(RectF, float, SrgbColor32, int?)"/> with the same arguments would fill,
+	/// <see cref="RoundedRect(RectF, float, SrgbStraight32, int?)"/> with the same arguments would fill,
 	/// and has a constant thickness: the inner edge's corner radius is <c>radius - thickness</c>, or
 	/// sharp if that's not positive. If the outline is at least half as thick as the shorter side, it
 	/// fills the whole shape.
 	/// </para>
 	/// <para>
 	/// The radius limit and the default number of edges are the same as for
-	/// <see cref="RoundedRect(RectF, float, SrgbColor32, int?)"/>.
+	/// <see cref="RoundedRect(RectF, float, SrgbStraight32, int?)"/>.
 	/// </para>
 	/// </remarks>
-	public void RoundedRectOutline(RectF rect, float radius, SrgbColor32 color, float thickness = 1f, int? segments = null) {
+	public void RoundedRectOutline(RectF rect, float radius, SrgbStraight32 color, float thickness = 1f, int? segments = null) {
 		chkRadius(radius, nameof(radius));
 		chkThickness(thickness);
 		chkSegments(segments, 1);
@@ -817,15 +841,15 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Angle 0 points along +X, and positive angles turn toward +Y, i.e. visually clockwise, matching
 	/// <see cref="Matrix3x2.CreateRotation(float)"/>. A negative <paramref name="sweepAngle"/> goes
 	/// the other way. A sweep of a full turn or more draws the whole circle, as by
-	/// <see cref="Circle(Vector2, float, SrgbColor32, int?)"/>.
+	/// <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/>.
 	/// </para>
 	/// <para>
 	/// By default, the polygon approximating the curved edge gets as many edges as the matching part
-	/// of <see cref="Circle(Vector2, float, SrgbColor32, int?)"/> would. A radius or sweep of 0 draws
+	/// of <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/> would. A radius or sweep of 0 draws
 	/// nothing.
 	/// </para>
 	/// </remarks>
-	public void Pie(Vector2 center, float radius, float startAngle, float sweepAngle, SrgbColor32 color, int? segments = null) {
+	public void Pie(Vector2 center, float radius, float startAngle, float sweepAngle, SrgbStraight32 color, int? segments = null) {
 		chkRadius(radius, nameof(radius));
 		chkAngle(startAngle, nameof(startAngle));
 		chkAngle(sweepAngle, nameof(sweepAngle));
@@ -857,7 +881,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Angle the arc covers, in radians, starting from <paramref name="startAngle"/>.
 	/// </param>
 	/// <param name="color">Line color.</param>
-	/// <param name="thickness">Line thickness in drawable units.</param>
+	/// <param name="thickness">
+	/// Line thickness in drawable units, before <see cref="CanvasParams.Transform"/>.
+	/// </param>
 	/// <param name="cap">How the arc is drawn at both ends.</param>
 	/// <param name="segments">
 	/// Number of edges approximating the arc, or <see langword="null"/> to pick one from the radius
@@ -872,7 +898,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <remarks>
 	/// <para>
 	/// Unlike the outline methods, the line is centered on the circle, like
-	/// <see cref="LineStrip(ReadOnlySpan{Vector2}, SrgbColor32, float, LineJoin, LineCap)"/> centers
+	/// <see cref="LineStrip(ReadOnlySpan{Vector2}, SrgbStraight32, float, LineJoin, LineCap)"/> centers
 	/// its line on the points. If the line is thicker than the diameter, its inner edge is clamped to
 	/// the center.
 	/// </para>
@@ -888,11 +914,11 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Angle 0 points along +X, and positive angles turn toward +Y, i.e. visually clockwise, matching
 	/// <see cref="Matrix3x2.CreateRotation(float)"/>. A negative <paramref name="sweepAngle"/> goes
 	/// the other way. A sweep of a full turn or more draws a closed ring. By default, the arc gets as
-	/// many edges as the matching part of <see cref="Circle(Vector2, float, SrgbColor32, int?)"/> with
+	/// many edges as the matching part of <see cref="Circle(Vector2, float, SrgbStraight32, int?)"/> with
 	/// the outer radius would. A sweep of 0 draws nothing.
 	/// </para>
 	/// </remarks>
-	public void Arc(Vector2 center, float radius, float startAngle, float sweepAngle, SrgbColor32 color, float thickness = 1f, LineCap cap = default, int? segments = null) {
+	public void Arc(Vector2 center, float radius, float startAngle, float sweepAngle, SrgbStraight32 color, float thickness = 1f, LineCap cap = default, int? segments = null) {
 		chkRadius(radius, nameof(radius));
 		chkAngle(startAngle, nameof(startAngle));
 		chkAngle(sweepAngle, nameof(sweepAngle));
@@ -995,7 +1021,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 			(u0, u1) = (u1, u0);
 		if (draw.FlipY)
 			(v0, v1) = (v1, v0);
-		SrgbColor32 c = draw.Tint;
+		SrgbStraight32 c = draw.Tint;
 		oc.AddTextured(
 			r,
 			draw.Sampling ?? oc.CurrentParams.Sampling,
@@ -1020,7 +1046,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="at">Position for the layout's top-left corner.</param>
 	/// <param name="tint">
 	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
-	/// <see langword="null"/> for <see cref="SrgbColor32.White"/>, i.e. no tint. Alpha is multiplied
+	/// <see langword="null"/> for <see cref="SrgbStraight32.White"/>, i.e. no tint. Alpha is multiplied
 	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
 	/// type-level docs).
 	/// </param>
@@ -1051,10 +1077,10 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// regardless of <see cref="CurrentParams"/>; the other parameters apply as usual.
 	/// </para>
 	/// </remarks>
-	public void Text(TextLayout layout, Vector2 at, SrgbColor32? tint = null) {
+	public void Text(TextLayout layout, Vector2 at, SrgbStraight32? tint = null) {
 		OwnedCanvas oc = o;
 		ArgumentNullException.ThrowIfNull(layout);
-		TextRenderer.Draw(oc, layout, at, tint ?? SrgbColor32.White);
+		TextRenderer.Draw(oc, layout, at, tint ?? SrgbStraight32.White);
 	}
 
 	/// <summary>
@@ -1073,7 +1099,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </param>
 	/// <param name="tint">
 	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
-	/// <see langword="null"/> for <see cref="SrgbColor32.White"/>, i.e. no tint. Alpha is multiplied
+	/// <see langword="null"/> for <see cref="SrgbStraight32.White"/>, i.e. no tint. Alpha is multiplied
 	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
 	/// type-level docs).
 	/// </param>
@@ -1102,15 +1128,15 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// for <see cref="TextCacheOptions.LayoutCacheFrames"/> frames.
 	/// </para>
 	/// <para>
-	/// Otherwise the same as <see cref="Text(TextLayout, Vector2, SrgbColor32?)"/>; see its docs.
+	/// Otherwise the same as <see cref="Text(TextLayout, Vector2, SrgbStraight32?)"/>; see its docs.
 	/// </para>
 	/// </remarks>
-	public void Text(ReadOnlySpan<char> text, in TextStyle style, Vector2 at, TextLayoutOptions? options = null, SrgbColor32? tint = null) {
+	public void Text(ReadOnlySpan<char> text, in TextStyle style, Vector2 at, TextLayoutOptions? options = null, SrgbStraight32? tint = null) {
 		OwnedCanvas oc = o;
 		TextStyle.Validate(in style, nameof(style));
 		TextLayoutOptions opts = options ?? TextLayoutOptions.Default;
 		TextLayoutOptions.Validate(in opts, nameof(options));
-		TextRenderer.Draw(oc, textSystem(oc).GetCachedLayout(text, in style, in opts), at, tint ?? SrgbColor32.White);
+		TextRenderer.Draw(oc, textSystem(oc).GetCachedLayout(text, in style, in opts), at, tint ?? SrgbStraight32.White);
 	}
 
 	/// <summary>
@@ -1124,7 +1150,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </param>
 	/// <param name="tint">
 	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
-	/// <see langword="null"/> for <see cref="SrgbColor32.White"/>, i.e. no tint. Alpha is multiplied
+	/// <see langword="null"/> for <see cref="SrgbStraight32.White"/>, i.e. no tint. Alpha is multiplied
 	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
 	/// type-level docs).
 	/// </param>
@@ -1152,15 +1178,15 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// dropped if it's been unused for <see cref="TextCacheOptions.LayoutCacheFrames"/> frames.
 	/// </para>
 	/// <para>
-	/// Otherwise the same as <see cref="Text(TextLayout, Vector2, SrgbColor32?)"/>; see its docs.
+	/// Otherwise the same as <see cref="Text(TextLayout, Vector2, SrgbStraight32?)"/>; see its docs.
 	/// </para>
 	/// </remarks>
-	public void Text(RichText text, Vector2 at, TextLayoutOptions? options = null, SrgbColor32? tint = null) {
+	public void Text(RichText text, Vector2 at, TextLayoutOptions? options = null, SrgbStraight32? tint = null) {
 		OwnedCanvas oc = o;
 		ArgumentNullException.ThrowIfNull(text);
 		TextLayoutOptions opts = options ?? TextLayoutOptions.Default;
 		TextLayoutOptions.Validate(in opts, nameof(options));
-		TextRenderer.Draw(oc, textSystem(oc).GetCachedLayout(text, in opts), at, tint ?? SrgbColor32.White);
+		TextRenderer.Draw(oc, textSystem(oc).GetCachedLayout(text, in opts), at, tint ?? SrgbStraight32.White);
 	}
 
 	private static TextSystem textSystem(OwnedCanvas oc) =>
@@ -1262,11 +1288,12 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	}
 
 	/// <summary>
-	/// &gt;0 = ccw, &lt;0 = cw.
+	/// &gt;0 = cw, &lt;0 = ccw, as seen on the target.
 	/// </summary>
 	/// <remarks>
-	/// The above holds in cartesian coordinates, where +Y = up, and holds here too, as +Y being down
-	/// is because of the ortho projection, and +Y in clip space points up like in cartesian.
+	/// The signs are flipped from cartesian coordinates, where &gt;0 = ccw, since +Y points down
+	/// here. WebGPU considers a triangle to have the same winding it has on the target; see
+	/// <see cref="FrontFace"/>.
 	/// </remarks>
 	private static float winding(Vector2 a, Vector2 b, Vector2 c) =>
 		(b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
@@ -1453,7 +1480,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Fills a rounded rect, as a fan from its center, with <paramref name="k"/> edges per corner (see
 	/// <see cref="cornerSegments"/>). <paramref name="radius"/> must already be clamped.
 	/// </summary>
-	private static void roundedRect(OwnedCanvas oc, RectF rect, float radius, SrgbColor32 color, int k) {
+	private static void roundedRect(OwnedCanvas oc, RectF rect, float radius, SrgbStraight32 color, int k) {
 		int n = 4 * (k + 1);
 		Span<Vector2> pts = oc.ScratchPoints(1 + n);
 		pts[0] = new Vector2(rect.X + rect.Width * 0.5f, rect.Y + rect.Height * 0.5f);
@@ -1474,7 +1501,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// Falls back to <see cref="roundedRect"/> if the thickness is high enough that there wouldn't be
 	/// a hole in the produced shape anymore.
 	/// </remarks>
-	private static void roundedRectOutline(OwnedCanvas oc, RectF rect, float radius, SrgbColor32 color, float thickness, int k) {
+	private static void roundedRectOutline(OwnedCanvas oc, RectF rect, float radius, SrgbStraight32 color, float thickness, int k) {
 		if (thickness >= MathF.Min(rect.Width, rect.Height) * 0.5f) {
 			roundedRect(oc, rect, radius, color, k);
 			return;
@@ -1496,7 +1523,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// if that's non-null, else <see cref="ellipseSegments"/>. Draws nothing if either of the two
 	/// <paramref name="radii"/> is zero.
 	/// </summary>
-	private static void ellipse(OwnedCanvas oc, Vector2 center, Vector2 radii, SrgbColor32 color, int? segments) {
+	private static void ellipse(OwnedCanvas oc, Vector2 center, Vector2 radii, SrgbStraight32 color, int? segments) {
 		if (radii.X == 0f || radii.Y == 0f)
 			return;
 		int n = segments ?? ellipseSegments(oc, MathF.Max(radii.X, radii.Y));
@@ -1514,7 +1541,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <paramref name="radii"/> is zero. Falls back to <see cref="ellipse"/> if the thickness is high
 	/// enough that there wouldn't be a hole in the produced shape anymore.
 	/// </summary>
-	private static void ellipseOutline(OwnedCanvas oc, Vector2 center, Vector2 radii, SrgbColor32 color, float thickness, int? segments) {
+	private static void ellipseOutline(OwnedCanvas oc, Vector2 center, Vector2 radii, SrgbStraight32 color, float thickness, int? segments) {
 		if (radii.X == 0f || radii.Y == 0f)
 			return;
 		if (thickness >= MathF.Min(radii.X, radii.Y)) {
@@ -1536,7 +1563,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// full turn; the last point is then left out as it would repeat the first. An inner radius of 0
 	/// is allowed and produces degenerate triangles at the center rather than overlap.
 	/// </remarks>
-	private static void ring(OwnedCanvas oc, Vector2 center, Vector2 outer, Vector2 inner, float start, float sweep, int segs, bool closed, SrgbColor32 color) {
+	private static void ring(OwnedCanvas oc, Vector2 center, Vector2 outer, Vector2 inner, float start, float sweep, int segs, bool closed, SrgbStraight32 color) {
 		int n = closed ? segs : segs + 1;
 		Span<Vector2> pts = oc.ScratchPoints(2 * n);
 		arcPoints(pts[..n], center, outer, start, sweep / segs);
@@ -1560,7 +1587,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <exception cref="InternalStateException">
 	/// Thrown if <paramref name="cap"/> is <see cref="LineCap.Butt"/>.
 	/// </exception>
-	private static void arcCap(OwnedCanvas oc, Vector2 center, float outerRadius, float innerRadius, float angle, float dir, LineCap cap, SrgbColor32 color) {
+	private static void arcCap(OwnedCanvas oc, Vector2 center, float outerRadius, float innerRadius, float angle, float dir, LineCap cap, SrgbStraight32 color) {
 		(float sin, float cos) = MathF.SinCos(angle);
 		Vector2 o = center + new Vector2(outerRadius) * new Vector2(cos, sin);
 		Vector2 i = center + new Vector2(innerRadius) * new Vector2(cos, sin);
@@ -1663,7 +1690,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// both pairs are the same.
 	/// </para>
 	/// </remarks>
-	private static void stroke(OwnedCanvas oc, ReadOnlySpan<Vertex2dColor> verts, ReadOnlySpan<Vector2> points, SrgbColor32 color, float thickness, bool closed, LineJoin join, LineCap cap) {
+	private static void stroke(OwnedCanvas oc, ReadOnlySpan<Vertex2dColor> verts, ReadOnlySpan<Vector2> points, SrgbStraight32 color, float thickness, bool closed, LineJoin join, LineCap cap) {
 		// position of input point i, from whichever span is in use
 		static Vector2 pos(ReadOnlySpan<Vertex2dColor> verts, ReadOnlySpan<Vector2> points, int i) =>
 			verts.IsEmpty ? points[i] : (Vector2)verts[i];
@@ -1710,7 +1737,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 		uint firstPos = 0, firstNeg = 0; // the first row, as the end of the closing segment
 		for (int k = 0; k < n; k++) {
 			Vector2 p = pos(verts, points, kept[k]);
-			SrgbColor32 c = flat ? color : verts[kept[k]].Color;
+			SrgbStraight32 c = flat ? color : verts[kept[k]].Color;
 
 			// whether a segment arrives at / leaves from this point; if either is false, it's an end
 			bool hasPrev = closed || k > 0;
@@ -1852,7 +1879,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <paramref name="last"/>, so that they're shared with the geometry the fan attaches to; this
 	/// adds the <c>k - 1</c> points between them.
 	/// </remarks>
-	private static void roundFan(Span<Vertex2dColor> verts, ref int vc, Span<uint> idx, ref int ic, uint hub, uint first, uint last, Vector2 center, float radius, float startAngle, float sweep, int k, SrgbColor32 color) {
+	private static void roundFan(Span<Vertex2dColor> verts, ref int vc, Span<uint> idx, ref int ic, uint hub, uint first, uint last, Vector2 center, float radius, float startAngle, float sweep, int k, SrgbStraight32 color) {
 		float step = sweep / k;
 		uint prev = first;
 		for (int i = 1; i < k; i++) {

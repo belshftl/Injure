@@ -61,7 +61,7 @@ public sealed class TextCacheOptions {
 
 	/// <summary>
 	/// Number of frames a layout made by
-	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbColor32?)"/>
+	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbStraight32?)"/>
 	/// is kept for after its last use.
 	/// </summary>
 	public int LayoutCacheFrames { get; init; } = 120;
@@ -110,9 +110,9 @@ internal sealed unsafe class FtLibrary {
 /// <remarks>
 /// <para>
 /// Text is laid out with <see cref="Layout(RichText, TextLayoutOptions?)"/> and drawn
-/// with <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, Primitives.SrgbColor32?)"/>.
+/// with <see cref="Canvas.Text(TextLayout, System.Numerics.Vector2, Primitives.SrgbStraight32?)"/>.
 /// Alternatively, <see cref="Canvas"/> has integration with this type to do both at once as
-/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbColor32?)"/>,
+/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbStraight32?)"/>,
 /// which keeps the layouts it makes in a cache inside this <see cref="TextSystem"/>, dropping
 /// entries that haven't been drawn for a while (see <see cref="TextCacheOptions.LayoutCacheFrames"/>).
 /// </para>
@@ -197,7 +197,7 @@ public sealed unsafe class TextSystem : IDisposable {
 
 	/// <summary>
 	/// Layouts made by
-	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbColor32?)"/>,
+	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, System.Numerics.Vector2, TextLayoutOptions?, Primitives.SrgbStraight32?)"/>,
 	/// by text, then by fonts and style.
 	/// </summary>
 	private readonly Dictionary<string, List<CachedLayout>> layoutCache = new(StringComparer.Ordinal);

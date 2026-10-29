@@ -73,7 +73,7 @@ public readonly struct StandardGameOptions : IHasInvalidDefault {
 	/// <summary>
 	/// The color each frame is cleared to before <see cref="StandardGame.OnRender(RenderFrame)"/>.
 	/// </summary>
-	public SrgbColor32 ClearColor { get; init; } = SrgbColor32.Black;
+	public SrgbStraight32 ClearColor { get; init; } = SrgbStraight32.Black;
 
 	/// <summary>
 	/// What a drawable unit on the primary target should correspond to: a logical unit (i.e. window

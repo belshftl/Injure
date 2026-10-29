@@ -102,7 +102,7 @@ namespace Injure.Draw;
 /// <remarks>
 /// <para>
 /// Whatever owns the frame creates the <see cref="OwnedCanvas"/>, passes <see cref="Canvas"/> to be
-/// propagated down through all the code that draws, nd disposes the <see cref="OwnedCanvas"/>
+/// propagated down through all the code that draws, and disposes the <see cref="OwnedCanvas"/>
 /// before submitting the frame. Disposing it ends the render pass and uploads what was drawn. The
 /// frame is not submitted, and must be submitted manually.
 /// </para>
@@ -118,7 +118,7 @@ namespace Injure.Draw;
 /// <para>
 /// Has optional <see cref="Text.TextSystem"/> integration for convenience; a canvas created with a
 /// <see cref="TextSystem"/> can draw text without a prepared <see cref="TextLayout"/> via
-/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbColor32?)"/>.
+/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbStraight32?)"/>.
 /// See <see cref="OwnedCanvas(RenderFrame, in CanvasParams, TextSystem?)"/>.
 /// </para>
 /// <para>
@@ -192,10 +192,10 @@ public sealed class OwnedCanvas : IDisposable {
 	/// <param name="baseParams">The base of the params stack, which can't be popped off.</param>
 	/// <param name="textSystem">
 	/// The text system that
-	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbColor32?)"/>
+	/// <see cref="Canvas.Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbStraight32?)"/>
 	/// lays text out with and caches layouts in, or <see langword="null"/> for no text system
 	/// integration, which makes that overload unavailable. Layouts passed to
-	/// <see cref="Canvas.Text(TextLayout, Vector2, SrgbColor32?)"/> are drawn with the text system
+	/// <see cref="Canvas.Text(TextLayout, Vector2, SrgbStraight32?)"/> are drawn with the text system
 	/// that made them either way.
 	/// </param>
 	/// <exception cref="ArgumentNullException">
@@ -381,7 +381,7 @@ public sealed class OwnedCanvas : IDisposable {
 		}
 	}
 
-	internal void AddPrimitive(ReadOnlySpan<Vector2> points, SrgbColor32 color, ReadOnlySpan<uint> indices) {
+	internal void AddPrimitive(ReadOnlySpan<Vector2> points, SrgbStraight32 color, ReadOnlySpan<uint> indices) {
 		Matrix3x2 m = EffectiveTransform;
 		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, untexturedSampling(), textured: false, points.Length, indices, replace: false);
 		for (int i = 0; i < points.Length; i++) {
@@ -428,7 +428,7 @@ public sealed class OwnedCanvas : IDisposable {
 	/// <see cref="CanvasOutputStates.Opaque"/> is used. The scissor (including the clip to the
 	/// drawable area) still applies.
 	/// </summary>
-	internal void Clear(SrgbColor32 color) {
+	internal void Clear(SrgbStraight32 color) {
 		chk();
 		(uint w, uint h) = targetSize(@params.Peek());
 		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, untexturedSampling(), textured: false, 4, [0, 2, 1, 3, 1, 2], replace: true);
@@ -625,12 +625,12 @@ public sealed class OwnedCanvas : IDisposable {
 			// in floats rather than through Viewport.ToPixels, since a huge scissor can map past
 			// float range, which a RectF can't hold
 			RectF s = p.Scissor.Rect;
-			left = MathF.Max(left, s.Left * vp.PixelsPerUnit + vp.PixelOffset.X);
-			top = MathF.Max(top, s.Top * vp.PixelsPerUnit + vp.PixelOffset.Y);
-			right = MathF.Min(right, s.Right * vp.PixelsPerUnit + vp.PixelOffset.X);
-			bottom = MathF.Min(bottom, s.Bottom * vp.PixelsPerUnit + vp.PixelOffset.Y);
+			left = MathF.Max(left, MathF.FusedMultiplyAdd(s.Left, vp.PixelsPerUnit, vp.PixelOffset.X));
+			top = MathF.Max(top, MathF.FusedMultiplyAdd(s.Top, vp.PixelsPerUnit, vp.PixelOffset.Y));
+			right = MathF.Min(right, MathF.FusedMultiplyAdd(s.Right, vp.PixelsPerUnit, vp.PixelOffset.X));
+			bottom = MathF.Min(bottom, MathF.FusedMultiplyAdd(s.Bottom, vp.PixelsPerUnit, vp.PixelOffset.Y));
 		}
-		new RectI(0, 0, (int)w, (int)h).TryIntersect(Viewport.RoundToPixels(left, top, right, bottom), out RectI effective);
+		_ = new RectI(0, 0, (int)w, (int)h).TryIntersect(Viewport.RoundToPixels(left, top, right, bottom), out RectI effective);
 		return effective;
 	}
 

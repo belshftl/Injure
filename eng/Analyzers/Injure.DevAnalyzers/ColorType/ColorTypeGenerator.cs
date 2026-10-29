@@ -8,16 +8,17 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Injure.DevAnalyzers.ColorType;
 
-// emits the members shared by every color type of a kind, so that e.g. RawColor32 and SrgbColor32
+// emits the members shared by every color type of a kind, so that e.g. RawColor32 and SrgbStraight32
 // can't drift apart; the hand-written part of each type has the summary (but no remarks, since the
 // compiler concats the doc comments of all parts) and conversions
 [Generator]
 public sealed class ColorTypeGenerator : IIncrementalGenerator {
 	// ==========================================================================
 	// internal types
-	private sealed class TargetInfo(INamedTypeSymbol symbol, ColorTypeKind kind) {
+	private sealed class TargetInfo(INamedTypeSymbol symbol, ColorTypeKind kind, bool straightAlpha) {
 		public INamedTypeSymbol Symbol { get; } = symbol;
 		public ColorTypeKind Kind { get; } = kind;
+		public bool StraightAlpha { get; } = straightAlpha;
 	}
 
 	// ==========================================================================
@@ -39,11 +40,18 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 			transform: (ctx, ct) => {
 				var sym = (INamedTypeSymbol)ctx.TargetSymbol;
 				return ColorTypeModel.Validate(sym, ctx.Attributes[0], kind, DiagnosticSink.Silent(), ct)
-					? new TargetInfo(sym, kind)
+					? new TargetInfo(sym, kind, straightAlpha(ctx.Attributes[0]))
 					: null;
 			}
 		);
 		SourceGen.RegisterTargetOutput(context, targets, static info => info.Symbol, Constants.ColorType.GeneratedSourceSuffix, emit);
+	}
+
+	private static bool straightAlpha(AttributeData attr) {
+		foreach (KeyValuePair<string, TypedConstant> arg in attr.NamedArguments)
+			if (arg.Key == "StraightAlpha" && arg.Value.Value is bool b)
+				return b;
+		return false;
 	}
 
 	// ==========================================================================
@@ -59,7 +67,10 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 			ColorTypeKind.ColorF128 => colorF128Template,
 			_ => throw new ArgumentOutOfRangeException(nameof(info)),
 		};
-		body = body.Replace("$Self$", self).Replace("$Header$", header);
+		string alphaRemark = info.StraightAlpha
+			? "Alpha is straight (not premultiplied), so the color channels hold the color independently of <see cref=\"A\"/>."
+			: "No premultiplied-alpha information is encoded. Check in with the API producing the values.";
+		body = body.Replace("$Self$", self).Replace("$Header$", header).Replace("$AlphaRemark$", alphaRemark);
 		sb.Append(body.Replace("$GeneratedCode$", generatedCodeAttribute()));
 		SourceGen.CloseScopes(sb, info.Symbol);
 		return sb.ToString();
@@ -88,7 +99,7 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 		/// big-endian targets in the future.
 		/// </para>
 		/// <para>
-		/// No premultiplied-alpha information is encoded. Check in with the API producing the values.
+		/// $AlphaRemark$
 		/// </para>
 		/// <para>
 		/// The <see langword="default"/> value is valid and is <see cref="Transparent"/>.
@@ -145,13 +156,13 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 		#endif
 
 			/// <summary>
-			/// Reads the <paramref name="n"/>th byte of this <see cref="$Self$"/> value without
-			/// checking if <paramref name="n"/> is in bounds.
+			/// Reads the <paramref name="n"/>th byte of this <see cref="$Self$"/> value, without checking
+			/// if <paramref name="n"/> is in bounds.
 			/// </summary>
 			/// <remarks>
 			/// <para>
-			/// The caller must make sure <paramref name="n"/> is in the range [0, 3]; other values
-			/// will cause out-of-bounds reads.
+			/// The caller <b>must</b> make sure <paramref name="n"/> is in the range [0, 3]. Out-of-range
+			/// values cause undefined behavior. See <c>docs/conventions/dangerous-get-create.md</c>.
 			/// </para>
 			/// <para>
 			/// A test under Godbolt, .NET 10.0 CoreCLR, produced:
@@ -159,13 +170,13 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 			/// movzx rax, byte ptr [rdi+rsi]
 			/// ret
 			/// </code>
-			/// Obviously, no API guarantees can be made about what this gets compiled / JIT'ed to;
+			/// Obviously, no API guarantees can be made about what this gets compiled / JIT-ed to;
 			/// this is merely a remark about the purpose of this method and whether using it incurs
 			/// significant overhead or not.
 			/// </para>
 			/// </remarks>
 			[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-			public readonly byte GetByteUnchecked(nuint n) {
+			public readonly byte DangerousGetByteUnchecked(nuint n) {
 				ref byte b0 = ref global::System.Runtime.CompilerServices.Unsafe.As<$Self$, byte>(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in this));
 				return global::System.Runtime.CompilerServices.Unsafe.Add(ref b0, n);
 			}

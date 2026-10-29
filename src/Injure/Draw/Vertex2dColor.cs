@@ -30,7 +30,7 @@ namespace Injure.Draw;
 /// </para>
 /// </remarks>
 [StructLayout(LayoutKind.Explicit, Size = Size)]
-public readonly struct Vertex2dColor(float x, float y, SrgbColor32 color) {
+public readonly struct Vertex2dColor(float x, float y, SrgbStraight32 color) {
 	/// <summary>
 	/// X position, at byte offset 0.
 	/// </summary>
@@ -45,7 +45,7 @@ public readonly struct Vertex2dColor(float x, float y, SrgbColor32 color) {
 	/// <summary>
 	/// Color at this vertex, at byte offset 8.
 	/// </summary>
-	[FieldOffset(8)] public readonly SrgbColor32 Color = color;
+	[FieldOffset(8)] public readonly SrgbStraight32 Color = color;
 
 	/// <summary>
 	/// Size of a <see cref="Vertex2dColor"/> in bytes. Equal to 12.
@@ -57,7 +57,7 @@ public readonly struct Vertex2dColor(float x, float y, SrgbColor32 color) {
 	/// </summary>
 	/// <param name="xy">Position.</param>
 	/// <param name="color">Color at this vertex; interpolated across the shape.</param>
-	public Vertex2dColor(Vector2 xy, SrgbColor32 color) : this(xy.X, xy.Y, color) {}
+	public Vertex2dColor(Vector2 xy, SrgbStraight32 color) : this(xy.X, xy.Y, color) {}
 
 	/// <summary>
 	/// Gets the position of <paramref name="v"/>.

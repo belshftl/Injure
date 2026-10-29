@@ -174,7 +174,7 @@ public readonly struct Viewport : IEquatable<Viewport>, IHasInvalidDefault {
 	/// Maps a position in the drawable area, in drawable units, to target pixels.
 	/// </summary>
 	/// <param name="pos">Position in drawable units.</param>
-	public Vector2 ToPixels(Vector2 pos) => pos * ppu + PixelOffset;
+	public Vector2 ToPixels(Vector2 pos) => Vector2.FusedMultiplyAdd(pos, Vector2.One * ppu, PixelOffset);
 
 	/// <summary>
 	/// Maps a position in target pixels to the drawable area, in drawable units.
@@ -242,12 +242,18 @@ public readonly struct Viewport : IEquatable<Viewport>, IHasInvalidDefault {
 	// mapping through the default value would divide by or multiply with 0
 	private float ppu => IsDefault ? throw InvalidDefaultException.For<Viewport>() : PixelsPerUnit;
 
-	// rounds each edge separately to the nearest pixel boundary, with midpoints rounded towards
-	// positive infinity, so adjacent rectangles stay adjacent; edges past 2^24 are clamped, which doesn't matter because render targets never get
-	// that large
+	/// <summary>
+	/// Rounds each edge separately to the nearest pixel boundary, with midpoints rounded towards
+	/// positive infinity, so that adjacent rects don't stop being adjacent. Edges past 2^24 are
+	/// clamped, which practically doesn't matter because render targets never get that large.
+	/// </summary>
 	internal static RectI RoundToPixels(RectF rect) => RoundToPixels(rect.Left, rect.Top, rect.Right, rect.Bottom);
 
-	// takes the edges as floats, which may be infinite, rather than as a RectF, which can't be
+	/// <inheritdoc cref="RoundToPixels(RectF)" path="/summary"/>
+	/// <remarks>
+	/// Takes the edges as floats, which may be infinite, rather than as a <see cref="RectF"/>, which
+	/// can't be.
+	/// </remarks>
 	internal static RectI RoundToPixels(float left, float top, float right, float bottom) {
 		const float edgeLimit = 1 << 24;
 		static int edge(float v) => (int)MathF.Floor(Math.Clamp(v, -edgeLimit, edgeLimit) + 0.5f);

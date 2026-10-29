@@ -17,7 +17,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	private static readonly RawColor32 black = RawColor32.Black;
 
 	private static CanvasParams baseParams(RawColor32 clear, uint size = 4) =>
-		CanvasParams.Primary(Viewport.Whole(new Vector2(size, size)), clear.AssumeSrgb());
+		CanvasParams.Primary(Viewport.Whole(new Vector2(size, size)), clear.AssumeSrgbStraight());
 
 	// a viewport covering the whole size x size test target at `scale` pixels per unit
 	private static Viewport scaled(float scale, uint size = 4) => Viewport.Whole(new Vector2(size, size), scale);
@@ -46,7 +46,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(target: rt, colorAttachmentOps: ColorAttachmentOps.Clear(blue.ToRawF128())))
-				cv.Rect(new RectF(0, 0, 4, 8), red.AssumeSrgb());
+				cv.Rect(new RectF(0, 0, 4, 8), red.AssumeSrgbStraight());
 			// the 8x8 target scaled onto the 4x4 primary: left half red, right half blue
 			cv.Texture(rt, new RectF(0, 0, 4, 4));
 		});
@@ -61,9 +61,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		using Texture2d greenTex = solid(green);
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
+			cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgbStraight());
 			cv.Texture(greenTex, new RectF(0, 0, 2, 4));
-			cv.Rect(new RectF(0, 0, 1, 1), blue.AssumeSrgb());
+			cv.Rect(new RectF(0, 0, 1, 1), blue.AssumeSrgbStraight());
 		});
 		Assert.Equal(blue, GpuRig.At(px, 4, 0, 0));
 		Assert.Equal(green, GpuRig.At(px, 4, 1, 1));
@@ -83,7 +83,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			cv.Texture(tex, new TexDraw(new Vector2(0, 0)) { Source = TexRegion.Texels(new RectF(1, 0, 1, 1)) });
 			// uv region stretched into a rectangle
 			cv.Texture(tex, new TexDraw(new RectF(2, 0, 2, 4)) { Source = TexRegion.Uv(new RectF(0, 0, 0.5f, 1)) });
-			cv.Texture(white, new TexDraw(new RectF(0, 2, 2, 2)) { Tint = blue.AssumeSrgb() });
+			cv.Texture(white, new TexDraw(new RectF(0, 2, 2, 2)) { Tint = blue.AssumeSrgbStraight() });
 			bool threw = false;
 			try {
 				cv.Texture(tex, default);
@@ -178,9 +178,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			cv.Texture(tex, new TexDraw(new RectF(0, 0, 4, 1)) { Sampling = TexSampling.Linear });
-			cv.Rect(new RectF(0, 1, 4, 1), green.AssumeSrgb());
+			cv.Rect(new RectF(0, 1, 4, 1), green.AssumeSrgbStraight());
 			cv.Texture(tex, new RectF(0, 2, 4, 1));
-			cv.Rect(new RectF(0, 3, 4, 1), green.AssumeSrgb());
+			cv.Rect(new RectF(0, 3, 4, 1), green.AssumeSrgbStraight());
 		});
 		assertRow(px, 0, linear: true);
 		assertRow(px, 2, linear: false);
@@ -250,7 +250,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(sampling: TexSampling.AreaWeighted)) {
 				cv.Texture(tex, new RectF(0, 0, 4, 1));
-				cv.Rect(new RectF(0, 1, 4, 3), green.AssumeSrgb());
+				cv.Rect(new RectF(0, 1, 4, 3), green.AssumeSrgbStraight());
 			}
 		});
 		for (uint y = 1; y < 4; y++)
@@ -277,8 +277,8 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(2, 0))))
-				cv.Rect(new RectF(0, 0, 2, 2), red.AssumeSrgb());
-			cv.Rect(new RectF(0, 2, 2, 2), blue.AssumeSrgb());
+				cv.Rect(new RectF(0, 0, 2, 2), red.AssumeSrgbStraight());
+			cv.Rect(new RectF(0, 2, 2, 2), blue.AssumeSrgbStraight());
 		});
 		Assert.Equal(black, GpuRig.At(px, 4, 0, 0));
 		Assert.Equal(red, GpuRig.At(px, 4, 3, 1));
@@ -291,8 +291,8 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectF(0, 0, 2, 2))))
-				cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
-			cv.Rect(new RectF(0, 3, 4, 1), blue.AssumeSrgb());
+				cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgbStraight());
+			cv.Rect(new RectF(0, 3, 4, 1), blue.AssumeSrgbStraight());
 		});
 		Assert.Equal(red, GpuRig.At(px, 4, 1, 1));
 		Assert.Equal(black, GpuRig.At(px, 4, 3, 0));
@@ -306,10 +306,10 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateScale(2)))) {
 				// applied before the scale, so the translation is scaled too: lands at (2, 0)
 				using (cv.PushParams(transform: CanvasTransformOverride.Multiply(Matrix3x2.CreateTranslation(1, 0))))
-					cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgb());
+					cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgbStraight());
 				// replaces the scale rather than combining with it
 				using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(0, 3))))
-					cv.Rect(new RectF(0, 0, 1, 1), blue.AssumeSrgb());
+					cv.Rect(new RectF(0, 0, 1, 1), blue.AssumeSrgbStraight());
 			}
 		});
 		Assert.Equal(black, GpuRig.At(px, 4, 1, 0));
@@ -325,9 +325,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectF(0, 0, 3, 3)))) {
 				using (cv.PushParams(scissor: CanvasScissorOverride.Intersect(new RectF(1, 1, 3, 3))))
-					cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
+					cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgbStraight());
 				using (cv.PushParams(scissor: CanvasScissorOverride.NoScissor))
-					cv.Rect(new RectF(3, 0, 1, 1), blue.AssumeSrgb());
+					cv.Rect(new RectF(3, 0, 1, 1), blue.AssumeSrgbStraight());
 			}
 		});
 		Assert.Equal(black, GpuRig.At(px, 4, 0, 0));
@@ -342,7 +342,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(scissor: CanvasScissorOverride.Intersect(new RectF(0, 0, 2, 2))))
-				cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
+				cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgbStraight());
 		});
 		Assert.Equal(red, GpuRig.At(px, 4, 1, 1));
 		Assert.Equal(black, GpuRig.At(px, 4, 2, 2));
@@ -379,14 +379,14 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			using (cv.PushParams(target: CanvasTarget.Primary(Viewport.Letterbox(new Vector2(2, 1), new Vector2(4, 4), false)))) {
 				// a scissor larger than the drawable area doesn't widen the clip
 				using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectF(-10, -10, 100, 100))))
-					cv.Rect(new RectF(-10, -10, 100, 100), red.AssumeSrgb());
+					cv.Rect(new RectF(-10, -10, 100, 100), red.AssumeSrgbStraight());
 				// at 2 pixels per unit, this scissor's far edges are past float range in pixels
 				using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectF(0, 0, 3e38f, 3e38f))))
-					cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgb());
-				cv.Clear(red.AssumeSrgb());
+					cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgbStraight());
+				cv.Clear(red.AssumeSrgbStraight());
 				// a scissor in drawable units maps through the viewport: unit (1, 0) is pixels (2..4, 1..3)
 				using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectF(1, 0, 1, 1))))
-					cv.Clear(blue.AssumeSrgb());
+					cv.Clear(blue.AssumeSrgbStraight());
 			}
 		});
 		for (uint x = 0; x < 4; x++) {
@@ -407,9 +407,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Viewport left = new(Vector2.Zero, 1f, new Vector2(2, 4));
 			Viewport right = new(new Vector2(2, 0), 1f, new Vector2(2, 4));
 			using (cv.PushParams(target: CanvasTarget.Primary(left)))
-				cv.Rect(new RectF(0, 0, 4, 1), red.AssumeSrgb());
+				cv.Rect(new RectF(0, 0, 4, 1), red.AssumeSrgbStraight());
 			using (cv.PushParams(target: CanvasTarget.Primary(right)))
-				cv.Rect(new RectF(0, 1, 4, 1), blue.AssumeSrgb());
+				cv.Rect(new RectF(0, 1, 4, 1), blue.AssumeSrgbStraight());
 		});
 		Assert.Equal(red, GpuRig.At(px, 4, 1, 0));
 		Assert.Equal(black, GpuRig.At(px, 4, 2, 0));
@@ -425,7 +425,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			using (cv.PushParams(target: CanvasTarget.Primary(scaled(2))))
 			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(1, 0))))
 				// translated, then scaled: lands at (2, 0) with size 2
-				cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgb());
+				cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgbStraight());
 		});
 		Assert.Equal(black, GpuRig.At(px, 4, 1, 0));
 		Assert.Equal(red, GpuRig.At(px, 4, 2, 0));
@@ -438,10 +438,10 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void ChangingOnlyTheViewportKeepsTheRenderPass() {
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgb());
+			cv.Rect(new RectF(0, 0, 1, 1), red.AssumeSrgbStraight());
 			using (cv.PushParams(target: CanvasTarget.Primary(scaled(2))))
-				cv.Rect(new RectF(1, 1, 1, 1), blue.AssumeSrgb());
-			cv.Rect(new RectF(0, 3, 1, 1), green.AssumeSrgb());
+				cv.Rect(new RectF(1, 1, 1, 1), blue.AssumeSrgbStraight());
+			cv.Rect(new RectF(0, 3, 1, 1), green.AssumeSrgbStraight());
 		});
 		Assert.Equal(red, GpuRig.At(px, 4, 0, 0));
 		Assert.Equal(blue, GpuRig.At(px, 4, 2, 2));
@@ -456,7 +456,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Canvas cv = canvas.Canvas;
 			var target = CanvasTarget.Offscreen(rt, new Viewport(new Vector2(2, 0), 1f, new Vector2(2, 4)));
 			using (cv.PushParams(target: target, colorAttachmentOps: ColorAttachmentOps.Clear(blue.ToRawF128())))
-				cv.Rect(new RectF(0, 0, 2, 4), red.AssumeSrgb());
+				cv.Rect(new RectF(0, 0, 2, 4), red.AssumeSrgbStraight());
 			cv.Texture(rt, Vector2.Zero);
 		});
 		Assert.Equal(blue, GpuRig.At(px, 4, 1, 1));
@@ -804,10 +804,10 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		RawColor32 translucent = new(0, 0, 255, 128);
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgb());
+			cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgbStraight());
 			using (cv.PushParams(transform: CanvasTransformOverride.Set(Matrix3x2.CreateScale(0.25f))))
-				cv.Clear(translucent.AssumeSrgb());
-			cv.Rect(new RectF(3, 3, 1, 1), green.AssumeSrgb());
+				cv.Clear(translucent.AssumeSrgbStraight());
+			cv.Rect(new RectF(3, 3, 1, 1), green.AssumeSrgbStraight());
 		});
 		Assert.Equal(translucent, GpuRig.At(px, 4, 0, 0));
 		Assert.Equal(translucent, GpuRig.At(px, 4, 3, 0));
@@ -819,7 +819,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(scissor: CanvasScissorOverride.Set(new RectF(0, 0, 2, 2))))
-				cv.Clear(red.AssumeSrgb());
+				cv.Clear(red.AssumeSrgbStraight());
 		});
 		Assert.Equal(red, GpuRig.At(px, 4, 1, 1));
 		Assert.Equal(black, GpuRig.At(px, 4, 2, 1));
@@ -829,10 +829,10 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	[Fact]
 	public void PrimaryFactoryFillsInTheCommonParams() {
 		Viewport vp = scaled(2);
-		var p = CanvasParams.Primary(vp, SrgbColor32.Red);
+		var p = CanvasParams.Primary(vp, SrgbStraight32.Red);
 		Assert.Equal(new CanvasParams(
 			Target: CanvasTarget.Primary(vp),
-			ColorAttachmentOps: ColorAttachmentOps.Clear(SrgbColor32.Red.ToRawF128()),
+			ColorAttachmentOps: ColorAttachmentOps.Clear(SrgbStraight32.Red.ToRawF128()),
 			Scissor: CanvasScissor.None,
 			Transform: Matrix3x2.Identity,
 			OutputState: CanvasOutputStates.Alpha,
@@ -846,12 +846,12 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void FramePrimaryFactoryCoversTheWholeOutput() {
 		using GpuTexture target = GpuRig.Target(Device, 6, 4);
 		using RenderFrame frame = new(Device, new GpuRig.FakeOutput(target));
-		var p = CanvasParams.Primary(frame, SrgbColor32.Red, pixelsPerUnit: 2f);
-		Assert.Equal(CanvasParams.Primary(Viewport.Whole(new Vector2(6, 4), 2f), SrgbColor32.Red), p);
+		var p = CanvasParams.Primary(frame, SrgbStraight32.Red, pixelsPerUnit: 2f);
+		Assert.Equal(CanvasParams.Primary(Viewport.Whole(new Vector2(6, 4), 2f), SrgbStraight32.Red), p);
 		Assert.Equal(new Vector2(3, 2), p.Target.Viewport.Size);
 		Assert.Equal(Viewport.Whole(new Vector2(6, 4)), CanvasParams.Primary(frame, ColorAttachmentOps.Load).Target.Viewport);
-		Assert.Throws<ArgumentNullException>(() => CanvasParams.Primary(null!, SrgbColor32.Red));
-		Assert.Throws<ArgumentOutOfRangeException>(() => CanvasParams.Primary(frame, SrgbColor32.Red, 0f));
+		Assert.Throws<ArgumentNullException>(() => CanvasParams.Primary(null!, SrgbStraight32.Red));
+		Assert.Throws<ArgumentOutOfRangeException>(() => CanvasParams.Primary(frame, SrgbStraight32.Red, 0f));
 	}
 
 	// many draws with alternating textures make many draw ranges; the second frame has to reuse the
@@ -893,13 +893,13 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		CanvasArenaPool pool = CanvasDeviceResources.For(Device).ArenaPool;
 		withPolicy(new CanvasMemoryPolicy(int.MaxValue, TimeSpan.MaxValue), () => {
 			render(black, canvas => {
-				canvas.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbColor32.White);
-				canvas.Canvas.TriangleList(hugeTriangleList, SrgbColor32.White);
+				canvas.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbStraight32.White);
+				canvas.Canvas.TriangleList(hugeTriangleList, SrgbStraight32.White);
 			});
 			int chunks = pool.TotalGeometryChunkCount;
 			render(black, canvas => {
-				canvas.Canvas.TriangleList(hugeTriangleList, SrgbColor32.White);
-				canvas.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbColor32.White);
+				canvas.Canvas.TriangleList(hugeTriangleList, SrgbStraight32.White);
+				canvas.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbStraight32.White);
 			});
 			Assert.Equal(chunks, pool.TotalGeometryChunkCount);
 		});
@@ -913,16 +913,16 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			using (GpuTexture target = GpuRig.Target(Device, 4, 4)) {
 				using RenderFrame frame = new(Device, new GpuRig.FakeOutput(target));
 				using (OwnedCanvas a = new(frame, baseParams(black)))
-					a.Canvas.TriangleList(hugeTriangleList, SrgbColor32.White);
+					a.Canvas.TriangleList(hugeTriangleList, SrgbStraight32.White);
 				using (OwnedCanvas b = new(frame, baseParams(black)))
-					b.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbColor32.White);
+					b.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbStraight32.White);
 				frame.Submit();
 			}
 			Assert.True(pool.ArenaCount >= 2);
 			// one small canvas: renting it releases the other arena, and its big chunk goes once a
 			// canvas didn't need it
-			render(black, canvas => canvas.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbColor32.White));
-			render(black, canvas => canvas.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbColor32.White));
+			render(black, canvas => canvas.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbStraight32.White));
+			render(black, canvas => canvas.Canvas.Rect(new RectF(0, 0, 1, 1), SrgbStraight32.White));
 			Assert.Equal(1, pool.ArenaCount);
 			Assert.Equal(1, pool.TotalGeometryChunkCount);
 		});
@@ -980,20 +980,20 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Canvas cv = canvas.Canvas;
 			Vector2[] two = [new(0, 0), new(1, 1)];
 			int caught = 0;
-			try { cv.ConvexPoly(two, SrgbColor32.White); } catch (ArgumentException) { caught++; }
-			try { cv.TriangleStrip(two, SrgbColor32.White); } catch (ArgumentException) { caught++; }
-			try { cv.TriangleList(ReadOnlySpan<Vector2>.Empty, SrgbColor32.White); } catch (ArgumentException) { caught++; }
-			try { cv.LineList(ReadOnlySpan<Vector2>.Empty, SrgbColor32.White); } catch (ArgumentException) { caught++; }
-			try { cv.LineStrip(two.AsSpan(0, 1), SrgbColor32.White); } catch (ArgumentException) { caught++; }
-			try { cv.Line(two[0], two[1], SrgbColor32.White, float.NaN); } catch (ArgumentOutOfRangeException) { caught++; }
-			try { cv.Line(two[0], two[1], SrgbColor32.White, float.PositiveInfinity); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.ConvexPoly(two, SrgbStraight32.White); } catch (ArgumentException) { caught++; }
+			try { cv.TriangleStrip(two, SrgbStraight32.White); } catch (ArgumentException) { caught++; }
+			try { cv.TriangleList(ReadOnlySpan<Vector2>.Empty, SrgbStraight32.White); } catch (ArgumentException) { caught++; }
+			try { cv.LineList(ReadOnlySpan<Vector2>.Empty, SrgbStraight32.White); } catch (ArgumentException) { caught++; }
+			try { cv.LineStrip(two.AsSpan(0, 1), SrgbStraight32.White); } catch (ArgumentException) { caught++; }
+			try { cv.Line(two[0], two[1], SrgbStraight32.White, float.NaN); } catch (ArgumentOutOfRangeException) { caught++; }
+			try { cv.Line(two[0], two[1], SrgbStraight32.White, float.PositiveInfinity); } catch (ArgumentOutOfRangeException) { caught++; }
 			Assert.Equal(7, caught);
 		});
 	}
 
 	// ==========================================================================
 	// shapes
-	private static readonly SrgbColor32 halfRed = new(255, 0, 0, 128);
+	private static readonly SrgbStraight32 halfRed = new(255, 0, 0, 128);
 
 	private byte[] render16(Action<Canvas> draw) => render(black, canvas => draw(canvas.Canvas), 16);
 	private static RawColor32 at16(byte[] px, uint x, uint y) => GpuRig.At(px, 16, x, y);
@@ -1032,26 +1032,26 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void CirclesAndEllipsesCoverTheirArea() {
-		byte[] px = render16(cv => cv.Circle(new Vector2(8, 8), 6f, red.AssumeSrgb()));
+		byte[] px = render16(cv => cv.Circle(new Vector2(8, 8), 6f, red.AssumeSrgbStraight()));
 		Assert.Equal(red, at16(px, 8, 8));
 		Assert.Equal(red, at16(px, 8, 3));
 		Assert.Equal(red, at16(px, 13, 8));
 		Assert.Equal(black, at16(px, 2, 2));
 		Assert.Equal(black, at16(px, 0, 8));
 
-		px = render16(cv => cv.Ellipse(new Vector2(8, 8), new Vector2(7, 3), red.AssumeSrgb()));
+		px = render16(cv => cv.Ellipse(new Vector2(8, 8), new Vector2(7, 3), red.AssumeSrgbStraight()));
 		Assert.Equal(red, at16(px, 2, 8));
 		Assert.Equal(red, at16(px, 8, 10));
 		Assert.Equal(black, at16(px, 8, 3));
 		Assert.Equal(black, at16(px, 3, 5));
 
 		// 4 segments is a diamond, leaving out parts of the circle
-		px = render16(cv => cv.Circle(new Vector2(8, 8), 7f, red.AssumeSrgb(), segments: 4));
+		px = render16(cv => cv.Circle(new Vector2(8, 8), 7f, red.AssumeSrgbStraight(), segments: 4));
 		Assert.Equal(red, at16(px, 5, 4));
 		Assert.Equal(black, at16(px, 3, 4));
 
 		// radius 0 draws nothing
-		px = render16(cv => cv.Circle(new Vector2(8, 8), 0f, red.AssumeSrgb()));
+		px = render16(cv => cv.Circle(new Vector2(8, 8), 0f, red.AssumeSrgbStraight()));
 		Assert.Equal(black, at16(px, 8, 8));
 	}
 
@@ -1061,7 +1061,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		// at 4 pixels per unit, a circle at (2, 2) with radius 1.5 covers pixels within 6 of (8, 8)
 		byte[] px = render16(cv => {
 			using (cv.PushParams(target: CanvasTarget.Primary(scaled(4, 16))))
-				cv.Circle(new Vector2(2, 2), 1.5f, red.AssumeSrgb());
+				cv.Circle(new Vector2(2, 2), 1.5f, red.AssumeSrgbStraight());
 		});
 		Assert.Equal(red, at16(px, 8, 8));
 		Assert.Equal(red, at16(px, 8, 3));
@@ -1092,7 +1092,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void RoundedRectsRoundTheirCorners() {
-		byte[] px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 16), 6f, red.AssumeSrgb()));
+		byte[] px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 16), 6f, red.AssumeSrgbStraight()));
 		Assert.Equal(black, at16(px, 0, 0));
 		Assert.Equal(black, at16(px, 1, 1));
 		Assert.Equal(black, at16(px, 15, 15));
@@ -1102,14 +1102,14 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		Assert.Equal(red, at16(px, 8, 8));
 
 		// the radius is limited to half the shorter side, making a pill
-		px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 8), 100f, red.AssumeSrgb()));
+		px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 8), 100f, red.AssumeSrgbStraight()));
 		Assert.Equal(black, at16(px, 0, 0));
 		Assert.Equal(red, at16(px, 8, 0));
 		Assert.Equal(red, at16(px, 0, 4));
 		Assert.Equal(black, at16(px, 8, 8));
 
 		// radius 0 makes a plain rect
-		px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 16), 0f, red.AssumeSrgb()));
+		px = render16(cv => cv.RoundedRect(new RectF(0, 0, 16, 16), 0f, red.AssumeSrgbStraight()));
 		Assert.Equal(red, at16(px, 0, 0));
 		Assert.Equal(red, at16(px, 15, 15));
 	}
@@ -1291,9 +1291,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	[Fact]
 	public void LineStripsInterpolatePerVertexColors() {
 		byte[] px = render16(cv => cv.LineStrip([
-			new Vertex2dColor(1, 8, red.AssumeSrgb()),
-			new Vertex2dColor(8, 8, green.AssumeSrgb()),
-			new Vertex2dColor(15, 8, blue.AssumeSrgb()),
+			new Vertex2dColor(1, 8, red.AssumeSrgbStraight()),
+			new Vertex2dColor(8, 8, green.AssumeSrgbStraight()),
+			new Vertex2dColor(15, 8, blue.AssumeSrgbStraight()),
 		], 2f));
 		Assert.True(at16(px, 1, 7).R > 200);
 		Assert.True(at16(px, 8, 7).G > 200);
@@ -1304,7 +1304,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void BadShapeArgumentsAreRejected() {
 		render16(cv => {
 			Vector2 c = new(8, 8);
-			SrgbColor32 w = SrgbColor32.White;
+			SrgbStraight32 w = SrgbStraight32.White;
 			int caught = 0;
 			try { cv.Circle(c, -1f, w); } catch (ArgumentOutOfRangeException) { caught++; }
 			try { cv.Circle(c, float.NaN, w); } catch (ArgumentOutOfRangeException) { caught++; }
@@ -1349,6 +1349,6 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		OwnedCanvas canvas = new(frame, baseParams(black));
 		canvas.Dispose();
 		Assert.Throws<ObjectDisposedException>(() => { _ = canvas.Canvas; });
-		Assert.Throws<InvalidDefaultException>(() => default(Canvas).Rect(new RectF(0, 0, 1, 1), SrgbColor32.White));
+		Assert.Throws<InvalidDefaultException>(() => default(Canvas).Rect(new RectF(0, 0, 1, 1), SrgbStraight32.White));
 	}
 }

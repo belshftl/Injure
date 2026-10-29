@@ -190,10 +190,10 @@ public readonly record struct TexDraw(TexDst Destination) : IHasInvalidDefault {
 	public TexRegion Source { get; init; } = TexRegion.Whole;
 
 	/// <summary>
-	/// Color multiplied with the sampled texels; <see cref="SrgbColor32.White"/>, i.e. no tint, unless
+	/// Color multiplied with the sampled texels; <see cref="SrgbStraight32.White"/>, i.e. no tint, unless
 	/// set.
 	/// </summary>
-	public SrgbColor32 Tint { get; init; } = SrgbColor32.White;
+	public SrgbStraight32 Tint { get; init; } = SrgbStraight32.White;
 
 	/// <summary>
 	/// The point that the quad is anchored at, scaled around, and rotated around, normalized to the

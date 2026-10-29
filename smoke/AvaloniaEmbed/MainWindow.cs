@@ -118,20 +118,20 @@ public sealed class MainWindow : Window {
 		device.Poll();
 
 		if (surface is not null)
-			if (render(surface, SrgbColor32.Black))
+			if (render(surface, SrgbStraight32.Black))
 				surfaceFrames++;
 
 		double scale = RenderScaling;
 		offscreen!.ResizeTo((uint)Math.Max(1, image.Bounds.Width * scale), (uint)Math.Max(1, image.Bounds.Height * scale));
 		image.Source = offscreen.Bitmap;
-		if (!render(offscreen, new SrgbColor32(0x1e, 0x1e, 0x28)))
+		if (!render(offscreen, new SrgbStraight32(0x1e, 0x1e, 0x28)))
 			offscreenSkipped++;
 
 		status.Text = $"surface {surface?.Format} {surface?.Width}x{surface?.Height} presented {surfaceFrames}, offscreen {offscreen.Width}x{offscreen.Height} presented {offscreenFrames} skipped {offscreenSkipped}";
 		RequestAnimationFrame(onFrame);
 	}
 
-	private bool render(IRenderOutput output, SrgbColor32 clear) {
+	private bool render(IRenderOutput output, SrgbStraight32 clear) {
 		if (!RenderFrame.TryBegin(device!, output, out RenderFrame? frame))
 			return false;
 		using (frame) {
@@ -145,7 +145,7 @@ public sealed class MainWindow : Window {
 					at(0f),
 					at(2f * MathF.PI / 3f),
 					at(4f * MathF.PI / 3f),
-					new SrgbColor32(0x50, 0xc8, 0x78)
+					new SrgbStraight32(0x50, 0xc8, 0x78)
 				);
 			}
 			frame.Submit();

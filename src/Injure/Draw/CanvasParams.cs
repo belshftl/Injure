@@ -76,7 +76,7 @@ public readonly record struct CanvasParams(
 	/// <param name="clearColor">Color the target is cleared to.</param>
 	/// <inheritdoc cref="Primary(Viewport, ColorAttachmentOps)" path="/exception"/>
 	/// <inheritdoc cref="Primary(Viewport, ColorAttachmentOps)" path="/remarks"/>
-	public static CanvasParams Primary(Viewport viewport, SrgbColor32 clearColor) =>
+	public static CanvasParams Primary(Viewport viewport, SrgbStraight32 clearColor) =>
 		Primary(viewport, ColorAttachmentOps.Clear(clearColor.ToRawF128()));
 
 	/// <summary>
@@ -123,7 +123,7 @@ public readonly record struct CanvasParams(
 	/// <inheritdoc cref="Primary(RenderFrame, ColorAttachmentOps, float)" path="/remarks"/>
 	public static CanvasParams Primary(
 		RenderFrame frame,
-		SrgbColor32 clearColor,
+		SrgbStraight32 clearColor,
 		float pixelsPerUnit = 1f
 	) => Primary(frame, ColorAttachmentOps.Clear(clearColor.ToRawF128()), pixelsPerUnit);
 

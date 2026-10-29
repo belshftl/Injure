@@ -34,7 +34,7 @@ namespace Injure.Draw;
 /// </para>
 /// </remarks>
 [StructLayout(LayoutKind.Explicit, Size = Size)]
-public readonly struct Vertex2dTextureColor(float x, float y, float u, float v, SrgbColor32 color) {
+public readonly struct Vertex2dTextureColor(float x, float y, float u, float v, SrgbStraight32 color) {
 	/// <summary>
 	/// X position, at byte offset 0.
 	/// </summary>
@@ -59,7 +59,7 @@ public readonly struct Vertex2dTextureColor(float x, float y, float u, float v, 
 	/// <summary>
 	/// Color at this vertex, at byte offset 16.
 	/// </summary>
-	[FieldOffset(16)] public readonly SrgbColor32 Color = color;
+	[FieldOffset(16)] public readonly SrgbStraight32 Color = color;
 
 	/// <summary>
 	/// Size of a <see cref="Vertex2dTextureColor"/> in bytes. Equal to 20.
@@ -72,7 +72,7 @@ public readonly struct Vertex2dTextureColor(float x, float y, float u, float v, 
 	/// <param name="xy">Position.</param>
 	/// <param name="uv">Texture UV coordinates.</param>
 	/// <param name="color">Color at this vertex, multiplied with the sampled texel.</param>
-	public Vertex2dTextureColor(Vector2 xy, Vector2 uv, SrgbColor32 color) : this(xy.X, xy.Y, uv.X, uv.Y, color) {}
+	public Vertex2dTextureColor(Vector2 xy, Vector2 uv, SrgbStraight32 color) : this(xy.X, xy.Y, uv.X, uv.Y, color) {}
 
 	/// <summary>
 	/// Creates a vertex at <paramref name="xy"/> with UV <paramref name="u"/> + <paramref name="v"/>.
@@ -81,5 +81,5 @@ public readonly struct Vertex2dTextureColor(float x, float y, float u, float v, 
 	/// <param name="u">Texture U coordinate.</param>
 	/// <param name="v">Texture V coordinate.</param>
 	/// <param name="color">Color at this vertex, multiplied with the sampled texel.</param>
-	public Vertex2dTextureColor(Vector2 xy, float u, float v, SrgbColor32 color) : this(xy.X, xy.Y, u, v, color) {}
+	public Vertex2dTextureColor(Vector2 xy, float u, float v, SrgbStraight32 color) : this(xy.X, xy.Y, u, v, color) {}
 }

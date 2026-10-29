@@ -234,17 +234,29 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 		end(null);
 	}
 
-	// releases everything the frame owns, then throws `failure` along with any disposal failures
+	/// <summary>
+	/// Releases everything the frame owns, then throws an aggregate of <paramref name="failure"/>
+	/// plus all disposal failures. Doesn't throw if <paramref name="failure"/> is null and there
+	/// aren't any disposal failures.
+	/// </summary>
 	private void end(Exception? failure) {
+		static void run(Action dispose, ref List<Exception>? failures) {
+			try {
+				dispose();
+			} catch (Exception e) {
+				(failures ??= []).Add(e);
+			}
+		}
+
 		done = true;
 		List<Exception>? failures = failure is null ? null : [failure];
-		// no-op if Finish already ran. RecordFinalCommands throwing mid-pass is the only way to get
-		// here with an active pass; the encoder can't be released then, so it's left to leak
+		// RecordFinalCommands throwing mid-pass is the only way to get here with an active pass, and the
+		// encoder can't be released in the middle of that, so it's left to leak
+		// no-op if Finish already ran
 		if (!encoder.State.ActivePass)
 			run(encoder.Dispose, ref failures);
 		if (primaryOutput is not null)
 			run(primaryOutput.Dispose, ref failures);
-		// reverse registration order, as IDisposalScope promises
 		for (int i = deferred.Count - 1; i >= 0; i--)
 			run(deferred[i].Dispose, ref failures);
 		deferred.Clear();
@@ -254,13 +266,5 @@ public sealed class RenderFrame : IDisposable, IDisposalScope {
 		if (failures.Count == 1)
 			ExceptionDispatchInfo.Throw(failures[0]);
 		throw new AggregateException(failures);
-
-		static void run(Action dispose, ref List<Exception>? failures) {
-			try {
-				dispose();
-			} catch (Exception e) {
-				(failures ??= []).Add(e);
-			}
-		}
 	}
 }

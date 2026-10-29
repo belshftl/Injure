@@ -14,7 +14,7 @@ For structs, the `default` value is just a value of that struct with the all-zer
 
 Injure calls such a `default` value *invalid*, and such a struct *default-is-invalid*.
 
-Some structs' `default` values happen to be perfectly valid, though: for example, `default(SrgbColor32)` has all four of the R/G/B/A fields at 0, so the result is just the color `#00000000`, i.e. `SrgbColor32.Transparent`. For another example, `default(Vector2Int)` has the X/Y fields at 0, which is just the origin point (0, 0). These don't take part in anything this document describes; their docs say what their `default` value represents.
+Some structs' `default` values happen to be perfectly valid, though: for example, `default(SrgbStraight32)` has all four of the R/G/B/A fields at 0, so the result is just the color `#00000000`, i.e. `SrgbStraight32.Transparent`. For another example, `default(Vector2Int)` has the X/Y fields at 0, which is just the origin point (0, 0). These don't take part in anything this document describes; their docs say what their `default` value represents.
 
 ## The solution
 

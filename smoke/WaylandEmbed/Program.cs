@@ -129,7 +129,7 @@ public static class Program {
 		}
 
 		var sw = Stopwatch.StartNew();
-		bool render(IRenderOutput output, SrgbColor32 clear, bool leftHalfOnly) {
+		bool render(IRenderOutput output, SrgbStraight32 clear, bool leftHalfOnly) {
 			if (!RenderFrame.TryBegin(device, output, out RenderFrame? frame))
 				return false;
 			using (frame) {
@@ -145,7 +145,7 @@ public static class Program {
 						at(0f),
 						at(2f * MathF.PI / 3f),
 						at(4f * MathF.PI / 3f),
-						new SrgbColor32(0x50, 0xc8, 0x78)
+						new SrgbStraight32(0x50, 0xc8, 0x78)
 					);
 				}
 				frame.Submit();
@@ -186,11 +186,11 @@ public static class Program {
 				if (child is not null && childOutput is not null) {
 					child.Dispatch();
 					child.Layout();
-					if (render(childOutput, SrgbColor32.Black, leftHalfOnly: false))
+					if (render(childOutput, SrgbStraight32.Black, leftHalfOnly: false))
 						childFrames++;
 				}
 				// presenting the parent also commits the subsurface's position
-				if (render(parentOutput, new SrgbColor32(0x1e, 0x1e, 0x28), leftHalfOnly: true))
+				if (render(parentOutput, new SrgbStraight32(0x1e, 0x1e, 0x28), leftHalfOnly: true))
 					parentFrames++;
 			}
 		} finally {

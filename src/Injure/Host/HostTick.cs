@@ -48,7 +48,8 @@ public readonly struct HostTick : ITimelineInstant<HostTick, HostDuration> {
 	/// <remarks>
 	/// Meant for <see cref="IHostClock"/> implementations and for converting timestamps that are
 	/// known to come from the same clock as the program's <see cref="IHostClock"/>. Using this
-	/// with a timestamp from any other clock silently produces a meaningless value.
+	/// with a timestamp from any other clock silently produces a meaningless value. See
+	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public static HostTick DangerousCreateFromRaw(ulong ns) => new(ns);
 
@@ -57,7 +58,8 @@ public readonly struct HostTick : ITimelineInstant<HostTick, HostDuration> {
 	/// </summary>
 	/// <remarks>
 	/// Meant for <see cref="IHostClock"/> implementations and interop with APIs that use the
-	/// same clock. See <see cref="DangerousCreateFromRaw(ulong)"/>.
+	/// same clock. See <see cref="DangerousCreateFromRaw(ulong)"/> and
+	/// <c>docs/conventions/dangerous-get-create.md</c>.
 	/// </remarks>
 	public ulong DangerousGetRaw() => ns;
 
