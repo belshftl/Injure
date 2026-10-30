@@ -49,7 +49,7 @@ public sealed class TextSystemTests : GpuTestBase {
 	private byte[] render(uint w, uint h, float pixelsPerUnit, Action<OwnedCanvas> draw, TextSystem? text = null) {
 		using GpuTexture target = GpuRig.Target(Device, w, h);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
-			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(w, h), pixelsPerUnit), SrgbStraight32.Black);
+			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(w, h), pixelsPerUnit), CanvasLoadOp.Clear(SrgbStraight32.Black));
 			using (OwnedCanvas canvas = new(frame, in p, text))
 				draw(canvas);
 			frame.Submit();
@@ -689,7 +689,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		TextLayout layout = text.Layout("ab", style(spec(sans)));
 		using GpuTexture target = GpuRig.Target(Device, 16, 12);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
-			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(16, 12)), SrgbStraight32.Black);
+			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(16, 12)), CanvasLoadOp.Clear(SrgbStraight32.Black));
 			using (OwnedCanvas canvas = new(frame, in p)) {
 				canvas.Canvas.Text(layout, Vector2.Zero, SrgbStraight32.White);
 				canvas.Canvas.Text(layout, new Vector2(0f, 2f), SrgbStraight32.White);

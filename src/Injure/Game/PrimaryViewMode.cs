@@ -39,8 +39,10 @@ public readonly struct PrimaryViewMode : IEquatable<PrimaryViewMode>, IHasInvali
 	/// HiDPI and regular displays, which is why this is the default.
 	/// </summary>
 	/// <remarks>
-	/// If there is no additional transform from e.g. <see cref="Draw.CanvasParams.Transform"/>,
-	/// pointer positions coincide with draw coordinates.
+	/// This makes pointer positions coincide with points on the drawable area, so if there is no
+	/// other transform from e.g. <see cref="Draw.CanvasParams.Transform"/>, they also coincide with
+	/// positions of drawn geometry. Still, it's recommended to not rely on that, and properly use
+	/// <see cref="StandardGame.WindowToDrawable(Host.WindowPos)"/> or its delta counterpart.
 	/// </remarks>
 	public static readonly PrimaryViewMode LogicalUnits = new(Kind.LogicalUnits, default, false);
 

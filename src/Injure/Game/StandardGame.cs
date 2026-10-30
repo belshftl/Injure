@@ -27,6 +27,10 @@ namespace Injure.Game;
 /// hook runs on.
 /// </para>
 /// <para>
+/// Notably, there is no <c>OnUpdate()</c>. You're meant to set up a ticker in
+/// <see cref="OnInit()"/> for things like periodic game ticks.
+/// </para>
+/// <para>
 /// Each iteration of the loop: handles pending events (input, surface resizing, then
 /// <see cref="OnEvent(in HostEvent)"/>), reaches the safe boundary for asset reloads, runs due
 /// tickers, renders if a frame is due, and then waits until the next frame/ticker/event (whichever
@@ -37,6 +41,23 @@ namespace Injure.Game;
 /// <see cref="SdlWindow"/>, <see cref="IHostEventSource"/>, <see cref="HostWait"/>,
 /// <see cref="FixedRatePacer"/>, <see cref="TickerScheduler"/>, ...); a game that needs a different
 /// structure is expected to write its own loop from those instead of customizing this one.
+/// </para>
+/// <para>
+/// The recommended way for other code all across the game to access services and controls on this
+/// is through a public static property holding the game instance. Something like:
+/// <code>
+/// // at the class level:
+/// private static MyGame? instance;
+/// public static MyGame I => instance ?? throw new InvalidOperationException("game not currently running");
+///
+/// // in OnInit():
+/// if (Interlocked.CompareExchange(ref instance, this, null) is not null)
+/// 	throw new InvalidOperationException("another instance is already alive");
+///
+/// // in OnShutdown():
+/// Volatile.Write(ref instance, null);
+/// </code>
+/// Code outside this class would then use it like <c>MyGame.I.GpuDevice</c>.
 /// </para>
 /// </remarks>
 public abstract class StandardGame {
@@ -83,12 +104,12 @@ public abstract class StandardGame {
 	/// mod runtime should be given this registry (see <c>ModRuntimeOptions.DiagnosticsSinks</c>) so
 	/// mods' diagnostics and sinks share it.
 	/// </summary>
-	protected DiagnosticsSinkRegistry DiagnosticsSinks { get; }
+	public DiagnosticsSinkRegistry DiagnosticsSinks { get; }
 
 	/// <summary>
 	/// Diagnostics attributed to the game, i.e. to <see cref="StandardGameOptions.GameOwnerId"/>.
 	/// </summary>
-	protected IOwnerDiagnostics Diagnostics { get; }
+	public IOwnerDiagnostics Diagnostics { get; }
 
 	// ==========================================================================
 	// services, available while Run is executing
@@ -98,13 +119,13 @@ public abstract class StandardGame {
 	/// The SDL instance.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected SdlInstance Sdl => current.Sdl;
+	public SdlInstance Sdl => current.Sdl;
 
 	/// <summary>
 	/// The game's window.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected SdlWindow Window => current.Window;
+	public SdlWindow Window => current.Window;
 
 	/// <summary>
 	/// The clock everything in the loop runs on.
@@ -113,37 +134,37 @@ public abstract class StandardGame {
 	/// Thrown if accessed outside of <see cref="Run()"/>, i.e. before <see cref="OnInit()"/> or after
 	/// <see cref="OnShutdown()"/> has returned.
 	/// </exception>
-	protected IHostClock Clock => current.Sdl.Clock;
+	public IHostClock Clock => current.Sdl.Clock;
 
 	/// <summary>
 	/// The event source the loop polls and waits on.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected IHostEventSource Events => current.Sdl.Events;
+	public IHostEventSource Events => current.Sdl.Events;
 
 	/// <summary>
 	/// The WebGPU device.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected GpuDevice GpuDevice => current.GpuDevice;
+	public GpuDevice GpuDevice => current.GpuDevice;
 
 	/// <summary>
 	/// The ticker registry the loop runs.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected ITickerRegistry Tickers => current.Tickers;
+	public ITickerRegistry Tickers => current.Tickers;
 
 	/// <summary>
 	/// Raw input, fed by the loop from <see cref="Events"/>.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected InputSystem Input => current.Input;
+	public InputSystem Input => current.Input;
 
 	/// <summary>
 	/// The action registry.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected ActionRegistry Actions => current.Actions;
+	public ActionRegistry Actions => current.Actions;
 
 	/// <summary>
 	/// The asset store, with the built-in asset types registered.
@@ -152,13 +173,13 @@ public abstract class StandardGame {
 	/// Thrown if <see cref="StandardGameOptions.Assets"/> was not set, or if accessed outside of
 	/// <see cref="Run()"/>.
 	/// </exception>
-	protected AssetStore Assets => current.Assets ?? throw new InvalidOperationException("the asset store is not enabled (StandardGameOptions.Assets)");
+	public AssetStore Assets => current.Assets ?? throw new InvalidOperationException("the asset store is not enabled (StandardGameOptions.Assets)");
 
 	/// <summary>
 	/// The main thread's attachment to <see cref="Assets"/>.
 	/// </summary>
 	/// <inheritdoc cref="Assets" path="/exception"/>
-	protected AssetThreadAttachment AssetMainThreadAttachment => current.AssetAttachment ?? throw new InvalidOperationException("the asset store is not enabled (StandardGameOptions.Assets)");
+	public AssetThreadAttachment AssetMainThreadAttachment => current.AssetAttachment ?? throw new InvalidOperationException("the asset store is not enabled (StandardGameOptions.Assets)");
 
 	/// <summary>
 	/// The text system.
@@ -167,7 +188,7 @@ public abstract class StandardGame {
 	/// Thrown if <see cref="StandardGameOptions.Text"/> was not set, or if accessed outside of
 	/// <see cref="Run()"/>.
 	/// </exception>
-	protected TextSystem Text => current.Text ?? throw new InvalidOperationException("the text system is not enabled (StandardGameOptions.Text)");
+	public TextSystem Text => current.Text ?? throw new InvalidOperationException("the text system is not enabled (StandardGameOptions.Text)");
 
 	/// <summary>
 	/// The primary target's drawable area, per <see cref="StandardGameOptions.PrimaryViewMode"/>.
@@ -190,7 +211,21 @@ public abstract class StandardGame {
 	/// </para>
 	/// </remarks>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected Viewport PrimaryViewport => primaryViewport(current);
+	public Viewport PrimaryViewport => primaryViewport(current);
+
+	/// <summary>
+	/// Creates a target referring to the primary output with <see cref="PrimaryViewport"/> as the
+	/// viewport; shorthand for <see cref="CanvasTarget.Primary(Viewport, CanvasLoadOp)"/>.
+	/// </summary>
+	/// <param name="loadOp">
+	/// What happens to the existing contents when a canvas begins drawing into the target.
+	/// </param>
+	/// <remarks>
+	/// Like <see cref="PrimaryViewport"/>, the result is only valid until the pixel density or the
+	/// surface size changes, so create it each frame rather than caching it.
+	/// </remarks>
+	/// <inheritdoc cref="Clock" path="/exception"/>
+	public CanvasTarget PrimaryTarget(CanvasLoadOp loadOp) => CanvasTarget.Primary(PrimaryViewport, loadOp);
 
 	/// <summary>
 	/// Maps a position in <see cref="Window"/>'s coordinates, e.g. a pointer position, to the primary
@@ -199,10 +234,11 @@ public abstract class StandardGame {
 	/// <param name="pos">Position in window coordinates.</param>
 	/// <remarks>
 	/// This is <see cref="Viewport.FromWindow(WindowPos, float)"/> of <see cref="PrimaryViewport"/> at
-	/// the window's pixel density. The result is before any canvas transform.
+	/// the window's pixel density. The result is a point on the drawable area; map it through the
+	/// inverse of a canvas transform (e.g. a camera) to find the point of geometry drawn under it.
 	/// </remarks>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected Vector2 WindowToDrawable(WindowPos pos) {
+	public Vector2 WindowToDrawable(WindowPos pos) {
 		Session ses = current;
 		return primaryViewport(ses).FromWindow(pos, ses.Window.State.PixelDensity);
 	}
@@ -214,10 +250,12 @@ public abstract class StandardGame {
 	/// <param name="delta">Movement in window coordinates.</param>
 	/// <remarks>
 	/// This is <see cref="Viewport.FromWindow(WindowDelta, float)"/> of <see cref="PrimaryViewport"/>
-	/// at the window's pixel density. The result is before any canvas transform.
+	/// at the window's pixel density. The result is in drawable units; map it through the inverse
+	/// of a canvas transform's linear part (e.g. a camera's zoom) to get it in the units of geometry
+	/// drawn under it.
 	/// </remarks>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected Vector2 WindowToDrawable(WindowDelta delta) {
+	public Vector2 WindowToDrawable(WindowDelta delta) {
 		Session ses = current;
 		return primaryViewport(ses).FromWindow(delta, ses.Window.State.PixelDensity);
 	}
@@ -228,9 +266,6 @@ public abstract class StandardGame {
 	/// <summary>
 	/// Called once everything is set up, before the first loop iteration.
 	/// </summary>
-	/// <remarks>
-	/// There is no <c>OnUpdate()</c>; for periodic ticks, you're meant to set up a ticker here.
-	/// </remarks>
 	protected abstract void OnInit();
 
 	/// <summary>
@@ -263,11 +298,7 @@ public abstract class StandardGame {
 	/// <summary>
 	/// Called once after the loop has ended, before anything is torn down.
 	/// </summary>
-	/// <remarks>
-	/// The default implementation does nothing.
-	/// </remarks>
-	protected virtual void OnShutdown() {
-	}
+	protected abstract void OnShutdown();
 
 	// ==========================================================================
 	// control
@@ -287,7 +318,7 @@ public abstract class StandardGame {
 	/// Thrown if <paramref name="fps"/> is not positive or is not finite.
 	/// </exception>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected void SetMaxFps(double? fps) {
+	public void SetMaxFps(double? fps) {
 		if (fps is double f && (!double.IsFinite(f) || f <= 0.0))
 			throw new ArgumentOutOfRangeException(nameof(fps), f, "must be positive and finite, or null");
 		Session ses = current;
@@ -298,7 +329,7 @@ public abstract class StandardGame {
 	/// Changes the surface present mode policy; applied when the next frame begins.
 	/// </summary>
 	/// <inheritdoc cref="Clock" path="/exception"/>
-	protected void SetPresentModePolicy(SurfacePresentModePolicy policy) =>
+	public void SetPresentModePolicy(SurfacePresentModePolicy policy) =>
 		current.RenderOutput.SetPresentModePolicy(policy);
 
 	// ==========================================================================
@@ -331,7 +362,7 @@ public abstract class StandardGame {
 	/// </remarks>
 	protected OwnedCanvas CreateCanvas(RenderFrame frame) {
 		ArgumentNullException.ThrowIfNull(frame);
-		var p = CanvasParams.Primary(primaryViewport(current), options.ClearColor);
+		var p = CanvasParams.Primary(primaryViewport(current), CanvasLoadOp.Clear(options.ClearColor));
 		return new OwnedCanvas(frame, in p, current.Text);
 	}
 

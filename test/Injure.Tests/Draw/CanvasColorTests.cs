@@ -14,7 +14,7 @@ public sealed class CanvasColorTests(GpuDeviceFixture fixture) : GpuTestBase(fix
 	private static readonly SrgbStraight32 clear = new(30, 30, 40);
 	private static readonly SrgbStraight32 fill = new(80, 200, 120);
 
-	private static CanvasParams baseParams() => CanvasParams.Primary(Viewport.Whole(new Vector2(4, 4)), clear);
+	private static CanvasParams baseParams() => CanvasParams.Primary(Viewport.Whole(new Vector2(4, 4)), CanvasLoadOp.Clear(clear));
 
 	[Fact]
 	public void CanvasWritesSrgbValuesUnchanged() {

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Numerics;
+using Injure.Primitives;
 using WebGPU;
 using static WebGPU.WebGPU;
 
@@ -212,9 +212,9 @@ public sealed unsafe class RenderPass : IDisposable {
 	/// <remarks>
 	/// Defaults to transparent black at the start of the pass.
 	/// </remarks>
-	public void SetBlendConstant(Vector4 rgba) {
+	public void SetBlendConstant(RawColorF128 color) {
 		ObjectDisposedException.ThrowIf(disposed, this);
-		WGPUColor c = new(rgba.X, rgba.Y, rgba.Z, rgba.W);
+		WGPUColor c = color.ToWebgpuColor();
 		wgpuRenderPassEncoderSetBlendConstant(passEnc, &c);
 	}
 

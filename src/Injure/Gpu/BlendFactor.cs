@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Numerics;
 using Injure.DevAnalyzers.Attributes;
+using Injure.Primitives;
 using WebGPU;
 
 namespace Injure.Gpu;
@@ -70,7 +70,7 @@ public readonly partial struct BlendFactor {
 		SrcAlphaSaturated = 11,
 
 		/// <summary>
-		/// The blend constant set with <see cref="RenderPass.SetBlendConstant(Vector4)"/>.
+		/// The blend constant set with <see cref="RenderPass.SetBlendConstant(RawColorF128)"/>.
 		/// </summary>
 		Constant = 12,
 

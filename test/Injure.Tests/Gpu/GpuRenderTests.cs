@@ -216,7 +216,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		BlendComponent useConstant = new(BlendOperation.Add, BlendFactor.Constant, BlendFactor.Zero);
 		using GpuRenderPipeline p = tint.Pipeline(dev, [new ColorTargetState(GpuRig.Format, new BlendState(useConstant, useConstant), ColorWriteMask.All)]);
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
-		drawFullscreen(target, tint, p, 0, pass => pass.SetBlendConstant(new Vector4(1f, 0f, 1f, 1f)));
+		drawFullscreen(target, tint, p, 0, pass => pass.SetBlendConstant(new RawColorF128(1f, 0f, 1f, 1f)));
 		Assert.Equal(new RawColor32(255, 0, 255, 255), GpuRig.At(GpuRig.Read(dev, target), 4, 1, 1));
 	}
 

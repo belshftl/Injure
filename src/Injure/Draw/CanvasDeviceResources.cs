@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Injure.Draw.PixelConv;
 using Injure.Gpu;
+using Injure.Primitives;
 
 namespace Injure.Draw;
 
@@ -23,7 +24,7 @@ internal struct CanvasUniform : IEquatable<CanvasUniform> {
 	public float EdgeValue;
 	public float SoftnessPixels;
 	public float OutlineWidthPixels;
-	public Vector4 OutlineColor;
+	public RawColorF128 OutlineColor;
 
 	public static readonly int Size = Unsafe.SizeOf<CanvasUniform>();
 

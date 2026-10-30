@@ -8,7 +8,7 @@ using Injure.Primitives;
 namespace Injure.Tests.Draw;
 
 public static class CanvasParamsMergeTests {
-	private static readonly CanvasParams baseParams = CanvasParams.Primary(Viewport.Whole(new Vector2(8, 8)), SrgbStraight32.Black);
+	private static readonly CanvasParams baseParams = CanvasParams.Primary(Viewport.Whole(new Vector2(8, 8)), CanvasLoadOp.Clear(SrgbStraight32.Black));
 
 	[Fact]
 	public static void EmptyOverrideKeepsEverything() {
@@ -51,7 +51,7 @@ public static class CanvasParamsMergeTests {
 	[Fact]
 	public static void EffectiveTransformAppliesTheViewportLast() {
 		Viewport vp = new(new Vector2(3, 0), 2f, new Vector2(4, 4));
-		CanvasParams p = CanvasParams.Primary(vp, SrgbStraight32.Black)
+		CanvasParams p = CanvasParams.Primary(vp, CanvasLoadOp.Clear(SrgbStraight32.Black))
 			.Merge(new(Transform: CanvasTransformOverride.Set(Matrix3x2.CreateTranslation(1, 0))));
 		// translated by 1, then scaled by 2 and offset by 3
 		Assert.Equal(new Vector2(5, 0), Vector2.Transform(Vector2.Zero, p.EffectiveTransform));

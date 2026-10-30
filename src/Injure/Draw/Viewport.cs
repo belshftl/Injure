@@ -214,8 +214,9 @@ public readonly struct Viewport : IEquatable<Viewport>, IHasInvalidDefault {
 	/// window needs its own offset applied first.
 	/// </para>
 	/// <para>
-	/// The result is in the drawable area's coordinates, i.e. after <see cref="CanvasParams.Transform"/>.
-	/// To get draw coordinates under a transform, map the result through the inverse of that transform.
+	/// The result is a point on the drawable area. To find which point of geometry drawn under a
+	/// transform (e.g. world coordinates under a camera, see <see cref="Canvas"/>) is under it, map
+	/// the result through the inverse of that transform.
 	/// </para>
 	/// </remarks>
 	public Vector2 FromWindow(WindowPos pos, float pixelDensity) {

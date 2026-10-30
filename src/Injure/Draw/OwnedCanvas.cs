@@ -226,7 +226,7 @@ public sealed class OwnedCanvas : IDisposable {
 		validate(baseParams);
 		arena = res.ArenaPool.Rent(frame);
 		@params.Push(baseParams);
-		openPass(in baseParams);
+		openPass(in baseParams, baseParams.Target.LoadOp);
 		textSystem?.OnCanvasCreated(frame);
 	}
 
@@ -335,7 +335,7 @@ public sealed class OwnedCanvas : IDisposable {
 		CanvasParams old = @params.Peek();
 		CanvasParams @new = old.Merge(in ov);
 		validate(@new);
-		transition(in old, in @new, returning: false);
+		transition(in old, in @new, returning: false, targetPushed: ov.Target is not null);
 		@params.Push(@new);
 		ulong id = nextScopeId++;
 		scopeIds.Push(id);
@@ -428,7 +428,7 @@ public sealed class OwnedCanvas : IDisposable {
 	/// <see cref="CanvasOutputStates.Opaque"/> is used. The scissor (including the clip to the
 	/// drawable area) still applies.
 	/// </summary>
-	internal void Clear(SrgbStraight32 color) {
+	internal void ClearWithinScissor(SrgbStraight32 color) {
 		chk();
 		(uint w, uint h) = targetSize(@params.Peek());
 		Span<Vertex2dTextureColor> dst = reserve(res.White, res.White.BindGroup, untexturedSampling(), textured: false, 4, [0, 2, 1, 3, 1, 2], replace: true);
@@ -545,7 +545,7 @@ public sealed class OwnedCanvas : IDisposable {
 			u.EdgeValue = sdf.EdgeValue;
 			u.SoftnessPixels = sdf.SoftnessPixels;
 			u.OutlineWidthPixels = sdf.OutlineWidthPixels;
-			u.OutlineColor = sdf.OutlineColor.ToRawF128().ToVector4();
+			u.OutlineColor = sdf.OutlineColor.ToRawF128();
 		}
 		return u;
 	}
@@ -571,19 +571,22 @@ public sealed class OwnedCanvas : IDisposable {
 			throw new InternalStateException("CanvasParamsScope tried to pop base canvas params off the stack");
 		scopeIds.Pop();
 		CanvasParams old = @params.Pop();
-		transition(in old, @params.Peek(), returning: true);
+		transition(in old, @params.Peek(), returning: true, targetPushed: false);
 	}
 
 	// output state, material, sampling, and transform changes need no action here, as the next draw starts a
 	// new range if its pipeline or uniform differs, and transforms are applied per vertex
-	private void transition(in CanvasParams from, in CanvasParams to, bool returning) {
+	// `targetPushed` is whether the override set the target itself rather than inheriting it; only a
+	// pushed target's clear applies, since an inherited one was already applied when it was pushed
+	private void transition(in CanvasParams from, in CanvasParams to, bool returning, bool targetPushed) {
 		if (pass is null)
 			throw new InternalStateException("was expecting an open render pass to be there for params transition");
-		if (!from.Target.SameRenderTarget(to.Target) || from.ColorAttachmentOps != to.ColorAttachmentOps) {
+		bool clear = targetPushed && to.Target.LoadOp.IsClear;
+		if (!from.Target.SameRenderTarget(to.Target) || clear) {
 			closeRange();
 			closePass();
 			// returning keeps what was drawn rather than e.g. clearing the target again
-			openPass(returning ? to with { ColorAttachmentOps = ColorAttachmentOps.Load } : to);
+			openPass(in to, returning ? CanvasLoadOp.Load : to.Target.LoadOp);
 		} else if (effectiveScissor(in to) != appliedScissor) {
 			// a viewport change can move the clip without the scissor itself changing
 			closeRange();
@@ -636,12 +639,13 @@ public sealed class OwnedCanvas : IDisposable {
 
 	// ==========================================================================
 	// passes
-	private void openPass(in CanvasParams p) {
+	private void openPass(in CanvasParams p, CanvasLoadOp loadOp) {
 		if (pass is not null)
 			throw new InternalStateException("tried to open a render pass but there's already an active one");
+		ColorAttachmentOps ops = loadOp.ToColorAttachmentOps();
 		pass = p.Target.IsPrimary
-			? frame.BeginPrimaryPass(p.ColorAttachmentOps)
-			: frame.Encoder.BeginColorPass(p.Target.RenderTarget.ColorView, p.ColorAttachmentOps);
+			? frame.BeginPrimaryPass(ops)
+			: frame.Encoder.BeginColorPass(p.Target.RenderTarget.ColorView, ops);
 		setPipeline = null;
 		setUniformChunk = null;
 		setTexture = null;

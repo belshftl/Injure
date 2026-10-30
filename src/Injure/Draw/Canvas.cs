@@ -30,10 +30,19 @@ namespace Injure.Draw;
 /// base of the stack cannot be popped off.
 /// </para>
 /// <para>
-/// Positions and sizes are in <i>draw coordinates</i>, which <see cref="CanvasParams.Transform"/>
-/// maps to the drawable area. With the identity transform, draw coordinates concide with positions
-/// in the drawable area. Every draw is clipped to the drawable area, and to
-/// <see cref="CanvasParams.Scissor"/> within it.
+/// Positions and sizes are in drawable units, i.e. points and lengths on the drawable area.
+/// <see cref="CanvasParams.Transform"/> is an extra transform applied to all drawn geometry before
+/// it's placed on the drawable area; it follows that, with the identity transform, geometry ends
+/// up exactly at the original specified positions. Every draw is clipped to the drawable area, and
+/// to <see cref="CanvasParams.Scissor"/> within it; the scissor isn't affected by the transform.
+/// </para>
+/// <para>
+/// An example use of the transform is a 2D camera: a game has objects with positions in its own
+/// world coordinates, and pushes a transform that maps world coordinates onto the drawable area
+/// (e.g. translating by the negated camera position and scaling by the zoom), so that drawing an
+/// object at its world position puts it onscreen where the camera sees it. Pointer positions from
+/// <see cref="Viewport.FromWindow(Host.WindowPos, float)"/> are on the drawable area, so mapping
+/// them through the inverse of the camera transform gives world coordinates.
 /// </para>
 /// <para>
 /// Draws may be batched; the exact batching behavior is unspecified. Draws are never reordered.
@@ -94,8 +103,8 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 
 	/// <summary>
 	/// The current transform, i.e. <see cref="CanvasParams.Transform"/> of
-	/// <see cref="CurrentParams"/>, mapping draw coordinates to the drawable area. Always invertible
-	/// (see <see cref="MatrixInvert"/>).
+	/// <see cref="CurrentParams"/>, applied to all drawn geometry before it's placed on the drawable
+	/// area. Always invertible (see <see cref="MatrixInvert"/>).
 	/// </summary>
 	/// <remarks>
 	/// Doesn't include the mapping from drawable units to target pixels; see
@@ -110,7 +119,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	public Viewport CurrentViewport => o.CurrentParams.Target.Viewport;
 
 	/// <summary>
-	/// The matrix that maps draw coordinates to pixels of the active target, i.e.
+	/// The matrix that maps drawn geometry to pixels of the active target, i.e.
 	/// <c>CurrentTransform * CurrentViewport.ToPixelsMatrix</c>, or
 	/// <see cref="CanvasParams.EffectiveTransform"/> of <see cref="CurrentParams"/>. Always invertible
 	/// (see <see cref="MatrixInvert"/>).
@@ -157,16 +166,30 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 
 	/// <summary>
 	/// Replaces the active target's contents with <paramref name="color"/>, subject to the current
-	/// scissor.
+	/// scissor. This is the normal "clear" method; there is no plain <c>Clear()</c>.
 	/// </summary>
 	/// <param name="color">Color to fill with.</param>
 	/// <remarks>
-	/// This only affects the drawable area, or the scissor rectangle within it. The current transform, output
-	/// state, and write mask don't apply; the color replaces the target's contents on all channels,
-	/// including alpha. Unlike clearing through <see cref="ColorAttachmentOps"/>, this doesn't end the
-	/// current render pass.
+	/// <para>
+	/// This is unrelated to <see cref="CanvasLoadOp.Clear(SrgbStraight32)"/>.
+	/// <see cref="CanvasLoadOp.Clear(SrgbStraight32)"/> tells the GPU to clear the current contents
+	/// when attaching a render target, whereas this just draws a quad covering the whole target with
+	/// <see cref="CanvasOutputStates.Opaque"/>, ignoring the current transform / output state / write
+	/// mask, and doesn't start a new render pass.
+	/// </para>
+	/// <para>
+	/// The quad, like any other draw, is clipped to the drawable area and the scissor, so only the
+	/// scissor rect (or the whole drawable area if a scissor is not set) is affected. If you want to
+	/// clear the whole drawable area regardless of scissor, push a
+	/// <see cref="CanvasScissorOverride.NoScissor"/>.
+	/// </para>
+	/// <para>
+	/// Thanks to <see cref="CanvasOutputStates.Opaque"/>, this replaces the contents on all channels;
+	/// even if <paramref name="color"/> is non-opaque, it replaces the existing color rather than
+	/// blending with it.
+	/// </para>
 	/// </remarks>
-	public void Clear(SrgbStraight32 color) => o.Clear(color);
+	public void ClearWithinScissor(SrgbStraight32 color) => o.ClearWithinScissor(color);
 
 	// ==========================================================================
 	// primitives
@@ -1215,8 +1238,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// This is the standard way to temporarily change the transform, target, etc. Changing the target
-	/// or color attachment ops ends the current render pass; see <see cref="CanvasParams"/>.
+	/// This is the standard way to temporarily change the transform, target, etc. Changing the render
+	/// target, or pushing a target with <see cref="CanvasLoadOp.Clear(SrgbStraight32)"/>, ends the
+	/// current render pass; see <see cref="CanvasParams"/>.
 	/// </para>
 	/// <para>
 	/// The pushed parameters are <c>CurrentParams.Merge(ov)</c>; see
@@ -1231,8 +1255,9 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <inheritdoc cref="PushParams(in CanvasParamsOverride)" path="/returns"/>
 	/// <remarks>
 	/// <para>
-	/// This is the standard way to temporarily change the transform, target, etc. Changing the target
-	/// or color attachment ops ends the current render pass; see <see cref="CanvasParams"/>.
+	/// This is the standard way to temporarily change the transform, target, etc. Changing the render
+	/// target, or pushing a target with <see cref="CanvasLoadOp.Clear(SrgbStraight32)"/>, ends the
+	/// current render pass; see <see cref="CanvasParams"/>.
 	/// </para>
 	/// <para>
 	/// Convenience overload that builds a <see cref="CanvasParamsOverride"/> from its parameters,
@@ -1242,7 +1267,6 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <inheritdoc cref="PushParams(in CanvasParamsOverride)" path="/exception"/>
 	public CanvasParamsScope PushParams(
 		CanvasTarget? target = null,
-		ColorAttachmentOps? colorAttachmentOps = null,
 		CanvasScissorOverride? scissor = null,
 		CanvasTransformOverride? transform = null,
 		CanvasOutputState? outputState = null,
@@ -1250,11 +1274,10 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 		TexSampling? sampling = null
 	) {
 		ArgumentInvalidDefaultException.ThrowIfDefault(target);
-		ArgumentInvalidDefaultException.ThrowIfDefault(colorAttachmentOps);
 		ArgumentInvalidDefaultException.ThrowIfDefault(scissor);
 		ArgumentInvalidDefaultException.ThrowIfDefault(transform);
 		ArgumentInvalidDefaultException.ThrowIfDefault(material);
-		return o.PushParams(new CanvasParamsOverride(target, colorAttachmentOps, scissor, transform, outputState, material, sampling));
+		return o.PushParams(new CanvasParamsOverride(target, scissor, transform, outputState, material, sampling));
 	}
 
 	/// <summary>
