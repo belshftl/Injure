@@ -54,14 +54,14 @@ public readonly partial struct SurfacePresentModePolicy {
 /// </summary>
 /// <remarks>
 /// <para>
-/// The formats that the surface supports are enumerated from most preferred to least preferred,
-/// and the first format whose sRGB-ness matches is used. If not a single one matches in sRGB-ness,
-/// the most preferred format that has a counterpart that differs only in sRGB-ness is used, and
-/// its sRGB/non-sRGB counterpart is used as a view format. If there still isn't one like that,
-///
-/// A format fits if its sRGB-ness matches, or if it has a counterpart that differs only in
+/// The surface's formats are tried from most to least preferred, and the first one that fits is
+/// used. A format fits if its sRGB-ness matches, or if it has a counterpart that differs only in
 /// sRGB-ness, which is then used as a view format. If the surface supports no fitting format,
 /// <see cref="SurfaceRenderOutput"/> throws <see cref="WebgpuException"/>.
+/// </para>
+/// <para>
+/// "sRGB" refers only to the sRGB transfer function, as in <see cref="TextureFormat"/>. Neither
+/// policy affects which color space the platform takes the presented colors to be in.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
@@ -101,8 +101,13 @@ public readonly partial struct SurfaceFormatPolicy {
 /// it fails, the next <see cref="TryAcquire(out IAcquiredOutput?)"/> tries again.
 /// </para>
 /// <para>
-/// Images acquired from it must be presented or disposed before it's disposed; see
-/// <see cref="RenderFrame"/>. Not thread-safe.
+/// Doesn't convert colors for the display or tell the platform what color space they're in; what
+/// the platform assumes depends on the surface host. For example, <see cref="MacosMetalLayer"/>
+/// and <see cref="Sdl.SdlWindow"/> on macOS tag their layers as sRGB.
+/// </para>
+/// <para>
+/// Images acquired from a <see cref="SurfaceRenderOutput"/> must be presented or disposed before
+/// it's disposed; see <see cref="RenderFrame"/>. Not thread-safe.
 /// </para>
 /// </remarks>
 public sealed unsafe class SurfaceRenderOutput : IRenderOutput {

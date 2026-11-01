@@ -6,7 +6,7 @@ using Injure.DevAnalyzers.Attributes;
 namespace Injure.Primitives;
 
 /// <summary>
-/// Single-precision (f32) float RGBA color with no color space information.
+/// Single-precision (f32) float RGBA color with no color space / premultiplied-ness information.
 /// </summary>
 [ColorF128Type]
 public readonly partial struct RawColorF128 {

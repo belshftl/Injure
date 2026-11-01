@@ -15,10 +15,10 @@ namespace Injure.DevAnalyzers.ColorType;
 public sealed class ColorTypeGenerator : IIncrementalGenerator {
 	// ==========================================================================
 	// internal types
-	private sealed class TargetInfo(INamedTypeSymbol symbol, ColorTypeKind kind, bool straightAlpha) {
+	private sealed class TargetInfo(INamedTypeSymbol symbol, ColorTypeKind kind, string? extraRemarks) {
 		public INamedTypeSymbol Symbol { get; } = symbol;
 		public ColorTypeKind Kind { get; } = kind;
-		public bool StraightAlpha { get; } = straightAlpha;
+		public string? ExtraRemarks { get; } = extraRemarks;
 	}
 
 	// ==========================================================================
@@ -40,18 +40,18 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 			transform: (ctx, ct) => {
 				var sym = (INamedTypeSymbol)ctx.TargetSymbol;
 				return ColorTypeModel.Validate(sym, ctx.Attributes[0], kind, DiagnosticSink.Silent(), ct)
-					? new TargetInfo(sym, kind, straightAlpha(ctx.Attributes[0]))
+					? new TargetInfo(sym, kind, extraRemarks(ctx.Attributes[0]))
 					: null;
 			}
 		);
 		SourceGen.RegisterTargetOutput(context, targets, static info => info.Symbol, Constants.ColorType.GeneratedSourceSuffix, emit);
 	}
 
-	private static bool straightAlpha(AttributeData attr) {
+	private static string? extraRemarks(AttributeData attr) {
 		foreach (KeyValuePair<string, TypedConstant> arg in attr.NamedArguments)
-			if (arg.Key == "StraightAlpha" && arg.Value.Value is bool b)
-				return b;
-		return false;
+			if (arg is { Key: "ExtraRemarks", Value.Value: string s })
+				return s;
+		return null;
 	}
 
 	// ==========================================================================
@@ -67,10 +67,14 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 			ColorTypeKind.ColorF128 => colorF128Template,
 			_ => throw new ArgumentOutOfRangeException(nameof(info)),
 		};
-		string alphaRemark = info.StraightAlpha
-			? "Alpha is straight (not premultiplied), so the color channels hold the color independently of <see cref=\"A\"/>."
-			: "No premultiplied-alpha information is encoded. Check in with the API producing the values.";
-		body = body.Replace("$Self$", self).Replace("$Header$", header).Replace("$AlphaRemark$", alphaRemark);
+		string extraRemarks = info.ExtraRemarks is string extraRemarksBody
+			?
+				"\n" +
+				string.Join("\n", new string[] { "/// <para>" }.Concat(
+					extraRemarksBody.Split('\n').Select(static line => $"/// {line}")
+				).Concat(new string[] { "/// </para>" }))
+			: "";
+		body = body.Replace("$Self$", self).Replace("$Header$", header).Replace("$ExtraRemarks$", extraRemarks);
 		sb.Append(body.Replace("$GeneratedCode$", generatedCodeAttribute()));
 		SourceGen.CloseScopes(sb, info.Symbol);
 		return sb.ToString();
@@ -97,10 +101,7 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 		/// <see cref="uint"/> equivalent (as provided by e.g. <see cref="ReinterpretToU32()"/>) is always
 		/// <c>0xAABBGGRR</c>. This is a platform observation, not a guarantee; the .NET runtime may support
 		/// big-endian targets in the future.
-		/// </para>
-		/// <para>
-		/// $AlphaRemark$
-		/// </para>
+		/// </para>$ExtraRemarks$
 		/// <para>
 		/// The <see langword="default"/> value is valid and is <see cref="Transparent"/>.
 		/// </para>
@@ -558,13 +559,11 @@ public sealed class ColorTypeGenerator : IIncrementalGenerator {
 		/// fixed, not incidental. Safe for FFI, <c>stackalloc $Self$[]</c>, bit/span reinterprets, etc.
 		/// </para>
 		/// <para>
-		/// Components are not clamped, making values outside [0, 1] (e.g. for HDR formats) representable.
-		/// Components are also not validated to be finite; since this is a blittable primitive, meaningful
-		/// validation can't happen. As such, a component may be NaN or infinite.
-		/// </para>
-		/// <para>
-		/// No premultiplied-alpha information is encoded. Check in with the API producing the values.
-		/// </para>
+		/// Components are not clamped into any range or validated to be non-NaN/finite; since this is a
+		/// blittable primitive, meaningful validation can't happen. As such, values outside [0.0, 1.0],
+		/// such as for HDR formats, are representable, and (less usefully) a component may be NaN or
+		/// infinite.
+		/// </para>$ExtraRemarks$
 		/// <para>
 		/// The <see langword="default"/> value is valid and is <see cref="Transparent"/>.
 		/// </para>

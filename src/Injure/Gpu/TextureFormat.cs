@@ -11,6 +11,14 @@ namespace Injure.Gpu;
 /// </summary>
 /// <remarks>
 /// <para>
+/// "sRGB" in format names and in these docs refers only to the sRGB transfer function, and says
+/// nothing about primaries or white point. The hardware automatically decodes the values to linear
+/// when sampling a texture of an sRGB format, and automatically encodes values to sRGB when
+/// rendering into one. That's all an sRGB format does; the values stored in the texture are
+/// unchanged, and uploads write values into the texture as-is with no conversion, and readback
+/// reads them unchanged. Nothing converts colors between color spaces.
+/// </para>
+/// <para>
 /// Compressed formats (BC, ETC2, EAC, ASTC) and <see cref="Depth32FloatStencil8"/> need the
 /// corresponding <see cref="GpuFeatures"/> to be enabled on the device.
 /// </para>
@@ -555,6 +563,9 @@ public readonly partial struct TextureFormat {
 /// <summary>
 /// sRGB-related helpers for <see cref="TextureFormat"/>.
 /// </summary>
+/// <remarks>
+/// "sRGB" refers only to the sRGB transfer function; see <see cref="TextureFormat"/>.
+/// </remarks>
 public static class TextureFormatSrgbExtensions {
 	extension(TextureFormat format) {
 		/// <summary>

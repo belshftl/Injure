@@ -10,15 +10,14 @@ using Injure.DevAnalyzers.Attributes;
 namespace Injure.Primitives;
 
 /// <summary>
-/// 32bpp RGBA color with no color space information. Used for byte data where the meaning is
-/// defined by the API that produced it, e.g. texture readback.
+/// 32bpp RGBA color with no color space / transfer function / premultiplied-ness information. Used
+/// for byte data where the meaning is defined by the API that produced it, e.g. texture readback.
 /// </summary>
 [Color32Type]
 [JsonConverter(typeof(RawColor32JsonConverter))]
 public readonly partial struct RawColor32 {
 	/// <summary>
-	/// Reinterprets this value as if it is sRGB-encoded with straight alpha, without changing the
-	/// bytes.
+	/// Reinterprets this value as if it is sRGB with straight alpha, without changing the bytes.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public ref readonly SrgbStraight32 AssumeSrgbStraight() =>
@@ -30,15 +29,15 @@ public readonly partial struct RawColor32 {
 		ref Unsafe.As<RawColor32, SrgbStraight32>(ref Unsafe.AsRef(in this));
 
 	/// <summary>
-	/// Reinterprets the span as if all of its values are sRGB-encoded with straight alpha, without
-	/// changing the bytes.
+	/// Reinterprets the span as if all of its values are sRGB with straight alpha, without changing
+	/// the bytes.
 	/// </summary>
 	public static ReadOnlySpan<SrgbStraight32> SpanAssumeSrgbStraight(ReadOnlySpan<RawColor32> span) =>
 		MemoryMarshal.Cast<RawColor32, SrgbStraight32>(span);
 
 	/// <summary>
-	/// Reinterprets the span as if all of its values are sRGB-encoded with straight alpha, without
-	/// changing the bytes.
+	/// Reinterprets the span as if all of its values are sRGB with straight alpha, without changing
+	/// the bytes.
 	/// </summary>
 	public static Span<SrgbStraight32> SpanAssumeSrgbStraight(Span<RawColor32> span) =>
 		MemoryMarshal.Cast<RawColor32, SrgbStraight32>(span);

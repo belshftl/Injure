@@ -10,15 +10,19 @@ using Injure.DevAnalyzers.Attributes;
 namespace Injure.Primitives;
 
 /// <summary>
-/// 32bpp RGBA color with sRGB-encoded <see cref="R"/>/<see cref="G"/>/<see cref="B"/> and linear,
-/// straight (not premultiplied) <see cref="A"/>. This is what you want for most colors, including
-/// ones from color pickers and hex codes like <c>#CBA6F7</c>.
+/// 32bpp RGBA color in the sRGB color space, with sRGB-encoded <see cref="R"/>, <see cref="G"/>,
+/// and <see cref="B"/>, and linear, straight (not premultiplied) <see cref="A"/>. This is what you
+/// want for most colors, including ones from color pickers and hex codes like <c>#CBA6F7</c>.
 /// </summary>
-[Color32Type(StraightAlpha = true)]
+[Color32Type(ExtraRemarks = """
+Unlike sRGB texture formats, this means the whole sRGB color space (primaries and white point
+included), as opposed to only the transfer function.
+""")]
 [JsonConverter(typeof(SrgbStraight32JsonConverter))]
 public readonly partial struct SrgbStraight32 {
 	/// <summary>
-	/// Drops the color space and alpha information, without changing the bytes.
+	/// Drops the color space / transfer function / premultiplied-ness information, without changing
+	/// the bytes.
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public ref readonly RawColor32 ToRaw() =>
@@ -30,25 +34,25 @@ public readonly partial struct SrgbStraight32 {
 		ref Unsafe.As<SrgbStraight32, RawColor32>(ref Unsafe.AsRef(in this));
 
 	/// <summary>
-	/// Drops the color space and alpha information of the span, without changing the bytes.
+	/// Drops the color space / transfer function / premultiplied-ness information of the span,
+	/// without changing the bytes.
 	/// </summary>
 	public static ReadOnlySpan<RawColor32> SpanToRaw(ReadOnlySpan<SrgbStraight32> span) =>
 		MemoryMarshal.Cast<SrgbStraight32, RawColor32>(span);
 
 	/// <summary>
-	/// Drops the color space and alpha information of the span, without changing the bytes.
+	/// Drops the color space / transfer function / premultiplied-ness information of the span,
+	/// without changing the bytes.
 	/// </summary>
 	public static Span<RawColor32> SpanToRaw(Span<SrgbStraight32> span) =>
 		MemoryMarshal.Cast<SrgbStraight32, RawColor32>(span);
 
 	/// <summary>
-	/// Normalizes this value to a <see cref="RawColorF128"/>, dropping the color space and alpha
-	/// information with each channel mapped from [0, 255] to [0.0, 1.0].
+	/// Normalizes this value to a <see cref="RawColorF128"/>, dropping the color space /
+	/// premultiplied-ness information and mapping each channel from [0, 255] to [0.0, 1.0].
 	/// </summary>
 	/// <remarks>
-	/// This doesn't decode sRGB or premultiply; the result is still sRGB-encoded with straight
-	/// alpha. This is what a non-sRGB render target expects for its clear value when the rest of
-	/// the frame is drawn with sRGB-encoded values.
+	/// This doesn't decode sRGB or premultiply; the result is still sRGB with straight alpha.
 	/// </remarks>
 	public RawColorF128 ToRawF128() => new(R / 255f, G / 255f, B / 255f, A / 255f);
 }

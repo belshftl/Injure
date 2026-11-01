@@ -9,7 +9,12 @@ namespace Injure.Draw.PixelConv;
 /// Transfer function of stored color channel values, used by <see cref="AlphaPremultiplier"/>.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Only describes the transfer function; primaries and white point are out of scope.
+/// </para>
+/// <para>
 /// The <see langword="default"/> value is invalid.
+/// </para>
 /// </remarks>
 [ClosedEnum(DefaultIsInvalid = true)]
 public readonly partial struct TransferFunction {

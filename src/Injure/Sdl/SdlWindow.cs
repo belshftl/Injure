@@ -190,6 +190,7 @@ public sealed class SdlWindow : IDisposable {
 				metalLayer = SDL.MetalGetLayer(metalView);
 				if (metalLayer == 0)
 					throw FromLastError("SDL_Metal_GetLayer");
+				MacosMetalLayer.SetSrgbColorSpace(metalLayer);
 			}
 			SdlWindow window = new(sdl, handle, metalView, metalLayer, sdlWindowId);
 			sdl.RegisterWindow(sdlWindowId, window);
@@ -213,8 +214,14 @@ public sealed class SdlWindow : IDisposable {
 	/// Thrown if this window has been disposed.
 	/// </exception>
 	/// <remarks>
+	/// <para>
+	/// The layer's color space is set to sRGB, like <see cref="MacosMetalLayer"/>'s, and must not be
+	/// changed.
+	/// </para>
+	/// <para>
 	/// <b>The return type is not a stable API and may change without notice.</b> See
 	/// <c>docs/conventions/dangerous-get-create.md</c>.
+	/// </para>
 	/// </remarks>
 	public nint DangerousGetHandle() {
 		CheckAccess();

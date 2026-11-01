@@ -152,9 +152,9 @@ internal static class Constants {
 			"global::System.AttributeTargets.Struct",
 			"\tinternal sealed class Color32TypeAttribute : global::System.Attribute {\n" +
 			"\t\t/// <summary>\n" +
-			"\t\t/// Documents the type as holding straight alpha rather than unspecified.\n" +
+			"\t\t/// Extra paragraph of remarks to add to the doc comment.\n" +
 			"\t\t/// </summary>\n" +
-			"\t\tpublic bool StraightAlpha { get; set; }\n" +
+			"\t\tpublic string? ExtraRemarks { get; set; }\n" +
 			"\t}"
 		);
 
@@ -162,7 +162,12 @@ internal static class Constants {
 		public const string ColorF128AttributeFilename = "ColorF128TypeAttribute.g.cs";
 		public static readonly string ColorF128AttributeSource = attributeSource(
 			"global::System.AttributeTargets.Struct",
-			"\tinternal sealed class ColorF128TypeAttribute : global::System.Attribute {}"
+			"\tinternal sealed class ColorF128TypeAttribute : global::System.Attribute {\n" +
+			"\t\t/// <summary>\n" +
+			"\t\t/// Extra paragraph of remarks to add to the doc comment.\n" +
+			"\t\t/// </summary>\n" +
+			"\t\tpublic string? ExtraRemarks { get; set; }\n" +
+			"\t}"
 		);
 
 		public const string GeneratedSourceSuffix = ".ColorType.g.cs";

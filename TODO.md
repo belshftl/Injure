@@ -88,7 +88,7 @@ anyhow, to v0.1:
   - [x] move the load op from `CanvasParams.ColorAttachmentOps` onto `CanvasTarget` as a required `CanvasLoadOp` (`CanvasLoadOp.Load`, `CanvasLoadOp.Clear(SrgbStraight32)`) and remove the implicit cast from `RenderTarget2d`
   - [x] rename `Canvas.Clear` to `Canvas.ClearWithinScissor`, and document publicly that it draws an opaque quad over the whole target rather than using a load op
   - [x] revisit the pixel converter's api (moved up because it got higher priority), and add premultiplication in linear light as a separate `AlphaPremultiplier`
-  - [ ] document somewhere (or everywhere) that "srgb" refers to exclusively the srgb transfer function; there's currently no code at all that handles e.g. color gamut mapping or conversion, it all just goes to the display as-is
+  - [x] document somewhere (or everywhere) that "srgb" refers to exclusively the srgb transfer function; there's currently no code at all that handles e.g. color gamut mapping or conversion, it all just goes to the display as-is
   - [ ] split texture / render target types by contract:
     - [ ] `SrgbTexture2d`: speifically of an srgb `TextureFormat` (`Rgba8UnormSrgb`, `Bgra8UnormSrgb`, or a block-compressed srgb format); contents are premultiplied, srgb-encoded color, stored as such, so there's a single view and the hardware decodes before filtering. check the compression features and block-aligned sizes up front, since validation errors kill the process by default and throwing out of the handler isn't an option
     - [ ] `RawTexture2d`: any `TextureFormat`, requires passing in a raw-texture material with the draw to be drawn; no mip generation, upload takes a mip level
@@ -124,6 +124,7 @@ anyhow, to v0.1:
     - [ ] msaa on the primary output; it should require the caller to provide a suitable multisampled texture rather than internally manage one
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`
+    - [ ] presentation color space by platform: on macOS, `SdlWindow` and `MacosMetalLayer` tag their `CAMetalLayer`s as srgb (an untagged layer also presents as srgb as of macos 15, but that's only observed behavior), so the display maps the colors correctly; on windows, swapchains default to srgb but the sdr compositor only maps to wide-gamut displays with windows 11's auto color management on, so wide-gamut displays usually oversaturate; on wayland, untagged surfaces are treated as srgb and only mapped by compositors with color management set up (wgpu-native doesn't use the color management protocol); on x11, window contents aren't color-managed. windows and linux are unverified
   - [ ] primary docs for `Draw`, `docs/draw/`
     - [ ] resolution independence: "logical unit" is defined by pixel density, not display/content scale; pixel art presents in physical pixels at an integer scale (density only matters for input and initial window size), resolution-independent content uses logical units; mention fractional density, macos scaled display modes, and display scale on windows
   - [ ] `Draw`-less triangle tutorial under `docs/gpu/`, maybe also an example with something like msaa

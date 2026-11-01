@@ -137,9 +137,7 @@ public sealed partial class MacosMetalLayer : IDisposable {
 		nint layer = Native.objc_msgSend(Native.objc_msgSend(Native.objc_getClass("CAMetalLayer"), Native.Sel("alloc")), Native.Sel("init"));
 		if (layer == 0)
 			throw new InvalidOperationException("couldn't create a CAMetalLayer");
-		nint srgb = Native.CGColorSpaceCreateWithName(Native.SrgbColorSpaceName());
-		Native.objc_msgSend(layer, Native.Sel("setColorspace:"), srgb);
-		Native.CGColorSpaceRelease(srgb);
+		SetSrgbColorSpace(layer);
 
 		// messages to nil return 0, so a view without a window gets the 1.0 fallback
 		double scale = Native.objc_msgSend__double(Native.objc_msgSend(nsView, Native.Sel("window")), Native.Sel("backingScaleFactor"));
@@ -149,6 +147,38 @@ public sealed partial class MacosMetalLayer : IDisposable {
 		Native.objc_msgSend(nsView, Native.Sel("setLayer:"), layer);
 		Native.objc_msgSend(nsView, Native.Sel("setWantsLayer:"), true);
 		return new MacosMetalLayer(layer);
+	}
+
+	/// <remarks>
+	/// <para>
+	/// Apple's documentation states that setting <c>colorspace</c> to <c>nil</c> makes the rendered
+	/// content not color-matched, so <c>kCGColorSpaceSRGB</c> must be set explicitly. See
+	/// <see href="https://developer.apple.com/documentation/quartzcore/cametallayer/colorspace"/>,
+	/// and as a supplementary,
+	/// <see href="https://developer.apple.com/forums/thread/724223?answerId=744185022#744185022"/>.
+	/// </para>
+	/// <para>
+	/// Or at least that is in theory. I did some testing by setting <c>colorspace</c> on the Metal
+	/// layer obtained through <see cref="Sdl.SdlWindow.DangerousGetMetalLayer()"/>, on a Mac with a
+	/// Display P3 display, and <c>nil</c> behaved the exact same as <c>kCGColorSpaceSRGB</c>; drawing
+	/// pure red displayed <c>#EA3323</c>, which is exactly sRGB <c>#FF0000</c> converted to Display
+	/// P3. Explicitly setting <c>kCGColorSpaceDisplayP3</c>, though, displayed <c>#FF0000</c>, and
+	/// was visibly more saturated than the <c>nil</c>/<c>kCGColorSpaceSRGB</c> one. So I don't really
+	/// know what's going on. My best guess is that "not color-matched" applies to the layer only, and
+	/// <c>NSWindow.colorSpace</c> wins if the layer's <c>colorspace</c> is <c>nil</c>, and that its
+	/// default value is sRGB (or is set to sRGB by SDL3); there is no documented default value for
+	/// <c>NSWindow.colorSpace</c>, only a note that it's <c>nil</c> if the window doesn't have a
+	/// backing store and is off-screen.
+	/// </para>
+	/// <para>
+	/// Either way, that's just observed behavior, and it costs basically nothing to explicitly set it
+	/// to <c>kCGColorSpaceSRGB</c>, which <see cref="Sdl.SdlWindow"/> does.
+	/// </para>
+	/// </remarks>
+	internal static void SetSrgbColorSpace(nint layer) {
+		nint srgb = Native.CGColorSpaceCreateWithName(Native.SrgbColorSpaceName());
+		Native.objc_msgSend(layer, Native.Sel("setColorspace:"), srgb);
+		Native.CGColorSpaceRelease(srgb);
 	}
 
 	/// <summary>
