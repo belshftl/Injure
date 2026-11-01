@@ -6,16 +6,51 @@ using Injure.DevAnalyzers.Attributes;
 namespace Injure.Draw.PixelConv;
 
 /// <summary>
-/// Identifies a pixel storage format.
+/// How pixels are stored in memory.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Unless explicitly otherwise noted, pixels are tightly packed with no padding.
-/// For example, four RGB24 pixels occupy 12 bytes, not e.g 16.
+/// Pixels are tightly packed with no padding; for example, four <see cref="Rgb24Unorm"/> pixels
+/// occupy 12 bytes, not e.g. 16.
 /// </para>
 /// <para>
-/// Only storage is described; higher-level semantics such as premultiplied alpha,
-/// transfer function, or colorspace are not encoded.
+/// Each format's name specifies, in order:
+/// <list type="number">
+/// <item><description>
+/// The channels, for example <c>Rgb</c> for red+green+blue or <c>La</c> for luminance+alpha, in
+/// the same order the bytes are stored in memory, and MSB to LSB within a byte.
+/// </description></item>
+/// <item><description>
+/// If the format is not packed (see below), the amount of bits in a whole pixel, for example
+/// <c>24</c>; if the format is packed, the amount of bits in each channel, in the same order as
+/// the earlier-specified channels, for example <c>565</c> or <c>4444</c>.
+/// </description></item>
+/// <item><description>
+/// Numeric kind of the channels, for example <c>Unorm</c>.
+/// </description></item>
+/// <item><description>
+/// If the format is packed, <c>PackN</c> where <c>N</c> is the amount of bits in a whole pixel,
+/// for example <c>Pack16</c>. This is what defines whether the format is packed or not.
+/// </description></item>
+/// <item><description>
+/// If the format is not packed and has more than one byte per channel, the byte order <b>within
+/// each channel</b>; if the format is packed, the byte order <b>within one pixel</b>. Byte order
+/// is listed as either <c>Le</c> for little-endian or <c>Be</c> for big-endian.
+/// </description></item>
+/// </list>
+/// </para>
+/// <para>
+/// Converting <b>from</b> a gray format (<see cref="L8Unorm"/> and <see cref="La16Unorm"/>) writes
+/// the gray value into each color channel of the destination. Converting <b>to</b> a gray format
+/// is disallowed unless the source format has exactly one channel (e.g. <see cref="R8Unorm"/>),
+/// which converts to gray as-is. The rationale is that there is no unopinionated way to convert an
+/// arbitrary color image to grayscale; the sanest default would be something like Rec. 709 luma
+/// weights, which is still not one-size-fits-all and a bit out of scope for
+/// <see cref="PixelFormatConverter"/>.
+/// </para>
+/// <para>
+/// Only storage is described; premultiplied alpha, transfer function, and color space aren't
+/// encoded.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
@@ -26,120 +61,160 @@ public readonly partial struct PixelFormat {
 	/// <summary>Raw switch tag for <see cref="PixelFormat"/>.</summary>
 	public enum Case {
 		/// <summary>
-		/// RGBA stored as four 8-bit unsigned normalized channels.
+		/// RGBA as four 8-bit unsigned normalized channels, in that order in memory.
 		/// </summary>
-		Rgba32_Unorm = 1,
+		Rgba32Unorm = 1,
 
 		/// <summary>
-		/// BGRA stored as four 8-bit unsigned normalized channels.
+		/// BGRA as four 8-bit unsigned normalized channels, in that order in memory.
 		/// </summary>
-		Bgra32_Unorm,
+		Bgra32Unorm,
 
 		/// <summary>
-		/// ARGB stored as four 8-bit unsigned normalized channels.
+		/// ARGB as four 8-bit unsigned normalized channels, in that order in memory.
 		/// </summary>
-		Argb32_Unorm,
+		Argb32Unorm,
 
 		/// <summary>
-		/// ABGR stored as four 8-bit unsigned normalized channels.
+		/// ABGR as four 8-bit unsigned normalized channels, in that order in memory.
 		/// </summary>
-		Abgr32_Unorm,
+		Abgr32Unorm,
 
 		/// <summary>
-		/// RGBA stored as four 16-bit unsigned normalized channels in little-endian channel byte order.
+		/// RGBA as four 16-bit unsigned normalized channels, in that order in memory, with the
+		/// bytes within each channel in little-endian order.
 		/// </summary>
-		Rgba64_Unorm_Le,
+		Rgba64UnormLe,
 
 		/// <summary>
-		/// RGBA stored as four 16-bit unsigned normalized channels in big-endian channel byte order.
+		/// RGBA as four 16-bit unsigned normalized channels, in that order in memory, with the
+		/// bytes within each channel in big-endian order.
 		/// </summary>
-		Rgba64_Unorm_Be,
+		Rgba64UnormBe,
 
 		/// <summary>
-		/// BGRA stored as four 16-bit unsigned normalized channels in little-endian channel byte order.
+		/// BGRA as four 16-bit unsigned normalized channels, in that order in memory, with the
+		/// bytes within each channel in little-endian order.
 		/// </summary>
-		Bgra64_Unorm_Le,
+		Bgra64UnormLe,
 
 		/// <summary>
-		/// BGRA stored as four 16-bit unsigned normalized channels in big-endian channel byte order.
+		/// BGRA as four 16-bit unsigned normalized channels, in that order in memory, with the
+		/// bytes within each channel in big-endian order.
 		/// </summary>
-		Bgra64_Unorm_Be,
+		Bgra64UnormBe,
 
 		/// <summary>
-		/// ARGB stored as four 16-bit unsigned normalized channels in little-endian channel byte order.
+		/// ARGB as four 16-bit unsigned normalized channels, in that order in memory, with the
+		/// bytes within each channel in little-endian order.
 		/// </summary>
-		Argb64_Unorm_Le,
+		Argb64UnormLe,
 
 		/// <summary>
-		/// ARGB stored as four 16-bit unsigned normalized channels in big-endian channel byte order.
+		/// ARGB as four 16-bit unsigned normalized channels, in that order in memory, with the
+		/// bytes within each channel in big-endian order.
 		/// </summary>
-		Argb64_Unorm_Be,
+		Argb64UnormBe,
 
 		/// <summary>
-		/// ABGR stored as four 16-bit unsigned normalized channels in little-endian channel byte order.
+		/// ABGR as four 16-bit unsigned normalized channels, in that order in memory, with the
+		/// bytes within each channel in little-endian order.
 		/// </summary>
-		Abgr64_Unorm_Le,
+		Abgr64UnormLe,
 
 		/// <summary>
-		/// ABGR stored as four 16-bit unsigned normalized channels in big-endian channel byte order.
+		/// ABGR as four 16-bit unsigned normalized channels, in that order in memory, with the
+		/// bytes within each channel in big-endian order.
 		/// </summary>
-		Abgr64_Unorm_Be,
+		Abgr64UnormBe,
 
 		/// <summary>
-		/// A single 8-bit unsigned normalized red channel.
+		/// R as one 8-bit unsigned normalized channel.
 		/// </summary>
-		R8_Unorm,
+		/// <remarks>
+		/// Can convert to a gray format, since it's exactly one channel.
+		/// </remarks>
+		R8Unorm,
 
 		/// <summary>
-		/// Red + green stored as two 8-bit unsigned normalized channels.
+		/// RG as two 8-bit unsigned normalized channels, in that order in memory.
 		/// </summary>
-		Rg16_Unorm,
+		Rg16Unorm,
 
 		/// <summary>
-		/// RGB stored as three 8-bit unsigned normalized channels.
+		/// Gray (L) as one 8-bit unsigned normalized channel. Is a gray format.
 		/// </summary>
-		Rgb24_Unorm,
+		/// <remarks>
+		/// <para>
+		/// As with any gray format, converting to this format is disallowed unless the source format has
+		/// exactly one channel.
+		/// </para>
+		/// <para>
+		/// "L" stands for "luminance".
+		/// </para>
+		/// </remarks>
+		L8Unorm,
 
 		/// <summary>
-		/// BGR stored as three 8-bit unsigned normalized channels.
+		/// Gray and alpha (LA) as two 8-bit unsigned normalized channels, in that order in memory. Is a
+		/// gray format.
 		/// </summary>
-		Bgr24_Unorm,
+		/// <remarks>
+		/// <para>
+		/// As with any gray format, converting to this format is disallowed unless the source format has
+		/// exactly one channel.
+		/// </para>
+		/// <para>
+		/// "L" stands for "luminance".
+		/// </para>
+		/// </remarks>
+		La16Unorm,
 
 		/// <summary>
-		/// BGR stored as three 5:6:5 unsigned normalized channels packed into
-		/// 16 bits in little-endian byte order.
+		/// RGB as three 8-bit unsigned normalized channels, in that order in memory.
 		/// </summary>
-		Bgr565_UnormPack16_Le,
+		Rgb24Unorm,
 
 		/// <summary>
-		/// BGR stored as three 5:6:5 unsigned normalized channels packed into
-		/// 16 bits in big-endian byte order.
+		/// BGR as three 8-bit unsigned normalized channels, in that order in memory.
 		/// </summary>
-		Bgr565_UnormPack16_Be,
+		Bgr24Unorm,
 
 		/// <summary>
-		/// RGBA stored as four 4-bit unsigned normalized channels packed into
-		/// 16 bits in little-endian byte order.
+		/// RGB as 5-, 6-, and 5-bit unsigned normalized channels packed into 16 bits from the
+		/// most to the least significant bit, with the bytes within the pixel in little-endian order.
 		/// </summary>
-		Rgba4444_UnormPack16_Le,
+		Rgb565UnormPack16Le,
 
 		/// <summary>
-		/// RGBA stored as four 4-bit unsigned normalized channels packed into
-		/// 16 bits in big-endian byte order.
+		/// RGB as 5-, 6-, and 5-bit unsigned normalized channels packed into 16 bits from the
+		/// most to the least significant bit, with the bytes within the pixel in big-endian order.
 		/// </summary>
-		Rgba4444_UnormPack16_Be,
+		Rgb565UnormPack16Be,
 
 		/// <summary>
-		/// RGBA stored as four 5:5:5:1 unsigned normalized channels packed into
-		/// 16 bits in little-endian byte order.
+		/// RGBA as four 4-bit unsigned normalized channels packed into 16 bits from the
+		/// most to the least significant bit, with the bytes within the pixel in little-endian order.
 		/// </summary>
-		Rgba5551_UnormPack16_Le,
+		Rgba4444UnormPack16Le,
 
 		/// <summary>
-		/// RGBA stored as four 5:5:5:1 unsigned normalized channels packed into
-		/// 16 bits in big-endian byte order.
+		/// RGBA as four 4-bit unsigned normalized channels packed into 16 bits from the
+		/// most to the least significant bit, with the bytes within the pixel in big-endian order.
 		/// </summary>
-		Rgba5551_UnormPack16_Be,
+		Rgba4444UnormPack16Be,
+
+		/// <summary>
+		/// RGBA as 5-, 5-, 5-, and 1-bit unsigned normalized channels packed into 16 bits from the
+		/// most to the least significant bit, with the bytes within the pixel in little-endian order.
+		/// </summary>
+		Rgba5551UnormPack16Le,
+
+		/// <summary>
+		/// RGBA as 5-, 5-, 5-, and 1-bit unsigned normalized channels packed into 16 bits from the
+		/// most to the least significant bit, with the bytes within the pixel in big-endian order.
+		/// </summary>
+		Rgba5551UnormPack16Be,
 	}
 }
 
@@ -185,7 +260,8 @@ internal readonly struct PixelFormatDesc(
 	sbyte rIndex,
 	sbyte gIndex,
 	sbyte bIndex,
-	sbyte aIndex
+	sbyte aIndex,
+	bool isGray = false
 ) : IHasInvalidDefault {
 	public readonly PixelFormatFamily Family = family;
 	public readonly PixelNumericKind NumericKind = numericKind;
@@ -211,6 +287,8 @@ internal readonly struct PixelFormatDesc(
 	public readonly sbyte GIndex = gIndex;
 	public readonly sbyte BIndex = bIndex;
 	public readonly sbyte AIndex = aIndex;
+
+	public readonly bool IsGray = isGray;
 
 	bool IHasInvalidDefault.IsDefault => BytesPerPixel == 0;
 }

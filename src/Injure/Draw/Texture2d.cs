@@ -161,7 +161,7 @@ public sealed class Texture2d : IAssetStoreDisposable {
 
 	/// <summary>
 	/// The pixel format that
-	/// <see cref="Upload(ReadOnlySpan{byte}, int, PixelFormat, PixelConvertOptions)"/> converts
+	/// <see cref="Upload(ReadOnlySpan{byte}, int, PixelFormat, PixelFormatConvertOptions)"/> converts
 	/// uploaded data to.
 	/// </summary>
 	public PixelFormat UploadPixelFormat { get; }
@@ -245,8 +245,8 @@ public sealed class Texture2d : IAssetStoreDisposable {
 	/// <param name="srcStride">Stride of <paramref name="src"/> in bytes (not pixels).</param>
 	/// <param name="srcFmt">Pixel format of <paramref name="src"/>.</param>
 	/// <param name="opts">Pixel conversion options.</param>
-	/// <inheritdoc cref="Upload(int, int, ReadOnlySpan{byte}, int, PixelFormat, int, int, PixelConvertOptions)" path="/exception"/>
-	public void Upload(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt, PixelConvertOptions opts = default) =>
+	/// <inheritdoc cref="Upload(int, int, ReadOnlySpan{byte}, int, PixelFormat, int, int, PixelFormatConvertOptions)" path="/exception"/>
+	public void Upload(ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt, PixelFormatConvertOptions opts = default) =>
 		Upload(0, 0, src, srcStride, srcFmt, checked((int)Width), checked((int)Height), opts);
 
 	/// <summary>
@@ -267,17 +267,15 @@ public sealed class Texture2d : IAssetStoreDisposable {
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if the rectangle extends past the texture, if <paramref name="srcStride"/> is smaller
-	/// than a tightly packed row of <paramref name="width"/> pixels, or if <paramref name="src"/> is
-	/// too small for the rectangle.
-	/// </exception>
-	/// <exception cref="InvalidOperationException">
-	/// Thrown if converting from <paramref name="srcFmt"/> would narrow, drop alpha, or drop color
-	/// channels without the corresponding <see cref="ConversionFlags"/> in <paramref name="opts"/>.
+	/// than a tightly packed row of <paramref name="width"/> pixels, if <paramref name="src"/> is
+	/// too small for the rectangle, or if converting from <paramref name="srcFmt"/> would narrow,
+	/// drop alpha, or drop color channels without the corresponding
+	/// <see cref="PixelFormatConversionFlags"/> in <paramref name="opts"/>.
 	/// </exception>
 	/// <exception cref="ObjectDisposedException">
 	/// Thrown if the texture has been disposed.
 	/// </exception>
-	public void Upload(int x, int y, ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt, int width, int height, PixelConvertOptions opts = default) {
+	public void Upload(int x, int y, ReadOnlySpan<byte> src, int srcStride, PixelFormat srcFmt, int width, int height, PixelFormatConvertOptions opts = default) {
 		chk();
 		ArgumentInvalidDefaultException.ThrowIfDefault(srcFmt);
 		ArgumentOutOfRangeException.ThrowIfNegative(x);
@@ -288,7 +286,7 @@ public sealed class Texture2d : IAssetStoreDisposable {
 		if ((uint)x + (uint)width > Width || (uint)y + (uint)height > Height)
 			throw new ArgumentException("upload rectangle is out of bounds of the texture");
 
-		byte[] converted = PixelConverter.Convert(src, srcStride, srcFmt, UploadPixelFormat, out int dstStride, width, height, opts);
+		byte[] converted = PixelFormatConverter.Convert(src, srcStride, srcFmt, UploadPixelFormat, width, height, opts, out int dstStride);
 		device.WriteToTexture(
 			texture,
 			new GpuTextureRegion(
@@ -367,10 +365,10 @@ public sealed class Texture2d : IAssetStoreDisposable {
 	};
 
 	private static PixelFormat getUploadPixelFormat(Texture2dFormat fmt) => fmt.Tag switch {
-		Texture2dFormat.Case.R8Unorm => PixelFormat.R8_Unorm,
-		Texture2dFormat.Case.Rg16Unorm => PixelFormat.Rg16_Unorm,
-		Texture2dFormat.Case.Rgba32Unorm => PixelFormat.Rgba32_Unorm,
-		Texture2dFormat.Case.Bgra32Unorm => PixelFormat.Bgra32_Unorm,
+		Texture2dFormat.Case.R8Unorm => PixelFormat.R8Unorm,
+		Texture2dFormat.Case.Rg16Unorm => PixelFormat.Rg16Unorm,
+		Texture2dFormat.Case.Rgba32Unorm => PixelFormat.Rgba32Unorm,
+		Texture2dFormat.Case.Bgra32Unorm => PixelFormat.Bgra32Unorm,
 		_ => throw new UnreachableException(),
 	};
 

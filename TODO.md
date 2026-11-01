@@ -87,22 +87,41 @@ anyhow, to v0.1:
   - [x] replace view matrices with a uniform scale + transform + drawable area size, named something like `Viewport`, and introduce the concept of drawable units; also make scissors work in drawable units
   - [x] move the load op from `CanvasParams.ColorAttachmentOps` onto `CanvasTarget` as a required `CanvasLoadOp` (`CanvasLoadOp.Load`, `CanvasLoadOp.Clear(SrgbStraight32)`) and remove the implicit cast from `RenderTarget2d`
   - [x] rename `Canvas.Clear` to `Canvas.ClearWithinScissor`, and document publicly that it draws an opaque quad over the whole target rather than using a load op
-  - [ ] blend in linear light and document as such, and key everything on the target so encoded blending can be added as an option later
+  - [x] revisit the pixel converter's api (moved up because it got higher priority), and add premultiplication in linear light as a separate `AlphaPremultiplier`
+  - [ ] document somewhere (or everywhere) that "srgb" refers to exclusively the srgb transfer function; there's currently no code at all that handles e.g. color gamut mapping or conversion, it all just goes to the display as-is
+  - [ ] split texture / render target types by contract:
+    - [ ] `SrgbTexture2d`: speifically of an srgb `TextureFormat` (`Rgba8UnormSrgb`, `Bgra8UnormSrgb`, or a block-compressed srgb format); contents are premultiplied, srgb-encoded color, stored as such, so there's a single view and the hardware decodes before filtering. check the compression features and block-aligned sizes up front, since validation errors kill the process by default and throwing out of the handler isn't an option
+    - [ ] `RawTexture2d`: any `TextureFormat`, requires passing in a raw-texture material with the draw to be drawn; no mip generation, upload takes a mip level
+    - [ ] drop `Texture2dFormat` and make uploads take data already in the texture's format, with no internal `PixelConv` conversion. also look into how uploads/subrects work for block-compressed formats and add appropriate documentation regarding them to `Gpu` too
+    - [ ] arbitrary mip level count, from 1 up to the full chain length (throw above it), this should replace both the mips on/off setting and `Texture2dMipFilter`, document that minifying past the last level aliases; ideally figure out how to still keep "full mip chain" as an option without the caller having to manually compute that number
+    - [ ] add `UploadToMip` to textures, uploading a sub-rect to a given level, that works for any format and doesn't do any automatic mip generation
+    - [ ] make `SrgbTexture2d.Upload` upload to the base level and regenerates the levels below it right away, with no lazy regeneration, and throw for compressed formats even with a single level, so that raising the mip level count doesn't make it start throwing. document that every upload regenerates the whole chain, so many sub-rect uploads should be batched; it may be useful to keep around `GenerateMips` to allow the user to `UploadToMip` to the base level a bunch of times and regenerate once; `SrgbTexture2d.Upload` can't viably premultiply for you for compressed formats, so premultiplication will be left to the caller, so the `GpuTexture` can probably now be just exposed as `SrgbTexture2d.GpuTexture` rather than a `DangerousGet` accessor
+    - [ ] rename `RenderTarget2d` to `SrgbRenderTarget2d`, with srgb color formats only (validated like `SrgbTexture2d`) and readback giving premultiplied srgb values, remove depth/stencil from it, along with the depth bind group layouts and helpers in `DrawDeviceResources`
+    - [ ] rename `Texture2dSlice` to `DrawableTextureSlice` and document that it's a `DrawableTexture` too, so it can be sliced further; raw textures don't need a slice type / `DrawableTexture`-like type yet
+    - [ ] update the texture asset creator appropriately, think about how mip level count selection from the json should go such that both manually selecting a mip level count and having it automatically pick a count that amounts to a full chain is possible
+  - [ ] blend in linear light and document as such; if encoded blending may become an option later, key everything on the target, but first think about whether that's viable since textures and render targets are currently all in srgb formats
+    - [ ] switch `OwnedCanvas.validate` to accept targets that are srgb, have an srgb counterpart (rendered through it), or are float; switch `StandardGame` and the smoke projects to `SurfaceFormatPolicy.Srgb`
+    - [ ] decode vertex colors in the vertex shader; convert clear colors and the sdf outline color to linear on the cpu (internal at first but should probably be made public by the time custom materials are implemented)
   - [ ] premultiplied alpha internally, straight alpha in public api inputs
     - [x] rename `SrgbColor32` to `SrgbStraight32` and make it specifically straight alpha
-    - [ ] premultiply texture uploads (in linear light) unless flagged as already premultiplied
-    - [ ] replace raw `BlendState`s in `CanvasOutputState` with a `CanvasBlendMode`, with `static readonly` presets (normal, additive, screen, opaque, and a multiply that's only exact over opaque destinations and is named to say so; difference isn't expressible with fixed-function blending) plus a `Raw(BlendState)` factory with the "operating on premul alpha" note documented; drop `CanvasOutputState`/`CanvasOutputStates`. make the blend mode and the write mask separate params
+    - [ ] replace raw `BlendState`s in `CanvasOutputState` with a `CanvasBlendMode`, with `static readonly` presets: `Normal`, `Additive` (alpha accumulates), `Screen`, `MultiplyOverOpaque` (only exact over opaque destinations), `Subtract` (`dst - src`, keeping destination's alpha), and `Opaque`, plus a `Raw(BlendState)` documented to say it operates on premultiplied alpha; document the alpha behavior of each preset. drop `CanvasOutputState`/`CanvasOutputStates`, and make the blend mode and the write mask separate params
+    - [ ] `Raw` blend states using `BlendFactor.Constant` need a way to set the blend constant through `Canvas`
   - [ ] fix the sdf shader (it currently adds the fill's rgb into the outline-only region), after the premul/linear items since that changes the right formula
-  - [ ] antialiasing, e.g. msaa render targets, i'm not sure if the primary target should have that as an option too but it probably should
-    - [ ] msaa offscreen render targets; make them own the multisampled texture and the single-sample resolve texture, and expose the latter as their color texture; store the multisampled samples rather than discarding them, since any later `Load` (also in later frames) needs them; revisit that later once our wgpu-native bindings are updated to v28, where transient attachments are added
-    - [ ] msaa on the primary output; it should require the caller to provide a suitable multisampled texture rather than internally manage one
-  - [ ] custom shaders/materials, shader assets
-    - [ ] rework materials: make `TextureInterpretation` internal and `CanvasMaterial` opaque, with `Color`, `ColorAreaWeighted`, `Rmask`, `RmaskAreaWeighted`, and `Sdf(SdfParams)`, moving `AreaWeighted` out of `TexFilter` into the materials; the area-weighted materials and `Sdf` should require `TexFilter.Linear` through one shared restriction mechanism
+  - [ ] custom materials, material assets
+    - [ ] rework materials into three types, making `TextureInterpretation` internal and moving `AreaWeighted` out of `TexFilter` into materials:
+      - shape materials, built-in: `Normal`. (note, a custom material that doesn't sample a texture at all is still correct, ours sampling the 1x1 white texture is just an optimization to not swap out the shader in the pipeline)
+      - srgb texture materials, built-in: `Normal`, `AreaWeightedUpscaling`
+      - raw texture materials, built-in: `LinearPremulColor`, `Rmask`, `Sdf(SdfParams)`, all documented to expect a `float`-sampleable texture; i don't really see a use in `RmaskAreaWeighted`, probably drop it
+    - [ ] shape and srgb texture materials are on `CanvasParams`, whereas raw texture materials are passed with each draw; `Canvas.Texture()` draws `DrawableTexture`s, and a new `Canvas.RawTexture()` is added to draw raw textures. document that text is drawn with raw textures and as such ignores the srgb material
+    - [ ] raw texture materials declare the texture sample type they expect, and `Canvas` checks the texture's format against that at draw time; the bind group layout can differ per material
     - [ ] move the sampler into group 0 next to the canvas uniform (one group 0 bind group per uniform chunk and sampling, created lazily), freeing up group 2 for custom materials
-    - [ ] custom materials from a user-supplied fragment module (wgsl or spir-v), with the public shader api contract being fixed input locations (uv, color), `Draw`'s bindings at groups 0/1, groups 2/3 for the material, and one premultiplied linear color output; they should be able to declare layouts for bind groups 2 and 3 and pass the actual bind groups at draw time
+    - [ ] custom materials (of each of the three types) from a user-supplied fragment module (wgsl or spir-v), with the public shader api contract being fixed input locations (uv, color), `Draw`'s bindings at groups 0/1, groups 2/3 for the material, and one premultiplied linear color output; they should be able to declare layouts for bind groups 2 and 3 and pass the actual bind groups at draw time
     - [ ] some opt-in "shader parameters" system, with a per-draw blob written into the arena with a dynamic offset like the canvas uniform, so per-draw values don't run into queue writes all executing before the frame's submit; make sure there isn't e.g. a bind group specifically reserved for this, and that you can just not use it. also check whether wgpu-native allows a hole at group 2 in a pipeline layout
-    - [ ] a system to let each material declare whether it applies to shapes (untextured draws) or not, and a filter restriction (unrestricted / nearest only / linear only); add `TexFilter.PreferNearest`/`PreferLinear`, resolving to the material's allowed filter if there's a restriction and the namesake filter otherwise, with `PreferNearest` as the default sampling, which should also fix the current `Sdf` annoyance where you have to explicitly specify `Linear`
+    - [ ] materials declare a filter restriction (unrestricted / nearest only / linear only); add `TexFilter.PreferNearest`/`PreferLinear`, resolving to the material's allowed filter if there's a restriction and the namesake filter otherwise, with `PreferNearest` as the default sampling, which should also fix the current `Sdf` annoyance where you have to explicitly specify `Linear`
     - [ ] add some kind of low-level api that ends the current draw range and gives you the `RenderPass` with the current scissor applied, for a draw with a user-built pipeline
+  - [ ] antialiasing, e.g. msaa render targets, i'm not sure if the primary target should have that as an option too but it probably should
+    - [ ] msaa offscreen render targets; make `SrgbRenderTarget2d` own the multisampled texture and the single-sample resolve texture, and expose the latter as their color texture; store the multisampled samples rather than discarding them, since any later `Load` (also in later frames) needs them; revisit that later once our wgpu-native bindings are updated to v28, where transient attachments are added
+    - [ ] msaa on the primary output; it should require the caller to provide a suitable multisampled texture rather than internally manage one
 - [ ] write dedicated docs for `Gpu`/`Draw`:
   - [ ] primary docs for `Gpu`, `docs/gpu/`
   - [ ] primary docs for `Draw`, `docs/draw/`
@@ -164,13 +183,13 @@ anyhow, to v0.1:
 - [ ] finish off the asset system: come up with a way for mods to properly override assets, and write dedicated docs
 - [ ] get back to `Draw` and add more:
   - [ ] textured geometry beyond quads: textured triangles/meshes, arbitrary-corner textured quads (`Vertex2dTextureColor` has no draw call taking it yet)
-  - [ ] more blend presets in `CanvasOutputStates`, e.g. additive and multiply
-  - [ ] masking/clipping beyond rects, e.g. stencil-based clip to shape (`RenderTarget2d` already supports a depth/stencil format but `Canvas` never attaches it)
+  - [ ] masking/clipping beyond rects, e.g. stencil-based clip to shape (needs some depth/stencil target design, since `SrgbRenderTarget2d` drops depth/stencil)
+  - [ ] a vertex attribute for shapes with the position before `CanvasParams.Transform`, so custom shape materials can do more than flat colors (gradients, patterns) with uniforms in the coordinates the shape was drawn in
+  - [ ] other render target types (e.g. float, or ones for raw textures), so things like masks and lightmaps can be drawn into with `Canvas`
   - [ ] layering/sorting by depth or explicit layer instead of strict call order
   - [ ] retained geometry: static meshes, tilemaps, instancing for many identical sprites
-  - [ ] revisit the pixel converter, pt 1: revisit the api (though i'm not sure if it actually needs a redesign or if it's fine as is)
-  - [ ] revisit the pixel converter, pt 2: write benchmarks, it's probably the part of the whole library that benefits the most from having benchmarks
-  - [ ] revisit the pixel converter, pt 3: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement
+  - [ ] revisit the pixel converter, pt 1: write benchmarks, it's probably the part of the whole library that benefits the most from having benchmarks
+  - [ ] revisit the pixel converter, pt 2: write more vectorized kernels; they could also be considered for being scrapped if they don't seem to be a genuine performance improvement but i'd expect the harder-to-auto-vectorize cases to be an improvement
   - [ ] pixel converter dedicated docs
 - [ ] get back to the text renderer and add more:
   - [ ] pt 4, more layout features:
@@ -179,7 +198,7 @@ anyhow, to v0.1:
     - [ ] letter spacing
     - [ ] knuth-plass line wrap mode
   - [ ] pt 5, queries: hit testing, caret positions, selection rects; text input would need this
-  - [ ] pt 6, rendering features: underline/strikethrough, outlines/shadows, color glyphs (RGBA atlas pages and a non-mask material)
+  - [ ] pt 6, rendering features: underline/strikethrough, outlines/shadows, color glyphs (`SrgbTexture2d` atlas pages and a non-mask material)
   - [ ] dedicated docs, `docs/draw/text/`
 - [ ] add support for more things to the input system:
   - [ ] support per-gamepad bindings

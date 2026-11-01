@@ -157,7 +157,7 @@ internal sealed class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, int pageW
 			return false;
 		}
 		GlyphAtlasPage page = alloc(glyph.Width, glyph.Height, out int x, out int y);
-		page.Texture.Upload(x, y, glyph.Pixels, srcStride: glyph.Width, PixelFormat.R8_Unorm, glyph.Width, glyph.Height);
+		page.Texture.Upload(x, y, glyph.Pixels, srcStride: glyph.Width, PixelFormat.R8Unorm, glyph.Width, glyph.Height);
 		entry = new GlyphAtlasEntry(page, new RectI(x, y, glyph.Width, glyph.Height), glyph.Left, glyph.Top);
 		page.Keys.Add(key);
 		page.LastUseStamp = ++nextUseStamp;

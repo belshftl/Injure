@@ -118,7 +118,7 @@ public sealed class Texture2dAssetCreator(GpuDevice gpuDevice) : IAssetStagedCre
 			_ => throw new InvalidDataException($"invalid {nameof(Texture2dAssetMips)} value '{p.Metadata.Mips}'"),
 		};
 		Texture2d tex = new(gpuDevice, new Texture2dParams(w, h, fmt, mips));
-		tex.Upload(src, checked((int)srcStride), PixelFormat.Rgba32_Unorm);
+		tex.Upload(src, checked((int)srcStride), PixelFormat.Rgba32Unorm);
 		return tex;
 	}
 }

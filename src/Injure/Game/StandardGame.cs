@@ -57,7 +57,7 @@ namespace Injure.Game;
 /// // in OnShutdown():
 /// Volatile.Write(ref instance, null);
 /// </code>
-/// Code outside this class would then use it like <c>MyGame.I.GpuDevice</c>.
+/// Code outside <c>MyGame</c> would then use it like <c>MyGame.I.GpuDevice</c>.
 /// </para>
 /// </remarks>
 public abstract class StandardGame {

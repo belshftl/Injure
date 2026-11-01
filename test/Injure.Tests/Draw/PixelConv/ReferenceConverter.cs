@@ -18,6 +18,7 @@ public enum ReferenceFamily {
 	Narrow64To32,
 	Packed16To32,
 	Unpacked32ToPacked16,
+	Generic,
 }
 
 public static class ReferenceConverter {
@@ -65,7 +66,7 @@ public static class ReferenceConverter {
 		PixelFormat dstFmt,
 		int width,
 		int height,
-		in PixelConvertOptions opts
+		in PixelFormatConvertOptions opts
 	) {
 		return family switch {
 			ReferenceFamily.Copy32SetAlpha => Copy32SetAlpha(src, srcStride, srcFmt, width, height, opts.Alpha16Unorm),
@@ -77,6 +78,7 @@ public static class ReferenceConverter {
 			ReferenceFamily.Narrow64To32 => Narrow64To32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
 			ReferenceFamily.Packed16To32 => Packed16To32(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
 			ReferenceFamily.Unpacked32ToPacked16 => Unpacked32ToPacked16(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
+			ReferenceFamily.Generic => Generic(src, srcStride, srcFmt, dstFmt, width, height, opts.Alpha16Unorm, opts.OverrideAlpha),
 			_ => throw new UnreachableException(),
 		};
 	}
@@ -392,44 +394,176 @@ public static class ReferenceConverter {
 		return dst;
 	}
 
+	// every channel goes through 16-bit unorm; missing color channels decode as 0, missing alpha
+	// decodes as the fill alpha, gray decodes into all three color channels, and encoding gray
+	// takes R
+	public static byte[] Generic(
+		ReadOnlySpan<byte> src,
+		int srcStride,
+		PixelFormat srcFmt,
+		PixelFormat dstFmt,
+		int width,
+		int height,
+		ushort a16unorm,
+		bool overrideAlpha
+	) {
+		int srcBpp = Util.GetBytesPerPixel(srcFmt);
+		int dstBpp = Util.GetBytesPerPixel(dstFmt);
+		int srcRowBytes = checked(width * srcBpp);
+		int dstRowBytes = checked(width * dstBpp);
+		validate(src, srcStride, srcRowBytes, width, height);
+
+		byte[] dst = new byte[checked(dstRowBytes * height)];
+		for (int y = 0; y < height; y++) {
+			ReadOnlySpan<byte> s = src.Slice(y * srcStride, srcRowBytes);
+			Span<byte> d = dst.AsSpan(y * dstRowBytes, dstRowBytes);
+			for (int x = 0; x < width; x++) {
+				decode16(s.Slice(x * srcBpp, srcBpp), srcFmt, a16unorm, out ushort r, out ushort g, out ushort b, out ushort a);
+				if (overrideAlpha)
+					a = a16unorm;
+				encode16(d.Slice(x * dstBpp, dstBpp), dstFmt, r, g, b, a);
+			}
+		}
+		return dst;
+	}
+
+	private static void decode16(ReadOnlySpan<byte> s, PixelFormat fmt, ushort a16unorm, out ushort r, out ushort g, out ushort b, out ushort a) {
+		r = g = b = 0;
+		a = a16unorm;
+		switch (Util.GetBytesPerPixel(fmt)) {
+		case 1:
+			r = widen8To16(s[0]);
+			if (fmt == PixelFormat.L8Unorm)
+				g = b = r;
+			return;
+		case 2 when fmt == PixelFormat.Rg16Unorm:
+			r = widen8To16(s[0]);
+			g = widen8To16(s[1]);
+			return;
+		case 2 when fmt == PixelFormat.La16Unorm:
+			r = g = b = widen8To16(s[0]);
+			a = widen8To16(s[1]);
+			return;
+		case 2:
+			Packed16Layout pl = packed16LayoutFor(fmt);
+			ushort packed = readU16(s, 0, pl.IsBigEndian);
+			r = scaleNTo16((uint)packed >> pl.RShift & bitmask(pl.RBits), pl.RBits);
+			g = scaleNTo16((uint)packed >> pl.GShift & bitmask(pl.GBits), pl.GBits);
+			b = scaleNTo16((uint)packed >> pl.BShift & bitmask(pl.BBits), pl.BBits);
+			if (pl.ABits != 0)
+				a = scaleNTo16((uint)packed >> pl.AShift & bitmask(pl.ABits), pl.ABits);
+			return;
+		case 3:
+			Rgb24Layout l3 = rgb24LayoutFor(fmt);
+			r = widen8To16(s[l3.RIndex]);
+			g = widen8To16(s[l3.GIndex]);
+			b = widen8To16(s[l3.BIndex]);
+			return;
+		case 4:
+			Rgba32Layout l4 = rgba32LayoutFor(fmt);
+			r = widen8To16(s[l4.RIndex]);
+			g = widen8To16(s[l4.GIndex]);
+			b = widen8To16(s[l4.BIndex]);
+			a = widen8To16(s[l4.AIndex]);
+			return;
+		case 8:
+			Rgba64Layout l8 = rgba64LayoutFor(fmt);
+			r = readU16(s, l8.RIndex * 2, l8.IsBigEndian);
+			g = readU16(s, l8.GIndex * 2, l8.IsBigEndian);
+			b = readU16(s, l8.BIndex * 2, l8.IsBigEndian);
+			a = readU16(s, l8.AIndex * 2, l8.IsBigEndian);
+			return;
+		default:
+			throw new UnreachableException();
+		}
+	}
+
+	private static void encode16(Span<byte> d, PixelFormat fmt, ushort r, ushort g, ushort b, ushort a) {
+		switch (Util.GetBytesPerPixel(fmt)) {
+		case 1:
+			d[0] = narrow16To8(r);
+			return;
+		case 2 when fmt == PixelFormat.Rg16Unorm:
+			d[0] = narrow16To8(r);
+			d[1] = narrow16To8(g);
+			return;
+		case 2 when fmt == PixelFormat.La16Unorm:
+			d[0] = narrow16To8(r);
+			d[1] = narrow16To8(a);
+			return;
+		case 2:
+			Packed16Layout pl = packed16LayoutFor(fmt);
+			uint packed = 0;
+			packed |= scale16ToN(r, pl.RBits) << pl.RShift;
+			packed |= scale16ToN(g, pl.GBits) << pl.GShift;
+			packed |= scale16ToN(b, pl.BBits) << pl.BShift;
+			if (pl.ABits != 0)
+				packed |= scale16ToN(a, pl.ABits) << pl.AShift;
+			writeU16(d, 0, pl.IsBigEndian, (ushort)packed);
+			return;
+		case 3:
+			Rgb24Layout l3 = rgb24LayoutFor(fmt);
+			d[l3.RIndex] = narrow16To8(r);
+			d[l3.GIndex] = narrow16To8(g);
+			d[l3.BIndex] = narrow16To8(b);
+			return;
+		case 4:
+			Rgba32Layout l4 = rgba32LayoutFor(fmt);
+			d[l4.RIndex] = narrow16To8(r);
+			d[l4.GIndex] = narrow16To8(g);
+			d[l4.BIndex] = narrow16To8(b);
+			d[l4.AIndex] = narrow16To8(a);
+			return;
+		case 8:
+			Rgba64Layout l8 = rgba64LayoutFor(fmt);
+			writeU16(d, l8.RIndex * 2, l8.IsBigEndian, r);
+			writeU16(d, l8.GIndex * 2, l8.IsBigEndian, g);
+			writeU16(d, l8.BIndex * 2, l8.IsBigEndian, b);
+			writeU16(d, l8.AIndex * 2, l8.IsBigEndian, a);
+			return;
+		default:
+			throw new UnreachableException();
+		}
+	}
+
 	private static Rgb24Layout rgb24LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.Rgb24_Unorm => new Rgb24Layout(0, 1, 2),
-		PixelFormat.Case.Bgr24_Unorm => new Rgb24Layout(2, 1, 0),
+		PixelFormat.Case.Rgb24Unorm => new Rgb24Layout(0, 1, 2),
+		PixelFormat.Case.Bgr24Unorm => new Rgb24Layout(2, 1, 0),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
 	private static Rgba32Layout rgba32LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.Rgba32_Unorm => new Rgba32Layout(0, 1, 2, 3),
-		PixelFormat.Case.Bgra32_Unorm => new Rgba32Layout(2, 1, 0, 3),
-		PixelFormat.Case.Argb32_Unorm => new Rgba32Layout(1, 2, 3, 0),
-		PixelFormat.Case.Abgr32_Unorm => new Rgba32Layout(3, 2, 1, 0),
+		PixelFormat.Case.Rgba32Unorm => new Rgba32Layout(0, 1, 2, 3),
+		PixelFormat.Case.Bgra32Unorm => new Rgba32Layout(2, 1, 0, 3),
+		PixelFormat.Case.Argb32Unorm => new Rgba32Layout(1, 2, 3, 0),
+		PixelFormat.Case.Abgr32Unorm => new Rgba32Layout(3, 2, 1, 0),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
 	private static Rgba64Layout rgba64LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.Rgba64_Unorm_Le => new Rgba64Layout(0, 1, 2, 3, false),
-		PixelFormat.Case.Bgra64_Unorm_Le => new Rgba64Layout(2, 1, 0, 3, false),
-		PixelFormat.Case.Argb64_Unorm_Le => new Rgba64Layout(1, 2, 3, 0, false),
-		PixelFormat.Case.Abgr64_Unorm_Le => new Rgba64Layout(3, 2, 1, 0, false),
+		PixelFormat.Case.Rgba64UnormLe => new Rgba64Layout(0, 1, 2, 3, false),
+		PixelFormat.Case.Bgra64UnormLe => new Rgba64Layout(2, 1, 0, 3, false),
+		PixelFormat.Case.Argb64UnormLe => new Rgba64Layout(1, 2, 3, 0, false),
+		PixelFormat.Case.Abgr64UnormLe => new Rgba64Layout(3, 2, 1, 0, false),
 
-		PixelFormat.Case.Rgba64_Unorm_Be => new Rgba64Layout(0, 1, 2, 3, true),
-		PixelFormat.Case.Bgra64_Unorm_Be => new Rgba64Layout(2, 1, 0, 3, true),
-		PixelFormat.Case.Argb64_Unorm_Be => new Rgba64Layout(1, 2, 3, 0, true),
-		PixelFormat.Case.Abgr64_Unorm_Be => new Rgba64Layout(3, 2, 1, 0, true),
+		PixelFormat.Case.Rgba64UnormBe => new Rgba64Layout(0, 1, 2, 3, true),
+		PixelFormat.Case.Bgra64UnormBe => new Rgba64Layout(2, 1, 0, 3, true),
+		PixelFormat.Case.Argb64UnormBe => new Rgba64Layout(1, 2, 3, 0, true),
+		PixelFormat.Case.Abgr64UnormBe => new Rgba64Layout(3, 2, 1, 0, true),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
 
 	private static Packed16Layout packed16LayoutFor(PixelFormat fmt) => fmt.Tag switch {
-		PixelFormat.Case.Bgr565_UnormPack16_Le => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, false),
-		PixelFormat.Case.Rgba4444_UnormPack16_Le => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, false),
-		PixelFormat.Case.Rgba5551_UnormPack16_Le => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, false),
+		PixelFormat.Case.Rgb565UnormPack16Le => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, false),
+		PixelFormat.Case.Rgba4444UnormPack16Le => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, false),
+		PixelFormat.Case.Rgba5551UnormPack16Le => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, false),
 
-		PixelFormat.Case.Bgr565_UnormPack16_Be => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, true),
-		PixelFormat.Case.Rgba4444_UnormPack16_Be => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, true),
-		PixelFormat.Case.Rgba5551_UnormPack16_Be => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, true),
+		PixelFormat.Case.Rgb565UnormPack16Be => new Packed16Layout(5, 6, 5, 0, 11, 5, 0, 0, true),
+		PixelFormat.Case.Rgba4444UnormPack16Be => new Packed16Layout(4, 4, 4, 4, 12, 8, 4, 0, true),
+		PixelFormat.Case.Rgba5551UnormPack16Be => new Packed16Layout(5, 5, 5, 1, 11, 6, 1, 0, true),
 
 		_ => throw new ArgumentOutOfRangeException(nameof(fmt)),
 	};
@@ -477,5 +611,23 @@ public static class ReferenceConverter {
 			return val;
 		uint max = bitmask(bits);
 		return (val * max + 0x7fu) / 0xffu;
+	}
+
+	private static ushort scaleNTo16(uint val, int bits) {
+		if (bits <= 0)
+			return 0;
+		if (bits == 16)
+			return (ushort)val;
+		uint max = bitmask(bits);
+		return (ushort)((val * 0xffffu + (max >> 1)) / max);
+	}
+
+	private static uint scale16ToN(ushort val, int bits) {
+		if (bits <= 0)
+			return 0;
+		if (bits == 16)
+			return val;
+		uint max = bitmask(bits);
+		return (val * max + 0x7fffu) / 0xffffu;
 	}
 }

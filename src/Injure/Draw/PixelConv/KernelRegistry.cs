@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 
 namespace Injure.Draw.PixelConv;
 
-using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte*, byte*, nuint, void>;
+using unsafe Kernel = delegate *<ref readonly PixelFormatConversionPlan, byte*, byte*, nuint, void>;
 
 /// <remarks>
 /// The <see langword="default"/> value is invalid.

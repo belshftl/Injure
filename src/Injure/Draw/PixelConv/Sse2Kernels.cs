@@ -8,7 +8,7 @@ using System.Runtime.Intrinsics.X86;
 namespace Injure.Draw.PixelConv;
 
 internal static unsafe class Sse2Kernels {
-	public static void Copy32SetAlpha(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
+	public static void Copy32SetAlpha(ref readonly PixelFormatConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Copy32SetAlphaPayload pl = ref plan.Payload.Copy32SetAlpha;
 		nuint px = pxCount & ~(nuint)0b11;
 		nuint bytes = px * 4u;
@@ -24,7 +24,7 @@ internal static unsafe class Sse2Kernels {
 			ScalarKernels.Copy32SetAlpha(in plan, src + bytes, dst + bytes, tail);
 	}
 
-	public static void Copy64SetAlpha(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
+	public static void Copy64SetAlpha(ref readonly PixelFormatConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Copy64SetAlphaPayload pl = ref plan.Payload.Copy64SetAlpha;
 		nuint px = pxCount & ~(nuint)0b1;
 		nuint bytes = px * 8u;

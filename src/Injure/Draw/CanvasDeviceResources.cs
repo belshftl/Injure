@@ -116,7 +116,7 @@ internal sealed class CanvasDeviceResources : IDisposable {
 		uint align = device.Limits.MinUniformBufferOffsetAlignment;
 		UniformStride = ((uint)CanvasUniform.Size + align - 1) / align * align;
 		White = new Texture2d(device, 1, 1);
-		White.Upload([0xff, 0xff, 0xff, 0xff], 4, PixelFormat.Rgba32_Unorm);
+		White.Upload([0xff, 0xff, 0xff, 0xff], 4, PixelFormat.Rgba32Unorm);
 		ArenaPool = new CanvasArenaPool(this);
 	}
 

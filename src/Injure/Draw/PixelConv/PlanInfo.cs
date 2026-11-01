@@ -19,8 +19,8 @@ public readonly partial struct PlanExecutionPath {
 		/// There is no conversion; a byte-for-byte copy will be done.
 		/// </summary>
 		/// <remarks>
-		/// Used when input/output formats match and no additional channel override/etc.
-		/// transforms are needed.
+		/// Used when the source and destination formats match, and alpha either isn't overridden
+		/// or the format has no alpha.
 		/// </remarks>
 		Memcpy = 1,
 
@@ -41,8 +41,8 @@ public readonly partial struct PlanExecutionPath {
 /// </summary>
 /// <remarks>
 /// <para>
-/// Informational only; backend selection is not a stable API and may vary
-/// by runtime, hardware, library version, or even the input.
+/// Informational only; backend selection isn't a stable API, and can vary by runtime, hardware,
+/// library version, or even the input.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is <see cref="None"/>.
@@ -85,13 +85,12 @@ public readonly partial struct PlanBackend {
 }
 
 /// <summary>
-/// Provides informational details about how a <see cref="PixelConversionPlan"/>
-/// will execute.
+/// Informational details about how a <see cref="PixelFormatConversionPlan"/> executes.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Informational only; backend selection is not a stable API and may vary
-/// by runtime, hardware, library version, or even the input.
+/// Informational only; backend selection isn't a stable API, and can vary by runtime, hardware,
+/// library version, or even the input.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.

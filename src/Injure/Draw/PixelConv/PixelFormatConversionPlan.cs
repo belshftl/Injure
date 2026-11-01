@@ -3,7 +3,7 @@
 
 namespace Injure.Draw.PixelConv;
 
-using unsafe Kernel = delegate *<ref readonly PixelConversionPlan, byte*, byte*, nuint, void>;
+using unsafe Kernel = delegate *<ref readonly PixelFormatConversionPlan, byte*, byte*, nuint, void>;
 
 internal enum PlanKind : byte {
 	Memcpy,
@@ -25,22 +25,22 @@ internal enum PlanKind : byte {
 }
 
 /// <summary>
-/// Represents a prepared pixel conversion from one storage format to another.
+/// A prepared pixel conversion from one storage format to another.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Plans are immutable and may be reused for any inputs that share the same
-/// formats and conversion options.
+/// Plans are immutable, and can be reused for any number of conversions with the same formats and
+/// options.
 /// </para>
 /// <para>
-/// Plan creation is cheap and largely involves validation, path/backend selection,
-/// and precomputing things such as SIMD masks.
+/// Plan creation is cheap, and mostly consists of validation, path and backend selection, and
+/// precomputing things such as SIMD masks.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
+public readonly unsafe struct PixelFormatConversionPlan : IHasInvalidDefault {
 	internal readonly PlanKind Kind;
 	internal readonly Kernel Kernel;
 
@@ -48,8 +48,8 @@ public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
 	internal readonly PixelFormatDesc DstDesc;
 	internal readonly PayloadUnion Payload;
 
-	internal readonly byte Alpha8UNorm;
-	internal readonly ushort Alpha16UNorm;
+	internal readonly byte Alpha8Unorm;
+	internal readonly ushort Alpha16Unorm;
 
 	/// <summary>
 	/// Source pixel format.
@@ -62,9 +62,9 @@ public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
 	public PixelFormat DestinationFormat { get; }
 
 	/// <summary>
-	/// Conversion options that will be used.
+	/// Conversion options.
 	/// </summary>
-	public PixelConvertOptions Options { get; }
+	public PixelFormatConvertOptions Options { get; }
 
 	/// <summary>
 	/// Informational details about the selected execution path.
@@ -81,10 +81,10 @@ public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
 	/// </summary>
 	public int DestinationBytesPerPixel => DstDesc.BytesPerPixel;
 
-	internal PixelConversionPlan(
+	internal PixelFormatConversionPlan(
 		PixelFormat srcFmt,
 		PixelFormat dstFmt,
-		PixelConvertOptions opts,
+		PixelFormatConvertOptions opts,
 		PlanKind kind,
 		PlanInfo info,
 		Kernel kernel,
@@ -104,8 +104,8 @@ public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
 		DstDesc = dstDesc;
 		Payload = payload;
 
-		Alpha8UNorm = ConverterCore.Narrow16To8(opts.Alpha16Unorm);
-		Alpha16UNorm = opts.Alpha16Unorm;
+		Alpha8Unorm = ConverterCore.Narrow16To8(opts.Alpha16Unorm);
+		Alpha16Unorm = opts.Alpha16Unorm;
 	}
 
 	/// <summary>
@@ -113,15 +113,20 @@ public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
 	/// </summary>
 	/// <param name="src">Source row.</param>
 	/// <param name="dst">Destination buffer.</param>
-	/// <param name="pxCount">Amount of pixels to read from <paramref name="src"/>, convert, and write into <paramref name="dst"/>.</param>
-	/// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="pxCount"/> is negative.</exception>
+	/// <param name="pxCount">
+	/// Number of pixels to read from <paramref name="src"/>, convert, and write into
+	/// <paramref name="dst"/>.
+	/// </param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if <paramref name="pxCount"/> is negative.
+	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> are too small to hold the
-	/// requested amount of pixels in the selected format.
+	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> is too small for
+	/// <paramref name="pxCount"/> pixels in its format.
 	/// </exception>
 	/// <remarks>
-	/// <paramref name="src"/> and <paramref name="dst"/> must not overlap; currently,
-	/// no attempt is made to check if they overlap.
+	/// <paramref name="src"/> and <paramref name="dst"/> must not overlap; if they do, the output is
+	/// unspecified.
 	/// </remarks>
 	public void ConvertRow(ReadOnlySpan<byte> src, Span<byte> dst, int pxCount) {
 		ArgumentOutOfRangeException.ThrowIfNegative(pxCount);
@@ -155,16 +160,16 @@ public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
 	/// <param name="width">Width of the image in pixels.</param>
 	/// <param name="height">Height of the image in pixels.</param>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="width"/> or <paramref name="height"/> are negative.
+	/// Thrown if <paramref name="srcStride"/>, <paramref name="dstStride"/>, <paramref name="width"/>,
+	/// or <paramref name="height"/> is negative.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if a stride is smaller than the corresponding tightly packed row size, or if
-	/// <paramref name="src"/> or <paramref name="dst"/> are too small to hold the requested
-	/// amount of pixels in the selected format.
+	/// Thrown if one of the strides is smaller than a tightly packed row of <paramref name="width"/>
+	/// pixels, or if <paramref name="src"/> or <paramref name="dst"/> is too small for the image.
 	/// </exception>
 	/// <remarks>
-	/// <paramref name="src"/> and <paramref name="dst"/> must not overlap; currently,
-	/// no attempt is made to check if they overlap.
+	/// <paramref name="src"/> and <paramref name="dst"/> must not overlap; if they do, the output is
+	/// unspecified.
 	/// </remarks>
 	public void Convert(ReadOnlySpan<byte> src, int srcStride, Span<byte> dst, int dstStride, int width, int height) {
 		ArgumentOutOfRangeException.ThrowIfNegative(srcStride);
@@ -208,16 +213,16 @@ public readonly unsafe struct PixelConversionPlan : IHasInvalidDefault {
 	/// <param name="width">Width of the image in pixels.</param>
 	/// <param name="height">Height of the image in pixels.</param>
 	/// <returns>
-	/// A newly allocated buffer with the output image whose row stride is exactly
+	/// A newly allocated buffer with the converted image, whose row stride is
 	/// <paramref name="width"/> multiplied by <see cref="DestinationBytesPerPixel"/>.
 	/// </returns>
 	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if <paramref name="width"/> or <paramref name="height"/> are negative.
+	/// Thrown if <paramref name="srcStride"/>, <paramref name="width"/>, or
+	/// <paramref name="height"/> is negative.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="srcStride"/> is smaller than the tightly packed source row size,
-	/// or if <paramref name="src"/> is too small to have been able to hold the requested amount
-	/// of pixels in the selected format.
+	/// Thrown if <paramref name="srcStride"/> is smaller than a tightly packed row of
+	/// <paramref name="width"/> pixels, or if <paramref name="src"/> is too small for the image.
 	/// </exception>
 	public byte[] Convert(ReadOnlySpan<byte> src, int srcStride, int width, int height) {
 		ArgumentOutOfRangeException.ThrowIfNegative(srcStride);

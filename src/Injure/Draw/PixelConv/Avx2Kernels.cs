@@ -8,7 +8,7 @@ using System.Runtime.Intrinsics.X86;
 namespace Injure.Draw.PixelConv;
 
 internal static unsafe class Avx2Kernels {
-	public static void Copy32SetAlpha(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
+	public static void Copy32SetAlpha(ref readonly PixelFormatConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Copy32SetAlphaPayload pl = ref plan.Payload.Copy32SetAlpha;
 		nuint px = pxCount & ~(nuint)0b111;
 		nuint bytes = px * 4u;
@@ -24,7 +24,7 @@ internal static unsafe class Avx2Kernels {
 			ScalarKernels.Copy32SetAlpha(in plan, src + bytes, dst + bytes, tail);
 	}
 
-	public static void Copy64SetAlpha(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
+	public static void Copy64SetAlpha(ref readonly PixelFormatConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Copy64SetAlphaPayload pl = ref plan.Payload.Copy64SetAlpha;
 		nuint px = pxCount & ~(nuint)0b11;
 		nuint bytes = px * 8u;
@@ -40,7 +40,7 @@ internal static unsafe class Avx2Kernels {
 			ScalarKernels.Copy64SetAlpha(in plan, src + bytes, dst + bytes, tail);
 	}
 
-	public static void Shuffle32(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
+	public static void Shuffle32(ref readonly PixelFormatConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Shuffle32Payload pl = ref plan.Payload.Shuffle32;
 		nuint px = pxCount & ~(nuint)0b111;
 		nuint bytes = px * 4u;
@@ -57,7 +57,7 @@ internal static unsafe class Avx2Kernels {
 			ScalarKernels.Shuffle32(in plan, src + bytes, dst + bytes, tail);
 	}
 
-	public static void Expand24To32(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
+	public static void Expand24To32(ref readonly PixelFormatConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		// 3 bytes doesn't fit nicely into an SIMD lane so this one's kind of
 		// odd-looking compared to the other ones here, do 2 16-byte loads and
 		// have the masks ignore the unneeded bytes to read 24 bytes at a time
@@ -84,7 +84,7 @@ internal static unsafe class Avx2Kernels {
 			ScalarKernels.Expand24To32(in plan, s, d, tail);
 	}
 
-	public static void Contract32To24(ref readonly PixelConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
+	public static void Contract32To24(ref readonly PixelFormatConversionPlan plan, byte* src, byte* dst, nuint pxCount) {
 		ref readonly Contract32To24Payload pl = ref plan.Payload.Contract32To24;
 		nuint px = pxCount & ~(nuint)0b111;
 		nuint bytes = px * 4u;

@@ -11,7 +11,7 @@ namespace Injure.Draw.PixelConv;
 /// </remarks>
 internal readonly struct Copy32SetAlphaPayload(byte byteIndex, byte a8unorm, Vector128<byte> keep128, Vector128<byte> fill128) {
 	public readonly byte AlphaByteIndex = byteIndex;
-	public readonly byte Alpha8UNorm = a8unorm;
+	public readonly byte Alpha8Unorm = a8unorm;
 
 	public readonly Vector128<byte> KeepMask128 = keep128;
 	public readonly Vector128<byte> FillMask128 = fill128;
@@ -26,7 +26,7 @@ internal readonly struct Copy64SetAlphaPayload(byte byteOffsetInPixel, byte byte
 	public readonly byte AlphaByteOffsetInPixel = byteOffsetInPixel;
 	public readonly byte AlphaByte0 = byte0;
 	public readonly byte AlphaByte1 = byte1;
-	public readonly ushort Alpha16UNorm = a16unorm;
+	public readonly ushort Alpha16Unorm = a16unorm;
 
 	public readonly Vector128<byte> KeepMask128 = keep128;
 	public readonly Vector128<byte> FillMask128 = fill128;
@@ -49,7 +49,7 @@ internal readonly struct Shuffle32Payload(Vector128<byte> shuf128, Vector128<byt
 /// The <see langword="default"/> value is valid and has every field at 0.
 /// </remarks>
 internal readonly struct Expand24To32Payload(byte a8unorm, Vector128<byte> shuf128, Vector128<byte> fill128) {
-	public readonly byte Alpha8UNorm = a8unorm;
+	public readonly byte Alpha8Unorm = a8unorm;
 	public readonly Vector128<byte> ShufMask128 = shuf128;
 	public readonly Vector128<byte> FillMask128 = fill128;
 	public readonly Vector256<byte> ShufMask256 = Vector256.Create(shuf128, shuf128);

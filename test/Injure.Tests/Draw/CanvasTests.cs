@@ -35,7 +35,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	private Texture2d solid(RawColor32 color) {
 		Texture2d tex = new(Device, 1, 1);
-		tex.Upload([color.R, color.G, color.B, color.A], 4, PixelFormat.Rgba32_Unorm);
+		tex.Upload([color.R, color.G, color.B, color.A], 4, PixelFormat.Rgba32Unorm);
 		return tex;
 	}
 
@@ -75,7 +75,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void TextureDrawsHonorRegionDestinationAndTint() {
 		// 2x1 texture: red, green
 		using Texture2d tex = new(Device, 2, 1);
-		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255], 8, PixelFormat.Rgba32_Unorm);
+		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255], 8, PixelFormat.Rgba32Unorm);
 		using Texture2d white = solid(RawColor32.White);
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
@@ -102,7 +102,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	public void TextureDrawsRotateScaleAndFlipAroundTheOrigin() {
 		// 2x1 texture: red, green; drawn into the whole 4x4 target it's left half red, right half green
 		using Texture2d tex = new(Device, 2, 1);
-		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255], 8, PixelFormat.Rgba32_Unorm);
+		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255], 8, PixelFormat.Rgba32Unorm);
 		using Texture2d white = solid(RawColor32.White);
 		RectF full = new(0, 0, 4, 4);
 
@@ -135,7 +135,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	// 2x1 texture: red, blue
 	private Texture2d redBlue() {
 		Texture2d tex = new(Device, 2, 1);
-		tex.Upload([255, 0, 0, 255, 0, 0, 255, 255], 8, PixelFormat.Rgba32_Unorm);
+		tex.Upload([255, 0, 0, 255, 0, 0, 255, 255], 8, PixelFormat.Rgba32Unorm);
 		return tex;
 	}
 
@@ -648,7 +648,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		for (int y = 0; y < 4; y++)
 			for (int x = 0; x < 4; x++)
 				((x + y) % 2 == 0 ? a : b).WriteRgbaBytes(px.AsSpan((y * 4 + x) * 4));
-		tex.Upload(px, 16, PixelFormat.Rgba32_Unorm);
+		tex.Upload(px, 16, PixelFormat.Rgba32Unorm);
 		return tex;
 	}
 
@@ -716,9 +716,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		byte[] bluePx = new byte[2 * 2 * 4];
 		for (int i = 0; i < 4; i++)
 			blue.WriteRgbaBytes(bluePx.AsSpan(i * 4));
-		tex.Upload(0, 0, bluePx, 8, PixelFormat.Rgba32_Unorm, 2, 2);
+		tex.Upload(0, 0, bluePx, 8, PixelFormat.Rgba32Unorm, 2, 2);
 		assertNear(new RawColor32(191, 0, 64), sampleSmallest(tex));
-		tex.Upload(2, 2, bluePx, 8, PixelFormat.Rgba32_Unorm, 2, 2);
+		tex.Upload(2, 2, bluePx, 8, PixelFormat.Rgba32Unorm, 2, 2);
 		tex.GenerateMips();
 		tex.GenerateMips();
 		assertNear(new RawColor32(128, 0, 128), sampleSmallest(tex));
@@ -727,7 +727,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	// 2x2 texture: red, green / blue, white
 	private Texture2d quadrants() {
 		Texture2d tex = new(Device, 2, 2);
-		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255], 8, PixelFormat.Rgba32_Unorm);
+		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255], 8, PixelFormat.Rgba32Unorm);
 		return tex;
 	}
 
