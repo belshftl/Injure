@@ -10,7 +10,7 @@ C# has a particular quirk where every single type must have some kind of "zero"/
 
 That value is `default`. For example, reference types, it's `null`, and that by itself was problematic enough that C# gained a language-level feature to track which reference types may be null, that being nullable annotations. Structs suffer from the exact same problem, but have no such luxury.
 
-For structs, the `default` value is just a value of that struct with the all-zero bit pattern, which is usually meaningless for anything more complex than a blittable primitive. A `default(AssetId)` has a null namespace/path despite the constructor validating inputs to be non-null and as such doesn't name any asset, a `default(Texture2dSlice)` has its internal texture value set to null and as such can't be drawn, an enum-like type whose members start at 1+ has no member with value 0, etc.
+For structs, the `default` value is just a value of that struct with the all-zero bit pattern, which is usually meaningless for anything more complex than a blittable primitive. A `default(AssetId)` has a null namespace/path despite the constructor validating inputs to be non-null and as such doesn't name any asset, a `default(DrawableTextureSlice)` has its internal texture value set to null and as such can't be drawn, an enum-like type whose members start at 1+ has no member with value 0, etc.
 
 Injure calls such a `default` value *invalid*, and such a struct *default-is-invalid*.
 
@@ -34,7 +34,7 @@ All default-is-invalid Injure types implement it via an explicit interface imple
 The `Injure.Analyzers` analyzer then prevents you from creating `default` values of that struct, reported as `IJ0100`:
 
 ```csharp
-Asset<Texture2d> t = Assets.GetAsset<Texture2d>(default); // error IJ0100: The default value of 'AssetId' is invalid; create a valid value instead, or use 'AssetId?' if you need an optional value
+Asset<SrgbTexture2d> t = Assets.GetAsset<SrgbTexture2d>(default); // error IJ0100: The default value of 'AssetId' is invalid; create a valid value instead, or use 'AssetId?' if you need an optional value
 ```
 
 with some exemptions, like equality checks (`x == default` and `x != default`), assigning it to an `out` parameter, and code inside the type itself.

@@ -31,10 +31,6 @@ public static unsafe class PixelFormatConverter {
 	/// <param name="dstFmt">Destination pixel format.</param>
 	/// <param name="opts">Conversion options.</param>
 	/// <returns>A plan that can be reused for any number of conversions.</returns>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="srcFmt"/> or <paramref name="dstFmt"/> is the invalid
-	/// <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if the conversion would narrow, drop alpha, or drop color channels without the
 	/// corresponding <see cref="PixelFormatConversionFlags"/> in <paramref name="opts"/>, or if would

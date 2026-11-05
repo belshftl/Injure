@@ -9,9 +9,9 @@ using Injure.Primitives;
 namespace Injure.Draw;
 
 /// <summary>
-/// Where a texture drawn with <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> goes:
-/// anchored at a position at its natural size (see <see cref="TexDraw"/>), or stretched into a
-/// rectangle.
+/// Placement of a texture draw via <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/>,
+/// either anchored at a position at its natural size (see <see cref="TexDraw"/>), or stretched
+/// into a rectangle.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -81,8 +81,7 @@ public readonly struct TexDst : IEquatable<TexDst>, IHasInvalidDefault {
 }
 
 /// <summary>
-/// Which part of a texture <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> draws: all of
-/// it, a rectangle in texels, or a rectangle in UV coordinates.
+/// Source region for a texture draw via <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/>.
 /// </summary>
 /// <remarks>
 /// The <see langword="default"/> value is valid and is <see cref="Whole"/>.
@@ -108,13 +107,13 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 	public static readonly TexRegion Whole = default;
 
 	/// <summary>
-	/// A rectangle of the texture, in texels.
+	/// A sub-rectangle of the texture, in texels.
 	/// </summary>
 	/// <param name="rect">The rectangle, in texels.</param>
 	public static TexRegion Texels(RectF rect) => new(Kind.Texels, rect);
 
 	/// <summary>
-	/// A rectangle of the texture, in UV coordinates, i.e. from 0 to 1 across the texture.
+	/// A sub-rectangle of the texture, in UV coordinates, i.e. from 0 to 1 across the texture.
 	/// </summary>
 	/// <param name="rect">The rectangle, in UV coordinates.</param>
 	public static TexRegion Uv(RectF rect) => new(Kind.Uv, rect);
@@ -155,8 +154,7 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 }
 
 /// <summary>
-/// How <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> draws a texture: where, which part
-/// of it, how it's transformed and sampled, and with what tint.
+/// Parameters for a texture draw via <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/>.
 /// </summary>
 /// <param name="Destination">Where the texture goes.</param>
 /// <remarks>
@@ -169,8 +167,9 @@ public readonly struct TexRegion : IEquatable<TexRegion> {
 /// A texture's <i>natural size</i> is the size of its <see cref="Source"/> region at 1 texel per
 /// drawable unit, e.g. 16x16du for a whole 16x16 texture, or 8x4du for a
 /// <see cref="TexRegion.Uv(RectF)"/> of (0, 0, 2, 1) of a 4x4 texture. For a
-/// <see cref="Texture2dSlice"/>, the whole region is the slice. <see cref="TexDst.At(Vector2)"/>
-/// draws at the natural size, and <see cref="TexDst.Rect(RectF)"/> ignores it.
+/// <see cref="DrawableTextureSlice"/>, the whole region is the slice.
+/// <see cref="TexDst.At(Vector2)"/> draws at the natural size, and
+/// <see cref="TexDst.Rect(RectF)"/> ignores it.
 /// </para>
 /// <para>
 /// The quad is placed as described by <paramref name="Destination"/>, then scaled by

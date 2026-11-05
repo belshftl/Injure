@@ -8,6 +8,6 @@ internal static class KnownNames {
 	public const string AssetCatalogAttribute = "Injure.Assets.AssetCatalogAttribute";
 	public const string AssetFileKindAttribute = "Injure.Assets.AssetFileKindAttribute";
 
-	public const string Texture2d = "Injure.Draw.Texture2d";
+	public const string SrgbTexture2d = "Injure.Draw.SrgbTexture2d";
 	public const string FontData = "Injure.Draw.Text.FontData";
 }

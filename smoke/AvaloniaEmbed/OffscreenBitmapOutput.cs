@@ -25,7 +25,7 @@ public sealed class OffscreenBitmapOutput : IRenderOutput {
 
 	public uint Width { get; private set; }
 	public uint Height { get; private set; }
-	public TextureFormat Format => TextureFormat.Rgba8Unorm;
+	public TextureFormat Format => TextureFormat.Rgba8UnormSrgb;
 
 	public OffscreenBitmapOutput(GpuDevice device, uint width, uint height) {
 		this.device = device;
@@ -37,7 +37,7 @@ public sealed class OffscreenBitmapOutput : IRenderOutput {
 		Height = height;
 		pitch = (width * 4 + 255) / 256 * 256;
 		texture = device.CreateTexture(new GpuTextureParams(
-			width, height, 1, 1, 1, TextureDimension.Dimension2d,
+			width, height, 1, 1, SampleCount.One, TextureDimension.Dimension2d,
 			Format, TextureUsage.RenderAttachment | TextureUsage.CopySrc
 		));
 		readback = device.CreateBuffer(pitch * height, BufferUsage.MapRead | BufferUsage.CopyDst);

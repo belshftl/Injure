@@ -91,7 +91,7 @@ public sealed class MainWindow : Window {
 
 	private void onSurfaceReady(GpuView view) {
 		device ??= createDevice(view);
-		surface = new SurfaceRenderOutput(device, view, SurfaceFormatPolicy.NonSrgb, SurfacePresentModePolicy.AutoMailbox);
+		surface = new SurfaceRenderOutput(device, view, SurfaceFormatPolicy.Srgb, SurfacePresentModePolicy.AutoMailbox);
 		if (!loopRunning) {
 			loopRunning = true;
 			RequestAnimationFrame(onFrame);
@@ -101,8 +101,7 @@ public sealed class MainWindow : Window {
 	private GpuDevice createDevice(GpuView view) {
 		GpuDevice dev = new(new GpuDeviceOptions {
 			RequiredFeatures = GpuFeatures.None,
-			CompatibleHost = view,
-			ErrorHandler = GpuErrorHandlers.Log(Console.Error),
+			CompatibleHost = view
 		});
 		offscreen = new OffscreenBitmapOutput(dev, 1, 1);
 		offscreen.FramePresented += () => {

@@ -222,7 +222,9 @@ public readonly partial struct TextureFormat {
 		/// </summary>
 		Rgba32Sint = 37,
 
-		/// <summary>8-bit stencil.</summary>
+		/// <summary>
+		/// 8-bit stencil.
+		/// </summary>
 		Stencil8 = 38,
 
 		/// <summary>
@@ -231,17 +233,20 @@ public readonly partial struct TextureFormat {
 		Depth16Unorm = 39,
 
 		/// <summary>
-		/// Depth with at least 24 bits of precision; the exact format depends on the device, so it can't
-		/// be copied.
+		/// Depth with at least 24 bits of precision; the actual format varies by platform/hardware, so
+		/// it can't be copied from/to.
 		/// </summary>
 		Depth24Plus = 40,
 
 		/// <summary>
-		/// <see cref="Depth24Plus"/> depth and 8-bit stencil.
+		/// Depth with at least 24 bits of precision and 8-bit stencil; the actual format of the depth
+		/// aspect varies by platform/hardware, so it can't be copied from/to.
 		/// </summary>
 		Depth24PlusStencil8 = 41,
 
-		/// <summary>32-bit float depth.</summary>
+		/// <summary>
+		/// 32-bit float depth.
+		/// </summary>
 		Depth32Float = 42,
 
 		/// <summary>
@@ -642,6 +647,135 @@ public static class TextureFormatSrgbExtensions {
 			TextureFormat.Case.Astc12x10Unorm => TextureFormat.Astc12x10UnormSrgb,
 			TextureFormat.Case.Astc12x12Unorm => TextureFormat.Astc12x12UnormSrgb,
 			_ => format,
+		};
+	}
+}
+
+internal static class TextureFormatInfo {
+	extension(TextureFormat format) {
+		/// <summary>
+		/// Texel block size and bytes per block that a queue write to <paramref name="aspect"/> uses,
+		/// or <see langword="false"/> if that aspect of the format can't be written by the queue (e.g.
+		/// <see cref="TextureFormat.Depth24Plus"/>, or both aspects of a depth/stencil format at once).
+		/// </summary>
+		public bool TryGetWriteBlock(TextureAspect aspect, out uint blockWidth, out uint blockHeight, out uint bytesPerBlock) {
+			(blockWidth, blockHeight, bytesPerBlock) = (1, 1, 0);
+			switch (format.Tag) {
+			case TextureFormat.Case.Stencil8:
+				bytesPerBlock = aspect == TextureAspect.DepthOnly ? 0u : 1u;
+				break;
+			case TextureFormat.Case.Depth16Unorm:
+				bytesPerBlock = aspect == TextureAspect.StencilOnly ? 0u : 2u;
+				break;
+			case TextureFormat.Case.Depth24PlusStencil8:
+			case TextureFormat.Case.Depth32FloatStencil8:
+				// depth24plus has no defined layout, and depth32float can only be copied out of, only
+				// the stencil aspect can be written
+				bytesPerBlock = aspect == TextureAspect.StencilOnly ? 1u : 0u;
+				break;
+			case TextureFormat.Case.Depth24Plus:
+			case TextureFormat.Case.Depth32Float:
+				break;
+			default:
+				if (aspect != TextureAspect.All)
+					break;
+				(blockWidth, blockHeight, bytesPerBlock) = format.colorBlock();
+				break;
+			}
+			return bytesPerBlock != 0;
+		}
+
+		/// <summary>
+		/// Whether texels are stored in blocks larger than 1x1.
+		/// </summary>
+		public bool IsBlockCompressed() => format.colorBlock().Width > 1;
+
+		/// <summary>
+		/// The texel block size; 1x1 for non-block-compressed formats.
+		/// </summary>
+		public (uint Width, uint Height) BlockSize() {
+			(uint w, uint h, _) = format.colorBlock();
+			return w == 0 ? (1, 1) : (w, h);
+		}
+
+		/// <summary>
+		/// Whether the format is a depth and/or stencil format.
+		/// </summary>
+		public bool IsDepthOrStencil() => format.Tag is TextureFormat.Case.Stencil8
+			or TextureFormat.Case.Depth16Unorm or TextureFormat.Case.Depth24Plus
+			or TextureFormat.Case.Depth24PlusStencil8 or TextureFormat.Case.Depth32Float
+			or TextureFormat.Case.Depth32FloatStencil8;
+
+		/// <summary>
+		/// The feature needed to create 3D textures in the format; <see langword="null"/> if 3D textures
+		/// in it can't be created at all, or <see cref="GpuFeatures.None"/> if a feature isn't needed.
+		/// </summary>
+		public GpuFeatures? Required3dFeature() => format.Tag switch {
+			_ when format.IsDepthOrStencil() => null,
+			>= TextureFormat.Case.Bc1RgbaUnorm and <= TextureFormat.Case.Bc7RgbaUnormSrgb => GpuFeatures.TextureCompressionBcSliced3d,
+			>= TextureFormat.Case.Etc2Rgb8Unorm and <= TextureFormat.Case.EacRg11Snorm => null,
+			>= TextureFormat.Case.Astc4x4Unorm and <= TextureFormat.Case.Astc12x12UnormSrgb => GpuFeatures.TextureCompressionAstcSliced3d,
+			_ => GpuFeatures.None,
+		};
+
+		/// <summary>
+		/// The feature needed to create textures in the format; <see cref="GpuFeatures.None"/> if a
+		/// feature isn't needed.
+		/// </summary>
+		public GpuFeatures RequiredFeature() => format.Tag switch {
+			TextureFormat.Case.Depth32FloatStencil8 => GpuFeatures.Depth32FloatStencil8,
+			>= TextureFormat.Case.Bc1RgbaUnorm and <= TextureFormat.Case.Bc7RgbaUnormSrgb => GpuFeatures.TextureCompressionBc,
+			>= TextureFormat.Case.Etc2Rgb8Unorm and <= TextureFormat.Case.EacRg11Snorm => GpuFeatures.TextureCompressionEtc2,
+			>= TextureFormat.Case.Astc4x4Unorm and <= TextureFormat.Case.Astc12x12UnormSrgb => GpuFeatures.TextureCompressionAstc,
+			_ => GpuFeatures.None,
+		};
+
+		// (0, 0, 0) for Undefined and depth/stencil formats
+		private (uint Width, uint Height, uint Bytes) colorBlock() => format.Tag switch {
+			TextureFormat.Case.R8Unorm or TextureFormat.Case.R8Snorm or TextureFormat.Case.R8Uint
+				or TextureFormat.Case.R8Sint => (1, 1, 1),
+			TextureFormat.Case.R16Uint or TextureFormat.Case.R16Sint or TextureFormat.Case.R16Float
+				or TextureFormat.Case.Rg8Unorm or TextureFormat.Case.Rg8Snorm or TextureFormat.Case.Rg8Uint
+				or TextureFormat.Case.Rg8Sint => (1, 1, 2),
+			TextureFormat.Case.R32Float or TextureFormat.Case.R32Uint or TextureFormat.Case.R32Sint
+				or TextureFormat.Case.Rg16Uint or TextureFormat.Case.Rg16Sint or TextureFormat.Case.Rg16Float
+				or TextureFormat.Case.Rgba8Unorm or TextureFormat.Case.Rgba8UnormSrgb
+				or TextureFormat.Case.Rgba8Snorm or TextureFormat.Case.Rgba8Uint or TextureFormat.Case.Rgba8Sint
+				or TextureFormat.Case.Bgra8Unorm or TextureFormat.Case.Bgra8UnormSrgb
+				or TextureFormat.Case.Rgb10a2Uint or TextureFormat.Case.Rgb10a2Unorm
+				or TextureFormat.Case.Rg11b10Ufloat or TextureFormat.Case.Rgb9e5Ufloat => (1, 1, 4),
+			TextureFormat.Case.Rg32Float or TextureFormat.Case.Rg32Uint or TextureFormat.Case.Rg32Sint
+				or TextureFormat.Case.Rgba16Uint or TextureFormat.Case.Rgba16Sint
+				or TextureFormat.Case.Rgba16Float => (1, 1, 8),
+			TextureFormat.Case.Rgba32Float or TextureFormat.Case.Rgba32Uint
+				or TextureFormat.Case.Rgba32Sint => (1, 1, 16),
+			TextureFormat.Case.Bc1RgbaUnorm or TextureFormat.Case.Bc1RgbaUnormSrgb
+				or TextureFormat.Case.Bc4RUnorm or TextureFormat.Case.Bc4RSnorm
+				or TextureFormat.Case.Etc2Rgb8Unorm or TextureFormat.Case.Etc2Rgb8UnormSrgb
+				or TextureFormat.Case.Etc2Rgb8a1Unorm or TextureFormat.Case.Etc2Rgb8a1UnormSrgb
+				or TextureFormat.Case.EacR11Unorm or TextureFormat.Case.EacR11Snorm => (4, 4, 8),
+			TextureFormat.Case.Bc2RgbaUnorm or TextureFormat.Case.Bc2RgbaUnormSrgb
+				or TextureFormat.Case.Bc3RgbaUnorm or TextureFormat.Case.Bc3RgbaUnormSrgb
+				or TextureFormat.Case.Bc5RgUnorm or TextureFormat.Case.Bc5RgSnorm
+				or TextureFormat.Case.Bc6hRgbUfloat or TextureFormat.Case.Bc6hRgbFloat
+				or TextureFormat.Case.Bc7RgbaUnorm or TextureFormat.Case.Bc7RgbaUnormSrgb
+				or TextureFormat.Case.Etc2Rgba8Unorm or TextureFormat.Case.Etc2Rgba8UnormSrgb
+				or TextureFormat.Case.EacRg11Unorm or TextureFormat.Case.EacRg11Snorm => (4, 4, 16),
+			TextureFormat.Case.Astc4x4Unorm or TextureFormat.Case.Astc4x4UnormSrgb => (4, 4, 16),
+			TextureFormat.Case.Astc5x4Unorm or TextureFormat.Case.Astc5x4UnormSrgb => (5, 4, 16),
+			TextureFormat.Case.Astc5x5Unorm or TextureFormat.Case.Astc5x5UnormSrgb => (5, 5, 16),
+			TextureFormat.Case.Astc6x5Unorm or TextureFormat.Case.Astc6x5UnormSrgb => (6, 5, 16),
+			TextureFormat.Case.Astc6x6Unorm or TextureFormat.Case.Astc6x6UnormSrgb => (6, 6, 16),
+			TextureFormat.Case.Astc8x5Unorm or TextureFormat.Case.Astc8x5UnormSrgb => (8, 5, 16),
+			TextureFormat.Case.Astc8x6Unorm or TextureFormat.Case.Astc8x6UnormSrgb => (8, 6, 16),
+			TextureFormat.Case.Astc8x8Unorm or TextureFormat.Case.Astc8x8UnormSrgb => (8, 8, 16),
+			TextureFormat.Case.Astc10x5Unorm or TextureFormat.Case.Astc10x5UnormSrgb => (10, 5, 16),
+			TextureFormat.Case.Astc10x6Unorm or TextureFormat.Case.Astc10x6UnormSrgb => (10, 6, 16),
+			TextureFormat.Case.Astc10x8Unorm or TextureFormat.Case.Astc10x8UnormSrgb => (10, 8, 16),
+			TextureFormat.Case.Astc10x10Unorm or TextureFormat.Case.Astc10x10UnormSrgb => (10, 10, 16),
+			TextureFormat.Case.Astc12x10Unorm or TextureFormat.Case.Astc12x10UnormSrgb => (12, 10, 16),
+			TextureFormat.Case.Astc12x12Unorm or TextureFormat.Case.Astc12x12UnormSrgb => (12, 12, 16),
+			_ => (0, 0, 0),
 		};
 	}
 }

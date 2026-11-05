@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
+using System.Collections.Immutable;
 using Injure.Gpu;
 using Injure.Primitives;
 
@@ -28,7 +29,7 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 	[Fact]
 	public void WriteToTextureValidatesArguments() {
 		using GpuTexture tex = Device.CreateTexture(new GpuTextureParams(
-			4, 4, 1, 2, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.CopyDst
+			4, 4, 1, 2, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.CopyDst
 		));
 		using GpuTexture noCopyDst = GpuRig.Target(Device, 4, 4);
 		byte[] data = new byte[64];
@@ -39,6 +40,102 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 4, 4, 1, 1, TextureAspect.All), data.AsSpan(), layout));
 		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, new GpuTextureRegion(2, 0, 0, 4, 4, 1, 0, TextureAspect.All), data.AsSpan(), layout));
 		Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 2, 2, 1, 1, TextureAspect.All), data.AsSpan(), new GpuTextureLayout(0, 8, 2));
+	}
+
+	[Fact]
+	public void WriteToTextureChecksTheDataAgainstTheLayout() {
+		using GpuTexture tex = Device.CreateTexture(new GpuTextureParams(
+			4, 4, 1, 1, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.CopyDst
+		));
+		GpuTextureRegion whole = GpuRig.Whole(tex);
+		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, whole, new byte[63].AsSpan(), new GpuTextureLayout(0, 16, 4)));
+		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, whole, new byte[64].AsSpan(), new GpuTextureLayout(0, 15, 4)));
+		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, whole, new byte[64].AsSpan(), new GpuTextureLayout(4, 16, 4)));
+		// BytesBetweenRows is the distance to the next row, so the last row only needs its own bytes
+		Device.WriteToTexture(tex, whole, new byte[3 * 20 + 16].AsSpan(), new GpuTextureLayout(0, 20, 4));
+		// a single row has no next row, so BytesBetweenRows doesn't matter
+		Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 4, 1, 1, 0, TextureAspect.All), new byte[16].AsSpan(), new GpuTextureLayout(0, 0, 1));
+	}
+
+	[Fact]
+	public void CompressedWritesCoverWholeBlocks() {
+		Assert.SkipUnless(Device.Features.HasAll(GpuFeatures.TextureCompressionBc), "device has no BC texture compression");
+		// 8x8 with bc1's 4x4 blocks of 8 bytes, the mip levels are 8x8, 4x4, 2x2, and 1x1
+		using GpuTexture tex = Device.CreateTexture(new GpuTextureParams(
+			8, 8, 1, 4, SampleCount.One, TextureDimension.Dimension2d, TextureFormat.Bc1RgbaUnorm, TextureUsage.CopyDst | TextureUsage.TextureBinding
+		));
+		Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 8, 8, 1, 0, TextureAspect.All), new byte[32].AsSpan(), new GpuTextureLayout(0, 16, 2));
+		// the 2x2 and 1x1 levels each take one whole block
+		Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 4, 4, 1, 2, TextureAspect.All), new byte[8].AsSpan(), new GpuTextureLayout(0, 8, 1));
+		Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 4, 4, 1, 3, TextureAspect.All), new byte[8].AsSpan(), new GpuTextureLayout(0, 8, 1));
+
+		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, new GpuTextureRegion(2, 0, 0, 4, 4, 1, 0, TextureAspect.All), new byte[8].AsSpan(), new GpuTextureLayout(0, 8, 1)));
+		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 2, 2, 1, 2, TextureAspect.All), new byte[8].AsSpan(), new GpuTextureLayout(0, 8, 1)));
+		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 8, 4, 1, 2, TextureAspect.All), new byte[16].AsSpan(), new GpuTextureLayout(0, 16, 1)));
+		Assert.Throws<ArgumentException>(() => Device.WriteToTexture(tex, new GpuTextureRegion(0, 0, 0, 8, 8, 1, 0, TextureAspect.All), new byte[31].AsSpan(), new GpuTextureLayout(0, 16, 2)));
+	}
+
+	private GpuTexture tex(
+		uint w,
+		uint h,
+		uint layers = 1,
+		uint mips = 1,
+		SampleCount samples = default,
+		TextureDimension? dim = null,
+		TextureFormat? format = null,
+		TextureUsage? usage = null,
+		ImmutableArray<TextureFormat> viewFormats = default,
+		GpuDevice? device = null
+	) => (device ?? Device).CreateTexture(new GpuTextureParams(
+		w, h, layers, mips, samples, dim ?? TextureDimension.Dimension2d, format ?? GpuRig.Format, usage ?? TextureUsage.TextureBinding, viewFormats
+	));
+
+	[Fact]
+	public void CreateTextureRejectsSizesAndCountsWebgpuWould() {
+		Assert.Throws<ArgumentOutOfRangeException>(() => tex(0, 4));
+		Assert.Throws<ArgumentOutOfRangeException>(() => tex(4, 4, layers: 0));
+		// a full chain for 4x4 is 3 levels, and for 4x4x8 is 4 levels (for a 3d texture, not for an
+		// 8-array-layer 2d texture)
+		Assert.Throws<ArgumentOutOfRangeException>(() => tex(4, 4, mips: 4));
+		Assert.Throws<ArgumentOutOfRangeException>(() => tex(4, 4, mips: 0));
+		using GpuTexture deep = tex(4, 4, layers: 8, mips: 4, dim: TextureDimension.Dimension3d);
+
+		Assert.Throws<ArgumentException>(() => tex(4, 1, mips: 2, dim: TextureDimension.Dimension1d));
+		Assert.Throws<ArgumentException>(() => tex(4, 1, dim: TextureDimension.Dimension1d, usage: TextureUsage.RenderAttachment));
+		using GpuTexture line = tex(4, 1, dim: TextureDimension.Dimension1d);
+
+		Assert.Throws<ArgumentException>(() => tex(4, 4, samples: SampleCount.Four, mips: 2, usage: TextureUsage.RenderAttachment));
+		Assert.Throws<ArgumentException>(() => tex(4, 4, samples: SampleCount.Four, layers: 2, usage: TextureUsage.RenderAttachment));
+		Assert.Throws<ArgumentException>(() => tex(4, 4, samples: SampleCount.Four));
+		using GpuTexture msaa = tex(4, 4, samples: SampleCount.Four, usage: TextureUsage.RenderAttachment);
+
+		Assert.Throws<ArgumentException>(() => tex(4, 4, layers: 2, dim: TextureDimension.Dimension3d, format: TextureFormat.Depth32Float, usage: TextureUsage.RenderAttachment));
+	}
+
+	[Fact]
+	public void CreateTextureChecksFormatRequirements() {
+		Assert.SkipUnless(Device.Features.HasAll(GpuFeatures.TextureCompressionBc), "device has no BC texture compression");
+		Assert.Throws<ArgumentException>(() => tex(6, 6, format: TextureFormat.Bc1RgbaUnorm));
+		Assert.Throws<ArgumentException>(() => tex(4, 4, format: TextureFormat.Bc1RgbaUnorm, usage: TextureUsage.RenderAttachment));
+		Assert.Throws<ArgumentException>(() => tex(4, 4, format: TextureFormat.Bc1RgbaUnorm, dim: TextureDimension.Dimension1d));
+		// the shared device doesn't request this
+		if (!Device.Features.HasAll(GpuFeatures.TextureCompressionBcSliced3d))
+			Assert.Throws<ArgumentException>(() => tex(4, 4, layers: 4, format: TextureFormat.Bc1RgbaUnorm, dim: TextureDimension.Dimension3d));
+		using GpuTexture bc = tex(8, 8, mips: 4, format: TextureFormat.Bc1RgbaUnorm);
+
+		using GpuDevice plain = GpuRig.CreateDevice();
+		Assert.Throws<ArgumentException>(() => tex(4, 4, format: TextureFormat.Bc1RgbaUnorm, device: plain));
+	}
+
+	[Fact]
+	public void ViewFormatsCanOnlyDifferInSrgbness() {
+		Assert.Throws<ArgumentException>(() => tex(4, 4, viewFormats: [TextureFormat.Bgra8Unorm]));
+		using GpuTexture t = tex(4, 4, viewFormats: [TextureFormat.Rgba8UnormSrgb]);
+		using GpuTextureView srgb = t.CreateView(new GpuTextureViewParams(Format: TextureFormat.Rgba8UnormSrgb, Dimension: null, Aspect: TextureAspect.All));
+		Assert.Throws<ArgumentException>(() => t.CreateView(new GpuTextureViewParams(Format: TextureFormat.Bgra8Unorm, Dimension: null, Aspect: TextureAspect.All)));
+
+		using GpuTexture ds = tex(4, 4, format: TextureFormat.Depth24PlusStencil8, usage: TextureUsage.RenderAttachment);
+		using GpuTextureView depth = ds.CreateView(new GpuTextureViewParams(Format: TextureFormat.Depth24Plus, Dimension: null, Aspect: TextureAspect.DepthOnly));
 	}
 
 	[Fact]
@@ -154,7 +251,7 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 		throwsDefault("params", () => Device.CreateSampler(default));
 		throwsDefault("params.MinFilter", () => Device.CreateSampler(SamplerStates.LinearClamp with { MinFilter = default }));
 		throwsDefault("params.Dimension", () => Device.CreateTexture(new GpuTextureParams(
-			4, 4, 1, 1, 1, default, GpuRig.Format, TextureUsage.TextureBinding
+			4, 4, 1, 1, SampleCount.One, default, GpuRig.Format, TextureUsage.TextureBinding
 		)));
 
 		using GpuTexture tex = GpuRig.Target(Device, 4, 4);
@@ -172,18 +269,24 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 
 		// the default checks run before the null checks, so the pipelines don't need real shaders
 		VertexState vert = new(null!, "vs");
+		PrimitiveState prim = PrimitiveState.UnculledTriangleList;
+		MultisampleState ms = MultisampleState.SingleSampled;
 		throwsDefault("params.Vertex.Buffers[0].Attributes[0].Format", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
-			null!, vert with { Buffers = [new VertexBufferLayout(4, VertexStepMode.Vertex, [new VertexAttribute(default, 0, 1)])] }
+			null!, vert with { Buffers = [new VertexBufferLayout(4, VertexStepMode.Vertex, [new VertexAttribute(default, 0, 1)])] },
+			null, prim, null, ms
 		)));
 		throwsDefault("params.DepthStencil.StencilFront", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
-			null!, vert, DepthStencil: new DepthStencilState(TextureFormat.Depth32Float, true, CompareFunction.Less, default, StencilFaceState.Keep)
+			null!, vert, null, prim,
+			new DepthStencilState(TextureFormat.Depth32Float, true, CompareFunction.Less, default, StencilFaceState.Keep),
+			ms
 		)));
 		throwsDefault("params.Primitive.CullMode", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
-			null!, vert, Primitive: new PrimitiveState() with { CullMode = default }
+			null!, vert, null, PrimitiveState.UnculledTriangleList with { CullMode = default }, null, ms
 		)));
 		BlendState badBlend = BlendStates.Alpha with { Alpha = BlendStates.Alpha.Alpha with { DstFactor = default } };
 		throwsDefault("params.Fragment.Targets[0].Blend.Alpha.DstFactor", () => Device.CreateRenderPipeline(new GpuRenderPipelineParams(
-			null!, vert, Fragment: new FragmentState(null!, "fs", [new ColorTargetState(GpuRig.Format, badBlend, ColorWriteMask.All)])
+			null!, vert, new FragmentState(null!, "fs", [new ColorTargetState(GpuRig.Format, badBlend, ColorWriteMask.All)]),
+			prim, null, ms
 		)));
 	}
 
@@ -236,7 +339,7 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 
 	[Fact]
 	public void TextureParamsHaveEmptyRatherThanDefaultViewFormats() {
-		GpuTextureParams p = new(4, 2, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding);
+		GpuTextureParams p = new(4, 2, 1, 1, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding);
 		using GpuTexture tex = Device.CreateTexture(p);
 		Assert.False(tex.Params.ViewFormats.IsDefault);
 		Assert.Equal(p with { ViewFormats = [] }, tex.Params with { ViewFormats = [] });
@@ -247,7 +350,7 @@ public sealed class GpuValidationTests(GpuDeviceFixture fixture) : GpuTestBase(f
 	[Fact]
 	public void ViewParamsAreResolved() {
 		using GpuTexture tex = Device.CreateTexture(new GpuTextureParams(
-			8, 8, 3, 2, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
+			8, 8, 3, 2, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
 		));
 		using GpuTextureView view = tex.CreateView(new GpuTextureViewParams(null, null, TextureAspect.All, BaseArrayLayer: 1));
 		Assert.Equal(

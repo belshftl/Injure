@@ -75,7 +75,7 @@ public readonly partial struct SurfaceFormatPolicy {
 		/// A non-sRGB format, so values written to it reach the display unchanged.
 		/// </summary>
 		/// <remarks>
-		/// Use this when rendering sRGB-encoded values, e.g. with <see cref="Draw.Canvas"/>.
+		/// Use this when rendering already-encoded values.
 		/// </remarks>
 		NonSrgb = 1,
 
@@ -83,7 +83,7 @@ public readonly partial struct SurfaceFormatPolicy {
 		/// An sRGB format, so linear values written to it are encoded for the display.
 		/// </summary>
 		/// <remarks>
-		/// Use this when rendering linear values.
+		/// Use this when rendering linear values, e.g. with <see cref="Draw.Canvas"/>.
 		/// </remarks>
 		Srgb,
 	}
@@ -475,7 +475,7 @@ public sealed unsafe class SurfaceRenderOutput : IRenderOutput {
 			config.width,
 			config.height,
 			1,
-			1
+			SampleCount.One
 		);
 		output = new AcquiredSurfaceTexture(surface, currTex.texture, v);
 		return true;

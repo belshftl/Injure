@@ -23,9 +23,8 @@ namespace Injure.Draw;
 /// Extra transform applied to all drawn geometry before it's placed on the drawable area, in
 /// drawable units. Must be invertible (see <see cref="MatrixInvert"/>).
 /// </param>
-/// <param name="OutputState">
-/// How draws are written to the target: blending and color write mask.
-/// </param>
+/// <param name="BlendMode">How draws are combined with the target's existing contents.</param>
+/// <param name="WriteMask">Which color channels of the target draws write.</param>
 /// <param name="Material">How textured draws interpret their textures.</param>
 /// <param name="Sampling">
 /// How textured draws sample their textures, unless overridden by <see cref="TexDraw.Sampling"/>;
@@ -39,10 +38,10 @@ namespace Injure.Draw;
 /// one with the target's <see cref="CanvasTarget.LoadOp"/>. Returning to an earlier state by
 /// disposing an override ends the pass only if the render target changes, and always loads the
 /// target's contents rather than applying its <see cref="CanvasTarget.LoadOp"/> again. Changing
-/// <paramref name="OutputState"/>, <paramref name="Material"/>, <paramref name="Sampling"/>, or
-/// <paramref name="Scissor"/> starts a new draw call, and so does changing only the viewport of
-/// <paramref name="Target"/> if that changes the clip; changing <paramref name="Transform"/>
-/// doesn't, since it's applied to vertices on the CPU.
+/// <paramref name="BlendMode"/>, <paramref name="WriteMask"/>, <paramref name="Material"/>,
+/// <paramref name="Sampling"/>, or <paramref name="Scissor"/> starts a new draw call, and so does
+/// changing only the viewport of <paramref name="Target"/> if that changes the clip; changing
+/// <paramref name="Transform"/> doesn't, because it's applied to vertices on the CPU.
 /// </para>
 /// <para>
 /// The transform must be invertible, as defined in <see cref="MatrixInvert"/>. So must the
@@ -59,7 +58,8 @@ public readonly record struct CanvasParams(
 	CanvasTarget Target,
 	CanvasScissor Scissor,
 	Matrix3x2 Transform,
-	CanvasOutputState OutputState,
+	CanvasBlendMode BlendMode,
+	ColorWriteMask WriteMask,
 	CanvasMaterial Material,
 	TexSampling Sampling
 ) : IHasInvalidDefault {
@@ -73,15 +73,16 @@ public readonly record struct CanvasParams(
 	/// <param name="loadOp">What to do with the target's existing contents.</param>
 	/// <remarks>
 	/// The other parameters are: no scissor, the identity transform,
-	/// <see cref="CanvasOutputStates.Alpha"/>, <see cref="CanvasMaterial.Color"/>, and
-	/// <see cref="TexSampling.Nearest"/>. A <see langword="with"/> expression can be used to change
-	/// some of them.
+	/// <see cref="CanvasBlendMode.Normal"/>, <see cref="ColorWriteMask.All"/>,
+	/// <see cref="CanvasMaterial.Color"/>, and <see cref="TexSampling.Nearest"/>. A
+	/// <see langword="with"/> expression can be used to change some of them.
 	/// </remarks>
 	public static CanvasParams Primary(Viewport viewport, CanvasLoadOp loadOp) => new(
 		Target: CanvasTarget.Primary(viewport, loadOp),
 		Scissor: CanvasScissor.None,
 		Transform: Matrix3x2.Identity,
-		OutputState: CanvasOutputStates.Alpha,
+		BlendMode: CanvasBlendMode.Normal,
+		WriteMask: ColorWriteMask.All,
 		Material: CanvasMaterial.Color,
 		Sampling: TexSampling.Nearest
 	);
@@ -144,10 +145,6 @@ public readonly record struct CanvasParams(
 	/// <returns>
 	/// The parameters <see cref="Canvas.PushParams(in CanvasParamsOverride)"/> would push.
 	/// </returns>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="ov"/>'s transform or scissor override is the
-	/// <see langword="default"/> value.
-	/// </exception>
 	/// <remarks>
 	/// <para>
 	/// A <see langword="null"/> field of <paramref name="ov"/> keeps the current value, and a
@@ -158,14 +155,16 @@ public readonly record struct CanvasParams(
 	/// <para>
 	/// This doesn't validate the result. <see cref="Canvas.PushParams(in CanvasParamsOverride)"/>
 	/// does, and can reject it, e.g. if a <see cref="CanvasTransformOverrideKind.Multiply"/> override
-	/// made the transform non-invertible, or the new target has an sRGB format.
+	/// made the transform non-invertible, or the new target is of a format that isn't sRGB or 16-bit
+	/// float.
 	/// </para>
 	/// </remarks>
 	public CanvasParams Merge(in CanvasParamsOverride ov) => new(
 		Target: ov.Target ?? Target,
 		Scissor: mergeScissor(Scissor, ov.Scissor),
 		Transform: mergeTransform(Transform, ov.Transform),
-		OutputState: ov.OutputState ?? OutputState,
+		BlendMode: ov.BlendMode ?? BlendMode,
+		WriteMask: ov.WriteMask ?? WriteMask,
 		Material: ov.Material ?? Material,
 		Sampling: ov.Sampling ?? Sampling
 	);
@@ -208,7 +207,7 @@ public readonly record struct CanvasParams(
 
 	// prevent the generated ToString from printing EffectiveTransform, which throws on default
 	public override string ToString() =>
-		$"CanvasParams {{ Target = {Target}, Scissor = {Scissor}, Transform = {Transform}, OutputState = {OutputState}, Material = {Material}, Sampling = {Sampling} }}";
+		$"CanvasParams {{ Target = {Target}, Scissor = {Scissor}, Transform = {Transform}, BlendMode = {BlendMode}, WriteMask = {WriteMask}, Material = {Material}, Sampling = {Sampling} }}";
 
 	bool IHasInvalidDefault.IsDefault => Target.IsDefault;
 }
@@ -225,7 +224,8 @@ public readonly record struct CanvasParams(
 /// Overrides <see cref="CanvasParams.Transform"/>, either replacing the current transform or
 /// multiplying into it; see <see cref="CanvasTransformOverride"/>.
 /// </param>
-/// <param name="OutputState">Overrides <see cref="CanvasParams.OutputState"/>.</param>
+/// <param name="BlendMode">Overrides <see cref="CanvasParams.BlendMode"/>.</param>
+/// <param name="WriteMask">Overrides <see cref="CanvasParams.WriteMask"/>.</param>
 /// <param name="Material">Overrides <see cref="CanvasParams.Material"/>.</param>
 /// <param name="Sampling">Overrides <see cref="CanvasParams.Sampling"/>.</param>
 /// <remarks>
@@ -240,7 +240,8 @@ public readonly record struct CanvasParamsOverride(
 	CanvasTarget? Target = null,
 	CanvasScissorOverride? Scissor = null,
 	CanvasTransformOverride? Transform = null,
-	CanvasOutputState? OutputState = null,
+	CanvasBlendMode? BlendMode = null,
+	ColorWriteMask? WriteMask = null,
 	CanvasMaterial? Material = null,
 	TexSampling? Sampling = null
 );

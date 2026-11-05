@@ -1,14 +1,8 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-// the sdf fields are only read by the sdf shader
 struct CanvasUniform {
-	proj: mat4x4<f32>,
-	distanceRangeTexels: f32,
-	edgeValue: f32,
-	softnessPixels: f32,
-	outlineWidthPixels: f32,
-	outlineColor: vec4<f32>
+	proj: mat4x4<f32>
 };
 
 @group(0) @binding(0)
@@ -31,15 +25,21 @@ struct VsOut {
 	@location(1) color: vec4<f32>
 };
 
+fn srgbToLinear(c: vec3<f32>) -> vec3<f32> {
+	return select(pow((c + 0.055) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
+}
+
+// vertex colors come in as straight srgb; everything after this is premultiplied linear
 @vertex
 fn vs_main(v: VsIn) -> VsOut {
 	var out: VsOut;
 	out.pos = u.proj * vec4<f32>(v.pos, 0.0, 1.0);
 	out.uv = v.uv;
-	out.color = v.color;
+	out.color = vec4<f32>(srgbToLinear(v.color.rgb) * v.color.a, v.color.a);
 	return out;
 }
 
+// both the texel and the vertex color are premultiplied, so multiplying them stays premultiplied
 @fragment
 fn fs_main(v: VsOut) -> @location(0) vec4<f32> {
 	return textureSample(tex, smp, v.uv) * v.color;

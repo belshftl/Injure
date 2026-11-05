@@ -11,20 +11,22 @@ using Injure.Primitives;
 namespace Injure.Draw;
 
 internal enum DrawableTextureKind {
-	Texture2d,
-	RenderTarget2d,
-	Texture2dAsset,
+	SrgbTexture2d,
+	SrgbRenderTarget2d,
+	SrgbTexture2dAsset,
 }
 
 /// <summary>
-/// Something a <see cref="Canvas"/> can draw as a texture. Either a <see cref="Texture2d"/>, a
-/// <see cref="RenderTarget2d"/>'s color texture, the current value of a <see cref="Versioned{T}"/>
-/// of <see cref="Texture2d"/> (an <see cref="Asset{T}"/> or a <see cref="DerivedAsset{T}"/>), or a
-/// <see cref="Texture2dSlice"/> of one of those.
+/// Something <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> can draw. Either a
+/// <see cref="SrgbTexture2d"/>, a <see cref="SrgbRenderTarget2d"/>'s color texture, the current
+/// value of a <see cref="Versioned{T}"/> of <see cref="SrgbTexture2d"/> (an
+/// <see cref="Asset{T}"/> or a <see cref="DerivedAsset{T}"/>), or a
+/// <see cref="DrawableTextureSlice"/> of one of those.
 /// </summary>
 /// <remarks>
 /// <para>
-/// All four of the above implicitly cast to <see cref="DrawableTexture"/>. A
+/// All four of the above implicitly cast to <see cref="DrawableTexture"/>;
+/// <see cref="RawTexture2d"/> doesn't, since a raw-texture material is required to draw one. A
 /// <see cref="Versioned{T}"/> is borrowed every time the texture is drawn, so a draw always uses
 /// the current version.
 /// </para>
@@ -74,11 +76,11 @@ public readonly struct DrawableTexture : IEquatable<DrawableTexture>, IHasInvali
 	/// </summary>
 	internal bool TryGetWholeSize(out uint width, out uint height) {
 		switch (Kind) {
-		case DrawableTextureKind.Texture2d:
-			(width, height) = (((Texture2d)val).Width, ((Texture2d)val).Height);
+		case DrawableTextureKind.SrgbTexture2d:
+			(width, height) = (((SrgbTexture2d)val).Width, ((SrgbTexture2d)val).Height);
 			return true;
-		case DrawableTextureKind.RenderTarget2d:
-			(width, height) = (((RenderTarget2d)val).Width, ((RenderTarget2d)val).Height);
+		case DrawableTextureKind.SrgbRenderTarget2d:
+			(width, height) = (((SrgbRenderTarget2d)val).Width, ((SrgbRenderTarget2d)val).Height);
 			return true;
 		default:
 			(width, height) = (0, 0);
@@ -87,36 +89,37 @@ public readonly struct DrawableTexture : IEquatable<DrawableTexture>, IHasInvali
 	}
 
 	/// <summary>
-	/// Creates a source referring to <paramref name="tex"/>.
+	/// Creates a <see cref="DrawableTexture"/> from <paramref name="tex"/>.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
 	/// </exception>
-	public static implicit operator DrawableTexture(Texture2d tex) =>
-		new(tex, DrawableTextureKind.Texture2d);
+	public static implicit operator DrawableTexture(SrgbTexture2d tex) =>
+		new(tex, DrawableTextureKind.SrgbTexture2d);
 
 	/// <summary>
-	/// Creates a source referring to <paramref name="rt"/>'s color texture.
+	/// Creates a <see cref="DrawableTexture"/> from <paramref name="rt"/>.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="rt"/> is <see langword="null"/>.
 	/// </exception>
-	public static implicit operator DrawableTexture(RenderTarget2d rt) =>
-		new(rt, DrawableTextureKind.RenderTarget2d);
+	public static implicit operator DrawableTexture(SrgbRenderTarget2d rt) =>
+		new(rt, DrawableTextureKind.SrgbRenderTarget2d);
 
 	/// <summary>
-	/// Creates a source referring to <paramref name="asset"/>, borrowed each time it's drawn.
+	/// Creates a <see cref="DrawableTexture"/> from <paramref name="asset"/>, freshly borrowing the
+	/// asset on every draw.
 	/// </summary>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="asset"/> is <see langword="null"/>.
 	/// </exception>
-	public static implicit operator DrawableTexture(Versioned<Texture2d> asset) =>
-		new(asset, DrawableTextureKind.Texture2dAsset);
+	public static implicit operator DrawableTexture(Versioned<SrgbTexture2d> asset) =>
+		new(asset, DrawableTextureKind.SrgbTexture2dAsset);
 
 	/// <summary>
-	/// Creates a source referring to the part of a texture that <paramref name="slice"/> covers.
+	/// Creates a <see cref="DrawableTexture"/> from <paramref name="slice"/>.
 	/// </summary>
-	public static implicit operator DrawableTexture(Texture2dSlice slice) {
+	public static implicit operator DrawableTexture(DrawableTextureSlice slice) {
 		ArgumentInvalidDefaultException.ThrowIfDefault(slice);
 		return new DrawableTexture(slice.Texture, slice.Rect);
 	}
@@ -128,9 +131,9 @@ public readonly struct DrawableTexture : IEquatable<DrawableTexture>, IHasInvali
 	public static bool operator !=(DrawableTexture left, DrawableTexture right) => !left.Equals(right);
 
 	internal ResolvedDrawableTexture Resolve() => Kind switch {
-		DrawableTextureKind.Texture2d => new ResolvedDrawableTexture((Texture2d)val),
-		DrawableTextureKind.RenderTarget2d => new ResolvedDrawableTexture((RenderTarget2d)val),
-		DrawableTextureKind.Texture2dAsset => new ResolvedDrawableTexture(((Versioned<Texture2d>)val).Borrow()),
+		DrawableTextureKind.SrgbTexture2d => new ResolvedDrawableTexture((SrgbTexture2d)val),
+		DrawableTextureKind.SrgbRenderTarget2d => new ResolvedDrawableTexture((SrgbRenderTarget2d)val),
+		DrawableTextureKind.SrgbTexture2dAsset => new ResolvedDrawableTexture(((Versioned<SrgbTexture2d>)val).Borrow()),
 		_ => throw new UnreachableException(),
 	};
 
@@ -139,8 +142,8 @@ public readonly struct DrawableTexture : IEquatable<DrawableTexture>, IHasInvali
 }
 
 internal enum ResolvedDrawableTextureKind {
-	Texture2d,
-	RenderTarget2d,
+	SrgbTexture2d,
+	SrgbRenderTarget2d,
 	BorrowedTexture2d,
 }
 
@@ -152,59 +155,58 @@ internal enum ResolvedDrawableTextureKind {
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 internal readonly ref struct ResolvedDrawableTexture : IHasInvalidDefault {
-	private readonly Texture2d? texture = null;
-	private readonly RenderTarget2d? renderTarget = null;
+	private readonly SrgbTexture2d? texture = null;
+	private readonly SrgbRenderTarget2d? renderTarget = null;
 	// like the other payloads, only meaningful for its own kind
 #pragma warning disable IJDEV0100
-	private readonly AssetBorrow<Texture2d> borrow = default;
+	private readonly AssetBorrow<SrgbTexture2d> borrow = default;
 #pragma warning restore IJDEV0100
 
 	public ResolvedDrawableTextureKind Kind { get; }
 
-	public ResolvedDrawableTexture(Texture2d texture) {
+	public ResolvedDrawableTexture(SrgbTexture2d texture) {
 		this.texture = texture;
-		Kind = ResolvedDrawableTextureKind.Texture2d;
+		Kind = ResolvedDrawableTextureKind.SrgbTexture2d;
 	}
 
-	public ResolvedDrawableTexture(RenderTarget2d renderTarget) {
+	public ResolvedDrawableTexture(SrgbRenderTarget2d renderTarget) {
 		this.renderTarget = renderTarget;
-		Kind = ResolvedDrawableTextureKind.RenderTarget2d;
+		Kind = ResolvedDrawableTextureKind.SrgbRenderTarget2d;
 	}
 
-	public ResolvedDrawableTexture(AssetBorrow<Texture2d> borrow) {
+	public ResolvedDrawableTexture(AssetBorrow<SrgbTexture2d> borrow) {
 		this.borrow = borrow;
 		Kind = ResolvedDrawableTextureKind.BorrowedTexture2d;
 	}
 
 	public uint Width => Kind switch {
-		ResolvedDrawableTextureKind.Texture2d => texture!.Width,
-		ResolvedDrawableTextureKind.RenderTarget2d => renderTarget!.Width,
+		ResolvedDrawableTextureKind.SrgbTexture2d => texture!.Width,
+		ResolvedDrawableTextureKind.SrgbRenderTarget2d => renderTarget!.Width,
 		ResolvedDrawableTextureKind.BorrowedTexture2d => borrow.Value.Width,
 		_ => throw new UnreachableException(),
 	};
 	public uint Height => Kind switch {
-		ResolvedDrawableTextureKind.Texture2d => texture!.Height,
-		ResolvedDrawableTextureKind.RenderTarget2d => renderTarget!.Height,
+		ResolvedDrawableTextureKind.SrgbTexture2d => texture!.Height,
+		ResolvedDrawableTextureKind.SrgbRenderTarget2d => renderTarget!.Height,
 		ResolvedDrawableTextureKind.BorrowedTexture2d => borrow.Value.Height,
 		_ => throw new UnreachableException(),
 	};
 	public GpuBindGroupRef BindGroup => Kind switch {
-		ResolvedDrawableTextureKind.Texture2d => texture!.BindGroup,
-		ResolvedDrawableTextureKind.RenderTarget2d => renderTarget!.ColorViewBindGroup,
+		ResolvedDrawableTextureKind.SrgbTexture2d => texture!.BindGroup,
+		ResolvedDrawableTextureKind.SrgbRenderTarget2d => renderTarget!.BindGroup,
 		ResolvedDrawableTextureKind.BorrowedTexture2d => borrow.Value.BindGroup,
 		_ => throw new UnreachableException(),
 	};
 
 	public object Identity => Kind switch {
-		ResolvedDrawableTextureKind.Texture2d => texture!,
-		ResolvedDrawableTextureKind.RenderTarget2d => renderTarget!,
+		ResolvedDrawableTextureKind.SrgbTexture2d => texture!,
+		ResolvedDrawableTextureKind.SrgbRenderTarget2d => renderTarget!,
 		ResolvedDrawableTextureKind.BorrowedTexture2d => borrow.Value,
 		_ => throw new UnreachableException(),
 	};
 
-	// comparing color textures only is enough since every render target has its own one
-	public bool SameRenderTargetAs(RenderTarget2d rt) =>
-		Kind == ResolvedDrawableTextureKind.RenderTarget2d && renderTarget!.ColorTexture.SameTexture(rt.ColorTexture);
+	public bool SameRenderTargetAs(SrgbRenderTarget2d rt) =>
+		Kind == ResolvedDrawableTextureKind.SrgbRenderTarget2d && renderTarget!.GpuTexture.SameTexture(rt.GpuTexture);
 
-	bool IHasInvalidDefault.IsDefault => Kind == ResolvedDrawableTextureKind.Texture2d && texture is null;
+	bool IHasInvalidDefault.IsDefault => Kind == ResolvedDrawableTextureKind.SrgbTexture2d && texture is null;
 }

@@ -51,9 +51,9 @@ public sealed class AssetCatalogAttribute(string directory, string @namespace) :
 /// <remarks>
 /// <para>
 /// The builtin kinds are images (<c>.png</c>, <c>.jpg</c>, <c>.jpeg</c>, <c>.bmp</c>, <c>.tga</c>)
-/// and <c>.tex.json</c> as <see cref="Draw.Texture2d"/>, and <c>.ttf</c>, <c>.otf</c>, <c>.ttc</c>,
-/// and <c>.otc</c> as <see cref="Draw.Text.FontData"/>. A kind given here replaces a builtin one with the
-/// same suffix.
+/// and <c>.tex.json</c> as <see cref="Draw.SrgbTexture2d"/>, and <c>.ttf</c>, <c>.otf</c>,
+/// <c>.ttc</c>, and <c>.otc</c> as <see cref="Draw.Text.FontData"/>. A kind given here replaces a
+/// builtin one with the same suffix.
 /// </para>
 /// <para>
 /// Suffixes are matched ignoring case, and the longest matching suffix wins, so <c>.tex.json</c>

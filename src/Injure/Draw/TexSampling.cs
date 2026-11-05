@@ -12,8 +12,8 @@ namespace Injure.Draw;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Separate mag/min/mipmap filters are unsupported at the <see cref="Draw"/> layer, and require
-/// raw <see cref="Gpu"/> usage.
+/// Separate mag/min/mipmap filters are currently unsupported at the <see cref="Draw"/> layer, and
+/// require raw <see cref="Gpu"/> usage.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is <see cref="Nearest"/>.
@@ -133,8 +133,7 @@ public readonly partial struct TexAddressing {
 /// produce a somewhat more blurry result where pixel edges are mushed together. Use
 /// <see cref="TexFilter.Linear"/> for things where the exact pixels don't matter as much as the
 /// overall look, where a rotation / fractional scale / etc. is more natural: photos, painted art,
-/// smooth UI, text, etc. <see cref="TextureInterpretation.Sdf"/> textures require
-/// <see cref="TexFilter.Linear"/>, since other filters defeat the point of an SDF.
+/// smooth UI, text, etc.
 /// </para>
 /// <para>
 /// The third option, <see cref="TexFilter.AreaWeighted"/>, gives a destination pixel contained
@@ -149,7 +148,7 @@ public readonly partial struct TexAddressing {
 /// </para>
 /// <para>
 /// Linear filtering has two gotchas. The first is that without mips (see
-/// <see cref="Texture2dParams.Mips"/>), shrinking a texture below about half its size still
+/// <see cref="SrgbTexture2dParams.Mips"/>), shrinking a texture below about half its size still
 /// aliases. The second is that, in an atlas, samples near a region's edge blend with the
 /// neighboring region, unless regions are padded by repeating their edge texels; smaller mip levels
 /// blend across a wider band, so they need more padding. <see cref="TexFilter.AreaWeighted"/> has
@@ -160,7 +159,8 @@ public readonly partial struct TexAddressing {
 /// Use <see cref="TexAddressing.Clamp"/> for ordinary sprites, and
 /// <see cref="TexAddressing.Repeat"/> or <see cref="TexAddressing.MirrorRepeat"/> for tiling a
 /// texture with a <see cref="TexRegion.Uv(RectF)"/> region that extends beyond [0, 1]. It applies
-/// to the whole underlying texture, so it can't tile one <see cref="Texture2dSlice"/> of an atlas.
+/// to the whole underlying texture, so it can't tile one <see cref="DrawableTextureSlice"/> of an
+/// atlas.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is valid and is <see cref="Nearest"/>.

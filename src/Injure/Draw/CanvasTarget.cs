@@ -10,14 +10,14 @@ namespace Injure.Draw;
 
 /// <summary>
 /// Target for a <see cref="Canvas"/> to draw into (either the frame's primary output or an
-/// offscreen <see cref="RenderTarget2d"/>), plus the <see cref="Draw.Viewport"/> that defines its
-/// drawable area and the <see cref="CanvasLoadOp"/> to use for it.
+/// offscreen <see cref="SrgbRenderTarget2d"/>), plus the <see cref="Draw.Viewport"/> that defines
+/// its drawable area, and the <see cref="CanvasLoadOp"/> to use for it.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Drawn geometry is transformed by <see cref="CanvasParams.Transform"/>, then placed on the
-/// drawable area, and <see cref="Viewport"/> maps the drawable area to the target's pixels. The viewport belongs to
-/// the target rather than to the transform, so
+/// drawable area, and <see cref="Viewport"/> maps the drawable area to the target's pixels. The
+/// viewport belongs to the target rather than to the transform, so
 /// <see cref="CanvasTransformOverride.Set(Matrix3x2)"/> only replaces the transform, and the
 /// viewport remains unchanged. Every draw is clipped to the drawable area. An example viewport for
 /// the primary output would cover the whole target at the window's pixel density, making it so
@@ -32,7 +32,7 @@ namespace Injure.Draw;
 /// </para>
 /// </remarks>
 public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefault {
-	private readonly RenderTarget2d? rt;
+	private readonly SrgbRenderTarget2d? rt;
 	private readonly bool isPrimary;
 	private readonly Viewport viewport;
 	private readonly CanvasLoadOp loadOp;
@@ -67,11 +67,11 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefau
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if this is the primary output.
 	/// </exception>
-	public RenderTarget2d RenderTarget => IsPrimary
-		? throw new InvalidOperationException("this is the primary target, which has no RenderTarget2d")
+	public SrgbRenderTarget2d RenderTarget => IsPrimary
+		? throw new InvalidOperationException("this is the primary target, which has no SrgbRenderTarget2d")
 		: rt;
 
-	private CanvasTarget(RenderTarget2d? rt, bool isPrimary, Viewport viewport, CanvasLoadOp loadOp) {
+	private CanvasTarget(SrgbRenderTarget2d? rt, bool isPrimary, Viewport viewport, CanvasLoadOp loadOp) {
 		this.rt = rt;
 		this.isPrimary = isPrimary;
 		this.viewport = viewport;
@@ -84,7 +84,8 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefau
 	/// </summary>
 	/// <param name="viewport">The drawable area of the primary output.</param>
 	/// <param name="loadOp">
-	/// What happens to the existing contents when a canvas begins drawing into the target.
+	/// What happens to the existing contents when the target is made the new active target; see
+	/// <see cref="CanvasLoadOp"/>.
 	/// </param>
 	public static CanvasTarget Primary(Viewport viewport, CanvasLoadOp loadOp) {
 		ArgumentInvalidDefaultException.ThrowIfDefault(viewport);
@@ -98,12 +99,13 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefau
 	/// </summary>
 	/// <param name="renderTarget">Render target to draw into.</param>
 	/// <param name="loadOp">
-	/// What happens to the existing contents when a canvas begins drawing into the target.
+	/// What happens to the existing contents when the target is made the new active target; see
+	/// <see cref="CanvasLoadOp"/>.
 	/// </param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="renderTarget"/> is <see langword="null"/>.
 	/// </exception>
-	public static CanvasTarget Offscreen(RenderTarget2d renderTarget, CanvasLoadOp loadOp) {
+	public static CanvasTarget Offscreen(SrgbRenderTarget2d renderTarget, CanvasLoadOp loadOp) {
 		ArgumentNullException.ThrowIfNull(renderTarget);
 		ArgumentInvalidDefaultException.ThrowIfDefault(loadOp);
 		return new CanvasTarget(renderTarget, false, Viewport.Whole(new Vector2(renderTarget.Width, renderTarget.Height)), loadOp);
@@ -114,13 +116,14 @@ public readonly struct CanvasTarget : IEquatable<CanvasTarget>, IHasInvalidDefau
 	/// </summary>
 	/// <param name="renderTarget">Render target to draw into.</param>
 	/// <param name="loadOp">
-	/// What happens to the existing contents when a canvas begins drawing into the target.
+	/// What happens to the existing contents when the target is made the new active target; see
+	/// <see cref="CanvasLoadOp"/>.
 	/// </param>
 	/// <param name="viewport">The drawable area of the render target.</param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="renderTarget"/> is <see langword="null"/>.
 	/// </exception>
-	public static CanvasTarget Offscreen(RenderTarget2d renderTarget, CanvasLoadOp loadOp, Viewport viewport) {
+	public static CanvasTarget Offscreen(SrgbRenderTarget2d renderTarget, CanvasLoadOp loadOp, Viewport viewport) {
 		ArgumentNullException.ThrowIfNull(renderTarget);
 		ArgumentInvalidDefaultException.ThrowIfDefault(loadOp);
 		ArgumentInvalidDefaultException.ThrowIfDefault(viewport);

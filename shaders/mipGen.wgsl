@@ -15,14 +15,6 @@ fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
 	return vec4<f32>(uv * 2.0 - 1.0, 0.0, 1.0);
 }
 
-fn srgbToLinear(c: vec3<f32>) -> vec3<f32> {
-	return select(pow((c + 0.055) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
-}
-
-fn linearToSrgb(c: vec3<f32>) -> vec3<f32> {
-	return select(1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - 0.055, c * 12.92, c <= vec3<f32>(0.0031308));
-}
-
 fn overlap(lo: f32, hi: f32, t: f32) -> f32 {
 	return max(0.0, min(hi, t + 1.0) - max(lo, t));
 }
@@ -48,8 +40,10 @@ fn footprint(pos: vec2<f32>) -> Footprint {
 	return f;
 }
 
+// texels hold premultiplied color, and the views have srgb formats, so loads decode to linear and
+// the output is encoded again; a plain weighted average is then correct, including for alpha
 @fragment
-fn fs_raw(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 	let f = footprint(pos.xy);
 	var sum = vec4<f32>(0.0);
 	var total = 0.0;
@@ -62,29 +56,4 @@ fn fs_raw(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 		}
 	}
 	return sum / total;
-}
-
-// texels hold srgb color in straight alpha; average in linear light weighted by alpha so
-// transparent texels don't bleed their (usually black) color into visible ones
-// fully transparent footprints keep the unweighted average color instead of turning black
-@fragment
-fn fs_color(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-	let f = footprint(pos.xy);
-	var premul = vec4<f32>(0.0);
-	var plain = vec3<f32>(0.0);
-	var total = 0.0;
-	for (var y = f.first.y; y <= f.last.y; y++) {
-		let wy = overlap(f.lo.y, f.hi.y, f32(y));
-		for (var x = f.first.x; x <= f.last.x; x++) {
-			let w = wy * overlap(f.lo.x, f.hi.x, f32(x));
-			let t = textureLoad(src, vec2<i32>(x, y), 0);
-			let lin = srgbToLinear(t.rgb);
-			premul += w * vec4<f32>(lin * t.a, t.a);
-			plain += w * lin;
-			total += w;
-		}
-	}
-	let a = premul.a / total;
-	let rgb = select(plain / total, premul.rgb / premul.a, premul.a > 0.0);
-	return vec4<f32>(linearToSrgb(rgb), a);
 }

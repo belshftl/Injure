@@ -121,7 +121,8 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 		Assert.Single(Errors.TakeAll());
 		using GpuPipelineLayout pl = Device.CreatePipelineLayout([]);
 		using GpuRenderPipeline p = Device.CreateRenderPipeline(new GpuRenderPipelineParams(
-			pl, new VertexState(bad, "vs"), new FragmentState(bad, "fs", [GpuRig.Opaque()])
+			pl, new VertexState(bad, "vs"), new FragmentState(bad, "fs", [GpuRig.Opaque()]),
+			PrimitiveState.UnculledTriangleList, null, MultisampleState.SingleSampled
 		));
 		Assert.NotEmpty(Errors.TakeAll());
 
@@ -177,7 +178,7 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 	public void PipelineIncompatibleWithThePassIsInvalid() {
 		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuRenderPipeline rgba = tint.Pipeline(Device, [GpuRig.Opaque()]);
-		using GpuRenderPipeline multisampled = tint.Pipeline(Device, [GpuRig.Opaque()], samples: 4);
+		using GpuRenderPipeline multisampled = tint.Pipeline(Device, [GpuRig.Opaque()], samples: SampleCount.Four);
 		using GpuTexture bgra = GpuRig.Target(Device, 4, 4, format: TextureFormat.Bgra8Unorm);
 		using GpuTexture single = GpuRig.Target(Device, 4, 4);
 		using GpuBuffer vb = GpuRig.BufferWith(Device, BufferUsage.Vertex, GpuRig.Fullscreen().AsSpan());
@@ -200,7 +201,8 @@ public sealed class GpuErrorTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 		using GpuRig.Tinted tint = new(Device, RawColor32.Red);
 		using GpuPipelineLayout empty = Device.CreatePipelineLayout([]);
 		using GpuRenderPipeline p = Device.CreateRenderPipeline(new GpuRenderPipelineParams(
-			empty, new VertexState(tint.Shader, "vs", [GpuRig.Vertex3]), new FragmentState(tint.Shader, "fs", [GpuRig.Opaque()])
+			empty, new VertexState(tint.Shader, "vs", [GpuRig.Vertex3]), new FragmentState(tint.Shader, "fs", [GpuRig.Opaque()]),
+			PrimitiveState.UnculledTriangleList, null, MultisampleState.SingleSampled
 		));
 		Assert.Equal(GpuErrorKind.Validation, Assert.Single(Errors.TakeAll()).Kind);
 	}

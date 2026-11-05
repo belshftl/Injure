@@ -25,6 +25,10 @@ namespace Injure.Draw.Text;
 /// </para>
 /// </remarks>
 internal static class TextRenderer {
+	public static void Draw(OwnedCanvas oc, TextLayout layout, Vector2 at, SrgbStraight32 tint) =>
+		throw new NotImplementedException("text drawing is currently unavailable until the material system rework, sorry");
+
+	/*
 	private const int subpixelSteps = 4;
 	private static readonly ImmutableArray<uint> quadIndices = [0, 2, 1, 3, 1, 2];
 
@@ -44,14 +48,14 @@ internal static class TextRenderer {
 		);
 		bool snap = m.M12 == 0f && m.M21 == 0f && m.M11 > 0f && m.M22 > 0f;
 
-		using CanvasParamsScope scope = oc.PushParams(new CanvasParamsOverride(Material: CanvasMaterial.Rmask));
+		// TODO: push the coverage mask material here
 		foreach (LaidOutGlyph g in glyphs) {
 			int pixelSize = Math.Clamp((int)MathF.Round(g.Size * scale, MidpointRounding.AwayFromZero), 1, maxPixelSize);
 			float rasterPerUnit = pixelSize / g.Size;
 			Vector2 pos = at + new Vector2(g.X, g.Y);
 			ResolvedFontState state = chains[g.Chain].States[g.FontIndex];
 			FontRasterOptions raster = chains[g.Chain].Raster[g.FontIndex];
-			SrgbStraight32 color = tint == SrgbStraight32.White ? g.Color : multiply(g.Color, tint);
+			SrgbStraight32 color = tint == SrgbStraight32.White ? g.Color : CanvasColor.MultiplyLinear(g.Color, tint);
 			GlyphAtlasEntry e;
 			if (snap) {
 				var px = Vector2.Transform(pos, m);
@@ -79,15 +83,6 @@ internal static class TextRenderer {
 		}
 	}
 
-	// per channel, on the encoded values
-	// x / 255 is never exactly a midpoint for an integer x, so adding 127 rounds to the nearest value
-	private static SrgbStraight32 multiply(SrgbStraight32 a, SrgbStraight32 b) => new(
-		(byte)((a.R * b.R + 127) / 255),
-		(byte)((a.G * b.G + 127) / 255),
-		(byte)((a.B * b.B + 127) / 255),
-		(byte)((a.A * b.A + 127) / 255)
-	);
-
 	private static void addQuad(OwnedCanvas oc, in GlyphAtlasEntry e, float x, float y, float w, float h, SrgbStraight32 color, bool inPixels) {
 		float invW = 1f / e.Page.Width, invH = 1f / e.Page.Height;
 		float u0 = e.SrcPixels.X * invW, u1 = (e.SrcPixels.X + e.SrcPixels.Width) * invW;
@@ -104,4 +99,5 @@ internal static class TextRenderer {
 		else
 			oc.AddTextured(in tex, TexSampling.Linear, verts, quadIndices.AsSpan());
 	}
+	*/
 }

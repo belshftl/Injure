@@ -8,17 +8,19 @@ using Injure.Primitives;
 namespace Injure.Draw;
 
 /// <summary>
-/// A rectangle of a texture that <see cref="Canvas"/> draws as if it were a texture of its own,
-/// e.g. a tile of a tileset or a frame of an animation in an atlas.
+/// A sub-rectangle of a texture that <see cref="Canvas"/> draws as if it were a texture of its
+/// own, e.g. a tile of a tileset or a frame of an animation in an atlas.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Implicitly casts to <see cref="DrawableTexture"/>, so 
-/// <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> draws it like any texture. The natural
-/// size (see <see cref="TexDraw"/>) is the slice's size, and <see cref="TexDraw.Source"/> is
-/// relative to the slice; for example, <see cref="TexRegion.Whole"/> is the whole slice. A
-/// <see cref="TexRegion"/> reaching outside the slice is rejected when drawing, since it would
-/// sample neighboring texels of the underlying texture.
+/// Implicitly casts to <see cref="DrawableTexture"/>, so
+/// <see cref="Canvas.Texture(DrawableTexture, in TexDraw)"/> draws it like any texture, and it can
+/// be sliced further (with <see cref="Slice(RectI)"/>, or by passing it as the texture to slice),
+/// with rectangles relative to it. The natural size (see <see cref="TexDraw"/>) is the slice's
+/// size, and <see cref="TexDraw.Source"/> is relative to the slice; for example,
+/// <see cref="TexRegion.Whole"/> is the whole slice. A <see cref="TexRegion"/> that goes outside
+/// the slice is rejected on draw, since it would sample neighboring texels of the underlying
+/// texture.
 /// </para>
 /// <para>
 /// Slices of the same texture draw without starting a new draw call, which separate textures can't,
@@ -29,21 +31,21 @@ namespace Injure.Draw;
 /// </para>
 /// <para>
 /// A slice only refers to its texture; it doesn't keep it alive or track its lifetime. To follow an
-/// asset's hot reloads, slice the <see cref="Asset{T}"/> rather than a <see cref="Texture2d"/>
+/// asset's reloads, slice the <see cref="Asset{T}"/> rather than a <see cref="SrgbTexture2d"/>
 /// borrowed from it.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
 /// </para>
 /// </remarks>
-public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidDefault {
+public readonly struct DrawableTextureSlice : IEquatable<DrawableTextureSlice>, IHasInvalidDefault {
 	/// <summary>
 	/// The whole texture this slice is part of.
 	/// </summary>
 	public DrawableTexture Texture { get; }
 
 	/// <summary>
-	/// The rectangle of <see cref="Texture"/> this slice covers, in texels.
+	/// The sub-rectangle of <see cref="Texture"/> this slice covers, in texels.
 	/// </summary>
 	public RectI Rect { get; }
 
@@ -68,10 +70,10 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="rect"/> has a negative position or a non-positive size, or if
 	/// <paramref name="rect"/> doesn't fit in <paramref name="texture"/>. Fitting is checked here for
-	/// slices, <see cref="Texture2d"/>s, and <see cref="RenderTarget2d"/>s, and on draw for assets,
-	/// since the size of an asset isn't known without borrowing it.
+	/// slices, <see cref="SrgbTexture2d"/>s, and <see cref="SrgbRenderTarget2d"/>s, and on draw for
+	/// assets, since the size of an asset can only be known by borrowing a particular version.
 	/// </exception>
-	public Texture2dSlice(DrawableTexture texture, RectI rect) {
+	public DrawableTextureSlice(DrawableTexture texture, RectI rect) {
 		ArgumentInvalidDefaultException.ThrowIfDefault(texture);
 		if (rect.X < 0 || rect.Y < 0 || rect.Width <= 0 || rect.Height <= 0)
 			throw new ArgumentException($"slice rect must have a non-negative position and a positive size, got {rect}", nameof(rect));
@@ -94,8 +96,8 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 	/// Thrown if <paramref name="rect"/> has a negative position or a non-positive size, or doesn't
 	/// fit in this slice.
 	/// </exception>
-	public Texture2dSlice Slice(RectI rect) =>
-		!IsDefault ? new(this, rect) : throw InvalidDefaultException.For<Texture2dSlice>();
+	public DrawableTextureSlice Slice(RectI rect) =>
+		!IsDefault ? new(this, rect) : throw InvalidDefaultException.For<DrawableTextureSlice>();
 
 	/// <summary>
 	/// Slices <paramref name="texture"/> into a grid of equally sized cells, e.g. a tileset or a
@@ -118,9 +120,9 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if the grid doesn't fit in <paramref name="texture"/>, as checked by
-	/// <see cref="Texture2dSlice(DrawableTexture, RectI)"/>.
+	/// <see cref="DrawableTextureSlice(DrawableTexture, RectI)"/>.
 	/// </exception>
-	public static Texture2dSlice[] Grid(DrawableTexture texture, Vector2Int cellSize, int columns, int rows, int margin = 0, int spacing = 0) {
+	public static DrawableTextureSlice[] Grid(DrawableTexture texture, Vector2Int cellSize, int columns, int rows, int margin = 0, int spacing = 0) {
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellSize.X, nameof(cellSize));
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellSize.Y, nameof(cellSize));
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(columns);
@@ -129,11 +131,11 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 		ArgumentOutOfRangeException.ThrowIfNegative(spacing);
 		ArgumentInvalidDefaultException.ThrowIfDefault(texture);
 		// check the bottom right cell first to report a non-fitting grid before allocating
-		_ = new Texture2dSlice(texture, cell(columns - 1, rows - 1));
-		var cells = new Texture2dSlice[checked(columns * rows)];
+		_ = new DrawableTextureSlice(texture, cell(columns - 1, rows - 1));
+		var cells = new DrawableTextureSlice[checked(columns * rows)];
 		for (int y = 0; y < rows; y++)
 			for (int x = 0; x < columns; x++)
-				cells[y * columns + x] = new Texture2dSlice(texture, cell(x, y));
+				cells[y * columns + x] = new DrawableTextureSlice(texture, cell(x, y));
 		return cells;
 
 		RectI cell(int x, int y) => new(
@@ -164,7 +166,7 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 	/// <exception cref="ArgumentException">
 	/// Thrown if not even one cell fits.
 	/// </exception>
-	public static Texture2dSlice[] Grid(Texture2d texture, Vector2Int cellSize, int margin = 0, int spacing = 0) {
+	public static DrawableTextureSlice[] Grid(SrgbTexture2d texture, Vector2Int cellSize, int margin = 0, int spacing = 0) {
 		ArgumentNullException.ThrowIfNull(texture);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellSize.X, nameof(cellSize));
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellSize.Y, nameof(cellSize));
@@ -181,11 +183,11 @@ public readonly struct Texture2dSlice : IEquatable<Texture2dSlice>, IHasInvalidD
 	private static bool fits(RectI rect, long width, long height) =>
 		(long)rect.X + rect.Width <= width && (long)rect.Y + rect.Height <= height;
 
-	public bool Equals(Texture2dSlice other) => Texture == other.Texture && Rect == other.Rect;
-	public override bool Equals([NotNullWhen(true)] object? obj) => obj is Texture2dSlice other && Equals(other);
+	public bool Equals(DrawableTextureSlice other) => Texture == other.Texture && Rect == other.Rect;
+	public override bool Equals([NotNullWhen(true)] object? obj) => obj is DrawableTextureSlice other && Equals(other);
 	public override int GetHashCode() => HashCode.Combine(Texture, Rect);
-	public static bool operator ==(Texture2dSlice left, Texture2dSlice right) => left.Equals(right);
-	public static bool operator !=(Texture2dSlice left, Texture2dSlice right) => !left.Equals(right);
+	public static bool operator ==(DrawableTextureSlice left, DrawableTextureSlice right) => left.Equals(right);
+	public static bool operator !=(DrawableTextureSlice left, DrawableTextureSlice right) => !left.Equals(right);
 
 	internal bool IsDefault => Texture.IsDefault;
 	bool IHasInvalidDefault.IsDefault => IsDefault;

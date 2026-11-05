@@ -11,10 +11,10 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 	[Fact]
 	public void CreateTextureReportsItsParameters() {
 		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
-			8, 4, 3, 2, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding | TextureUsage.CopyDst,
+			8, 4, 3, 2, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding | TextureUsage.CopyDst,
 			[TextureFormat.Rgba8UnormSrgb]
 		));
-		Assert.Equal((8u, 4u, 3u, 2u, 1u), (tex.Width, tex.Height, tex.DepthOrArrayLayers, tex.MipLevelCount, tex.SampleCount));
+		Assert.Equal((8u, 4u, 3u, 2u, SampleCount.One), (tex.Width, tex.Height, tex.DepthOrArrayLayers, tex.MipLevelCount, tex.SampleCount));
 		Assert.Equal(TextureDimension.Dimension2d, tex.Dimension);
 		Assert.Equal(TextureViewDimension.Dimension2dArray, tex.DefaultViewDimension);
 		Assert.Equal([TextureFormat.Rgba8UnormSrgb], tex.ViewFormats.ToArray());
@@ -36,10 +36,10 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 	[Fact]
 	public void CreateTextureRejectsBadViewFormats() {
 		Assert.Throws<ArgumentException>(() => dev.CreateTexture(new GpuTextureParams(
-			4, 4, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding, [GpuRig.Format]
+			4, 4, 1, 1, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding, [GpuRig.Format]
 		)));
 		Assert.Throws<ArgumentException>(() => dev.CreateTexture(new GpuTextureParams(
-			4, 4, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding,
+			4, 4, 1, 1, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding,
 			[TextureFormat.Rgba8UnormSrgb, TextureFormat.Rgba8UnormSrgb]
 		)));
 	}
@@ -47,7 +47,7 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 	[Fact]
 	public void ViewsCoverTheRequestedSubresources() {
 		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
-			16, 16, 4, 3, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
+			16, 16, 4, 3, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
 		));
 		using GpuTextureView view = tex.CreateView(new GpuTextureViewParams(
 			null, TextureViewDimension.Dimension2d, TextureAspect.All, BaseMipLevel: 1, MipLevelCount: 1, BaseArrayLayer: 2
@@ -59,7 +59,7 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 	[Fact]
 	public void ViewsRejectNonexistentBaseSubresources() {
 		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
-			16, 16, 4, 3, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
+			16, 16, 4, 3, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding
 		));
 		Assert.Throws<ArgumentException>(() => tex.CreateView(new GpuTextureViewParams() with { BaseMipLevel = 3 }));
 		Assert.Throws<ArgumentException>(() => tex.CreateView(new GpuTextureViewParams() with { BaseArrayLayer = 4 }));
@@ -68,7 +68,7 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 	[Fact]
 	public void AspectViewsOfDepthStencilPickAspectFormats() {
 		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
-			4, 4, 1, 1, 1, TextureDimension.Dimension2d, TextureFormat.Depth24PlusStencil8, TextureUsage.TextureBinding
+			4, 4, 1, 1, SampleCount.One, TextureDimension.Dimension2d, TextureFormat.Depth24PlusStencil8, TextureUsage.TextureBinding
 		));
 		using GpuTextureView depth = tex.CreateView(new GpuTextureViewParams(null, null, TextureAspect.DepthOnly));
 		using GpuTextureView stencil = tex.CreateView(new GpuTextureViewParams(null, null, TextureAspect.StencilOnly));
@@ -83,7 +83,7 @@ public sealed class GpuTextureTests(GpuDeviceFixture fixture) : GpuTestBase(fixt
 	[Fact]
 	public void QueueWritesToTextureRespectRowPitch() {
 		using GpuTexture tex = dev.CreateTexture(new GpuTextureParams(
-			2, 2, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.CopySrc | TextureUsage.CopyDst
+			2, 2, 1, 1, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.CopySrc | TextureUsage.CopyDst
 		));
 		// 12-byte row pitch, i.e. 4 bytes of padding per row, which queue writes allow
 		byte[] data = [1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 9, 10, 11, 12, 13, 14, 15, 16, 0, 0, 0, 0];

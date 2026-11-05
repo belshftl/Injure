@@ -97,9 +97,9 @@ public abstract class GpuTextureViewHandle {
 	public abstract uint Depth { get; }
 
 	/// <summary>
-	/// Samples per texel; 1 unless the texture is multisampled.
+	/// Samples per texel; <see cref="SampleCount.One"/> unless the texture is multisampled.
 	/// </summary>
-	public abstract uint SampleCount { get; }
+	public abstract SampleCount SampleCount { get; }
 }
 
 /// <summary>
@@ -115,7 +115,7 @@ public sealed class GpuTextureView : GpuTextureViewHandle, IDisposable {
 		uint width,
 		uint height,
 		uint depth,
-		uint sampleCount
+		SampleCount sampleCount
 	) {
 		this.texView = texView;
 		Params = @params;
@@ -143,7 +143,7 @@ public sealed class GpuTextureView : GpuTextureViewHandle, IDisposable {
 	/// <inheritdoc/>
 	public override uint Depth { get; }
 	/// <inheritdoc/>
-	public override uint SampleCount { get; }
+	public override SampleCount SampleCount { get; }
 
 	/// <summary>
 	/// Creates a non-owning view of this texture view.
@@ -181,7 +181,7 @@ public sealed class GpuTextureViewRef : GpuTextureViewHandle {
 	/// <inheritdoc/>
 	public override uint Depth => source.Depth;
 	/// <inheritdoc/>
-	public override uint SampleCount => source.SampleCount;
+	public override SampleCount SampleCount => source.SampleCount;
 }
 
 /// <summary>

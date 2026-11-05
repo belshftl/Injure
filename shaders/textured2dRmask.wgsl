@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-// the sdf fields are only read by the sdf shader
+// unused until the material rework brings this back as a raw texture material; its CanvasUniform
+// still has the sdf fields, which the canvas no longer fills in
+
+// the sdf fields are only read by the sdf shader; outlineColor is premultiplied linear
 struct CanvasUniform {
 	proj: mat4x4<f32>,
 	distanceRangeTexels: f32,
@@ -31,18 +34,23 @@ struct VsOut {
 	@location(1) color: vec4<f32>
 };
 
+fn srgbToLinear(c: vec3<f32>) -> vec3<f32> {
+	return select(pow((c + 0.055) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
+}
+
+// vertex colors come in as straight srgb; everything after this is premultiplied linear
 @vertex
 fn vs_main(v: VsIn) -> VsOut {
 	var out: VsOut;
 	out.pos = u.proj * vec4<f32>(v.pos, 0.0, 1.0);
 	out.uv = v.uv;
-	out.color = v.color;
+	out.color = vec4<f32>(srgbToLinear(v.color.rgb) * v.color.a, v.color.a);
 	return out;
 }
 
 @fragment
 fn fs_main(v: VsOut) -> @location(0) vec4<f32> {
-	return vec4(v.color.rgb, v.color.a * textureSample(tex, smp, v.uv).r);
+	return v.color * textureSample(tex, smp, v.uv).r;
 }
 
 // moves uv so the linear sampler's blend between two texels spans one destination pixel centered on
@@ -63,5 +71,5 @@ fn areaWeightedUv(uv: vec2<f32>) -> vec2<f32> {
 // mip selection uses the unadjusted uv's gradients, the same as fs_main's
 @fragment
 fn fs_area_weighted(v: VsOut) -> @location(0) vec4<f32> {
-	return vec4(v.color.rgb, v.color.a * textureSampleGrad(tex, smp, areaWeightedUv(v.uv), dpdx(v.uv), dpdy(v.uv)).r);
+	return v.color * textureSampleGrad(tex, smp, areaWeightedUv(v.uv), dpdx(v.uv), dpdy(v.uv)).r;
 }

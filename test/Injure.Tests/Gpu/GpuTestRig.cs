@@ -17,7 +17,11 @@ public sealed class GpuDeviceFixture : IDisposable {
 
 	public GpuDeviceFixture() {
 		try {
-			Device = new GpuDevice(new GpuDeviceOptions { RequiredFeatures = GpuFeatures.None, ErrorHandler = Errors.Handle });
+			Device = new GpuDevice(new GpuDeviceOptions {
+				RequiredFeatures = GpuFeatures.None,
+				OptionalFeatures = GpuFeatures.TextureCompressionBc,
+				ErrorHandler = Errors.Handle,
+			});
 		} catch (WebgpuException e) {
 			Unavailable = e.Message;
 		}
@@ -69,13 +73,13 @@ internal static class GpuRig {
 		GpuDevice dev,
 		uint w,
 		uint h,
-		uint samples = 1,
+		SampleCount samples = default,
 		TextureFormat? format = null,
 		TextureUsage extraUsage = default
 	) =>
 		dev.CreateTexture(new GpuTextureParams(
 			w, h, 1, 1, samples, TextureDimension.Dimension2d, format ?? Format,
-			TextureUsage.RenderAttachment | (samples == 1 ? TextureUsage.CopySrc : TextureUsage.None) | extraUsage
+			TextureUsage.RenderAttachment | (samples == SampleCount.One ? TextureUsage.CopySrc : TextureUsage.None) | extraUsage
 		));
 
 	public static GpuBuffer BufferWith<T>(GpuDevice dev, BufferUsage usage, ReadOnlySpan<T> data) where T : unmanaged {
@@ -162,15 +166,15 @@ internal static class GpuRig {
 			Group = dev.CreateUniformBufferBindGroup(Layout, Uniforms, size: 16);
 		}
 
-		public GpuRenderPipeline Pipeline(GpuDevice dev, ImmutableArray<ColorTargetState> targets, uint samples = 1,
+		public GpuRenderPipeline Pipeline(GpuDevice dev, ImmutableArray<ColorTargetState> targets, SampleCount samples = default,
 			DepthStencilState? depthStencil = null, PrimitiveState? primitive = null, string fragment = "fs") =>
 			dev.CreateRenderPipeline(new GpuRenderPipelineParams(
 				PipelineLayout,
 				new VertexState(Shader, "vs", [Vertex3]),
 				new FragmentState(Shader, fragment, targets),
-				Primitive: primitive,
+				Primitive: primitive ?? PrimitiveState.UnculledTriangleList,
 				DepthStencil: depthStencil,
-				Multisample: new MultisampleState(samples)
+				Multisample: new MultisampleState(samples, uint.MaxValue, false)
 			));
 
 		public void Dispose() {

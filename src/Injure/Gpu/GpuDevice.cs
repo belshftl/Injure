@@ -4,6 +4,7 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Numerics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -503,8 +504,8 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <param name="buffer">Destination buffer.</param>
 	/// <param name="offset">Byte offset into <paramref name="buffer"/>.</param>
 	/// <param name="data">
-	/// Pointer to the data to upload. Must be readable for at least <paramref name="size"/> bytes
-	/// unless <paramref name="size"/> is 0. No alignment restrictions are imposed.
+	/// Data to upload. Must be readable for at least <paramref name="size"/> bytes unless
+	/// <paramref name="size"/> is 0. No alignment restrictions are imposed.
 	/// </param>
 	/// <param name="size">Number of bytes to upload from <paramref name="data"/>.</param>
 	/// <inheritdoc cref="WriteToBuffer{T}(GpuBufferHandle, ulong, in T)" path="/exception"/>
@@ -535,32 +536,62 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Creates a texture and its default view, returning an owning object.
 	/// </summary>
 	/// <param name="params">Texture creation parameters.</param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <see cref="GpuTextureParams.Dimension"/> is the <see langword="default"/> value.
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// Thrown if the width, height, or depth/array layer count is 0, or the mip level count is 0 or
+	/// more than a full chain for the size and dimension.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the provided <see cref="GpuTextureParams.ViewFormats"/> contains the texture's
-	/// <see cref="GpuTextureParams.Format"/> or any duplicates.
+	/// Thrown if:
+	/// <list type="bullet">
+	/// <item><description>
+	/// the format needs a <see cref="GpuFeatures"/> value the device doesn't have;
+	/// </description></item>
+	/// <item><description>
+	/// the format is block-compressed and the size isn't a multiple of its block size, the
+	/// dimension isn't 2D (or 3D with the format's sliced 3D feature), or the usage includes
+	/// <see cref="TextureUsage.RenderAttachment"/> or <see cref="TextureUsage.StorageBinding"/>;
+	/// </description></item>
+	/// <item><description>
+	/// the format is a depth/stencil format and the dimension isn't 2D;
+	/// </description></item>
+	/// <item><description>
+	/// the dimension is 1D and there's more than one mip level or the usage includes
+	/// <see cref="TextureUsage.RenderAttachment"/>;
+	/// </description></item>
+	/// <item><description>
+	/// the sample count is <see cref="SampleCount.Four"/> and the texture isn't 2D with one mip
+	/// level and one array layer, lacks <see cref="TextureUsage.RenderAttachment"/>, has
+	/// <see cref="TextureUsage.StorageBinding"/>, or is of a block-compressed format;
+	/// </description></item>
+	/// <item><description>
+	/// or <see cref="GpuTextureParams.ViewFormats"/> contains the texture's format, duplicates, or a
+	/// format that differs from the texture's in more than sRGB-ness.
+	/// </description></item>
+	/// </list>
 	/// </exception>
+	/// <remarks>
+	/// Whether the format supports multisampling and the device's size limits isn't checked, and is
+	/// reported as a WebGPU error.
+	/// </remarks>
 	public GpuTexture CreateTexture(in GpuTextureParams @params) {
 		chk();
 		ArgumentInvalidDefaultException.ThrowIfDefault(@params, nameof(@params));
 		GpuArgChecks.Field(@params.Dimension, nameof(@params), nameof(@params.Dimension));
+		requireValidTexture(in @params, Features);
 
 		ReadOnlySpan<TextureFormat> viewFormats = @params.ViewFormats.IsDefault
 			? []
 			: @params.ViewFormats.AsSpan();
-		WGPUTextureFormat[]? wgpuViewFormats = null;
-		if (viewFormats.Length > 0) {
-			wgpuViewFormats = new WGPUTextureFormat[viewFormats.Length];
-			HashSet<TextureFormat> tmp = new(viewFormats.Length);
-			for (int i = 0; i < viewFormats.Length; i++) {
-				if (viewFormats[i] == @params.Format)
-					throw new ArgumentException("ViewFormats must not contain the texture's format", nameof(@params));
-				if (!tmp.Add(viewFormats[i]))
-					throw new ArgumentException("ViewFormats must not contain duplicates", nameof(@params));
-				wgpuViewFormats[i] = viewFormats[i].ToWebgpuType();
-			}
+		Span<WGPUTextureFormat> wgpuViewFormats = stackalloc WGPUTextureFormat[viewFormats.Length];
+		for (int i = 0; i < viewFormats.Length; i++) {
+			if (viewFormats[i] == @params.Format)
+				throw new ArgumentException("ViewFormats must not contain the texture's format", nameof(@params));
+			for (int j = 0; j < i; j++)
+				if (viewFormats[j] == viewFormats[i])
+					throw new ArgumentException($"ViewFormats must not contain duplicates; have duplicate {viewFormats[i]}", nameof(@params));
+			if (viewFormats[i].ToNonSrgb() != @params.Format.ToNonSrgb())
+				throw new ArgumentException($"ViewFormats can only differ from the texture's format {@params.Format} in sRGB-ness, got {viewFormats[i]}", nameof(@params));
+			wgpuViewFormats[i] = viewFormats[i].ToWebgpuType();
 		}
 
 		fixed (WGPUTextureFormat* p = wgpuViewFormats) {
@@ -571,11 +602,11 @@ public sealed unsafe class GpuDevice : IDisposable {
 					depthOrArrayLayers = @params.DepthOrArrayLayers,
 				},
 				mipLevelCount = @params.MipLevelCount,
-				sampleCount = @params.SampleCount,
+				sampleCount = @params.SampleCount.Count,
 				dimension = @params.Dimension.ToWebgpuType(),
 				format = @params.Format.ToWebgpuType(),
 				usage = @params.Usage.ToWebgpuType(),
-				viewFormatCount = (nuint)viewFormats.Length,
+				viewFormatCount = (nuint)wgpuViewFormats.Length,
 				viewFormats = p,
 			};
 			WGPUTexture tex = Check(wgpuDeviceCreateTexture(Device, &desc));
@@ -584,7 +615,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 					? @params with { ViewFormats = [] }
 					: @params;
 				return new GpuTexture(tex, resolved);
-			} catch (WebgpuException) {
+			} catch {
 				wgpuTextureRelease(tex);
 				throw;
 			}
@@ -603,20 +634,23 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="tex"/> lacks <see cref="TextureUsage.CopyDst"/>, or
-	/// <paramref name="dst"/> names a mip level that doesn't exist or is out of its bounds.
+	/// Thrown if <paramref name="tex"/> lacks <see cref="TextureUsage.CopyDst"/>, if
+	/// <paramref name="dst"/> names a mip level that doesn't exist, is out of its bounds, isn't
+	/// aligned to the format's blocks, or is an aspect the queue can't write, or if
+	/// <paramref name="layout"/> doesn't fit the region or <paramref name="data"/> is too small for
+	/// <paramref name="dst"/> and <paramref name="layout"/>.
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// The number of bytes consumed from each source row is determined by the uploaded texture region
-	/// and format, while <see cref="GpuTextureLayout.BytesPerRow"/> is the spacing between row starts
-	/// in memory. This allows uploading from data with padding between rows.
+	/// The amount of bytes in each source row is determined by the region and format;
+	/// <see cref="GpuTextureLayout.BytesBetweenRows"/> is at least that number, but may also be
+	/// larger for data with padding between rows. See <see cref="GpuTextureLayout"/> for how much
+	/// data that takes in total.
 	/// </para>
 	/// <para>
-	/// There are no alignment/etc. restrictions on the values in <paramref name="layout"/>.
-	/// </para>
-	/// <para>
-	/// Empty spans are a no-op.
+	/// There are no alignment restrictions on the values in <paramref name="layout"/> beyond the
+	/// standard block-alignment requirements for block-compressed formats (see
+	/// <see cref="GpuTextureRegion"/>).
 	/// </para>
 	/// </remarks>
 	public void WriteToTexture<T>(
@@ -628,8 +662,6 @@ public sealed unsafe class GpuDevice : IDisposable {
 		chk();
 		requireTextureWritable(tex, dst);
 		ArgumentInvalidDefaultException.ThrowIfDefault(layout);
-		if (data.IsEmpty)
-			return;
 		fixed (T* p = data)
 			WriteToTexture(tex, dst, p, (nuint)(data.Length * sizeof(T)), layout);
 	}
@@ -640,8 +672,8 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// <param name="tex">Destination texture.</param>
 	/// <param name="dst">Destination texture region and subresource.</param>
 	/// <param name="data">
-	/// Pointer to the source texel data. Must be readable for at least <paramref name="size"/> bytes
-	/// unless <paramref name="size"/> is 0. No alignment restrictions are imposed.
+	/// Source texel data. Must be readable for at least <paramref name="size"/> bytes unless
+	/// <paramref name="size"/> is 0. No alignment restrictions are imposed.
 	/// </param>
 	/// <param name="size">Number of bytes to upload from <paramref name="data"/>.</param>
 	/// <param name="layout">Source memory layout.</param>
@@ -649,20 +681,27 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Thrown if <paramref name="tex"/> is <see langword="null"/>.
 	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if <paramref name="tex"/> lacks <see cref="TextureUsage.CopyDst"/>, or
-	/// <paramref name="dst"/> names a mip level that doesn't exist or is out of its bounds.
+	/// Thrown if <paramref name="tex"/> lacks <see cref="TextureUsage.CopyDst"/>, if
+	/// <paramref name="dst"/> names a mip level that doesn't exist, is out of its bounds, isn't
+	/// aligned to the format's blocks, or is an aspect the queue can't write, or if
+	/// <paramref name="layout"/> doesn't fit the region or <paramref name="data"/> is too small for
+	/// <paramref name="dst"/> and <paramref name="layout"/>.
 	/// </exception>
 	/// <remarks>
 	/// <para>
-	/// The number of bytes consumed from each source row is determined by the uploaded texture region
-	/// and format, while <see cref="GpuTextureLayout.BytesPerRow"/> is the spacing between row starts
-	/// in memory. This allows uploading from data with padding between rows. <b>This does not prevent
-	/// said padding from being read;</b> the memory region of <paramref name="size"/> bytes pointed
-	/// to by <paramref name="data"/> must be <b>fully initialized</b> unless <paramref name="size"/>
-	/// is 0.
+	/// The amount of bytes in each source row is determined by the region and format;
+	/// <see cref="GpuTextureLayout.BytesBetweenRows"/> is at least that number, but may also be
+	/// larger for data with padding between rows. See <see cref="GpuTextureLayout"/> for how much
+	/// data that takes in total. <b>The padding is still read;</b> the memory region of
+	/// <paramref name="size"/> bytes pointed to by <paramref name="data"/> must be <b>fully
+	/// initialized</b> unless <paramref name="size"/> is 0.
 	/// </para>
 	/// <para>
-	/// There are no alignment/etc. restrictions on the values in <paramref name="layout"/>.
+	/// For block-compressed formats, the region's offset and size must be multiples of the block
+	/// size, and the region may extend past a small mip level's size up to the next block boundary
+	/// (e.g. a 4x4 region covers the 2x2 level of a format with 4x4 blocks).
+	/// <paramref name="layout"/>'s rows are rows of blocks. Beyond that, there are no alignment
+	/// restrictions on the values in <paramref name="layout"/>.
 	/// </para>
 	/// <para>
 	/// <paramref name="data"/> need only remain valid for the duration of the call.
@@ -678,6 +717,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 		chk();
 		requireTextureWritable(tex, dst);
 		ArgumentInvalidDefaultException.ThrowIfDefault(layout);
+		requireWriteLayout(tex, dst, size, layout);
 		WGPUTexelCopyTextureInfo copyDst = new() {
 			texture = tex.WgpuTexture,
 			mipLevel = dst.MipLevel,
@@ -690,8 +730,8 @@ public sealed unsafe class GpuDevice : IDisposable {
 		};
 		WGPUTexelCopyBufferLayout dataLayout = new() {
 			offset = layout.Offset,
-			bytesPerRow = layout.BytesPerRow,
-			rowsPerImage = layout.RowsPerImage,
+			bytesPerRow = layout.WgpuBytesBetweenRows,
+			rowsPerImage = layout.WgpuRowsBetweenImages,
 		};
 		WGPUExtent3D texSize = new() {
 			width = dst.Width,
@@ -709,14 +749,77 @@ public sealed unsafe class GpuDevice : IDisposable {
 		tex.RequireRegionInBounds(dst, nameof(dst));
 	}
 
+	[StackTraceHidden]
+	private static void requireValidTexture(in GpuTextureParams p, GpuFeatures features) {
+#pragma warning disable CA2208 // method '...' passes '...' as the paramName argument to ArgumentNullException; replace it with ...
+		const string name = "params";
+		TextureFormat fmt = p.Format;
+		if (p.Width == 0 || p.Height == 0 || p.DepthOrArrayLayers == 0)
+			throw new ArgumentOutOfRangeException(name, $"texture size must not be 0, got {p.Width}x{p.Height}x{p.DepthOrArrayLayers}");
+		bool is1d = p.Dimension == TextureDimension.Dimension1d;
+		bool is3d = p.Dimension == TextureDimension.Dimension3d;
+		uint longest = is3d ? Math.Max(Math.Max(p.Width, p.Height), p.DepthOrArrayLayers) : is1d ? p.Width : Math.Max(p.Width, p.Height);
+		uint fullChain = (uint)BitOperations.Log2(longest) + 1;
+		if (p.MipLevelCount == 0 || p.MipLevelCount > fullChain)
+			throw new ArgumentOutOfRangeException(name, $"mip level count must be between 1 to {fullChain} (full chain's worth) for this size, got {p.MipLevelCount}");
+
+		GpuFeatures needed = fmt.RequiredFeature();
+		if (needed != GpuFeatures.None && !features.HasAll(needed))
+			throw new ArgumentException($"{fmt} needs the device to have {needed}", name);
+		if (fmt.IsBlockCompressed()) {
+			(uint bw, uint bh) = fmt.BlockSize();
+			if (p.Width % bw != 0 || p.Height % bh != 0)
+				throw new ArgumentException($"the size of a {fmt} texture must be a multiple of the format's {bw}x{bh} block size, got {p.Width}x{p.Height}", name);
+			if (p.Usage.HasAny(TextureUsage.RenderAttachment | TextureUsage.StorageBinding))
+				throw new ArgumentException($"{fmt} is block-compressed, so it can't be a render attachment or storage binding", name);
+		}
+		if (p.Dimension != TextureDimension.Dimension2d && (fmt.IsBlockCompressed() || fmt.IsDepthOrStencil())) {
+			if (!is3d || fmt.Required3dFeature() is not GpuFeatures needed3d)
+				throw new ArgumentException($"{fmt} textures can't be {p.Dimension}", name);
+			if (!features.HasAll(needed3d))
+				throw new ArgumentException($"3D {fmt} textures need the device to have {needed3d}", name);
+		}
+		if (is1d && (p.MipLevelCount > 1 || p.Usage.HasAny(TextureUsage.RenderAttachment)))
+			throw new ArgumentException("1D textures can't have more than one mip level or be render attachments", name);
+		if (p.SampleCount == SampleCount.Four) {
+			if (p.Dimension != TextureDimension.Dimension2d || p.MipLevelCount != 1 || p.DepthOrArrayLayers != 1)
+				throw new ArgumentException("multisampled textures must be 2D with one mip level and one array layer", name);
+			if (p.Usage.HasNone(TextureUsage.RenderAttachment) || p.Usage.HasAny(TextureUsage.StorageBinding))
+				throw new ArgumentException("multisampled textures must be render attachments and can't be storage bindings", name);
+			if (fmt.IsBlockCompressed())
+				throw new ArgumentException($"{fmt} is block-compressed, so it can't be multisampled", name);
+		}
+#pragma warning restore CA2208 // method '...' passes '...' as the paramName argument to ArgumentNullException; replace it with ...
+	}
+
+	[StackTraceHidden]
+	private static void requireWriteLayout(GpuTextureHandle tex, in GpuTextureRegion dst, nuint size, in GpuTextureLayout layout) {
+		if (!tex.Format.TryGetWriteBlock(dst.Aspect, out uint bw, out uint bh, out uint bytesPerBlock))
+			throw new ArgumentException($"aspect {dst.Aspect} of {tex.Format} can't be written by the queue", nameof(dst));
+		ulong blocksWide = dst.Width / bw;
+		ulong blocksHigh = dst.Height / bh;
+		ulong images = dst.DepthOrArrayLayers;
+		if (blocksWide == 0 || blocksHigh == 0 || images == 0)
+			return;
+		ulong rowBytes = blocksWide * bytesPerBlock;
+		if ((blocksHigh > 1 || images > 1) && layout.BytesBetweenRows < rowBytes)
+			throw new ArgumentException($"BytesBetweenRows is {layout.BytesBetweenRows}, but a row of the region needs at least {rowBytes} bytes", nameof(layout));
+		if (images > 1 && layout.RowsBetweenImages < blocksHigh)
+			throw new ArgumentException($"RowsBetweenImages is {layout.RowsBetweenImages}, but an image of the region needs at least {blocksHigh} rows", nameof(layout));
+		ulong need = layout.Offset
+			+ (ulong)layout.BytesBetweenRows * layout.RowsBetweenImages * (images - 1)
+			+ (ulong)layout.BytesBetweenRows * (blocksHigh - 1)
+			+ rowBytes;
+#pragma warning disable CA2208 // method '...' passes '...' as the paramName argument to ArgumentNullException; replace it with ...
+		if (size < need)
+			throw new ArgumentException($"data is too small for the region and layout (needs at least {need} bytes, got {size})", "data");
+#pragma warning restore CA2208 // method '...' passes '...' as the paramName argument to ArgumentNullException; replace it with ...
+	}
+
 	/// <summary>
 	/// Creates a sampler, returning an owning object.
 	/// </summary>
 	/// <param name="params">Sampler creation parameters.</param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if an address mode or filter of <paramref name="params"/> is the
-	/// <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown if <see cref="GpuSamplerParams.LodMinClamp"/> is negative,
 	/// <see cref="GpuSamplerParams.LodMaxClamp"/> is smaller than it, or
@@ -832,9 +935,6 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Creates a bind group layout from the given entries, returning an owning object.
 	/// </summary>
 	/// <param name="entries">Entries describing the bindings in the layout.</param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if a field of an entry's layout is the <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if any entry has a <see langword="null"/> layout.
 	/// </exception>
@@ -1117,19 +1217,15 @@ public sealed unsafe class GpuDevice : IDisposable {
 		}
 
 		GpuArgChecks.Field(@params.Primitive, p, "Primitive");
-		if (@params.Primitive is PrimitiveState prim) {
-			GpuArgChecks.Field(prim.Topology, p, "Primitive.Topology");
-			GpuArgChecks.Field(prim.FrontFace, p, "Primitive.FrontFace");
-			GpuArgChecks.Field(prim.CullMode, p, "Primitive.CullMode");
-		}
+		GpuArgChecks.Field(@params.Primitive.Topology, p, "Primitive.Topology");
+		GpuArgChecks.Field(@params.Primitive.FrontFace, p, "Primitive.FrontFace");
+		GpuArgChecks.Field(@params.Primitive.CullMode, p, "Primitive.CullMode");
 
 		GpuArgChecks.Field(@params.DepthStencil, p, "DepthStencil");
 		if (@params.DepthStencil is DepthStencilState ds) {
 			checkStencil(ds.StencilFront, "StencilFront");
 			checkStencil(ds.StencilBack, "StencilBack");
 		}
-
-		GpuArgChecks.Field(@params.Multisample, p, "Multisample");
 
 		static void checkBlend(in BlendState b, int i) {
 			if (GpuArgChecks.IsDefault(b))
@@ -1165,11 +1261,6 @@ public sealed unsafe class GpuDevice : IDisposable {
 	/// Creates a render pipeline, returning an owning object.
 	/// </summary>
 	/// <param name="params">Render pipeline creation parameters.</param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if a value nested in <paramref name="params"/> is the <see langword="default"/> value
-	/// of a type whose default value is invalid, e.g. a target's blend factor or a stencil
-	/// operation.
-	/// </exception>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if the layout or a shader module is <see langword="null"/>.
 	/// </exception>
@@ -1198,8 +1289,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 #pragma warning disable IJDEV0100
 		FragmentState frag = @params.Fragment ?? default;
 #pragma warning restore IJDEV0100
-		PrimitiveState prim = @params.Primitive ?? new PrimitiveState();
-		MultisampleState ms = @params.Multisample ?? new MultisampleState();
+		PrimitiveState prim = @params.Primitive;
 
 		if (@params.Fragment is FragmentState f) {
 			haveFrag = true;
@@ -1292,7 +1382,7 @@ public sealed unsafe class GpuDevice : IDisposable {
 			pWgpuDepthStencil = &wgpuDepthStencil;
 		}
 
-		WGPUMultisampleState wgpuMs = ms.ToWebgpuType();
+		WGPUMultisampleState wgpuMs = @params.Multisample.ToWebgpuType();
 
 		// -----------------------------------------------------------------
 		// full pipeline descriptor

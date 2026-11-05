@@ -111,15 +111,14 @@ public static class Program {
 		using GpuDevice device = new(new GpuDeviceOptions {
 			RequiredFeatures = GpuFeatures.None,
 			CompatibleHost = window.SurfaceHost,
-			ErrorHandler = GpuErrorHandlers.Log(Console.Error),
 		});
-		using SurfaceRenderOutput parentOutput = new(device, window.SurfaceHost, SurfaceFormatPolicy.NonSrgb, SurfacePresentModePolicy.AutoMailbox);
+		using SurfaceRenderOutput parentOutput = new(device, window.SurfaceHost, SurfaceFormatPolicy.Srgb, SurfacePresentModePolicy.AutoMailbox);
 
 		ChildView? child = null;
 		SurfaceRenderOutput? childOutput = null;
 		void createChild() {
 			child = new ChildView(display, parentSurface, window);
-			childOutput = new SurfaceRenderOutput(device, child, SurfaceFormatPolicy.NonSrgb, SurfacePresentModePolicy.AutoMailbox);
+			childOutput = new SurfaceRenderOutput(device, child, SurfaceFormatPolicy.Srgb, SurfacePresentModePolicy.AutoMailbox);
 		}
 		void destroyChild() {
 			childOutput?.Dispose();

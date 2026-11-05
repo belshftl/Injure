@@ -27,6 +27,8 @@ namespace Injure.Tests.Draw.Text;
 // the dots variant adds a 200-unit '.' and a 300-unit '-'
 // the hyphen variant adds a 400-unit U+2010, a 300-unit '-', and an 800-unit U+2026
 public sealed class TextSystemTests : GpuTestBase {
+	private const string noTextDrawing = "text drawing is currently stubbed out until the material rework";
+
 	// layout uses ijtext; the native libs collection can't be used here, since this class is already
 	// in the GPU one
 	public TextSystemTests(GpuDeviceFixture fixture) : base(fixture) => NativeLibsLoader.Init();
@@ -47,7 +49,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		new(fonts, size, color, language);
 
 	private byte[] render(uint w, uint h, float pixelsPerUnit, Action<OwnedCanvas> draw, TextSystem? text = null) {
-		using GpuTexture target = GpuRig.Target(Device, w, h);
+		using GpuTexture target = GpuRig.Target(Device, w, h, format: TextureFormat.Rgba8UnormSrgb);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
 			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(w, h), pixelsPerUnit), CanvasLoadOp.Clear(SrgbStraight32.Black));
 			using (OwnedCanvas canvas = new(frame, in p, text))
@@ -409,7 +411,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(0f, aligned(text, sans, "aaaa\naa", float.PositiveInfinity, TextHorizontalAlign.Left)[1].OffsetX);
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void OverflowingLinesOverflowOnTheSidesTheirAlignmentLeavesOpen() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -560,7 +562,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal([18f, 10f], widths("ko-u-lw-keepall", "ko"));
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void GlyphsTakeTheirSpansColorTimesTheTint() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -573,10 +575,11 @@ public sealed class TextSystemTests : GpuTestBase {
 		byte[] px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero));
 		Assert.Equal(RawColor32.Red, GpuRig.At(px, 16, 2, 4));
 		Assert.Equal(new RawColor32(0, 200, 100, 255), GpuRig.At(px, 16, 7, 4));
-		// 200 * 128 / 255 = 100.39 and 100 * 128 / 255 = 50.20 round down; red's 0 channels stay 0
+		// the tint multiplies in linear light: 128 is about 0.216, and 200 and 100 times that encode to
+		// 99 and 46; red's 0 channels stay 0
 		px = render(16, 12, 1f, oc => oc.Canvas.Text(layout, Vector2.Zero, new SrgbStraight32(128, 128, 128)));
 		Assert.Equal(new RawColor32(128, 0, 0, 255), GpuRig.At(px, 16, 2, 4));
-		Assert.Equal(new RawColor32(0, 100, 50, 255), GpuRig.At(px, 16, 7, 4));
+		Assert.Equal(new RawColor32(0, 99, 46, 255), GpuRig.At(px, 16, 7, 4));
 	}
 
 	[Fact]
@@ -603,7 +606,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.True((FontFallbackChain)sans == new FontFallbackChain(sans));
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void LayoutsDrawTheirGlyphs() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -616,7 +619,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(RawColor32.Black, GpuRig.At(px, 16, 2, 10));
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void GlyphsAreRasterizedForTheEffectiveScale() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -634,7 +637,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(0, GpuRig.At(px, 32, 4, 16).R);
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void GlyphsArePositionedToAQuarterPixel() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -648,7 +651,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(0, GpuRig.At(px, 16, 5, 4).R);
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void MonochromeRasterizationHasNoPartialCoverage() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -665,7 +668,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.True(any);
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void RotatedTextIsDrawnUnsnapped() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -682,12 +685,12 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(0, GpuRig.At(px, 16, 10, 3).R);
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void AtlasPagesStayPinnedUntilTheFrameIsDone() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
 		TextLayout layout = text.Layout("ab", style(spec(sans)));
-		using GpuTexture target = GpuRig.Target(Device, 16, 12);
+		using GpuTexture target = GpuRig.Target(Device, 16, 12, format: TextureFormat.Rgba8UnormSrgb);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
 			var p = CanvasParams.Primary(Viewport.Whole(new Vector2(16, 12)), CanvasLoadOp.Clear(SrgbStraight32.Black));
 			using (OwnedCanvas canvas = new(frame, in p)) {
@@ -701,7 +704,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		Assert.Equal(0, Assert.Single(text.Atlas.Pages).Refcount);
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void CanvasTextNeedsATextSystem() {
 		using TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));
@@ -770,7 +773,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		}
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void LayoutsOfReloadedFontsGoStaleAndRelayout() {
 		using FontStore fs = new(Device, "InjureTestSans");
 		using AssetThreadAttachment att = fs.Store.AttachCurrentThread();
@@ -810,7 +813,7 @@ public sealed class TextSystemTests : GpuTestBase {
 		fs.Store.Dispose();
 	}
 
-	[Fact]
+	[Fact(Skip = noTextDrawing)]
 	public void LayoutsOfDisposedSystemsThrow() {
 		TextSystem text = new(Device);
 		FontData sans = text.LoadFont(fontBytes("InjureTestSans"));

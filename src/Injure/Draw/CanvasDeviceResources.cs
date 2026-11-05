@@ -5,9 +5,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Injure.Draw.PixelConv;
 using Injure.Gpu;
-using Injure.Primitives;
 
 namespace Injure.Draw;
 
@@ -20,23 +18,14 @@ namespace Injure.Draw;
 [StructLayout(LayoutKind.Sequential)]
 internal struct CanvasUniform : IEquatable<CanvasUniform> {
 	public Matrix4x4 Projection;
-	public float DistanceRangeTexels;
-	public float EdgeValue;
-	public float SoftnessPixels;
-	public float OutlineWidthPixels;
-	public RawColorF128 OutlineColor;
 
 	public static readonly int Size = Unsafe.SizeOf<CanvasUniform>();
 
-	public readonly bool Equals(CanvasUniform other) =>
-		Projection == other.Projection &&
-		DistanceRangeTexels == other.DistanceRangeTexels &&
-		EdgeValue == other.EdgeValue &&
-		SoftnessPixels == other.SoftnessPixels &&
-		OutlineWidthPixels == other.OutlineWidthPixels &&
-		OutlineColor == other.OutlineColor;
+	public readonly bool Equals(CanvasUniform other) => Projection == other.Projection;
 	public override readonly bool Equals(object? obj) => obj is CanvasUniform other && Equals(other);
-	public override readonly int GetHashCode() => HashCode.Combine(Projection, DistanceRangeTexels, EdgeValue, SoftnessPixels, OutlineWidthPixels, OutlineColor);
+	public override readonly int GetHashCode() => Projection.GetHashCode();
+	public static bool operator ==(CanvasUniform left, CanvasUniform right) => left.Equals(right);
+	public static bool operator !=(CanvasUniform left, CanvasUniform right) => !left.Equals(right);
 }
 
 /// <summary>
@@ -54,9 +43,8 @@ internal sealed class CanvasDeviceResources : IDisposable {
 	/// What a cached pipeline depends on.
 	/// </summary>
 	/// <param name="AreaWeighted">
-	/// Selects <c>fs_area_weighted</c> rather than <c>fs_main</c> for the fs entrypoint. The SDF
-	/// shader doesn't have that, so this must be <see langword="false"/> for
-	/// <see cref="TextureInterpretation.Sdf"/>. The sampler itself must be bound separately.
+	/// Selects <c>fs_area_weighted</c> rather than <c>fs_main</c> for the fs entrypoint. The sampler
+	/// itself must be bound separately.
 	/// </param>
 	/// <remarks>
 	/// The <see langword="default"/> value is invalid.
@@ -84,7 +72,7 @@ internal sealed class CanvasDeviceResources : IDisposable {
 	/// Distance between uniforms in a uniform buffer, as required for dynamic offsets.
 	/// </summary>
 	public readonly uint UniformStride;
-	public readonly Texture2d White;
+	public readonly SrgbTexture2d White;
 	public readonly CanvasArenaPool ArenaPool;
 	private readonly GpuSampler[] samplers = new GpuSampler[TexSampling.IndexCount];
 	private readonly GpuBindGroup[] samplerBindGroups = new GpuBindGroup[TexSampling.IndexCount];
@@ -115,8 +103,8 @@ internal sealed class CanvasDeviceResources : IDisposable {
 		}
 		uint align = device.Limits.MinUniformBufferOffsetAlignment;
 		UniformStride = ((uint)CanvasUniform.Size + align - 1) / align * align;
-		White = new Texture2d(device, 1, 1);
-		White.Upload([0xff, 0xff, 0xff, 0xff], 4, PixelFormat.Rgba32Unorm);
+		White = new SrgbTexture2d(device, new SrgbTexture2dParams(1, 1, TextureFormat.Rgba8UnormSrgb));
+		White.Upload([0xff, 0xff, 0xff, 0xff], 4);
 		ArenaPool = new CanvasArenaPool(this);
 	}
 
@@ -158,8 +146,6 @@ internal sealed class CanvasDeviceResources : IDisposable {
 	}
 
 	private GpuRenderPipeline createPipeline(in PipelineKey key) {
-		if (key.AreaWeighted && key.Interpretation == TextureInterpretation.Sdf)
-			throw new InternalStateException("area-weighted pipeline requested for sdf");
 		if (!shaders.TryGetValue(key.Interpretation, out GpuShaderModule? shader)) {
 			shader = device.CreateShaderModuleWgsl(loadShader(key.Interpretation));
 			shaders.Add(key.Interpretation, shader);
@@ -186,14 +172,14 @@ internal sealed class CanvasDeviceResources : IDisposable {
 				EntryPoint: key.AreaWeighted ? "fs_area_weighted" : "fs_main",
 				Targets: [new ColorTargetState(Format: key.ColorTargetFormat, Blend: key.Blend, WriteMask: key.WriteMask)]
 			),
-			Primitive: new PrimitiveState(Topology: PrimitiveTopology.TriangleList, FrontFace: FrontFace.Ccw, CullMode: CullMode.None)
+			Primitive: PrimitiveState.UnculledTriangleList,
+			DepthStencil: null,
+			Multisample: MultisampleState.SingleSampled
 		));
 	}
 
 	private static string loadShader(TextureInterpretation interp) => BuiltinShaderSource.Load(interp.Tag switch {
 		TextureInterpretation.Case.Color => "textured2dColor.wgsl",
-		TextureInterpretation.Case.Rmask => "textured2dRmask.wgsl",
-		TextureInterpretation.Case.Sdf => "textured2dSdf.wgsl",
 		_ => throw new UnreachableException(),
 	});
 

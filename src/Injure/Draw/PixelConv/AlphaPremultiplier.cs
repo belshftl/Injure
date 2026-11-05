@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using System.Collections.Immutable;
-using System.Runtime.InteropServices;
+using Injure.Primitives;
 using static Injure.Draw.PixelConv.ConverterCore;
 
 namespace Injure.Draw.PixelConv;
@@ -23,10 +22,6 @@ namespace Injure.Draw.PixelConv;
 /// </para>
 /// </remarks>
 public static unsafe class AlphaPremultiplier {
-	private const int encodeLutMax = 4095;
-	private static readonly ImmutableArray<float> decodeLut8 = buildDecodeLut8();
-	private static readonly ImmutableArray<byte> encodeLut8 = buildEncodeLut8();
-
 	/// <summary>
 	/// Premultiplies a 2D image in place.
 	/// </summary>
@@ -112,31 +107,13 @@ public static unsafe class AlphaPremultiplier {
 	private static byte mul8(byte c, byte a, bool srgb) {
 		if (!srgb)
 			return (byte)((c * a + 0x7fu) / 0xffu);
-		float lin = decodeLut8[c] * a * (1f / 0xff);
-		return encodeLut8[(int)(lin * encodeLutMax + 0.5f)];
+		return SrgbTransfer.Encode8Approx(SrgbTransfer.Decode8(c) * a * (1f / 0xff));
 	}
 
 	private static ushort mul16(ushort c, ushort a, bool srgb) {
 		if (!srgb)
 			return (ushort)(((uint)c * a + 0x7fffu) / 0xffffu);
-		double lin = srgbToLinear(c / 65535.0) * (a / 65535.0);
-		return (ushort)(linearToSrgb(lin) * 65535.0 + 0.5);
-	}
-
-	private static double srgbToLinear(double c) => c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
-	private static double linearToSrgb(double l) => l <= 0.0031308 ? l * 12.92 : 1.055 * Math.Pow(l, 1.0 / 2.4) - 0.055;
-
-	private static ImmutableArray<float> buildDecodeLut8() {
-		float[] lut = new float[256];
-		for (int i = 0; i < lut.Length; i++)
-			lut[i] = (float)srgbToLinear(i / 255.0);
-		return ImmutableCollectionsMarshal.AsImmutableArray(lut);
-	}
-
-	private static ImmutableArray<byte> buildEncodeLut8() {
-		byte[] lut = new byte[encodeLutMax + 1];
-		for (int i = 0; i < lut.Length; i++)
-			lut[i] = (byte)(linearToSrgb(i / (double)encodeLutMax) * 255.0 + 0.5);
-		return ImmutableCollectionsMarshal.AsImmutableArray(lut);
+		double lin = SrgbTransfer.Decode(c / 65535.0) * (a / 65535.0);
+		return (ushort)(SrgbTransfer.Encode(lin) * 65535.0 + 0.5);
 	}
 }

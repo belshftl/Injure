@@ -22,8 +22,7 @@ namespace Injure.Gpu;
 /// clipped; requires <see cref="GpuFeatures.DepthClipControl"/>.
 /// </param>
 /// <remarks>
-/// The <see langword="default"/> value is invalid. <c>new PrimitiveState()</c> is a triangle list
-/// with counter-clockwise front faces, no culling, and depth clipping.
+/// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly record struct PrimitiveState(
 	PrimitiveTopology Topology,
@@ -33,20 +32,15 @@ public readonly record struct PrimitiveState(
 	bool UnclippedDepth
 ) : IHasInvalidDefault {
 	/// <summary>
-	/// Creates a triangle list state with counter-clockwise front faces, no culling, and depth
-	/// clipping.
+	/// Standard triangle list with no culling: <see cref="PrimitiveTopology.TriangleList"/>, a strip
+	/// index format of <see cref="IndexFormat.Undefined"/>, <see cref="FrontFace.Ccw"/>,
+	/// <see cref="CullMode.None"/>, and depth clipping.
 	/// </summary>
-	public PrimitiveState() : this(PrimitiveTopology.TriangleList) {}
+	public static readonly PrimitiveState UnculledTriangleList = new(PrimitiveTopology.TriangleList, FrontFace.Ccw, CullMode.None);
 
 	/// <summary>
-	/// Creates a state with the given topology, counter-clockwise front faces, no culling, and
-	/// depth clipping.
-	/// </summary>
-	public PrimitiveState(PrimitiveTopology Topology) : this(Topology, IndexFormat.Undefined, FrontFace.Ccw, CullMode.None, false) {
-	}
-
-	/// <summary>
-	/// Creates a state with the given topology, winding, culling, and depth clipping.
+	/// Creates a state with the given topology / front-face rule / cull mode, a strip index format of
+	/// <see cref="IndexFormat.Undefined"/>, and depth clipping.
 	/// </summary>
 	public PrimitiveState(PrimitiveTopology Topology, FrontFace FrontFace, CullMode CullMode) :
 		this(Topology, IndexFormat.Undefined, FrontFace, CullMode, false) {

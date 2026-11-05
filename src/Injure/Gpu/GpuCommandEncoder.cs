@@ -27,7 +27,7 @@ namespace Injure.Gpu;
 /// </remarks>
 public abstract unsafe class GpuCommandEncoderHandle {
 	private const ulong wholeSize = ulong.MaxValue;
-	private const uint copyBytesPerRowAlignment = 256;
+	private const uint copyBytesBetweenRowsAlignment = 256;
 
 	// shared by an owning encoder and all of its refs
 	internal sealed class EncoderState(WGPUCommandEncoder encoder, GpuLimits limits) {
@@ -63,9 +63,6 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// be empty if <paramref name="depthStencil"/> isn't <see langword="null"/>.
 	/// </param>
 	/// <param name="depthStencil">The depth/stencil attachment, if any.</param>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if an attachment's load/store operations are the <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if an attachment's view is <see langword="null"/>.
 	/// </exception>
@@ -193,9 +190,9 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	[StackTraceHidden]
 	private static void validateResolveTarget(GpuTextureViewHandle view, GpuTextureViewHandle target, string paramName) {
 		validateView(target, paramName);
-		if (view.SampleCount == 1)
+		if (view.SampleCount == SampleCount.One)
 			throw new ArgumentException("only multisampled color attachments can have a resolve target", paramName);
-		if (target.SampleCount != 1)
+		if (target.SampleCount != SampleCount.One)
 			throw new ArgumentException("resolve targets must not be multisampled", paramName);
 		if (target.Format != view.Format)
 			throw new ArgumentException("resolve targets must have the same format as their attachment", paramName);
@@ -373,7 +370,7 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// <param name="srcLayout">
 	/// Layout of the data in <paramref name="src"/>. Unlike for
 	/// <see cref="GpuDevice.WriteToTexture(GpuTextureHandle, in GpuTextureRegion, void*, nuint, in GpuTextureLayout)"/>,
-	/// <see cref="GpuTextureLayout.BytesPerRow"/> must be a multiple of 256.
+	/// <see cref="GpuTextureLayout.BytesBetweenRows"/> must be a multiple of 256.
 	/// </param>
 	/// <param name="dst">Destination texture; must have <see cref="TextureUsage.CopyDst"/>.</param>
 	/// <param name="dstRegion">Destination texture region and subresource.</param>
@@ -382,7 +379,7 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> lacks the required usage,
-	/// <see cref="GpuTextureLayout.BytesPerRow"/> isn't a multiple of 256, or the texture region
+	/// <see cref="GpuTextureLayout.BytesBetweenRows"/> isn't a multiple of 256, or the texture region
 	/// names a mip level that doesn't exist or is out of its bounds.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
@@ -409,7 +406,7 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// <param name="srcRegion">Source texture region and subresource.</param>
 	/// <param name="dst">Destination buffer; must have <see cref="BufferUsage.CopyDst"/>.</param>
 	/// <param name="dstLayout">
-	/// Layout to write the data in; <see cref="GpuTextureLayout.BytesPerRow"/> must be a multiple
+	/// Layout to write the data in; <see cref="GpuTextureLayout.BytesBetweenRows"/> must be a multiple
 	/// of 256.
 	/// </param>
 	/// <exception cref="ArgumentNullException">
@@ -417,7 +414,7 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="src"/> or <paramref name="dst"/> lacks the required usage,
-	/// <see cref="GpuTextureLayout.BytesPerRow"/> isn't a multiple of 256, or the texture region
+	/// <see cref="GpuTextureLayout.BytesBetweenRows"/> isn't a multiple of 256, or the texture region
 	/// names a mip level that doesn't exist or is out of its bounds.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
@@ -545,16 +542,16 @@ public abstract unsafe class GpuCommandEncoderHandle {
 	[StackTraceHidden]
 	private static void requireCopyLayout(in GpuTextureLayout layout, string paramName) {
 		ArgumentInvalidDefaultException.ThrowIfDefault(layout, paramName);
-		if (layout.BytesPerRow % copyBytesPerRowAlignment != 0)
-			throw new ArgumentException($"BytesPerRow must be a multiple of {copyBytesPerRowAlignment} for copies", paramName);
+		if (layout.BytesBetweenRows % copyBytesBetweenRowsAlignment != 0)
+			throw new ArgumentException($"BytesBetweenRows must be a multiple of {copyBytesBetweenRowsAlignment} for copies", paramName);
 	}
 
 	private static WGPUTexelCopyBufferInfo toBufferInfo(GpuBufferHandle buffer, in GpuTextureLayout layout) => new() {
 		buffer = buffer.WgpuBuffer,
 		layout = new WGPUTexelCopyBufferLayout {
 			offset = layout.Offset,
-			bytesPerRow = layout.BytesPerRow,
-			rowsPerImage = layout.RowsPerImage,
+			bytesPerRow = layout.WgpuBytesBetweenRows,
+			rowsPerImage = layout.WgpuRowsBetweenImages,
 		},
 	};
 

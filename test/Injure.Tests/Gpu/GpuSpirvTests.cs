@@ -53,7 +53,10 @@ public sealed class GpuSpirvTests(GpuDeviceFixture fixture) : GpuTestBase(fixtur
 		using GpuRenderPipeline spirv = Device.CreateRenderPipeline(new GpuRenderPipelineParams(
 			tint.PipelineLayout,
 			new VertexState(vs, "main", [GpuRig.Vertex3]),
-			new FragmentState(fs, "main", [GpuRig.Opaque()])
+			new FragmentState(fs, "main", [GpuRig.Opaque()]),
+			PrimitiveState.UnculledTriangleList,
+			null,
+			MultisampleState.SingleSampled
 		));
 		using GpuRenderPipeline wgsl = tint.Pipeline(Device, [GpuRig.Opaque()]);
 

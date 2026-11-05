@@ -42,19 +42,19 @@ public sealed class AssetCatalogGeneratorTests {
 		using AssetStore store = new();
 		object assets = construct(r, store);
 
-		Asset<Texture2d> player = Assert.IsType<Asset<Texture2d>>(prop(assets, "Player"));
+		Asset<SrgbTexture2d> player = Assert.IsType<Asset<SrgbTexture2d>>(prop(assets, "Player"));
 		Assert.Equal(new AssetId("game", "player.png"), player.AssetId);
-		Assert.Same(store.GetAsset<Texture2d>(new AssetId("game", "player.png")), player);
-		Assert.IsType<Asset<Texture2d>>(prop(assets, "Ui"));
+		Assert.Same(store.GetAsset<SrgbTexture2d>(new AssetId("game", "player.png")), player);
+		Assert.IsType<Asset<SrgbTexture2d>>(prop(assets, "Ui"));
 		Asset<FontData> font = Assert.IsType<Asset<FontData>>(prop(prop(assets, "Fonts"), "Main"));
 		Assert.Equal(new AssetId("game", "fonts/main.ttf"), font.AssetId);
 		Assert.IsType<Asset<FontData>>(prop(prop(assets, "Fonts"), "Collection"));
 
 		object textures = prop(assets, "Textures");
 		Assert.Equal("TexturesGroup", textures.GetType().Name);
-		Asset<Texture2d> hero = Assert.IsType<Asset<Texture2d>>(prop(prop(textures, "Characters"), "HeroIdle"));
+		Asset<SrgbTexture2d> hero = Assert.IsType<Asset<SrgbTexture2d>>(prop(prop(textures, "Characters"), "HeroIdle"));
 		Assert.Equal(new AssetId("game", "textures/characters/hero-idle.png"), hero.AssetId);
-		Assert.Equal("textures/bg_01.png", ((Asset<Texture2d>)prop(textures, "Bg01")).AssetId.Path);
+		Assert.Equal("textures/bg_01.png", ((Asset<SrgbTexture2d>)prop(textures, "Bg01")).AssetId.Path);
 
 		// groups include their subdirectories, and the catalog is the group of everything
 		Assert.Equal(2, ((IReadOnlyList<IUntypedAsset>)textures).Count);
@@ -81,8 +81,8 @@ public sealed class AssetCatalogGeneratorTests {
 		object assets = construct(r, store);
 		Assert.Equal("Data", prop(assets, "Config").GetType().GetGenericArguments()[0].Name);
 		Assert.Equal("Level", prop(assets, "Forest").GetType().GetGenericArguments()[0].Name);
-		Assert.IsType<Asset<Texture2d>>(prop(assets, "Ui"));
-		Assert.IsType<Asset<Texture2d>>(prop(assets, "UPPER"));
+		Assert.IsType<Asset<SrgbTexture2d>>(prop(assets, "Ui"));
+		Assert.IsType<Asset<SrgbTexture2d>>(prop(assets, "UPPER"));
 	}
 
 	[Fact]
@@ -134,8 +134,8 @@ public sealed class AssetCatalogGeneratorTests {
 		Assert.Empty(r.WithId("IJ0201"));
 		using AssetStore store = new();
 		object assets = construct(r, store);
-		Assert.IsType<Asset<Texture2d>>(prop(assets, "Members"));
-		Assert.IsType<Asset<Texture2d>>(prop(assets, "Count"));
+		Assert.IsType<Asset<SrgbTexture2d>>(prop(assets, "Members"));
+		Assert.IsType<Asset<SrgbTexture2d>>(prop(assets, "Count"));
 		Assert.Equal(2, ((IReadOnlyList<IUntypedAsset>)assets).Count);
 	}
 

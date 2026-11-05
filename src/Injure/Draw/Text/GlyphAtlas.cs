@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 belshftl
 // SPDX-License-Identifier: MIT
 
-using Injure.Draw.PixelConv;
 using Injure.Gpu;
 using Injure.Primitives;
 
@@ -12,7 +11,7 @@ namespace Injure.Draw.Text;
 /// dispose a page that an unsubmitted frame samples.
 /// </remarks>
 internal sealed class GlyphAtlasPage : IDisposable {
-	public required Texture2d Texture;
+	public required RawTexture2d Texture;
 	public required int Width;
 	public required int Height;
 
@@ -157,7 +156,7 @@ internal sealed class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, int pageW
 			return false;
 		}
 		GlyphAtlasPage page = alloc(glyph.Width, glyph.Height, out int x, out int y);
-		page.Texture.Upload(x, y, glyph.Pixels, srcStride: glyph.Width, PixelFormat.R8Unorm, glyph.Width, glyph.Height);
+		page.Texture.UploadToMip(0, (uint)x, (uint)y, (uint)glyph.Width, (uint)glyph.Height, glyph.Pixels, bytesBetweenRows: (uint)glyph.Width);
 		entry = new GlyphAtlasEntry(page, new RectI(x, y, glyph.Width, glyph.Height), glyph.Left, glyph.Top);
 		page.Keys.Add(key);
 		page.LastUseStamp = ++nextUseStamp;
@@ -194,12 +193,12 @@ internal sealed class GlyphAtlas(GpuDevice gpuDevice, TextSystem text, int pageW
 
 	private GlyphAtlasPage newPage() {
 		GlyphAtlasPage page = new() {
-			Texture = new Texture2d(
+			Texture = new RawTexture2d(
 				gpuDevice,
-				new Texture2dParams(
+				new RawTexture2dParams(
 					Width: (uint)pageWidth,
 					Height: (uint)pageHeight,
-					Format: Texture2dFormat.R8Unorm
+					Format: TextureFormat.R8Unorm
 				)
 			),
 			Width = pageWidth,

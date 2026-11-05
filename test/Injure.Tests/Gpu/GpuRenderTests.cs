@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 using System.Collections.Immutable;
-using System.Numerics;
 using Injure.Gpu;
 using Injure.Primitives;
 
@@ -34,9 +33,9 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	public void BeginRenderPassValidatesAttachments() {
 		using GpuTexture a = GpuRig.Target(dev, 4, 4);
 		using GpuTexture small = GpuRig.Target(dev, 2, 2);
-		using GpuTexture ms = GpuRig.Target(dev, 4, 4, samples: 4);
+		using GpuTexture ms = GpuRig.Target(dev, 4, 4, samples: SampleCount.Four);
 		using GpuTexture sampledOnly = dev.CreateTexture(new GpuTextureParams(
-			4, 4, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding));
+			4, 4, 1, 1, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding));
 		using GpuTexture depth = GpuRig.Target(dev, 4, 4, format: TextureFormat.Depth32Float);
 		using GpuTexture srgb = GpuRig.Target(dev, 4, 4, format: TextureFormat.Rgba8UnormSrgb);
 		ColorAttachmentOps load = ColorAttachmentOps.Load;
@@ -92,9 +91,12 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		Assert.Throws<ArgumentException>(() => tint.Pipeline(dev, default));
 		Assert.Throws<ArgumentException>(() => tint.Pipeline(dev, [GpuRig.Opaque()],
 			primitive: new PrimitiveState(PrimitiveTopology.TriangleList, IndexFormat.Uint16, FrontFace.Ccw, CullMode.None, false)));
-		using GpuRenderPipeline strip = tint.Pipeline(dev, [GpuRig.Opaque()], primitive: new PrimitiveState(PrimitiveTopology.TriangleStrip));
+		using GpuRenderPipeline strip = tint.Pipeline(
+			dev, [GpuRig.Opaque()], primitive: new PrimitiveState(PrimitiveTopology.TriangleStrip, FrontFace.Ccw, CullMode.None)
+		);
 		Assert.Throws<ArgumentException>(() => dev.CreateRenderPipeline(new GpuRenderPipelineParams(
-			tint.PipelineLayout, new VertexState(tint.Shader, " "))));
+			tint.PipelineLayout, new VertexState(tint.Shader, " "), null, PrimitiveState.UnculledTriangleList, null, MultisampleState.SingleSampled
+		)));
 	}
 
 	[Fact]
@@ -107,7 +109,9 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 			""");
 		using GpuPipelineLayout pl = dev.CreatePipelineLayout([]);
 		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineParams(
-			pl, new VertexState(sm, "vs"), new FragmentState(sm, "fs", [GpuRig.Opaque()])));
+			pl, new VertexState(sm, "vs"), new FragmentState(sm, "fs", [GpuRig.Opaque()]),
+			PrimitiveState.UnculledTriangleList, null, MultisampleState.SingleSampled
+		));
 		using GpuTexture target = GpuRig.Target(dev, 4, 4);
 		GpuRig.Run(dev, enc => {
 			using RenderPass pass = enc.BeginColorPass(target.DefaultView, ColorAttachmentOps.Clear(blue.ToRawF128()));
@@ -133,7 +137,10 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 				new VertexBufferLayout(16, VertexStepMode.Vertex, default),
 				new VertexBufferLayout(16, VertexStepMode.Vertex, []),
 			]),
-			new FragmentState(sm, "fs", [GpuRig.Opaque()])
+			new FragmentState(sm, "fs", [GpuRig.Opaque()]),
+			PrimitiveState.UnculledTriangleList,
+			null,
+			MultisampleState.SingleSampled
 		));
 	}
 
@@ -223,8 +230,8 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	[Fact]
 	public void MultisampleResolveAndMultipleTargets() {
 		using GpuRig.Tinted tint = new(dev, new RawColor32(255, 128, 0, 255));
-		using GpuRenderPipeline p = tint.Pipeline(dev, [GpuRig.Opaque(), GpuRig.Opaque()], samples: 4, fragment: "fs2");
-		using GpuTexture msA = GpuRig.Target(dev, 4, 4, samples: 4), msB = GpuRig.Target(dev, 4, 4, samples: 4);
+		using GpuRenderPipeline p = tint.Pipeline(dev, [GpuRig.Opaque(), GpuRig.Opaque()], samples: SampleCount.Four, fragment: "fs2");
+		using GpuTexture msA = GpuRig.Target(dev, 4, 4, samples: SampleCount.Four), msB = GpuRig.Target(dev, 4, 4, samples: SampleCount.Four);
 		using GpuTexture outA = GpuRig.Target(dev, 4, 4), outB = GpuRig.Target(dev, 4, 4);
 		using GpuBuffer vb = GpuRig.BufferWith(dev, BufferUsage.Vertex, GpuRig.Fullscreen().AsSpan());
 		GpuRig.Run(dev, enc => {
@@ -378,7 +385,7 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 	public void SampledTextureBindGroupWorks() {
 		// sample a 1x1 texture through a texture + sampler bind group
 		using GpuTexture src = dev.CreateTexture(new GpuTextureParams(
-			1, 1, 1, 1, 1, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding | TextureUsage.CopyDst
+			1, 1, 1, 1, SampleCount.One, TextureDimension.Dimension2d, GpuRig.Format, TextureUsage.TextureBinding | TextureUsage.CopyDst
 		));
 		dev.WriteToTexture(src, GpuRig.Whole(src), new byte[] { 12, 34, 56, 255 }.AsSpan(), new GpuTextureLayout(0, 4, 1));
 		using GpuSampler sampler = dev.CreateSampler(SamplerStates.NearestClamp);
@@ -400,7 +407,8 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 			""");
 		using GpuPipelineLayout pl = dev.CreatePipelineLayout([bgl]);
 		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineParams(
-			pl, new VertexState(sm, "vs"), new FragmentState(sm, "fs", [GpuRig.Opaque()])
+			pl, new VertexState(sm, "vs"), new FragmentState(sm, "fs", [GpuRig.Opaque()]),
+			PrimitiveState.UnculledTriangleList, null, MultisampleState.SingleSampled
 		));
 		using GpuTexture target = GpuRig.Target(dev, 2, 2);
 		GpuRig.Run(dev, enc => {
@@ -439,7 +447,10 @@ public sealed class GpuRenderTests(GpuDeviceFixture fixture) : GpuTestBase(fixtu
 		using GpuRenderPipeline p = dev.CreateRenderPipeline(new GpuRenderPipelineParams(
 			pipelineLayout,
 			new VertexState(shader, "vs", [GpuRig.Vertex3]),
-			new FragmentState(shader, "fs", [GpuRig.Opaque()])
+			new FragmentState(shader, "fs", [GpuRig.Opaque()]),
+			PrimitiveState.UnculledTriangleList,
+			null,
+			MultisampleState.SingleSampled
 		));
 		Assert.Empty(Errors.TakeAll());
 	}

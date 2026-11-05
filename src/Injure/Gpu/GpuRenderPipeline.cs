@@ -84,25 +84,21 @@ public sealed class GpuRenderPipelineRef : GpuRenderPipelineHandle {
 /// <param name="Fragment">
 /// Fragment state; may be <see langword="null"/> for vertex-only pipelines.
 /// </param>
-/// <param name="Primitive">
-/// Primitive state, or <see langword="null"/> for <c>new PrimitiveState()</c>.
-/// </param>
+/// <param name="Primitive">Primitive state.</param>
 /// <param name="DepthStencil">
 /// Depth/stencil state; may be <see langword="null"/> for color-only pipelines.
 /// </param>
-/// <param name="Multisample">
-/// Multisample state, or <see langword="null"/> for <c>new MultisampleState()</c>.
-/// </param>
+/// <param name="Multisample">Multisample state.</param>
 /// <remarks>
 /// The <see langword="default"/> value is invalid.
 /// </remarks>
 public readonly record struct GpuRenderPipelineParams(
 	GpuPipelineLayoutHandle Layout,
 	VertexState Vertex,
-	FragmentState? Fragment = null,
-	PrimitiveState? Primitive = null,
-	DepthStencilState? DepthStencil = null,
-	MultisampleState? Multisample = null
+	FragmentState? Fragment,
+	PrimitiveState Primitive,
+	DepthStencilState? DepthStencil,
+	MultisampleState Multisample
 ) : IHasInvalidDefault {
 	bool IHasInvalidDefault.IsDefault => this == default;
 }

@@ -7,7 +7,7 @@ using WebGPU;
 namespace Injure.Gpu;
 
 /// <summary>
-/// How a sampler handles texture coordinates outside [0.0, 1.0].
+/// How a sampler handles texture coordinates outside [0.0, 1.0] along one axis.
 /// </summary>
 /// <remarks>
 /// The <see langword="default"/> value is invalid.

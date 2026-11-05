@@ -70,7 +70,7 @@ namespace Injure.Draw;
 // textures needs its own bind group.
 //
 // If N = 1, as it currently is, each texture can just lazily create a bind group for itself and
-// keep it for as long as the texture lives. That's what Texture2d already does.
+// keep it for as long as the texture lives. That's what SrgbTexture2d already does.
 //
 // Increasing that to any useful batch count, though, such as 16, would entail creating a bind group
 // every 16 draws and probably caching it somewhere, and that cache could hypothetically grow as
@@ -167,6 +167,9 @@ public sealed class OwnedCanvas : IDisposable {
 	private uint lastUniformOffset;
 
 	// scratch buffers for generated geometry
+	// TODO: every frame is gonna pointlessly allocate and then resize, allocating again, possibly
+	// resizing many times, if these buffers are consistently too small for everything a game draws
+	// in one frame which they most likely are
 	private Vector2[] scratchPoints = new Vector2[128];
 	private Vertex2dColor[] scratchVerts = new Vertex2dColor[128];
 	private uint[] scratchIndices = new uint[256];
@@ -200,9 +203,6 @@ public sealed class OwnedCanvas : IDisposable {
 	/// </param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="frame"/> is <see langword="null"/>.
-	/// </exception>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if <paramref name="baseParams"/>'s material is the <see langword="default"/> value.
 	/// </exception>
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="baseParams"/> is invalid: its target is a texture with an sRGB
@@ -411,11 +411,6 @@ public sealed class OwnedCanvas : IDisposable {
 		CanvasTarget target = @params.Peek().Target;
 		if (!target.IsPrimary && tex.SameRenderTargetAs(target.RenderTarget))
 			throw new InvalidOperationException("cannot draw a render target while it is the active canvas target (i.e. draw it into itself)");
-		if (
-			@params.Peek().Material.TextureInterpretation == TextureInterpretation.Sdf
-			&& sampling.Filter != TexFilter.Linear
-		)
-			throw new InvalidOperationException($"sdf textures can only be sampled with TexFilter.Linear, as sharper sampling defeats the point of an sdf (tried to sample with {sampling.Filter})");
 		Span<Vertex2dTextureColor> dst = reserve(tex.Identity, tex.BindGroup, sampling, textured: true, verts.Length, indices, replace: false);
 		for (int i = 0; i < verts.Length; i++) {
 			var p = Vector2.Transform(new Vector2(verts[i].X, verts[i].Y), m);
@@ -424,9 +419,9 @@ public sealed class OwnedCanvas : IDisposable {
 	}
 
 	/// <summary>
-	/// Draws a whole-target-sized quad ignoring the transform, output state, and write mask.
-	/// <see cref="CanvasOutputStates.Opaque"/> is used. The scissor (including the clip to the
-	/// drawable area) still applies.
+	/// Draws a whole-target-sized quad ignoring the transform, blend mode, and write mask.
+	/// <see cref="CanvasBlendMode.Opaque"/> and <see cref="ColorWriteMask.All"/> are used. The scissor
+	/// (including the clip to the drawable area) still applies.
 	/// </summary>
 	internal void ClearWithinScissor(SrgbStraight32 color) {
 		chk();
@@ -448,7 +443,8 @@ public sealed class OwnedCanvas : IDisposable {
 	// starts a new range if this draw's state differs from the current one's, makes room for the
 	// vertices, and appends the indices offset to them; returns the reserved vertices, which the
 	// caller must fill completely
-	// `replace` toggles writing with CanvasOutputStates.Opaque instead of the current output state
+	// `replace` toggles writing with CanvasBlendMode.Opaque and ColorWriteMask.All instead of the
+	// current blend mode and write mask
 	private Span<Vertex2dTextureColor> reserve(
 		object texture,
 		GpuBindGroupRef textureBindGroup,
@@ -460,15 +456,14 @@ public sealed class OwnedCanvas : IDisposable {
 	) {
 		CanvasParams p = @params.Peek();
 		TextureInterpretation interp = textured ? p.Material.TextureInterpretation : TextureInterpretation.Color;
-		CanvasOutputState output = replace ? CanvasOutputStates.Opaque : p.OutputState;
 		CanvasDeviceResources.PipelineKey key = new(
 			interp,
 			sampling.Filter == TexFilter.AreaWeighted,
-			output.Blend,
-			output.WriteMask,
+			replace ? null : p.BlendMode.State,
+			replace ? ColorWriteMask.All : p.WriteMask,
 			targetFormat(in p)
 		);
-		CanvasUniform uniform = uniformFor(in p, interp);
+		CanvasUniform uniform = uniformFor(in p);
 		CanvasArena.GeometryChunk chunk = arena.ReserveGeometry(vertexCount, indices.Length);
 		if (!hasRange || key != rangeKey || !ReferenceEquals(texture, rangeTexture) || sampling != rangeSampling || chunk != rangeChunk || !uniform.Equals(rangeUniform)) {
 			closeRange();
@@ -537,24 +532,16 @@ public sealed class OwnedCanvas : IDisposable {
 		DrawCallCount++;
 	}
 
-	private CanvasUniform uniformFor(in CanvasParams p, TextureInterpretation interp) {
+	private CanvasUniform uniformFor(in CanvasParams p) {
 		(uint w, uint h) = targetSize(in p);
-		CanvasUniform u = new() { Projection = MatrixUtil.OrthoTopLeft(w, h) };
-		if (interp == TextureInterpretation.Sdf && p.Material.SdfParams is SdfParams sdf) {
-			u.DistanceRangeTexels = sdf.DistanceRangeTexels;
-			u.EdgeValue = sdf.EdgeValue;
-			u.SoftnessPixels = sdf.SoftnessPixels;
-			u.OutlineWidthPixels = sdf.OutlineWidthPixels;
-			u.OutlineColor = sdf.OutlineColor.ToRawF128();
-		}
-		return u;
+		return new CanvasUniform { Projection = MatrixUtil.OrthoTopLeft(w, h) };
 	}
 
 	private (uint Width, uint Height) targetSize(in CanvasParams p) =>
 		p.Target.IsPrimary ? (frame.PrimaryView.Width, frame.PrimaryView.Height) : (p.Target.RenderTarget.Width, p.Target.RenderTarget.Height);
 
 	private TextureFormat targetFormat(in CanvasParams p) =>
-		p.Target.IsPrimary ? frame.PrimaryView.Format : p.Target.RenderTarget.ColorFormat;
+		p.Target.IsPrimary ? frame.PrimaryView.Format : p.Target.RenderTarget.Format;
 
 	// ==========================================================================
 	// params
@@ -574,8 +561,8 @@ public sealed class OwnedCanvas : IDisposable {
 		transition(in old, @params.Peek(), returning: true, targetPushed: false);
 	}
 
-	// output state, material, sampling, and transform changes need no action here, as the next draw starts a
-	// new range if its pipeline or uniform differs, and transforms are applied per vertex
+	// blend mode / write mask / material / sampling don't need anything here because the next draw
+	// starts a new range if the pipeline/uniform differs
 	// `targetPushed` is whether the override set the target itself rather than inheriting it; only a
 	// pushed target's clear applies, since an inherited one was already applied when it was pushed
 	private void transition(in CanvasParams from, in CanvasParams to, bool returning, bool targetPushed) {
@@ -597,6 +584,8 @@ public sealed class OwnedCanvas : IDisposable {
 	private void validate(in CanvasParams p) {
 		if (p.Target.IsDefault)
 			throw ArgumentInvalidDefaultException.For<CanvasTarget>();
+		if (p.BlendMode.IsDefault)
+			throw ArgumentInvalidDefaultException.For<CanvasBlendMode>();
 		if (p.Material.IsDefault)
 			throw ArgumentInvalidDefaultException.For<CanvasMaterial>();
 		// the viewport is checked by its constructor
@@ -605,8 +594,9 @@ public sealed class OwnedCanvas : IDisposable {
 		if (!MatrixInvert.IsInvertible(p.EffectiveTransform))
 			throw new ArgumentException($"the effective transform (CanvasParams.Transform * CanvasTarget.Viewport.ToPixelsMatrix) must be invertible, got {p.EffectiveTransform}");
 		TextureFormat fmt = targetFormat(in p);
-		if (fmt.IsSrgb())
-			throw new ArgumentException($"Canvas can't draw into a target with sRGB format {fmt}, since its colors are already sRGB-encoded");
+		// TODO maybe check for float32-blendable on the device and allow 32-bit float formats
+		if (!fmt.IsSrgb() && fmt.Tag is not (TextureFormat.Case.R16Float or TextureFormat.Case.Rg16Float or TextureFormat.Case.Rgba16Float))
+			throw new ArgumentException($"Canvas blends in linear light, so it needs an sRGB or 16-bit float target, but the target has format {fmt}; for a surface, use SurfaceFormatPolicy.Srgb");
 	}
 
 	// ==========================================================================
@@ -645,7 +635,7 @@ public sealed class OwnedCanvas : IDisposable {
 		ColorAttachmentOps ops = loadOp.ToColorAttachmentOps();
 		pass = p.Target.IsPrimary
 			? frame.BeginPrimaryPass(ops)
-			: frame.Encoder.BeginColorPass(p.Target.RenderTarget.ColorView, ops);
+			: frame.Encoder.BeginColorPass(p.Target.RenderTarget.GpuTexture.DefaultView, ops);
 		setPipeline = null;
 		setUniformChunk = null;
 		setTexture = null;

@@ -72,7 +72,7 @@ public readonly struct CanvasLoadOp : IEquatable<CanvasLoadOp>, IHasInvalidDefau
 		: throw new InvalidOperationException("CanvasLoadOp.Load has no clear color");
 
 	internal ColorAttachmentOps ToColorAttachmentOps() => IsClear
-		? ColorAttachmentOps.Clear(clearColor.ToRawF128())
+		? ColorAttachmentOps.Clear(CanvasColor.ToLinearPremul(clearColor))
 		: ColorAttachmentOps.Load;
 
 	public bool Equals(CanvasLoadOp other) => kind == other.kind && clearColor == other.clearColor;

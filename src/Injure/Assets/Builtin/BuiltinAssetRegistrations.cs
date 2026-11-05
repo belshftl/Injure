@@ -19,13 +19,13 @@ public static class BuiltinAssetRegistrations {
 		);
 	}
 
-	public static void RegisterTexture2dInto(AssetStore store, GpuDevice gpuDevice) {
+	public static void RegisterSrgbTexture2dInto(AssetStore store, GpuDevice gpuDevice) {
 		ArgumentNullException.ThrowIfNull(store);
 		store.RegisterStagedCreator(
-			new OwnerOrderedEntry<IAssetStagedCreator<Draw.Texture2d, Texture2dAssetPreparedData>>(
-				new Texture2dAssetCreator(gpuDevice),
+			new OwnerOrderedEntry<IAssetStagedCreator<Draw.SrgbTexture2d, SrgbTexture2dAssetPreparedData>>(
+				new SrgbTexture2dAssetCreator(gpuDevice),
 				EngineInfo.OwnerId,
-				"Texture2dAssetCreator"
+				"SrgbTexture2dAssetCreator"
 			)
 		);
 	}

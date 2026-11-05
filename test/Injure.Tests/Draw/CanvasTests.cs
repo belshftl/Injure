@@ -3,7 +3,6 @@
 
 using System.Numerics;
 using Injure.Draw;
-using Injure.Draw.PixelConv;
 using Injure.Gpu;
 using Injure.Primitives;
 using Injure.Tests.Gpu;
@@ -24,7 +23,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	// draws into a size x size test texture standing in for the primary output and returns its texels
 	private byte[] render(RawColor32 clear, Action<OwnedCanvas> draw, uint size = 4) {
-		using GpuTexture target = GpuRig.Target(Device, size, size);
+		using GpuTexture target = GpuRig.Target(Device, size, size, format: TextureFormat.Rgba8UnormSrgb);
 		using (RenderFrame frame = new(Device, new GpuRig.FakeOutput(target))) {
 			using (OwnedCanvas canvas = new(frame, baseParams(clear, size)))
 				draw(canvas);
@@ -33,16 +32,19 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		return GpuRig.Read(Device, target);
 	}
 
-	private Texture2d solid(RawColor32 color) {
-		Texture2d tex = new(Device, 1, 1);
-		tex.Upload([color.R, color.G, color.B, color.A], 4, PixelFormat.Rgba32Unorm);
+	private SrgbTexture2d texture(uint width, uint height, MipLevels mips = default) =>
+		new(Device, new SrgbTexture2dParams(width, height, TextureFormat.Rgba8UnormSrgb, mips));
+
+	private SrgbTexture2d solid(RawColor32 color) {
+		SrgbTexture2d tex = texture(1, 1);
+		tex.Upload([color.R, color.G, color.B, color.A], 4);
 		return tex;
 	}
 
 	// regression test: render targets used to get the primary target's projection
 	[Fact]
 	public void RenderTargetsOfOtherSizesUseTheirOwnProjection() {
-		using RenderTarget2d rt = new(Device, 8, 8);
+		using SrgbRenderTarget2d rt = new(Device, 8, 8);
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(target: CanvasTarget.Offscreen(rt, CanvasLoadOp.Clear(blue.AssumeSrgbStraight()))))
@@ -58,7 +60,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void InterleavedPrimitivesAndTexturesKeepCallOrder() {
-		using Texture2d greenTex = solid(green);
+		using SrgbTexture2d greenTex = solid(green);
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			cv.Rect(new RectF(0, 0, 4, 4), red.AssumeSrgbStraight());
@@ -74,9 +76,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	[Fact]
 	public void TextureDrawsHonorRegionDestinationAndTint() {
 		// 2x1 texture: red, green
-		using Texture2d tex = new(Device, 2, 1);
-		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255], 8, PixelFormat.Rgba32Unorm);
-		using Texture2d white = solid(RawColor32.White);
+		using SrgbTexture2d tex = texture(2, 1);
+		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255], 8);
+		using SrgbTexture2d white = solid(RawColor32.White);
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			// pixel region at a position: natural size of the region, i.e. 1x1
@@ -101,9 +103,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	[Fact]
 	public void TextureDrawsRotateScaleAndFlipAroundTheOrigin() {
 		// 2x1 texture: red, green; drawn into the whole 4x4 target it's left half red, right half green
-		using Texture2d tex = new(Device, 2, 1);
-		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255], 8, PixelFormat.Rgba32Unorm);
-		using Texture2d white = solid(RawColor32.White);
+		using SrgbTexture2d tex = texture(2, 1);
+		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255], 8);
+		using SrgbTexture2d white = solid(RawColor32.White);
 		RectF full = new(0, 0, 4, 4);
 
 		// a quarter turn clockwise around the center moves the left half to the top
@@ -133,9 +135,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	}
 
 	// 2x1 texture: red, blue
-	private Texture2d redBlue() {
-		Texture2d tex = new(Device, 2, 1);
-		tex.Upload([255, 0, 0, 255, 0, 0, 255, 255], 8, PixelFormat.Rgba32Unorm);
+	private SrgbTexture2d redBlue() {
+		SrgbTexture2d tex = texture(2, 1);
+		tex.Upload([255, 0, 0, 255, 0, 0, 255, 255], 8);
 		return tex;
 	}
 
@@ -156,7 +158,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void SamplingComesFromTheDrawOrTheCanvas() {
-		using Texture2d tex = redBlue();
+		using SrgbTexture2d tex = redBlue();
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			cv.Texture(tex, new RectF(0, 0, 4, 1));
@@ -174,7 +176,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void UntexturedDrawsDontDependOnSampling() {
-		using Texture2d tex = redBlue();
+		using SrgbTexture2d tex = redBlue();
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			cv.Texture(tex, new TexDraw(new RectF(0, 0, 4, 1)) { Sampling = TexSampling.Linear });
@@ -198,7 +200,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Sampling = new TexSampling(TexFilter.Nearest, wrap),
 		};
 
-		using Texture2d tex = redBlue();
+		using SrgbTexture2d tex = redBlue();
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			cv.Texture(tex, row(0, TexAddressing.Clamp));
@@ -216,7 +218,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	[InlineData(0f, 0.5f)]
 	[InlineData(0.25f, 0.25f)]
 	public void AreaWeightedMixesByCoverage(float offset, float blueCoverage) {
-		using Texture2d tex = redBlue();
+		using SrgbTexture2d tex = redBlue();
 		byte[] px = render(black, canvas => {
 			canvas.Canvas.Texture(tex, new TexDraw(new RectF(offset, 0, 5, 5)) {
 				Sampling = TexSampling.AreaWeighted,
@@ -226,15 +228,19 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		Assert.Equal(red, GpuRig.At(px, 5, 1, 2));
 		Assert.Equal(blue, GpuRig.At(px, 5, 3, 2));
 		Assert.Equal(blue, GpuRig.At(px, 5, 4, 2));
+		// the mix is by coverage in linear light, so each channel is its coverage sRGB-encoded
 		RawColor32 mix = GpuRig.At(px, 5, 2, 2);
-		Assert.InRange(mix.R, 255 * (1f - blueCoverage) - 3, 255 * (1f - blueCoverage) + 3);
-		Assert.InRange(mix.B, 255 * blueCoverage - 3, 255 * blueCoverage + 3);
+		Assert.InRange(mix.R, encode(1f - blueCoverage) - 3, encode(1f - blueCoverage) + 3);
+		Assert.InRange(mix.B, encode(blueCoverage) - 3, encode(blueCoverage) + 3);
 	}
+
+	private static float encode(float linear) =>
+		255f * (linear <= 0.0031308f ? linear * 12.92f : 1.055f * MathF.Pow(linear, 1f / 2.4f) - 0.055f);
 
 	// at an integer scale with texel edges on pixel boundaries, there's nothing to mix
 	[Fact]
 	public void AreaWeightedAtIntegerScalesMatchesNearest() {
-		using Texture2d tex = redBlue();
+		using SrgbTexture2d tex = redBlue();
 		byte[] px = render(black, canvas => {
 			canvas.Canvas.Texture(tex, new TexDraw(new RectF(0, 0, 4, 1)) {
 				Sampling = TexSampling.AreaWeighted,
@@ -245,7 +251,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void AreaWeightedDoesntAffectUntexturedDraws() {
-		using Texture2d tex = redBlue();
+		using SrgbTexture2d tex = redBlue();
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(sampling: TexSampling.AreaWeighted)) {
@@ -256,20 +262,6 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		for (uint y = 1; y < 4; y++)
 			for (uint x = 0; x < 4; x++)
 				Assert.Equal(green, GpuRig.At(px, 4, x, y));
-	}
-
-	[Fact]
-	public void SdfTexturesRequireLinearSampling() {
-		using Texture2d tex = redBlue();
-		render(black, canvas => {
-			Canvas cv = canvas.Canvas;
-			using (cv.PushParams(material: CanvasMaterial.Sdf(new SdfParams(4f)))) {
-				TexDraw areaWeighted = new(new RectF(0, 0, 4, 4)) { Sampling = TexSampling.AreaWeighted };
-				Assert.Throws<InvalidOperationException>(() => canvas.Canvas.Texture(tex, new RectF(0, 0, 4, 4)));
-				Assert.Throws<InvalidOperationException>(() => canvas.Canvas.Texture(tex, areaWeighted));
-				cv.Texture(tex, new TexDraw(new RectF(0, 0, 4, 4)) { Sampling = TexSampling.Linear });
-			}
-		});
 	}
 
 	[Fact]
@@ -472,7 +464,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	// target nor popping back to it should apply that clear again
 	[Fact]
 	public void InheritedAndReturnedToTargetsKeepTheirContents() {
-		using RenderTarget2d rt = new(Device, 4, 4);
+		using SrgbRenderTarget2d rt = new(Device, 4, 4);
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			cv.Rect(new RectF(0, 0, 2, 4), red.AssumeSrgbStraight());
@@ -489,7 +481,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void OffscreenTargetsApplyTheirViewport() {
-		using RenderTarget2d rt = new(Device, 4, 4);
+		using SrgbRenderTarget2d rt = new(Device, 4, 4);
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			var target = CanvasTarget.Offscreen(rt, CanvasLoadOp.Clear(blue.AssumeSrgbStraight()), new Viewport(new Vector2(2, 0), 1f, new Vector2(2, 4)));
@@ -533,7 +525,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		Assert.Throws<InvalidDefaultException>(() => default(CanvasTarget).LoadOp);
 		Assert.Throws<ArgumentInvalidDefaultException>(() => CanvasTarget.Primary(default, CanvasLoadOp.Load));
 		Assert.Throws<ArgumentInvalidDefaultException>(() => CanvasTarget.Primary(scaled(1), default));
-		using RenderTarget2d rt = new(Device, 4, 4);
+		using SrgbRenderTarget2d rt = new(Device, 4, 4);
 		Assert.Throws<ArgumentInvalidDefaultException>(() => CanvasTarget.Offscreen(rt, CanvasLoadOp.Load, default));
 		Assert.Throws<ArgumentInvalidDefaultException>(() => CanvasTarget.Offscreen(rt, default));
 	}
@@ -599,13 +591,12 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			});
 		});
 		Assert.Throws<InvalidDefaultException>(() => default(CanvasMaterial).TextureInterpretation);
-		Assert.Throws<InvalidDefaultException>(() => default(CanvasMaterial).SdfParams);
 	}
 
 	[Fact]
 	public void TargetEqualityIncludesTheViewportAndLoadOp() {
-		using RenderTarget2d rt = new(Device, 4, 4);
-		using RenderTarget2d other = new(Device, 4, 4);
+		using SrgbRenderTarget2d rt = new(Device, 4, 4);
+		using SrgbRenderTarget2d other = new(Device, 4, 4);
 		Viewport two = scaled(2), one = scaled(1);
 		CanvasLoadOp load = CanvasLoadOp.Load, clear = CanvasLoadOp.Clear(SrgbStraight32.Red);
 
@@ -642,22 +633,22 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	}
 
 	// 4x4 checkerboard of a and b
-	private Texture2d checker(RawColor32 a, RawColor32 b, Texture2dMipFilter? mips) {
-		Texture2d tex = new(Device, new Texture2dParams(4, 4, Mips: mips));
+	private SrgbTexture2d checker(RawColor32 a, RawColor32 b, MipLevels mips) {
+		SrgbTexture2d tex = texture(4, 4, mips);
 		byte[] px = new byte[4 * 4 * 4];
 		for (int y = 0; y < 4; y++)
 			for (int x = 0; x < 4; x++)
 				((x + y) % 2 == 0 ? a : b).WriteRgbaBytes(px.AsSpan((y * 4 + x) * 4));
-		tex.Upload(px, 16, PixelFormat.Rgba32Unorm);
+		tex.Upload(px, 16);
 		return tex;
 	}
 
 	// a 4x4 texture drawn into one pixel samples its 1x1 mip level; opaque output writes the sampled
 	// value without blending it with the target
-	private RawColor32 sampleSmallest(Texture2d tex) {
+	private RawColor32 sampleSmallest(SrgbTexture2d tex) {
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			using (cv.PushParams(outputState: CanvasOutputStates.Opaque, sampling: TexSampling.Linear))
+			using (cv.PushParams(blendMode: CanvasBlendMode.Opaque, sampling: TexSampling.Linear))
 				cv.Texture(tex, new RectF(0, 0, 1, 1));
 		});
 		return GpuRig.At(px, 4, 0, 0);
@@ -673,69 +664,71 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	}
 
 	[Fact]
-	public void TexturesHaveFullMipChainsWhenAskedTo() {
-		using Texture2d oneByOne = new(Device, new Texture2dParams(1, 1, Mips: Texture2dMipFilter.Raw));
-		using Texture2d wide = new(Device, new Texture2dParams(5, 3, Mips: Texture2dMipFilter.Raw));
-		using Texture2d big = new(Device, new Texture2dParams(256, 64, Mips: Texture2dMipFilter.Color));
+	public void TexturesHaveTheMipLevelsAskedFor() {
+		using SrgbTexture2d oneByOne = texture(1, 1, MipLevels.FullChain);
+		using SrgbTexture2d wide = texture(5, 3, MipLevels.FullChain);
+		using SrgbTexture2d big = texture(256, 64, MipLevels.FullChain);
+		using SrgbTexture2d some = texture(256, 64, MipLevels.Count(3));
 		Assert.Equal(1u, oneByOne.MipLevelCount);
 		Assert.Equal(3u, wide.MipLevelCount);
 		Assert.Equal(9u, big.MipLevelCount);
-		Assert.Equal(Texture2dMipFilter.Color, big.MipFilter);
+		Assert.Equal(3u, some.MipLevelCount);
+		Assert.Throws<ArgumentOutOfRangeException>(() => texture(5, 3, MipLevels.Count(4)));
 
-		using Texture2d single = new(Device, 5, 3);
+		using SrgbTexture2d single = texture(5, 3);
 		Assert.Equal(1u, single.MipLevelCount);
-		Assert.Null(single.MipFilter);
-		Assert.Throws<InvalidOperationException>(single.GenerateMips);
-		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2d(Device, new Texture2dParams(4, 4, Mips: default(Texture2dMipFilter))));
-		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2d(Device, new Texture2dParams(4, 4, Format: default(Texture2dFormat))));
+		// no-op with a single mip level
+		single.GenerateMips();
+	}
+
+	[Fact]
+	public void SrgbTexturesTakeBgraAndRejectDefaultParams() {
+		Assert.Throws<ArgumentInvalidDefaultException>(() => new SrgbTexture2d(Device, default));
+		using SrgbTexture2d bgra = new(Device, new SrgbTexture2dParams(4, 4, TextureFormat.Bgra8UnormSrgb));
 	}
 
 	[Fact]
 	public void ColorMipsAverageInLinearLight() {
-		using Texture2d color = checker(red, blue, Texture2dMipFilter.Color);
-		using Texture2d raw = checker(red, blue, Texture2dMipFilter.Raw);
+		using SrgbTexture2d tex = checker(red, blue, MipLevels.FullChain);
 		// half of 1.0 in linear light, sRGB-encoded, is 188
-		assertNear(new RawColor32(188, 0, 188), sampleSmallest(color));
-		assertNear(new RawColor32(128, 0, 128), sampleSmallest(raw));
+		assertNear(new RawColor32(188, 0, 188), sampleSmallest(tex));
+	}
+
+	// half of red's light at half alpha
+	[Fact]
+	public void ColorMipsOfTranslucentTexturesStayPremultiplied() {
+		using SrgbTexture2d tex = checker(red, new RawColor32(0, 0, 0, 0), MipLevels.FullChain);
+		assertNear(new RawColor32(188, 0, 0, 128), sampleSmallest(tex));
 	}
 
 	[Fact]
-	public void ColorMipsDontBleedTransparentTexels() {
-		RawColor32 clearGreen = new(0, 255, 0, 0);
-		using Texture2d color = checker(red, clearGreen, Texture2dMipFilter.Color);
-		using Texture2d raw = checker(red, clearGreen, Texture2dMipFilter.Raw);
-		assertNear(new RawColor32(255, 0, 0, 128), sampleSmallest(color));
-		assertNear(new RawColor32(128, 128, 0, 128), sampleSmallest(raw));
-	}
-
-	[Fact]
-	public void MipsAreRegeneratedAfterUploads() {
-		using Texture2d tex = checker(red, red, Texture2dMipFilter.Raw);
+	public void UploadRegeneratesMipsAndUploadToMipDoesnt() {
+		using SrgbTexture2d tex = checker(red, red, MipLevels.FullChain);
 		assertNear(red, sampleSmallest(tex));
-		// a partial upload covering a quarter of the texture
 		byte[] bluePx = new byte[2 * 2 * 4];
 		for (int i = 0; i < 4; i++)
 			blue.WriteRgbaBytes(bluePx.AsSpan(i * 4));
-		tex.Upload(0, 0, bluePx, 8, PixelFormat.Rgba32Unorm, 2, 2);
-		assertNear(new RawColor32(191, 0, 64), sampleSmallest(tex));
-		tex.Upload(2, 2, bluePx, 8, PixelFormat.Rgba32Unorm, 2, 2);
+		// a quarter blue is 0.75 and 0.25 in linear light, which encode to 225 and 137
+		tex.Upload(0, 0, 2, 2, bluePx, 8);
+		assertNear(new RawColor32(225, 0, 137), sampleSmallest(tex));
+		tex.UploadToMip(0, 2, 2, 2, 2, bluePx, 8);
+		assertNear(new RawColor32(225, 0, 137), sampleSmallest(tex));
 		tex.GenerateMips();
-		tex.GenerateMips();
-		assertNear(new RawColor32(128, 0, 128), sampleSmallest(tex));
+		assertNear(new RawColor32(188, 0, 188), sampleSmallest(tex));
 	}
 
 	// 2x2 texture: red, green / blue, white
-	private Texture2d quadrants() {
-		Texture2d tex = new(Device, 2, 2);
-		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255], 8, PixelFormat.Rgba32Unorm);
+	private SrgbTexture2d quadrants() {
+		SrgbTexture2d tex = texture(2, 2);
+		tex.Upload([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255], 8);
 		return tex;
 	}
 
 	[Fact]
 	public void SlicesDrawLikeTexturesOfTheirOwn() {
-		using Texture2d tex = quadrants();
-		Texture2dSlice[] cells = Texture2dSlice.Grid(tex, new Vector2Int(1, 1));
-		Texture2dSlice topRow = new(tex, new RectI(0, 0, 2, 1));
+		using SrgbTexture2d tex = quadrants();
+		DrawableTextureSlice[] cells = DrawableTextureSlice.Grid(tex, new Vector2Int(1, 1));
+		DrawableTextureSlice topRow = new(tex, new RectI(0, 0, 2, 1));
 		byte[] px = render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			// natural size of a slice is its own size
@@ -756,9 +749,9 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void SlicesOfOneTextureShareADrawCall() {
-		using Texture2d tex = quadrants();
-		using Texture2d other = solid(green);
-		Texture2dSlice[] cells = Texture2dSlice.Grid(tex, new Vector2Int(1, 1));
+		using SrgbTexture2d tex = quadrants();
+		using SrgbTexture2d other = solid(green);
+		DrawableTextureSlice[] cells = DrawableTextureSlice.Grid(tex, new Vector2Int(1, 1));
 		OwnedCanvas? oc = null;
 		render(black, canvas => {
 			oc = canvas;
@@ -779,20 +772,20 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void SlicesRejectRectsAndRegionsOutsideThem() {
-		using Texture2d tex = quadrants();
-		Assert.Throws<ArgumentException>(() => new Texture2dSlice(tex, new RectI(1, 1, 2, 1)));
-		Assert.Throws<ArgumentException>(() => new Texture2dSlice(tex, new RectI(-1, 0, 1, 1)));
-		Assert.Throws<ArgumentException>(() => new Texture2dSlice(tex, new RectI(0, 0, 0, 1)));
-		Assert.Throws<ArgumentInvalidDefaultException>(() => new Texture2dSlice(default, new RectI(0, 0, 1, 1)));
-		Assert.Throws<ArgumentInvalidDefaultException>(() => (DrawableTexture)default(Texture2dSlice));
-		Texture2dSlice topRow = new(tex, new RectI(0, 0, 2, 1));
+		using SrgbTexture2d tex = quadrants();
+		Assert.Throws<ArgumentException>(() => new DrawableTextureSlice(tex, new RectI(1, 1, 2, 1)));
+		Assert.Throws<ArgumentException>(() => new DrawableTextureSlice(tex, new RectI(-1, 0, 1, 1)));
+		Assert.Throws<ArgumentException>(() => new DrawableTextureSlice(tex, new RectI(0, 0, 0, 1)));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => new DrawableTextureSlice(default, new RectI(0, 0, 1, 1)));
+		Assert.Throws<ArgumentInvalidDefaultException>(() => (DrawableTexture)default(DrawableTextureSlice));
+		DrawableTextureSlice topRow = new(tex, new RectI(0, 0, 2, 1));
 		Assert.Throws<ArgumentException>(() => topRow.Slice(new RectI(0, 0, 1, 2)));
 		Assert.Equal(new RectI(1, 0, 1, 1), topRow.Slice(new RectI(1, 0, 1, 1)).Rect);
-		Assert.Equal(new Texture2dSlice(tex, new RectI(1, 0, 1, 1)), topRow.Slice(new RectI(1, 0, 1, 1)));
+		Assert.Equal(new DrawableTextureSlice(tex, new RectI(1, 0, 1, 1)), topRow.Slice(new RectI(1, 0, 1, 1)));
 
 		render(black, canvas => {
 			Canvas cv = canvas.Canvas;
-			Texture2dSlice cell = new(tex, new RectI(0, 0, 1, 1));
+			DrawableTextureSlice cell = new(tex, new RectI(0, 0, 1, 1));
 			TexDraw[] bad = [
 				new(new Vector2(0, 0)) { Source = TexRegion.Texels(new RectF(1, 0, 1, 1)) },
 				new(new Vector2(0, 0)) { Source = TexRegion.Uv(new RectF(0, 0, 2, 1)) },
@@ -812,16 +805,16 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void GridsHonorMarginAndSpacing() {
-		using Texture2d tex = new(Device, 7, 4);
+		using SrgbTexture2d tex = texture(7, 4);
 		// with margin 1 and spacing 1, 2x2 cells fit twice horizontally and once vertically
-		Texture2dSlice[] cells = Texture2dSlice.Grid(tex, new Vector2Int(2, 2), margin: 1, spacing: 1);
+		DrawableTextureSlice[] cells = DrawableTextureSlice.Grid(tex, new Vector2Int(2, 2), margin: 1, spacing: 1);
 		Assert.Equal([new RectI(1, 1, 2, 2), new RectI(4, 1, 2, 2)], cells.Select(c => c.Rect));
-		Assert.Throws<ArgumentException>(() => Texture2dSlice.Grid(tex, new Vector2Int(8, 1)));
-		Assert.Throws<ArgumentException>(() => Texture2dSlice.Grid(tex, new Vector2Int(2, 2), 3, 1));
+		Assert.Throws<ArgumentException>(() => DrawableTextureSlice.Grid(tex, new Vector2Int(8, 1)));
+		Assert.Throws<ArgumentException>(() => DrawableTextureSlice.Grid(tex, new Vector2Int(2, 2), 3, 1));
 
 		// grids of a slice are relative to it, ordered row by row
-		Texture2dSlice right = new(tex, new RectI(3, 0, 4, 4));
-		Texture2dSlice[] sub = Texture2dSlice.Grid(right, new Vector2Int(2, 2), 2, 2);
+		DrawableTextureSlice right = new(tex, new RectI(3, 0, 4, 4));
+		DrawableTextureSlice[] sub = DrawableTextureSlice.Grid(right, new Vector2Int(2, 2), 2, 2);
 		Assert.Equal(
 			[new RectI(3, 0, 2, 2), new RectI(5, 0, 2, 2), new RectI(3, 2, 2, 2), new RectI(5, 2, 2, 2)],
 			sub.Select(c => c.Rect)
@@ -831,7 +824,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void StoreOwnedTexturesCantBeDisposedUntilReleased() {
-		Texture2d tex = new(Device, 1, 1);
+		SrgbTexture2d tex = texture(1, 1);
 		Assert.False(tex.IsAssetStoreOwned);
 		Injure.Assets.AssetStoreCustody custody = new(new Injure.Assets.AssetId("test", "tex.png"), "version 3 of asset 'test::tex.png'", 3);
 		((Injure.Assets.IAssetStoreValue)tex).AttachCustody(custody);
@@ -839,7 +832,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		Assert.Throws<InvalidOperationException>(tex.Dispose);
 		custody.Release();
 		tex.Dispose();
-		ObjectDisposedException ex = Assert.Throws<ObjectDisposedException>(() => tex.Width);
+		ObjectDisposedException ex = Assert.Throws<ObjectDisposedException>(() => tex.GpuTexture);
 		Assert.Contains("test::tex.png", ex.Message);
 	}
 
@@ -853,8 +846,11 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 				cv.ClearWithinScissor(translucent.AssumeSrgbStraight());
 			cv.Rect(new RectF(3, 3, 1, 1), green.AssumeSrgbStraight());
 		});
-		Assert.Equal(translucent, GpuRig.At(px, 4, 0, 0));
-		Assert.Equal(translucent, GpuRig.At(px, 4, 3, 0));
+		// replaced rather than blended, and stored premultiplied
+		// half of blue's light is 188
+		RawColor32 premul = new(0, 0, 188, 128);
+		Assert.Equal(premul, GpuRig.At(px, 4, 0, 0));
+		Assert.Equal(premul, GpuRig.At(px, 4, 3, 0));
 		Assert.Equal(green, GpuRig.At(px, 4, 3, 3));
 	}
 
@@ -878,7 +874,8 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 			Target: CanvasTarget.Primary(vp, CanvasLoadOp.Clear(SrgbStraight32.Red)),
 			Scissor: CanvasScissor.None,
 			Transform: Matrix3x2.Identity,
-			OutputState: CanvasOutputStates.Alpha,
+			BlendMode: CanvasBlendMode.Normal,
+			WriteMask: ColorWriteMask.All,
 			Material: CanvasMaterial.Color,
 			Sampling: TexSampling.Nearest
 		), p);
@@ -887,7 +884,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void FramePrimaryFactoryCoversTheWholeOutput() {
-		using GpuTexture target = GpuRig.Target(Device, 6, 4);
+		using GpuTexture target = GpuRig.Target(Device, 6, 4, format: TextureFormat.Rgba8UnormSrgb);
 		using RenderFrame frame = new(Device, new GpuRig.FakeOutput(target));
 		var p = CanvasParams.Primary(frame, CanvasLoadOp.Clear(SrgbStraight32.Red), pixelsPerUnit: 2f);
 		Assert.Equal(CanvasParams.Primary(Viewport.Whole(new Vector2(6, 4), 2f), CanvasLoadOp.Clear(SrgbStraight32.Red)), p);
@@ -901,7 +898,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	// first frame's arena and buffers rather than allocate per draw or per frame
 	[Fact]
 	public void ArenasAreReusedAcrossFrames() {
-		using Texture2d a = solid(red), b = solid(green);
+		using SrgbTexture2d a = solid(red), b = solid(green);
 		CanvasArenaPool pool = CanvasDeviceResources.For(Device).ArenaPool;
 		void frame() => render(black, canvas => {
 			Canvas cv = canvas.Canvas;
@@ -953,7 +950,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 		CanvasArenaPool pool = CanvasDeviceResources.For(Device).ArenaPool;
 		withPolicy(new CanvasMemoryPolicy(0, TimeSpan.Zero), () => {
 			// two canvases in one frame need two arenas
-			using (GpuTexture target = GpuRig.Target(Device, 4, 4)) {
+			using (GpuTexture target = GpuRig.Target(Device, 4, 4, format: TextureFormat.Rgba8UnormSrgb)) {
 				using RenderFrame frame = new(Device, new GpuRig.FakeOutput(target));
 				using (OwnedCanvas a = new(frame, baseParams(black)))
 					a.Canvas.TriangleList(hugeTriangleList, SrgbStraight32.White);
@@ -980,7 +977,7 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	[Fact]
 	public void DrawingIntoTheActiveTargetIsRejected() {
-		using RenderTarget2d rt = new(Device, 4, 4);
+		using SrgbRenderTarget2d rt = new(Device, 4, 4);
 		render(black, canvas => {
 			Canvas cv = canvas.Canvas;
 			using (cv.PushParams(target: CanvasTarget.Offscreen(rt, CanvasLoadOp.Load))) {
@@ -1040,7 +1037,8 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 
 	private byte[] render16(Action<Canvas> draw) => render(black, canvas => draw(canvas.Canvas), 16);
 	private static RawColor32 at16(byte[] px, uint x, uint y) => GpuRig.At(px, 16, x, y);
-	private static bool isHalf(RawColor32 c) => c.R is >= 125 and <= 131 && c.G == 0 && c.B == 0;
+	// half of red's light, which is 188 sRGB-encoded
+	private static bool isHalf(RawColor32 c) => c.R is >= 185 and <= 191 && c.G == 0 && c.B == 0;
 
 	// checks that a translucent red draw over black blended exactly once wherever it drew anything;
 	// returns how many pixels it drew
@@ -1373,21 +1371,15 @@ public sealed class CanvasTests(GpuDeviceFixture fixture) : GpuTestBase(fixture)
 	}
 
 	[Fact]
-	public void RenderTargetsRejectMismatchedFormats() {
-		Assert.Throws<ArgumentException>(() => new RenderTarget2d(Device, new RenderTarget2dParams(4, 4, TextureFormat.Depth32Float)));
-		Assert.Throws<ArgumentException>(() => new RenderTarget2d(Device, new RenderTarget2dParams(4, 4, TextureFormat.Rgba8Unorm, TextureFormat.Stencil8)));
-		using RenderTarget2d withDepth = new(Device, new RenderTarget2dParams(4, 4, TextureFormat.Rgba8Unorm, TextureFormat.Depth24PlusStencil8));
-		Assert.Throws<ArgumentNullException>(() => withDepth.CreateFilteringDepthBindGroup(null!));
-		using GpuSampler comparison = Device.CreateSampler(SamplerStates.LinearClamp with { Compare = CompareFunction.Less });
-		using GpuBindGroup group = withDepth.CreateComparisonDepthBindGroup(comparison);
-		Assert.Throws<ArgumentNullException>(() => withDepth.CreateColorBindGroup(null!));
-		using GpuSampler linear = Device.CreateSampler(SamplerStates.LinearClamp);
-		using GpuBindGroup colorGroup = withDepth.CreateColorBindGroup(linear);
+	public void RenderTargetsNeedRenderableSrgbFormats() {
+		Assert.Throws<ArgumentException>(() => new SrgbRenderTarget2d(Device, new SrgbRenderTarget2dParams(4, 4, TextureFormat.Rgba8Unorm)));
+		Assert.Throws<ArgumentException>(() => new SrgbRenderTarget2d(Device, new SrgbRenderTarget2dParams(4, 4, TextureFormat.Depth32Float)));
+		using SrgbRenderTarget2d bgra = new(Device, new SrgbRenderTarget2dParams(4, 4, TextureFormat.Bgra8UnormSrgb));
 	}
 
 	[Fact]
 	public void DisposedCanvasThrows() {
-		using GpuTexture target = GpuRig.Target(Device, 4, 4);
+		using GpuTexture target = GpuRig.Target(Device, 4, 4, format: TextureFormat.Rgba8UnormSrgb);
 		using RenderFrame frame = new(Device, new GpuRig.FakeOutput(target));
 		OwnedCanvas canvas = new(frame, baseParams(black));
 		canvas.Dispose();

@@ -46,36 +46,27 @@ namespace Injure.Draw;
 /// </para>
 /// <para>
 /// Draws may be batched; the exact batching behavior is unspecified. Draws are never reordered.
-/// </para>
-/// <para>
 /// Only triangles are ever drawn; geometry for all other shapes is generated as triangles rather
 /// than using line/list/strip/etc GPU primitives. Curved shapes are approximated by polygons.
 /// There is no face culling, so winding order doesn't affect visual output.
 /// </para>
 /// <para>
-/// Colors are sRGB-encoded, and blending happens on the encoded values. Targets must therefore have
-/// non-sRGB formats, so the values reach them unchanged; see
-/// <see cref="SurfaceFormatPolicy.NonSrgb"/>. Texture texels are likewise taken as stored, so
-/// textures should hold sRGB-encoded colors in non-sRGB formats.
+/// Colors are taken in as sRGB-encoded with straight alpha (<see cref="SrgbStraight32"/>), and
+/// internally drawn/blended in linear light with premultiplied alpha. So, for example, a 50% white
+/// over black is blended to half the light, which when sRGB-encoded is a value of 188 rather than
+/// 128. Targets therefore need to be in an sRGB format, which encodes the result as it's written,
+/// or a 16-bit float format, which stores it in linear; for a surface, use
+/// <see cref="SurfaceFormatPolicy.Srgb"/>.
 /// </para>
 /// <para>
-/// Has built-in <see cref="TextSystem"/> integration for convenience:
+/// Has built-in <see cref="TextSystem"/> integration for convenience; see
 /// <see cref="Text(ReadOnlySpan{char}, in TextStyle, Vector2, TextLayoutOptions?, SrgbStraight32?)"/>
-/// and <see cref="Text(RichText, Vector2, TextLayoutOptions?, SrgbStraight32?)"/> lay out the text on
-/// the spot through a <see cref="TextSystem"/> passed to the <see cref="OwnedCanvas"/> at creation,
-/// and cache the layout for later draws.
+/// and <see cref="Text(RichText, Vector2, TextLayoutOptions?, SrgbStraight32?)"/>.
 /// </para>
 /// <para>
 /// The name clashes with the <c>Canvas</c> controls of Avalonia and WPF, and is similar to MAUI's
 /// <c>ICanvas</c>. Code that runs into such a conflict can alias this type, e.g.
 /// <c>global using IjCanvas = Injure.Draw.Canvas;</c>.
-/// </para>
-/// <para>
-/// Informative: untextured draws actually use a 1x1 <see cref="TextureInterpretation.Color"/> white
-/// texture, and <see cref="CanvasParams.Transform"/> and <see cref="CanvasTarget.Viewport"/> are
-/// applied on the CPU rather than in a vertex shader. Both of these allow for particular internal
-/// optimizations. The functional behavior is unchanged, and the optimizations heavily outweigh the
-/// miniscule added overhead.
 /// </para>
 /// <para>
 /// The <see langword="default"/> value is invalid.
@@ -174,7 +165,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// This is unrelated to <see cref="CanvasLoadOp.Clear(SrgbStraight32)"/>.
 	/// <see cref="CanvasLoadOp.Clear(SrgbStraight32)"/> tells the GPU to clear the current contents
 	/// when attaching a render target, whereas this just draws a quad covering the whole target with
-	/// <see cref="CanvasOutputStates.Opaque"/>, ignoring the current transform / output state / write
+	/// <see cref="CanvasBlendMode.Opaque"/>, ignoring the current transform, blend mode, and write
 	/// mask, and doesn't start a new render pass.
 	/// </para>
 	/// <para>
@@ -184,7 +175,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <see cref="CanvasScissorOverride.NoScissor"/>.
 	/// </para>
 	/// <para>
-	/// Thanks to <see cref="CanvasOutputStates.Opaque"/>, this replaces the contents on all channels;
+	/// Thanks to <see cref="CanvasBlendMode.Opaque"/>, this replaces the contents on all channels;
 	/// even if <paramref name="color"/> is non-opaque, it replaces the existing color rather than
 	/// blending with it.
 	/// </para>
@@ -981,15 +972,13 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <exception cref="ArgumentException">
 	/// Thrown if <paramref name="draw"/>'s <see cref="TexDraw.Origin"/>, <see cref="TexDraw.Scale"/>,
 	/// or <see cref="TexDraw.Rotation"/> isn't finite, or if <paramref name="tex"/> is a
-	/// <see cref="Texture2dSlice"/> that doesn't fit in its texture or <paramref name="draw"/>'s
-	/// <see cref="TexDraw.Source"/> reaches outside it.
+	/// <see cref="DrawableTextureSlice"/> that doesn't fit in its texture or
+	/// <paramref name="draw"/>'s <see cref="TexDraw.Source"/> reaches outside it.
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if <paramref name="tex"/> is the currently active render target, if it's a
 	/// <see cref="Versioned{T}"/> (or a slice of one) and the calling thread isn't attached to its
-	/// asset store (see <see cref="DrawableTexture"/>), or if the current material is
-	/// <see cref="TextureInterpretation.Sdf"/> and the sampling filter isn't
-	/// <see cref="TexFilter.Linear"/>.
+	/// asset store (see <see cref="DrawableTexture"/>).
 	/// </exception>
 	public void Texture(DrawableTexture tex, in TexDraw draw) {
 		// positive angles turn +X towards +Y, i.e. clockwise since +Y = down
@@ -1070,8 +1059,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="tint">
 	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
 	/// <see langword="null"/> for <see cref="SrgbStraight32.White"/>, i.e. no tint. Alpha is multiplied
-	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
-	/// type-level docs).
+	/// too, and color is multiplied in linear light (see type-level docs).
 	/// </param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="layout"/> is <see langword="null"/>.
@@ -1096,8 +1084,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// puts them with no snapping.
 	/// </para>
 	/// <para>
-	/// Draws with <see cref="CanvasMaterial.Rmask"/> and <see cref="TexFilter.Linear"/> sampling
-	/// regardless of <see cref="CurrentParams"/>; the other parameters apply as usual.
+	/// Currently always throws <see cref="NotImplementedException"/>. That's gonna be fixed soon.
 	/// </para>
 	/// </remarks>
 	public void Text(TextLayout layout, Vector2 at, SrgbStraight32? tint = null) {
@@ -1123,8 +1110,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="tint">
 	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
 	/// <see langword="null"/> for <see cref="SrgbStraight32.White"/>, i.e. no tint. Alpha is multiplied
-	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
-	/// type-level docs).
+	/// too, and color is multiplied in linear light (see type-level docs).
 	/// </param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="style"/>'s <see cref="TextStyle.Fonts"/> is <see langword="null"/>.
@@ -1174,8 +1160,7 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// <param name="tint">
 	/// Multiplicative tint for the glyphs' own colors (see <see cref="TextStyle.Color"/>), or
 	/// <see langword="null"/> for <see cref="SrgbStraight32.White"/>, i.e. no tint. Alpha is multiplied
-	/// too, and the multiplication happens on the sRGB-encoded values, same as blending (see
-	/// type-level docs).
+	/// too, and color is multiplied in linear light (see type-level docs).
 	/// </param>
 	/// <exception cref="ArgumentNullException">
 	/// Thrown if <paramref name="text"/> is <see langword="null"/>.
@@ -1226,12 +1211,10 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 	/// A scope that restores the previous parameters when disposed. Disposing it while a later
 	/// override is still pushed throws <see cref="InvalidOperationException"/>.
 	/// </returns>
-	/// <exception cref="ArgumentInvalidDefaultException">
-	/// Thrown if the resulting parameters' target or material is the <see langword="default"/> value.
-	/// </exception>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the resulting parameters are invalid: they target a texture with an sRGB format, or
-	/// their transform or effective transform isn't invertible (see <see cref="MatrixInvert"/>).
+	/// Thrown if the resulting parameters are invalid: they specify a render target of a format that
+	/// isn't sRGB or 16-bit float, or their transform or effective transform isn't invertible (see
+	/// <see cref="MatrixInvert"/>).
 	/// </exception>
 	/// <exception cref="InvalidOperationException">
 	/// Thrown if the resulting parameters target the primary output and the frame has none.
@@ -1269,15 +1252,17 @@ public readonly ref struct Canvas : IHasInvalidDefault {
 		CanvasTarget? target = null,
 		CanvasScissorOverride? scissor = null,
 		CanvasTransformOverride? transform = null,
-		CanvasOutputState? outputState = null,
+		CanvasBlendMode? blendMode = null,
+		ColorWriteMask? writeMask = null,
 		CanvasMaterial? material = null,
 		TexSampling? sampling = null
 	) {
 		ArgumentInvalidDefaultException.ThrowIfDefault(target);
 		ArgumentInvalidDefaultException.ThrowIfDefault(scissor);
 		ArgumentInvalidDefaultException.ThrowIfDefault(transform);
+		ArgumentInvalidDefaultException.ThrowIfDefault(blendMode);
 		ArgumentInvalidDefaultException.ThrowIfDefault(material);
-		return o.PushParams(new CanvasParamsOverride(target, scissor, transform, outputState, material, sampling));
+		return o.PushParams(new CanvasParamsOverride(target, scissor, transform, blendMode, writeMask, material, sampling));
 	}
 
 	/// <summary>

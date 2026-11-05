@@ -46,12 +46,12 @@ internal sealed record FileKinds(EquatableArray<FileKind> Kinds, EquatableArray<
 [Generator(LanguageNames.CSharp)]
 public sealed class AssetCatalogGenerator : IIncrementalGenerator {
 	private static readonly (string Suffix, string MetadataName)[] builtinKinds = [
-		(".png", KnownNames.Texture2d),
-		(".jpg", KnownNames.Texture2d),
-		(".jpeg", KnownNames.Texture2d),
-		(".bmp", KnownNames.Texture2d),
-		(".tga", KnownNames.Texture2d),
-		(".tex.json", KnownNames.Texture2d),
+		(".png", KnownNames.SrgbTexture2d),
+		(".jpg", KnownNames.SrgbTexture2d),
+		(".jpeg", KnownNames.SrgbTexture2d),
+		(".bmp", KnownNames.SrgbTexture2d),
+		(".tga", KnownNames.SrgbTexture2d),
+		(".tex.json", KnownNames.SrgbTexture2d),
 		(".ttf", KnownNames.FontData),
 		(".otf", KnownNames.FontData),
 		(".ttc", KnownNames.FontData),

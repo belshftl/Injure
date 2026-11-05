@@ -159,7 +159,7 @@ public sealed partial class MacosMetalLayer : IDisposable {
 	/// </para>
 	/// <para>
 	/// Or at least that is in theory. I did some testing by setting <c>colorspace</c> on the Metal
-	/// layer obtained through <see cref="Sdl.SdlWindow.DangerousGetMetalLayer()"/>, on a Mac with a
+	/// layer obtained through <see cref="Sdl.SdlWindow.DangerousGetMetalLayer()"/>, on macOS 15 and a
 	/// Display P3 display, and <c>nil</c> behaved the exact same as <c>kCGColorSpaceSRGB</c>; drawing
 	/// pure red displayed <c>#EA3323</c>, which is exactly sRGB <c>#FF0000</c> converted to Display
 	/// P3. Explicitly setting <c>kCGColorSpaceDisplayP3</c>, though, displayed <c>#FF0000</c>, and
